@@ -508,6 +508,29 @@ body.edit-mode .cmd-notes {
 }
 .btn-xs:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
 
+/* ── 预览模态框 ── */
+#preview-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  flex-direction: column;
+  background: rgba(0,0,0,.9);
+}
+#preview-overlay.show { display: flex; }
+.preview-bar {
+  height: 44px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.preview-bar-title { flex: 1; font-size: 13px; color: var(--dim); }
+#preview-iframe { flex: 1; border: none; background: #0d1117; }
+
 /* ── 帮助按钮（topbar） ── */
 .btn-help {
   margin-left: auto;
@@ -728,6 +751,7 @@ body.edit-mode .cmd-notes {
       <button id="btn-export-expected" title="将当前报告导出为预期结果">导出预期</button>
       <button id="btn-edit" title="切换编辑模式">编辑报告</button>
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
+      <button id="btn-preview" title="预览 HTML 报告">👁 预览</button>
       <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
     </div>
     <div id="expected-bar">
@@ -748,6 +772,16 @@ body.edit-mode .cmd-notes {
     </div>
   </main>
 
+</div>
+
+<!-- ── 预览报告模态框 ── -->
+<div id="preview-overlay">
+  <div class="preview-bar">
+    <span class="preview-bar-title" id="preview-bar-title">报告预览</span>
+    <button id="btn-preview-dl">↓ 下载</button>
+    <button id="btn-preview-close">✕ 关闭</button>
+  </div>
+  <iframe id="preview-iframe" sandbox="allow-same-origin allow-scripts"></iframe>
 </div>
 
 <!-- ── 帮助模态框 ── -->
@@ -1131,9 +1165,7 @@ function copyOutput(idx) {
 
 document.getElementById('btn-download').addEventListener('click', downloadReport);
 
-function downloadReport() {
-  if (!report.innerHTML) return;
-
+function buildReportHTML() {
   const styles = `
     body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1000px;margin:0 auto}
     .rpt-header{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;margin-bottom:16px}
@@ -1147,32 +1179,72 @@ function downloadReport() {
     .cmd-text::before{content:"$ ";color:#8b949e}
     .exit-ok{color:#3fb950;font-size:11px;font-weight:600}
     .exit-err{color:#f85149;font-size:11px;font-weight:600}
+    .match-pass{color:#3fb950;font-size:11px;font-weight:700}
+    .match-fail{color:#f85149;font-size:11px;font-weight:700}
+    .match-skip{color:#8b949e;font-size:11px;font-weight:700}
+    .cmd-marker-badge{font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace}
+    .cmd-marker-badge.fuzzy{background:#3a2e0a60;color:#d29922;border:1px solid #d2992240}
+    .cmd-marker-badge.ignore{background:#21262d;color:#8b949e;border:1px solid #30363d}
     .cmd-output{font-family:Consolas,monospace;font-size:12px;color:#adbac7;background:#0d1117;padding:12px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
     .cmd-notes{padding:8px 14px;font-size:12px;color:#8b949e;background:#1c2128;border-top:1px solid #30363d;min-height:24px}
+    .compare-body{display:grid;grid-template-columns:1fr 1fr}
+    .compare-pane{border-right:1px solid #30363d}
+    .compare-pane:last-child{border-right:none}
+    .compare-label{font-size:11px;font-weight:600;text-transform:uppercase;padding:4px 14px;background:#1c2128;border-bottom:1px solid #30363d;color:#8b949e}
+    .compare-pane.pass .compare-label{color:#3fb950;background:#1a3a2428}
+    .compare-pane.fail .compare-label{color:#f85149;background:#3d0a0a28}
   `;
-
-  // 从当前 DOM 获取（包含用户编辑内容）
-  const bodyHTML = report.innerHTML;
-  const filename = `ssh-report-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.html`;
-  const full = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>SSH 执行报告</title>
+<title>Linux 命令行测试报告</title>
 <style>${styles}</style>
 </head>
 <body>
-<h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">SSH 命令执行报告</h1>
-${bodyHTML}
+<h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">Linux 命令行测试报告</h1>
+${report.innerHTML}
 </body>
 </html>`;
+}
 
-  const blob = new Blob([full], { type: 'text/html;charset=utf-8' });
+function downloadReport() {
+  if (!report.innerHTML) return;
+  const filename = `cmd-report-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.html`;
+  const blob = new Blob([buildReportHTML()], { type: 'text/html;charset=utf-8' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ================================================================
+   预览报告
+   ================================================================ */
+const previewOverlay = document.getElementById('preview-overlay');
+let   previewBlobUrl = null;
+
+document.getElementById('btn-preview').addEventListener('click', () => {
+  if (!report.innerHTML) return;
+  if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+  previewBlobUrl = URL.createObjectURL(
+    new Blob([buildReportHTML()], { type: 'text/html;charset=utf-8' })
+  );
+  document.getElementById('preview-iframe').src = previewBlobUrl;
+  document.getElementById('preview-bar-title').textContent =
+    '报告预览 · ' + (reportTitle.textContent || '');
+  previewOverlay.classList.add('show');
+});
+
+document.getElementById('btn-preview-close').addEventListener('click', closePreview);
+document.getElementById('btn-preview-dl').addEventListener('click', downloadReport);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
+
+function closePreview() {
+  previewOverlay.classList.remove('show');
+  document.getElementById('preview-iframe').src = '';
+  if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); previewBlobUrl = null; }
 }
 
 /* ================================================================

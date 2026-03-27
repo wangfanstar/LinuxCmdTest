@@ -388,6 +388,76 @@ body.edit-mode .cmd-notes {
   cursor: text;
 }
 
+/* ── 测试连接按钮 ── */
+#btn-test {
+  width: 100%;
+  padding: 7px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+#btn-test:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+#btn-test:disabled { opacity: .4; cursor: not-allowed; }
+#btn-test.ok  { border-color: var(--green); color: var(--green); }
+#btn-test.err { border-color: var(--red);   color: var(--red);   }
+
+/* ── 预期结果状态栏 ── */
+#expected-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  background: #1f3a6e22;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+#expected-bar.show { display: flex; }
+#expected-bar .btn-clear-exp {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  line-height: 1;
+}
+#expected-bar .btn-clear-exp:hover { color: var(--red); }
+
+/* ── 比对布局 ── */
+.compare-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.compare-pane { border-right: 1px solid var(--border); }
+.compare-pane:last-child { border-right: none; }
+.compare-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 4px 14px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  color: var(--dim);
+}
+.compare-pane.pass .compare-label { color: var(--green); background: #1a3a2428; }
+.compare-pane.fail .compare-label { color: var(--red);   background: #3d0a0a28; }
+.compare-pane .cmd-output { max-height: 300px; }
+
+/* ── 匹配徽章 ── */
+.match-pass { color: var(--green); font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.match-fail { color: var(--red);   font-size: 11px; font-weight: 700; flex-shrink: 0; }
+#btn-match-mode.exact { background: #2d1f6e; border-color: var(--purple); color: var(--purple); }
+#btn-toggle-compare        { background: #1f3a6e; border-color: var(--accent); color: var(--accent); }
+#btn-toggle-compare.off    { background: var(--bg); border-color: var(--border); color: var(--dim); }
+
 /* ── section-label 行（含操作按钮） ── */
 .section-label-row {
   display: flex;
@@ -615,6 +685,7 @@ body.edit-mode .cmd-notes {
 
     <div class="sidebar-footer">
       <div id="exec-status" style="font-size:12px;color:var(--dim);text-align:center;min-height:16px;"></div>
+      <button id="btn-test">⚡ 测试连接</button>
       <button id="btn-exec">
         <span class="spinner" id="spinner"></span>
         <span id="exec-label">▶ 执行</span>
@@ -626,9 +697,19 @@ body.edit-mode .cmd-notes {
   <main>
     <div class="report-toolbar">
       <span class="report-toolbar-title" id="report-title">执行结果将在此显示</span>
+      <button id="btn-match-mode" title="切换精确/模糊匹配模式">模糊匹配</button>
+      <input type="file" id="expected-import-input" accept=".json" style="display:none">
+      <label for="expected-import-input" class="btn-xs" style="line-height:1.8" title="导入预期结果 JSON 文件">导入预期</label>
+      <button id="btn-export-expected" title="将当前报告导出为预期结果">导出预期</button>
       <button id="btn-edit" title="切换编辑模式">编辑报告</button>
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
       <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
+    </div>
+    <div id="expected-bar">
+      <span>⚑ 预期结果已加载</span>
+      <span id="expected-bar-info" style="color:var(--dim)"></span>
+      <button id="btn-toggle-compare" title="切换对比视图 / 单结果视图">对比视图</button>
+      <button class="btn-clear-exp" id="btn-clear-exp" title="清除预期结果">×</button>
     </div>
     <div class="report-body">
       <div id="placeholder">
@@ -890,6 +971,9 @@ function renderReport({ host, port, user, results }) {
 
   report.innerHTML = html;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
+
+  /* 若已加载预期结果，自动进行比对 */
+  if (expectedData) refreshComparison();
 }
 
 function toggleBlock(idx) {
@@ -909,8 +993,10 @@ btnEdit.addEventListener('click', () => {
   document.body.classList.toggle('edit-mode', editMode);
 
   const ce = editMode ? 'true' : 'false';
-  report.querySelectorAll('.cmd-output, .cmd-notes')
-        .forEach(el => el.setAttribute('contenteditable', ce));
+  report.querySelectorAll('.cmd-notes').forEach(el => el.setAttribute('contenteditable', ce));
+  /* 单结果视图：编辑原始输出（比对模式下原始输出被隐藏，不可见即不可编辑） */
+  report.querySelectorAll('.cmd-block-body > .cmd-output')
+        .forEach(el => { if (el.style.display !== 'none') el.setAttribute('contenteditable', ce); });
 });
 
 /* ================================================================
@@ -1000,13 +1086,14 @@ document.addEventListener('keydown', e => {
    SSH 配置 导出 / 导入
    ================================================================ */
 
-/* 导出：将当前表单（不含密码）+ 命令列表存为 JSON */
+/* 导出：将当前表单（含密码）+ 命令列表存为 JSON */
 document.getElementById('btn-cfg-export').addEventListener('click', () => {
   const cfg = {
     version:  1,
     host:     document.getElementById('f-host').value.trim(),
     port:     parseInt(document.getElementById('f-port').value) || 22,
     user:     document.getElementById('f-user').value.trim(),
+    pass:     document.getElementById('f-pass').value,
     commands: getCommands()
   };
   const json     = JSON.stringify(cfg, null, 2);
@@ -1029,16 +1116,19 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
   reader.onload = e => {
     try {
       const cfg = JSON.parse(e.target.result);
-      if (cfg.host    !== undefined) document.getElementById('f-host').value = cfg.host;
-      if (cfg.port    !== undefined) document.getElementById('f-port').value = cfg.port;
-      if (cfg.user    !== undefined) document.getElementById('f-user').value = cfg.user;
+      if (cfg.host !== undefined) document.getElementById('f-host').value = cfg.host;
+      if (cfg.port !== undefined) document.getElementById('f-port').value = cfg.port;
+      if (cfg.user !== undefined) document.getElementById('f-user').value = cfg.user;
+      if (cfg.pass !== undefined) document.getElementById('f-pass').value = cfg.pass;
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cmdList.innerHTML = '';
         cfg.commands.forEach(c => addCmd(String(c)));
       }
-      execStatus.textContent = `配置已导入: ${file.name}（密码请手动填写）`;
+      execStatus.textContent = cfg.pass
+        ? `配置已导入: ${file.name}`
+        : `配置已导入: ${file.name}（密码请手动填写）`;
       execStatus.style.color = 'var(--green)';
-      document.getElementById('f-pass').focus();
+      if (!cfg.pass) document.getElementById('f-pass').focus();
     } catch (err) {
       execStatus.textContent = `配置文件解析失败: ${err.message}`;
       execStatus.style.color = 'var(--red)';
@@ -1051,6 +1141,227 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
   reader.readAsText(file, 'utf-8');
   this.value = '';
 });
+
+/* ================================================================
+   测试连接
+   ================================================================ */
+const btnTest = document.getElementById('btn-test');
+btnTest.addEventListener('click', testConnection);
+
+async function testConnection() {
+  const host = document.getElementById('f-host').value.trim();
+  const port = parseInt(document.getElementById('f-port').value) || 22;
+  const user = document.getElementById('f-user').value.trim() || 'root';
+  const pass = document.getElementById('f-pass').value;
+
+  if (!host) {
+    execStatus.textContent = '请填写主机地址';
+    execStatus.style.color = 'var(--red)';
+    return;
+  }
+
+  btnTest.disabled = true;
+  btnTest.textContent = '测试中…';
+  btnTest.className = '';
+  execStatus.style.color = 'var(--dim)';
+  execStatus.textContent = `正在测试 ${user}@${host}:${port}…`;
+
+  try {
+    const resp = await fetch('/api/ssh-exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, user, pass, commands: ['echo __SSH_TEST_OK__'] })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      btnTest.className = 'err';
+      btnTest.textContent = '✗ 连接失败';
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '连接失败: ' + data.error;
+    } else {
+      const r = data.results && data.results[0];
+      const ok = r && r.exit_code === 0 && (r.output || '').includes('__SSH_TEST_OK__');
+      if (ok) {
+        btnTest.className = 'ok';
+        btnTest.textContent = '✓ 连接成功';
+        execStatus.style.color = 'var(--green)';
+        execStatus.textContent = `${user}@${host}:${port} 连接正常`;
+      } else {
+        btnTest.className = 'err';
+        btnTest.textContent = '✗ 认证失败';
+        execStatus.style.color = 'var(--red)';
+        execStatus.textContent = r ? `退出码 ${r.exit_code}: ${(r.output || '').slice(0,80)}` : '无响应';
+      }
+    }
+  } catch (e) {
+    btnTest.className = 'err';
+    btnTest.textContent = '✗ 请求失败';
+    execStatus.style.color = 'var(--red)';
+    execStatus.textContent = '请求失败: ' + e.message;
+  } finally {
+    btnTest.disabled = false;
+    setTimeout(() => {
+      if (btnTest.textContent !== '⚡ 测试连接') {
+        btnTest.textContent = '⚡ 测试连接';
+        btnTest.className = '';
+      }
+    }, 4000);
+  }
+}
+
+/* ================================================================
+   预期结果 — 导出 / 导入 / 比对
+   ================================================================ */
+let expectedData  = null;   // { host, commands:[{cmd,output}] }
+let matchExact    = false;  // false=模糊, true=精确
+let showCompare   = true;   // 是否显示比对视图（加载预期后默认开启）
+
+const expectedBar      = document.getElementById('expected-bar');
+const expectedBarInfo  = document.getElementById('expected-bar-info');
+const btnMatchMode     = document.getElementById('btn-match-mode');
+const btnToggleCompare = document.getElementById('btn-toggle-compare');
+
+/* 导出预期：将当前报告序列化为 JSON */
+document.getElementById('btn-export-expected').addEventListener('click', exportExpected);
+
+function exportExpected() {
+  const blocks = [...report.querySelectorAll('.cmd-block')];
+  if (blocks.length === 0) {
+    execStatus.textContent = '没有可导出的报告';
+    execStatus.style.color = 'var(--yellow)';
+    return;
+  }
+  const host = document.getElementById('f-host').value.trim() || 'unknown';
+  /* 始终从原始 out-${idx} 读取（compare 模式下该元素被隐藏但内容完整） */
+  const items = blocks.map((blk, idx) => ({
+    cmd:    blk.querySelector('.cmd-text')?.textContent?.trim() ?? '',
+    output: document.getElementById('out-' + idx)?.textContent ?? ''
+  }));
+  const payload = { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
+  const json     = JSON.stringify(payload, null, 2);
+  const filename = `ssh-expected-${host}-${Date.now()}.json`;
+  const blob     = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const a        = document.createElement('a');
+  a.href         = URL.createObjectURL(blob);
+  a.download     = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  execStatus.textContent = `预期结果已导出: ${filename}`;
+  execStatus.style.color = 'var(--green)';
+}
+
+/* 导入预期 */
+document.getElementById('expected-import-input').addEventListener('change', function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data.commands)) throw new Error('格式错误：缺少 commands 数组');
+      expectedData = data;
+      showCompare  = true;
+      btnToggleCompare.textContent = '对比视图';
+      btnToggleCompare.classList.remove('off');
+      expectedBar.classList.add('show');
+      expectedBarInfo.textContent = `· ${file.name}（${data.commands.length} 条）`;
+      execStatus.textContent = `预期结果已导入: ${file.name}`;
+      execStatus.style.color = 'var(--green)';
+      if (report.querySelector('.cmd-block')) refreshComparison();
+    } catch (err) {
+      execStatus.textContent = `预期文件解析失败: ${err.message}`;
+      execStatus.style.color = 'var(--red)';
+    }
+  };
+  reader.onerror = () => { execStatus.textContent = '文件读取失败'; execStatus.style.color = 'var(--red)'; };
+  reader.readAsText(file, 'utf-8');
+  this.value = '';
+});
+
+/* 清除预期 */
+document.getElementById('btn-clear-exp').addEventListener('click', () => {
+  expectedData = null;
+  expectedBar.classList.remove('show');
+  execStatus.textContent = '预期结果已清除';
+  execStatus.style.color = 'var(--dim)';
+  if (report.querySelector('.cmd-block')) refreshComparison();
+});
+
+/* 切换对比视图 / 单结果视图 */
+btnToggleCompare.addEventListener('click', () => {
+  showCompare = !showCompare;
+  btnToggleCompare.textContent = showCompare ? '对比视图' : '单结果视图';
+  btnToggleCompare.classList.toggle('off', !showCompare);
+  if (report.querySelector('.cmd-block')) refreshComparison();
+});
+
+/* 匹配模式切换 */
+btnMatchMode.addEventListener('click', () => {
+  matchExact = !matchExact;
+  btnMatchMode.textContent = matchExact ? '精确匹配' : '模糊匹配';
+  btnMatchMode.classList.toggle('exact', matchExact);
+  if (report.querySelector('.cmd-block')) refreshComparison();
+});
+
+/* 文本匹配 */
+function matchOutput(actual, expected) {
+  const norm = s => s.replace(/\r\n/g, '\n').trim();
+  if (matchExact) return norm(actual) === norm(expected);
+  /* 模糊：忽略首尾空白、连续空白折叠 */
+  const fuzz = s => norm(s).replace(/\s+/g, ' ');
+  return fuzz(actual) === fuzz(expected);
+}
+
+/* 刷新每个命令块的比对区域
+ * 原始 <pre id="out-${idx}"> 始终保留为数据源，仅控制显示/隐藏
+ * 比对面板使用 data-cmp 属性，不重用 id，避免 DOM 中出现重复 id */
+function refreshComparison() {
+  report.querySelectorAll('.cmd-block').forEach((blk, idx) => {
+    const outEl = document.getElementById('out-' + idx);
+    if (!outEl) return;
+    const body = blk.querySelector('.cmd-block-body');
+
+    /* 清理旧比对视图和旧徽章 */
+    body.querySelector('.compare-body')?.remove();
+    blk.querySelector('.match-pass, .match-fail')?.remove();
+    outEl.style.display = '';   // 恢复显示
+
+    /* 无预期数据或视图切换为单结果：直接返回（原始输出已恢复显示） */
+    if (!expectedData || !showCompare) return;
+
+    const exp = expectedData.commands[idx];
+    if (!exp) return;
+
+    const actual  = outEl.textContent;
+    const expText = exp.output ?? '';
+    const passed  = matchOutput(actual, expText);
+
+    /* 隐藏原始输出，插入比对面板 */
+    outEl.style.display = 'none';
+
+    const notesEl = body.querySelector('.cmd-notes');
+    const cmp = document.createElement('div');
+    cmp.className = 'compare-body';
+    cmp.innerHTML =
+      `<div class="compare-pane ${passed ? 'pass' : 'fail'}">` +
+        `<div class="compare-label">实际输出</div>` +
+        `<pre class="cmd-output" data-cmp="${idx}">${esc(actual)}</pre>` +
+      `</div>` +
+      `<div class="compare-pane">` +
+        `<div class="compare-label" style="color:var(--dim)">预期输出</div>` +
+        `<pre class="cmd-output">${esc(expText)}</pre>` +
+      `</div>`;
+    body.insertBefore(cmp, notesEl || null);
+
+    /* 匹配徽章插入到 header 复制按钮之前 */
+    const hdr   = blk.querySelector('.cmd-block-header');
+    const badge = document.createElement('span');
+    badge.className   = passed ? 'match-pass' : 'match-fail';
+    badge.textContent = passed ? '✓ 通过' : '✗ 不符';
+    hdr.querySelector('.btn-copy-cmd').before(badge);
+  });
+}
 
 /* ================================================================
    工具函数

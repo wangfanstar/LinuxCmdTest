@@ -29,20 +29,6 @@ static int validate_safe(const char *s)
     return 1;
 }
 
-/* 单引号转义：' → '\'' */
-static void escape_sq(const char *in, char *out, size_t out_len)
-{
-    size_t j = 0;
-    for (size_t i = 0; in[i] && j + 5 < out_len; i++) {
-        if (in[i] == '\'') {
-            out[j++] = '\''; out[j++] = '\\';
-            out[j++] = '\''; out[j++] = '\'';
-        } else {
-            out[j++] = in[i];
-        }
-    }
-    out[j] = '\0';
-}
 
 /* ------------------------------------------------------------------ */
 /*  临时文件管理                                                        */

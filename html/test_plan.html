@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统测试用例</title>
+<style>
+:root {
+  --bg:#0f1117; --surf:#1a1d27; --card:#22263a; --border:#2e3450;
+  --a1:#4f8ef7; --a2:#38d9a9; --a3:#f7a84f; --a4:#e05a6e;
+  --text:#cdd2e8; --muted:#6b7399;
+  --mono:'Consolas','Courier New',monospace;
+  --pass-bg:#152a1e; --pass:#38d9a9;
+  --fail-bg:#2a1212; --fail:#e05a6e;
+  --skip-bg:#252210; --skip:#f7a84f;
+  --ann-bg:#2a1f08;  --ann:#f7a84f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;font-size:13px;line-height:1.6}
+
+/* ── Header ── */
+header{background:#12152a;border-bottom:1px solid var(--border);padding:18px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header h1{font-size:18px;color:#fff;font-weight:600}
+header p{color:var(--muted);font-size:11px;margin-top:2px}
+.hdr-btns{display:flex;gap:7px;flex-wrap:wrap}
+
+/* ── Layout ── */
+.container{max-width:1700px;margin:0 auto;padding:22px 28px}
+section{margin-bottom:32px}
+h2{font-size:12px;color:var(--a1);text-transform:uppercase;letter-spacing:.08em;
+   margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{font-size:11px;color:var(--a2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+
+/* ── Env ── */
+.env-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.env-card{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:13px 17px}
+.env-card code{font-family:var(--mono);font-size:11px;color:var(--a2);background:#12152a;display:block;
+               padding:6px 10px;border-radius:4px;margin-top:4px;white-space:pre-wrap;border-left:3px solid var(--a2)}
+.step-flow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:8px}
+.step{background:#1a2a45;border:1px solid var(--a1);border-radius:5px;padding:3px 10px;font-family:var(--mono);font-size:11px;color:var(--a1)}
+.step-arr{color:var(--muted);font-size:13px}
+
+/* ── Stats ── */
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:9px 18px;text-align:center;min-width:90px}
+.stat .num{font-size:24px;font-weight:700}
+.stat .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.stat.s-total .num{color:#fff}
+.stat.s-pass  .num{color:var(--pass)}
+.stat.s-fail  .num{color:var(--fail)}
+.stat.s-skip  .num{color:var(--skip)}
+.stat.s-pend  .num{color:var(--muted)}
+.stat.s-ann   .num{color:var(--ann)}
+.pbar{height:5px;border-radius:3px;background:#2e3450;overflow:hidden;display:flex;margin-bottom:14px}
+.pb-pass{background:var(--pass);transition:width .3s}
+.pb-fail{background:var(--fail);transition:width .3s}
+.pb-skip{background:var(--skip);transition:width .3s}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.toolbar input,.toolbar select{background:var(--card);border:1px solid var(--border);color:var(--text);
+  padding:5px 9px;border-radius:5px;font-size:12px}
+.toolbar input{width:200px}
+.toolbar select{cursor:pointer}
+
+/* ── Buttons ── */
+.btn{padding:5px 13px;border-radius:5px;font-size:12px;cursor:pointer;border:none;font-weight:500;transition:opacity .15s;white-space:nowrap}
+.btn:hover{opacity:.82}
+.btn-a1{background:var(--a1);color:#fff}
+.btn-a2{background:var(--a2);color:#0a1a10}
+.btn-a3{background:var(--a3);color:#1a1000}
+.btn-a4{background:var(--a4);color:#fff}
+.btn-n{background:var(--card);color:var(--muted);border:1px solid var(--border)}
+.btn-sm{padding:3px 9px;font-size:11px}
+
+.bmini{padding:2px 7px;border-radius:4px;font-size:10px;cursor:pointer;border:1px solid;
+       font-weight:600;margin-right:2px;background:none;transition:background .15s;white-space:nowrap}
+.bmini.p{color:var(--pass);border-color:var(--pass)} .bmini.p:hover{background:var(--pass-bg)}
+.bmini.f{color:var(--fail);border-color:var(--fail)} .bmini.f:hover{background:var(--fail-bg)}
+.bmini.s{color:var(--skip);border-color:var(--skip)} .bmini.s:hover{background:var(--skip-bg)}
+.bmini.r{color:var(--muted);border-color:var(--border)} .bmini.r:hover{background:var(--card)}
+.bmini.e{color:var(--a1);border-color:var(--a1)}  .bmini.e:hover{background:#1a2a45}
+.bmini.d{color:var(--fail);border-color:var(--fail)} .bmini.d:hover{background:var(--fail-bg)}
+
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto;border-radius:7px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+thead th{background:#1a1d2a;color:var(--muted);font-size:10px;text-transform:uppercase;
+         letter-spacing:.05em;padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(--border);
+         position:sticky;top:0;z-index:2}
+tbody tr{border-bottom:1px solid var(--border);transition:filter .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr.st-pass{background:var(--pass-bg)}
+tbody tr.st-fail{background:var(--fail-bg)}
+tbody tr.st-skip{background:var(--skip-bg)}
+tbody tr.has-ann{background:#261c04 !important;border-left:4px solid #f7c030}
+tbody tr:hover{filter:brightness(1.12)}
+td{padding:6px 10px;vertical-align:top}
+td.c-id  {font-family:var(--mono);color:var(--muted);font-size:10px;white-space:nowrap}
+td.c-cat {white-space:nowrap}
+td.c-cmd {font-family:var(--mono);font-size:11px;color:#fff;white-space:pre-wrap;word-break:break-all;max-width:320px}
+td.c-desc{font-size:12px;max-width:200px}
+td.c-exp {font-size:11px;color:var(--muted);max-width:220px}
+td.c-note{min-width:160px}
+td.c-note textarea{width:100%;background:#12152a;border:1px solid var(--border);color:var(--text);
+                   border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);
+                   resize:vertical;min-height:34px}
+td.c-st  {white-space:nowrap}
+td.c-op  {white-space:nowrap}
+
+/* ── Badge ── */
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;
+       text-transform:uppercase;letter-spacing:.04em;border:1px solid}
+.b-llr{background:#1a2a45;color:var(--a1);border-color:var(--a1)}
+.b-rlm{background:#1a3530;color:var(--a2);border-color:var(--a2)}
+.b-env{background:#2a2010;color:var(--a3);border-color:var(--a3)}
+.b-cust{background:#2a1a2a;color:#c07af7;border-color:#8040d0}
+.b-pass{background:var(--pass-bg);color:var(--pass);border-color:var(--pass)}
+.b-fail{background:var(--fail-bg);color:var(--fail);border-color:var(--fail)}
+.b-skip{background:var(--skip-bg);color:var(--skip);border-color:var(--skip)}
+.b-pend{background:#1a1d27;color:var(--muted);border-color:var(--border)}
+
+/* ── Annotation badge ── */
+.ann-icon{display:inline-flex;align-items:center;justify-content:center;
+          width:18px;height:18px;border-radius:4px;cursor:help;
+          background:var(--ann-bg);border:1px solid var(--ann);color:var(--ann);
+          font-size:11px;margin-left:4px;vertical-align:middle;user-select:none}
+.ann-placeholder{display:inline-block;width:22px}
+
+/* ── Floating annotation tooltip ── */
+#ann-tip{position:fixed;display:none;z-index:9999;max-width:380px;min-width:180px;
+         background:#2a1f08;border:1px solid var(--ann);border-radius:8px;
+         padding:11px 15px;font-size:12px;line-height:1.6;color:#f0d9a0;
+         box-shadow:0 8px 32px rgba(0,0,0,.7);pointer-events:none;white-space:pre-wrap;
+         word-break:break-word}
+#ann-tip::before{content:'📌 标注';display:block;font-size:10px;color:var(--ann);
+                 font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;
+                 padding-bottom:5px;border-bottom:1px solid #4a3010}
+
+/* ── Modal overlay ── */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;
+          align-items:center;justify-content:center;padding:16px}
+.modal-ov.open{display:flex}
+.mbox{background:var(--surf);border:1px solid var(--border);border-radius:10px;
+      width:min(640px,98vw);max-height:90vh;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+.mbox h2{margin-bottom:0}
+.mbox-wide{width:min(820px,98vw)}
+.mfooter{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+
+/* ── Form ── */
+.form-row{display:flex;flex-direction:column;gap:4px}
+.form-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.form-row input,.form-row select,.form-row textarea{
+  background:#12152a;border:1px solid var(--border);color:var(--text);
+  padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;width:100%}
+.form-row textarea{font-family:var(--mono);resize:vertical;min-height:60px}
+.form-row .ann-field{border-color:var(--ann);background:var(--ann-bg)}
+.form-row .ann-field:focus{outline:none;border-color:#d08820;box-shadow:0 0 0 2px #4a30108a}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+.ann-hint{font-size:10px;color:var(--ann);margin-top:3px}
+
+/* ── Report pre ── */
+#rpt-pre{font-family:var(--mono);font-size:11px;background:#12152a;border:1px solid var(--border);
+         border-radius:6px;padding:14px;white-space:pre-wrap;color:var(--text);max-height:55vh;overflow-y:auto}
+
+/* ── Delete confirm ── */
+.del-msg{background:var(--fail-bg);border:1px solid var(--fail);border-radius:6px;padding:12px 16px;
+         font-size:13px;color:var(--text)}
+.del-msg strong{color:var(--fail)}
+
+/* ── Context menu ── */
+#ctx-menu{position:fixed;z-index:10000;background:#1e2235;border:1px solid var(--border);
+          border-radius:8px;padding:5px 0;min-width:190px;display:none;
+          box-shadow:0 8px 28px rgba(0,0,0,.75)}
+#ctx-menu.show{display:block}
+.ctx-item{padding:7px 16px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:9px;
+          color:var(--text);transition:background .1s}
+.ctx-item:hover{background:var(--card)}
+.ctx-item.ctx-ann-item{color:var(--ann)}
+.ctx-item.ctx-clr-item{color:var(--fail)}
+.ctx-sep{height:1px;background:var(--border);margin:4px 0}
+
+/* ── Annotation input panel ── */
+#aip{position:fixed;z-index:9998;background:#1e2030;border:1px solid var(--ann);border-radius:9px;
+     padding:14px 16px;width:340px;display:none;box-shadow:0 10px 36px rgba(0,0,0,.8)}
+#aip.show{display:block}
+.aip-hdr{font-size:11px;color:var(--ann);font-weight:600;margin-bottom:8px}
+#aip textarea{width:100%;background:#12152a;border:1px solid var(--ann);color:#f0d9a0;
+              border-radius:5px;padding:7px 10px;font-size:12px;font-family:var(--mono);
+              resize:vertical;min-height:80px}
+.aip-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
+
+/* ── Fixed mark button & panel ── */
+#mark-btn{position:fixed;top:76px;right:20px;z-index:500;
+          background:#251c05;border:1px solid #f7c030;border-radius:8px;
+          padding:7px 14px;cursor:default;color:#f7c030;font-size:12px;font-weight:600;
+          display:flex;align-items:center;gap:7px;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+#mark-btn .mb-cnt{background:#f7c030;color:#1a1000;border-radius:10px;padding:1px 7px;
+                  font-size:11px;font-weight:700}
+#mark-panel{position:fixed;top:116px;right:20px;z-index:499;
+            background:#1e2030;border:1px solid #f7c030;border-radius:9px;
+            width:340px;max-height:480px;overflow-y:auto;padding:0;display:none;
+            box-shadow:0 10px 36px rgba(0,0,0,.8)}
+#mark-panel.show{display:block}
+.mp-hdr{padding:10px 16px;border-bottom:1px solid #3a2c0a;font-size:11px;color:#f7c030;font-weight:600}
+.mp-item{padding:10px 16px;border-bottom:1px solid #2a230a;cursor:pointer;transition:background .1s}
+.mp-item:hover{background:#2a1f08}
+.mp-item-id{font-family:var(--mono);font-size:11px;color:var(--ann);font-weight:600;margin-bottom:3px}
+.mp-item-ann{font-size:11px;color:#c8a84a;white-space:pre-wrap;overflow:hidden;display:-webkit-box;
+             -webkit-line-clamp:3;-webkit-box-orient:vertical}
+.mp-empty{padding:18px 16px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ HEADER ════════════════════════ -->
+<header>
+  <div>
+    <h1>系统测试用例</h1>
+    <p>trunk/xware · Linux 环境 · 支持导入/导出/增删改</p>
+  </div>
+  <div class="hdr-btns">
+    <button class="btn btn-a2" onclick="openAddModal()">＋ 新增用例</button>
+    <button class="btn btn-a1" onclick="triggerImport()">⬆ 导入 JSON</button>
+    <button class="btn btn-n"  onclick="exportJSON()">⬇ 导出 JSON</button>
+    <button class="btn btn-n"  onclick="previewHTML()">👁 预览报告</button>
+    <button class="btn btn-n"  onclick="exportHTML()">⬇ 导出报告 HTML</button>
+    <button class="btn btn-a3" onclick="openReport()">📋 文本报告</button>
+  </div>
+  <input type="file" id="import-input" accept=".json" style="display:none" onchange="importJSON(event)">
+</header>
+
+<!-- Fixed mark button -->
+<div id="mark-btn"
+     onmouseenter="showMarkPanel()"
+     onmouseleave="scheduleHideMarkPanel()">
+  📌 标注 <span class="mb-cnt" id="mark-cnt">0</span>
+</div>
+<div id="mark-panel"
+     onmouseenter="cancelHideMarkPanel()"
+     onmouseleave="scheduleHideMarkPanel()">
+  <div class="mp-hdr">📌 已标注用例</div>
+  <div id="mark-list"></div>
+</div>
+
+<!-- ════════════════════════ BODY ════════════════════════ -->
+<div class="container">
+
+<!-- ENV -->
+<section>
+  <h2>测试环境 &amp; 进入流程</h2>
+  <div class="env-grid">
+    <div class="env-card">
+      <h3>代码路径</h3>
+      <code>LLR/trunk/xware</code>
+    </div>
+    <div class="env-card">
+      <h3>编译命令</h3>
+      <code>cd LLR/trunk/xware
+./build.sh xware -- exec</code>
+    </div>
+    <div class="env-card">
+      <h3>进入 DEBUG 视图</h3>
+      <div class="step-flow">
+        <span class="step">&lt;GT&gt;</span><span class="step-arr">→</span>
+        <span class="step">system-view</span><span class="step-arr">→</span>
+        <span class="step">[GT]</span><span class="step-arr">→</span>
+        <span class="step">debug-view</span><span class="step-arr">→</span>
+        <span class="step">[ DEBUG ]</span>
+      </div>
+    </div>
+    <div class="env-card">
+      <h3>硬件拓扑</h3>
+      <code>chip 0 · NPU 0-3 · Pipe 0-63
+pipe    = port-id / 8  (0-63)
+channel = port-id % 8  (0-7)
+port-id range: 0 – 511</code>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section>
+  <div class="stats">
+    <div class="stat s-total"><div class="num" id="cnt-total">0</div><div class="lbl">Total</div></div>
+    <div class="stat s-pass" ><div class="num" id="cnt-pass">0</div><div class="lbl">Pass</div></div>
+    <div class="stat s-fail" ><div class="num" id="cnt-fail">0</div><div class="lbl">Fail</div></div>
+    <div class="stat s-skip" ><div class="num" id="cnt-skip">0</div><div class="lbl">Skip</div></div>
+    <div class="stat s-pend" ><div class="num" id="cnt-pend">0</div><div class="lbl">Pending</div></div>
+    <div class="stat s-ann"  ><div class="num" id="cnt-ann">0</div><div class="lbl">标注</div></div>
+  </div>
+  <div class="pbar">
+    <div class="pb-pass" id="pb-pass" style="width:0%"></div>
+    <div class="pb-fail" id="pb-fail" style="width:0%"></div>
+    <div class="pb-skip" id="pb-skip" style="width:0%"></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="q-search" placeholder="搜索 ID / 命令 / 描述 …" oninput="filterTable()">
+    <select id="q-cat" onchange="filterTable()">
+      <option value="">全部分类</option>
+    </select>
+    <select id="q-status" onchange="filterTable()">
+      <option value="">全部状态</option>
+      <option value="pending">Pending</option>
+      <option value="pass">Pass</option>
+      <option value="fail">Fail</option>
+      <option value="skip">Skip</option>
+    </select>
+    <select id="q-ann" onchange="filterTable()">
+      <option value="">标注筛选</option>
+      <option value="1">有标注</option>
+      <option value="0">无标注</option>
+    </select>
+    <button class="btn btn-n btn-sm" onclick="resetFilter()">清除</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-a2 btn-sm" onclick="batchSet('pass')">批量 PASS</button>
+    <button class="btn btn-a4 btn-sm" onclick="batchSet('fail')">批量 FAIL</button>
+    <button class="btn btn-n  btn-sm" onclick="batchSet('pending')">批量重置</button>
+  </div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <table id="tc-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>分类</th><th>命令（DEBUG 视图）</th>
+          <th>用例描述</th><th>预期结果</th>
+          <th>实际结果 / 备注</th><th>状态</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="tc-body"></tbody>
+    </table>
+  </div>
+</section>
+
+</div><!-- .container -->
+
+<!-- ════ 浮动标注 tooltip ════ -->
+<div id="ann-tip"></div>
+
+<!-- ════ Modal: Add / Edit ════ -->
+<div class="modal-ov" id="modal-edit">
+  <div class="mbox mbox-wide">
+    <h2 id="edit-title">新增测试用例</h2>
+    <input type="hidden" id="edit-orig-id">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>用例 ID</label>
+        <input type="text" id="edit-id" placeholder="如 TC-001">
+      </div>
+      <div class="form-row">
+        <label>分类（可直接输入自定义名称）</label>
+        <input type="text" id="edit-cat" list="cat-list" placeholder="LLR / RLM / ENV 或自定义…" autocomplete="off">
+        <datalist id="cat-list">
+          <option value="LLR">
+          <option value="RLM">
+          <option value="ENV">
+          <option value="CMB">
+        </datalist>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>命令（DEBUG 视图执行，多条用换行分隔）</label>
+      <textarea id="edit-cmd" rows="3" placeholder="[chip 0] llr enable port-id 0 100GR1"></textarea>
+    </div>
+    <div class="form-row">
+      <label>用例描述</label>
+      <textarea id="edit-desc" rows="2"></textarea>
+    </div>
+    <div class="form-row">
+      <label>预期结果</label>
+      <textarea id="edit-exp" rows="2"></textarea>
+    </div>
+    <div class="form-row">
+      <label>📌 标注（可选 — 有内容时该用例行会高亮显示，鼠标悬停可放大查看）</label>
+      <textarea id="edit-ann" rows="3" class="ann-field"
+        placeholder="填写特别说明、风险提示、关注点 …"></textarea>
+      <div class="ann-hint">★ 标注不同于实际结果，是给该用例本身的标记，测试前/中/后均可添加</div>
+    </div>
+    <div class="mfooter">
+      <button class="btn btn-n" onclick="closeModal('modal-edit')">取消</button>
+      <button class="btn btn-a2" onclick="saveEditModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Modal: Delete confirm ════ -->
+<div class="modal-ov" id="modal-del">
+  <div class="mbox" style="max-width:420px">
+    <h2>删除确认</h2>
+    <div class="del-msg" id="del-msg">确定要删除此用例？<br><strong id="del-id-show"></strong></div>
+    <div class="mfooter">
+      <button class="btn btn-n" onclick="closeModal('modal-del')">取消</button>
+      <button class="btn btn-a4" onclick="confirmDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Modal: Text report ════ -->
+<div class="modal-ov" id="modal-rpt">
+  <div class="mbox mbox-wide">
+    <h2>文本测试报告</h2>
+    <pre id="rpt-pre"></pre>
+    <div class="mfooter">
+      <button class="btn btn-n" onclick="copyReport()">复制</button>
+      <button class="btn btn-a1" onclick="printReport()">打印</button>
+      <button class="btn btn-n" onclick="closeModal('modal-rpt')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ SCRIPT ════════════════ -->
+<script>
+/* ─────────────────────────────────────────────────────────────
+   DEFAULT TEST CASES
+───────────────────────────────────────────────────────────── */
+const DEFAULT_CASES = [
+/* ENV */
+{id:'ENV-001',cat:'ENV',cmd:'./build.sh xware -- exec',desc:'编译工程',exp:'编译完成，无 error，生成可执行文件'},
+{id:'ENV-002',cat:'ENV',cmd:'<GT> system-view\n[GT] debug-view',desc:'进入 DEBUG 视图',exp:'提示符变为 [ DEBUG ]，无报错'},
+{id:'ENV-003',cat:'ENV',cmd:'[ DEBUG ] [chip 0] ?',desc:'查看已注册命令（help），确认 llr / rlm / show 命令存在',exp:'列表含 llr、show llr、rlm、show rlm；无 "fails to init element" 错误'},
+/* LLR enable/disable */
+{id:'LLR-001',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1',desc:'port-id=0 enable LLR，→ pipe=0 channel=0',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
+{id:'LLR-002',cat:'LLR',cmd:'[chip 0] llr enable pipe 0 channel 0 100GR1',desc:'pipe 形式 enable LLR，等价 LLR-001',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
+{id:'LLR-003',cat:'LLR',cmd:'[chip 0] llr enable port-id 8 100GR1',desc:'port-id=8 → pipe=1 channel=0',exp:'"LLR enabled: chip=0 pipe=1 channel=0 speed=100GR1"'},
+{id:'LLR-004',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 800GR8',desc:'800GR8 channel=0 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
+{id:'LLR-005',cat:'LLR',cmd:'[chip 0] llr enable port-id 1 800GR8',desc:'800GR8 只允许 channel=0，port-id=1→channel=1 非法',exp:'"Error: pipe=0 channel=1 is invalid for speed 800GR8"'},
+{id:'LLR-006',cat:'LLR',cmd:'[chip 0] llr enable port-id 4 400GR4',desc:'400GR4 允许 channel=0/4，port-id=4→channel=4 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=4 speed=400GR4"'},
+{id:'LLR-007',cat:'LLR',cmd:'[chip 0] llr enable port-id 2 200GR2',desc:'200GR2 允许偶数 channel，port-id=2→channel=2 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=2 speed=200GR2"'},
+{id:'LLR-008',cat:'LLR',cmd:'[chip 0] llr enable port-id 504 100GR1',desc:'port-id=504 → pipe=63 channel=0（接近上限）',exp:'"LLR enabled: chip=0 pipe=63 channel=0 speed=100GR1"'},
+{id:'LLR-009',cat:'LLR',cmd:'[chip 0] llr enable port-id 511 100GR1',desc:'port-id 最大值 511 → pipe=63 channel=7',exp:'"LLR enabled: chip=0 pipe=63 channel=7 speed=100GR1"'},
+{id:'LLR-010',cat:'LLR',cmd:'[chip 0] llr enable pipe 63 channel 7 100GR1',desc:'pipe/channel 最大值',exp:'"LLR enabled: chip=0 pipe=63 channel=7 speed=100GR1"'},
+{id:'LLR-011',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 100GR1',desc:'port-id 形式 disable',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
+{id:'LLR-012',cat:'LLR',cmd:'[chip 0] llr disable pipe 0 channel 0 100GR1',desc:'pipe 形式 disable',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
+{id:'LLR-013',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 800GR8',desc:'disable 800GR8',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
+/* LLR show config */
+{id:'LLR-020',cat:'LLR',cmd:'[chip 0] show llr config port-id 0',desc:'读取 pipe=0 LLR 配置寄存器，验证 raw 值输出',exp:'输出 [MAC_ADA][MAC_IP][MACW_PCS] 三段；每段含 raw=0x… 及解析字段'},
+{id:'LLR-021',cat:'LLR',cmd:'[chip 0] show llr config pipe 0 channel 0',desc:'pipe 形式，等价 LLR-020',exp:'输出与 LLR-020 相同'},
+{id:'LLR-022',cat:'LLR',cmd:'[chip 0] show llr config port-id 504',desc:'验证 pipe=63 寄存器可读',exp:'输出三段寄存器信息，无读错误'},
+/* LLR show status */
+{id:'LLR-030',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1\n[chip 0] show llr status port-id 0',desc:'enable 后查 TX/RX FSM 状态',exp:'TX FSM State ≠ OFF；显示 [MAC_ADA LLR_DEBUG_TX_STATE addr=0x19e] 注释'},
+{id:'LLR-031',cat:'LLR',cmd:'[chip 0] show llr status pipe 0 channel 0',desc:'pipe 形式查状态',exp:'输出与 LLR-030 等价'},
+{id:'LLR-032',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 100GR1\n[chip 0] show llr status port-id 0',desc:'disable 后查 TX/RX FSM，应为 OFF',exp:'TX FSM State = 0 (OFF)'},
+/* LLR debug-port */
+{id:'LLR-040',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 0',desc:'设置 debug mux=channel=0，显示 config+status+counter',exp:'输出 "====== LLR Debug ======"，含三段；DEBUG_PORT 字段=0'},
+{id:'LLR-041',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 7',desc:'port-id=7→channel=7，选 sub-port 7',exp:'输出 debug mux=7，三段内容正常'},
+{id:'LLR-042',cat:'LLR',cmd:'[chip 0] llr debug-port pipe 0 channel 3',desc:'pipe 形式，sub-port=3',exp:'输出 sub-port=3，三段内容正常'},
+/* LLR counter */
+{id:'LLR-050',cat:'LLR',cmd:'[chip 0] show llr counter port-id 0',desc:'读 port=0 LLR RC 计数器，验证 Addr 列',exp:'Counter/Value/Addr 三列；Addr 显示 0x1xx；末尾提示 RC cleared on read'},
+{id:'LLR-051',cat:'LLR',cmd:'[chip 0] show llr counter pipe 0 channel 0',desc:'pipe 形式计数器',exp:'格式与 LLR-050 一致'},
+{id:'LLR-052',cat:'LLR',cmd:'[chip 0] show llr counter port-id 0\n[chip 0] show llr counter port-id 0',desc:'连读两次 RC，第二次应全为 0',exp:'第二次所有值均为 0'},
+/* LLR 边界 */
+{id:'LLR-060',cat:'LLR',cmd:'[chip 0] llr enable port-id 512 100GR1',desc:'port-id 超范围 511',exp:'CLI 拒绝，报错'},
+{id:'LLR-061',cat:'LLR',cmd:'[chip 0] llr enable pipe 64 channel 0 100GR1',desc:'pipe 超范围 63',exp:'CLI 拒绝，报错'},
+{id:'LLR-062',cat:'LLR',cmd:'[chip 0] llr enable pipe 0 channel 8 100GR1',desc:'channel 超范围 7',exp:'CLI 拒绝，报错'},
+/* RLM enable/disable */
+{id:'RLM-001',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 800GR8',desc:'port-id 形式 enable RLM，800GR8 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
+{id:'RLM-002',cat:'RLM',cmd:'[chip 0] rlm enable pipe 0 channel 0 800GR8',desc:'pipe 形式，等价 RLM-001',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
+{id:'RLM-003',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 400GR4',desc:'400GR4 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=400GR4"'},
+{id:'RLM-004',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 200GR2',desc:'200GR2 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=200GR2"'},
+{id:'RLM-005',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 400GR8',desc:'400GR8 不支持（no-op）',exp:'返回成功但无实际写入（no-op）'},
+{id:'RLM-006',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 100GR1',desc:'100GR1 不支持（no-op）',exp:'no-op 行为，不报错'},
+{id:'RLM-007',cat:'RLM',cmd:'[chip 0] rlm disable port-id 0 800GR8',desc:'port-id 形式 disable',exp:'"RLM disabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
+{id:'RLM-008',cat:'RLM',cmd:'[chip 0] rlm disable pipe 0 channel 0 400GR4',desc:'pipe 形式 disable',exp:'"RLM disabled: chip=0 pipe=0 channel=0 speed=400GR4"'},
+/* RLM loopback */
+{id:'RLM-010',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0xFF enable',desc:'全 8 lane loopback 使能',exp:'"RLM loopback enabled: … lane-mask=0xff"'},
+{id:'RLM-011',cat:'RLM',cmd:'[chip 0] rlm loopback pipe 0 channel 0 lane-mask 0x01 enable',desc:'pipe 形式，lane 0 loopback',exp:'"RLM loopback enabled: … lane-mask=0x01"'},
+{id:'RLM-012',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0xFF disable',desc:'全 lane loopback 去使能',exp:'"RLM loopback disabled: … lane-mask=0xff"'},
+/* RLM bypass */
+{id:'RLM-020',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0xF enable',desc:'全 4 port bypass 使能',exp:'"RLM bypass enabled: … port-mask=0xf"'},
+{id:'RLM-021',cat:'RLM',cmd:'[chip 0] rlm bypass pipe 0 channel 0 port-mask 0x1 enable',desc:'pipe 形式，port 0 bypass',exp:'"RLM bypass enabled: … port-mask=0x1"'},
+{id:'RLM-022',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0xF disable',desc:'bypass 去使能',exp:'"RLM bypass disabled: … port-mask=0xf"'},
+/* RLM reset */
+{id:'RLM-030',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-tx lane-mask 0xFF assert',desc:'PCS TX 复位 assert，全 lane',exp:'"RLM reset asserted: … type=pcs-tx lane-mask=0xff"'},
+{id:'RLM-031',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-tx lane-mask 0xFF deassert',desc:'PCS TX 复位 deassert',exp:'"RLM reset deasserted: … type=pcs-tx"'},
+{id:'RLM-032',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-rx lane-mask 0xFF assert',desc:'PCS RX 复位 assert',exp:'"RLM reset asserted: … type=pcs-rx"'},
+{id:'RLM-033',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 sds-tx lane-mask 0xFF assert',desc:'Serdes TX 复位 assert',exp:'"RLM reset asserted: … type=sds-tx"'},
+{id:'RLM-034',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 sds-rx lane-mask 0xFF assert',desc:'Serdes RX 复位 assert',exp:'"RLM reset asserted: … type=sds-rx"'},
+{id:'RLM-035',cat:'RLM',cmd:'[chip 0] rlm reset pipe 0 channel 0 pcs-tx lane-mask 0x01 assert',desc:'pipe 形式，单 lane reset',exp:'"RLM reset asserted: … lane-mask=0x01"'},
+/* RLM show config */
+{id:'RLM-040',cat:'RLM',cmd:'[chip 0] show rlm config port-id 0',desc:'读取 MACW_PCS CFG_RLM、CRC_CHECK、LANE_SWAP，验证 raw 值',exp:'三个寄存器均显示 raw=0x… 及解析；LANE_SWAP 显示 TX/RX→SDS 映射'},
+{id:'RLM-041',cat:'RLM',cmd:'[chip 0] show rlm config pipe 0 channel 0',desc:'pipe 形式，等价 RLM-040',exp:'输出与 RLM-040 一致'},
+{id:'RLM-042',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 800GR8\n[chip 0] show rlm config port-id 0',desc:'enable 后查 CFG_RLM.EN 应为 1',exp:'CFG_RLM (0x170) EN=1'},
+{id:'RLM-043',cat:'RLM',cmd:'[chip 0] rlm disable port-id 0 800GR8\n[chip 0] show rlm config port-id 0',desc:'disable 后查 CFG_RLM.EN 应为 0',exp:'CFG_RLM (0x170) EN=0'},
+{id:'RLM-044',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0x0F enable\n[chip 0] show rlm config port-id 0',desc:'loopback enable 后查 LOOP_BACK_EN',exp:'CFG_RLM LOOP_BACK_EN=0x0f；bit 图 [00001111]'},
+{id:'RLM-045',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0x3 enable\n[chip 0] show rlm config port-id 0',desc:'bypass enable 后查 BYPASS_RLM_EN',exp:'CFG_RLM BYPASS_EN=0x3；显示 [0011]'},
+/* RLM show status/fsm/counter */
+{id:'RLM-050',cat:'RLM',cmd:'[chip 0] show rlm status port-id 0',desc:'查 RX Link Status / TX/RX Fault',exp:'输出 [MACW_PCS subblock] 注释；Port 0-3 Link 状态；TX/RX Fault 字段'},
+{id:'RLM-051',cat:'RLM',cmd:'[chip 0] show rlm status pipe 0 channel 0',desc:'pipe 形式 status',exp:'与 RLM-050 一致'},
+{id:'RLM-052',cat:'RLM',cmd:'[chip 0] show rlm fsm port-id 0',desc:'查 TX FSM（per lane）和 RX FSM（per port/lane）',exp:'[MACW_PCS] 注释；TX 8 lane 状态；RX lane 与 port 对应'},
+{id:'RLM-053',cat:'RLM',cmd:'[chip 0] show rlm fsm pipe 0 channel 0',desc:'pipe 形式 FSM',exp:'与 RLM-052 一致'},
+{id:'RLM-054',cat:'RLM',cmd:'[chip 0] show rlm counter port-id 0',desc:'查 TX/RX Switch、Fault、AM CRC Err 计数器',exp:'[MACW_PCS] 注释；per-lane 表格；末尾 RC cleared on read'},
+{id:'RLM-055',cat:'RLM',cmd:'[chip 0] show rlm counter pipe 0 channel 0',desc:'pipe 形式 counter',exp:'与 RLM-054 一致'},
+{id:'RLM-056',cat:'RLM',cmd:'[chip 0] show rlm counter port-id 0\n[chip 0] show rlm counter port-id 0',desc:'连读两次，第二次全 0',exp:'第二次所有计数均为 0'},
+/* RLM 边界 */
+{id:'RLM-060',cat:'RLM',cmd:'[chip 0] rlm enable port-id 512 800GR8',desc:'port-id 超范围',exp:'CLI 拒绝'},
+{id:'RLM-061',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0x100 enable',desc:'lane-mask 超 HEX<0-FF>',exp:'CLI 拒绝'},
+{id:'RLM-062',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0x10 enable',desc:'port-mask 超 HEX<0-F>',exp:'CLI 拒绝'},
+/* CMB */
+{id:'CMB-001',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1\n[chip 0] rlm enable port-id 0 800GR8\n[chip 0] show llr config port-id 0\n[chip 0] show rlm config port-id 0',desc:'LLR + RLM 同时使能，寄存器互不干扰',exp:'两个 show config 均显示正确使能状态'},
+{id:'CMB-002',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 0\n[chip 0] show rlm status port-id 0\n[chip 0] show rlm fsm port-id 0',desc:'debug-port 后 RLM 命令仍正常（两模块寄存器空间独立）',exp:'RLM status/fsm 正常，不受 LLR debug-port 影响'},
+{id:'CMB-003',cat:'LLR',cmd:'[chip 0] llr enable pipe 63 channel 7 100GR1\n[chip 0] show llr config pipe 63 channel 7\n[chip 0] show llr status pipe 63 channel 7\n[chip 0] llr disable pipe 63 channel 7 100GR1',desc:'最高 pipe/channel 完整流程',exp:'各步骤正确，chip=0 pipe=63 channel=7'},
+];
+
+/* ─────────────────────────────────────────────────────────────
+   STATE
+───────────────────────────────────────────────────────────── */
+let cases = DEFAULT_CASES.map(t => ({...t}));
+const state = {};  /* id → { status, note, annotation } */
+cases.forEach(t => { state[t.id] = { status:'pending', note:'', annotation:'' }; });
+
+let pendingDeleteId = null;
+
+/* ─────────────────────────────────────────────────────────────
+   UTILS
+───────────────────────────────────────────────────────────── */
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                      .replace(/"/g,'&quot;');
+}
+// Fixed preset badge styles; custom cats get b-cust
+const CAT_BADGE = {ENV:'b-env',LLR:'b-llr',RLM:'b-rlm',CMB:'b-llr'};
+function catBadge(cat) {
+  return `<span class="badge ${CAT_BADGE[cat]||'b-cust'}">${esc(cat)}</span>`;
+}
+
+// Preset cats shown in datalist
+const PRESET_CATS = ['LLR','RLM','ENV','CMB'];
+
+function refreshCatFilter() {
+  // Collect all unique cats from current cases
+  const cats = [...new Set(cases.map(c => c.cat).filter(Boolean))].sort();
+
+  // Rebuild filter <select>
+  const sel = document.getElementById('q-cat');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部分类</option>' +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (cats.includes(cur)) sel.value = cur;
+
+  // Rebuild datalist: presets first, then extra custom cats
+  const dl = document.getElementById('cat-list');
+  const extra = cats.filter(c => !PRESET_CATS.includes(c));
+  dl.innerHTML = PRESET_CATS.map(c => `<option value="${c}">`).join('') +
+    extra.map(c => `<option value="${esc(c)}">`).join('');
+}
+function stBadge(st) {
+  const m = {pass:'b-pass PASS',fail:'b-fail FAIL',skip:'b-skip SKIP',pending:'b-pend —'};
+  const [cls,lbl] = (m[st]||'b-pend —').split(' ');
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+function nowStr() {
+  return new Date().toLocaleString('zh-CN');
+}
+function download(filename, text, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: mime||'text/plain'}));
+  a.download = filename;
+  a.click();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STATS
+───────────────────────────────────────────────────────────── */
+function updateStats() {
+  const cnt = {pass:0,fail:0,skip:0,pending:0};
+  let annCnt = 0;
+  Object.values(state).forEach(s => {
+    cnt[s.status]++;
+    if (s.annotation && s.annotation.trim()) annCnt++;
+  });
+  const total = Object.keys(state).length;
+  document.getElementById('cnt-total').textContent = total;
+  document.getElementById('cnt-pass').textContent  = cnt.pass;
+  document.getElementById('cnt-fail').textContent  = cnt.fail;
+  document.getElementById('cnt-skip').textContent  = cnt.skip;
+  document.getElementById('cnt-pend').textContent  = cnt.pending;
+  document.getElementById('cnt-ann').textContent   = annCnt;
+  const t = total || 1;
+  document.getElementById('pb-pass').style.width = (cnt.pass/t*100)+'%';
+  document.getElementById('pb-fail').style.width = (cnt.fail/t*100)+'%';
+  document.getElementById('pb-skip').style.width = (cnt.skip/t*100)+'%';
+  refreshMarkPanel();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TABLE RENDER
+───────────────────────────────────────────────────────────── */
+function buildTable() {
+  const tbody = document.getElementById('tc-body');
+  tbody.innerHTML = '';
+  cases.forEach(tc => {
+    const tr = document.createElement('tr');
+    tr.id = 'row-' + tc.id;
+    tr.dataset.id   = tc.id;
+    tr.dataset.cat  = tc.cat;
+    tr.dataset.cmd  = tc.cmd;
+    tr.dataset.desc = tc.desc;
+    tbody.appendChild(tr);
+    renderRow(tc.id);
+  });
+  updateStats();
+  refreshCatFilter();
+  filterTable();
+}
+
+function renderRow(id) {
+  const tr  = document.getElementById('row-' + id);
+  if (!tr) return;
+  const tc  = cases.find(c => c.id === id);
+  if (!tc) return;
+  const st  = state[id] || {status:'pending',note:'',annotation:''};
+  const hasAnn = st.annotation && st.annotation.trim().length > 0;
+
+  tr.className = 'st-' + st.status + (hasAnn ? ' has-ann' : '');
+
+  const annHtml = hasAnn
+    ? `<span class="ann-icon"
+         onmouseenter="showTip(event,'${esc(st.annotation).replace(/'/g,'&#39;')}')"
+         onmousemove="moveTip(event)"
+         onmouseleave="hideTip()">📌</span>`
+    : `<span class="ann-placeholder"></span>`;
+
+  tr.innerHTML = `
+    <td class="c-id">${esc(tc.id)}${annHtml}</td>
+    <td class="c-cat">${catBadge(tc.cat)}</td>
+    <td class="c-cmd">${esc(tc.cmd)}</td>
+    <td class="c-desc">${esc(tc.desc)}</td>
+    <td class="c-exp">${esc(tc.exp)}</td>
+    <td class="c-note">
+      <textarea rows="2"
+        placeholder="实际结果…"
+        onfocus="this.rows=4" onblur="this.rows=2"
+        onchange="state['${esc(id)}'].note=this.value"
+      >${esc(st.note)}</textarea>
+    </td>
+    <td class="c-st">
+      <div style="margin-bottom:4px">${stBadge(st.status)}</div>
+      <button class="bmini p" onclick="setStatus('${esc(id)}','pass')">P</button>
+      <button class="bmini f" onclick="setStatus('${esc(id)}','fail')">F</button>
+      <button class="bmini s" onclick="setStatus('${esc(id)}','skip')">S</button>
+      <button class="bmini r" onclick="setStatus('${esc(id)}','pending')">R</button>
+    </td>
+    <td class="c-op">
+      <button class="bmini e" onclick="openEditModal('${esc(id)}')">编辑</button>
+      <button class="bmini d" onclick="openDelModal('${esc(id)}')">删除</button>
+    </td>`;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STATUS
+───────────────────────────────────────────────────────────── */
+function setStatus(id, st) {
+  if (!state[id]) state[id] = {status:'pending',note:'',annotation:''};
+  state[id].status = st;
+  renderRow(id);
+  updateStats();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   FILTER
+───────────────────────────────────────────────────────────── */
+function filterTable() {
+  const q  = document.getElementById('q-search').value.toLowerCase();
+  const qc = document.getElementById('q-cat').value;
+  const qs = document.getElementById('q-status').value;
+  const qa = document.getElementById('q-ann').value;
+  document.querySelectorAll('#tc-body tr').forEach(tr => {
+    const id = tr.dataset.id||'';
+    const st = state[id];
+    const hasAnn = st && st.annotation && st.annotation.trim().length > 0;
+    const mQ = !q || [tr.dataset.cmd,tr.dataset.desc,id].join(' ').toLowerCase().includes(q);
+    const mC = !qc || tr.dataset.cat === qc;
+    const mS = !qs || (st && st.status === qs);
+    const mA = !qa || (qa==='1' ? hasAnn : !hasAnn);
+    tr.style.display = (mQ&&mC&&mS&&mA) ? '' : 'none';
+  });
+}
+function resetFilter() {
+  ['q-search','q-cat','q-status','q-ann'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = el.tagName==='INPUT' ? '' : '';
+  });
+  filterTable();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BATCH
+───────────────────────────────────────────────────────────── */
+function batchSet(st) {
+  document.querySelectorAll('#tc-body tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    const id = tr.dataset.id;
+    if (!id) return;
+    if (!state[id]) state[id] = {status:'pending',note:'',annotation:''};
+    state[id].status = st;
+    renderRow(id);
+  });
+  updateStats();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANNOTATION TOOLTIP
+───────────────────────────────────────────────────────────── */
+const tipEl = document.getElementById('ann-tip');
+function showTip(e, text) {
+  tipEl.textContent = text.replace(/&#39;/g,"'");
+  tipEl.style.display = 'block';
+  moveTip(e);
+}
+function moveTip(e) {
+  const W = window.innerWidth, H = window.innerHeight;
+  const w = tipEl.offsetWidth  || 300;
+  const h = tipEl.offsetHeight || 100;
+  let x = e.clientX + 14, y = e.clientY - 14;
+  if (x + w > W - 8) x = e.clientX - w - 14;
+  if (y + h > H - 8) y = H - h - 8;
+  if (y < 8) y = 8;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top  = y + 'px';
+}
+function hideTip() { tipEl.style.display = 'none'; }
+
+/* ─────────────────────────────────────────────────────────────
+   MODAL HELPERS
+───────────────────────────────────────────────────────────── */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-ov').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+});
+
+/* ─────────────────────────────────────────────────────────────
+   ADD / EDIT MODAL
+───────────────────────────────────────────────────────────── */
+function nextId(cat) {
+  const prefix = cat || 'TC';
+  const nums = cases
+    .filter(c => c.id.startsWith(prefix+'-'))
+    .map(c => parseInt(c.id.replace(prefix+'-',''))||0);
+  const max = nums.length ? Math.max(...nums) : 0;
+  return prefix + '-' + String(max + 1).padStart(3,'0');
+}
+
+function openAddModal() {
+  document.getElementById('edit-title').textContent = '新增测试用例';
+  document.getElementById('edit-orig-id').value = '';
+  document.getElementById('edit-id').value   = '';
+  document.getElementById('edit-cat').value  = 'LLR';
+  document.getElementById('edit-cmd').value  = '';
+  document.getElementById('edit-desc').value = '';
+  document.getElementById('edit-exp').value  = '';
+  document.getElementById('edit-ann').value  = '';
+  // auto-fill ID when cat changes
+  document.getElementById('edit-cat').oninput = function() {
+    if (!document.getElementById('edit-orig-id').value && this.value.trim())
+      document.getElementById('edit-id').value = nextId(this.value.trim().toUpperCase());
+  };
+  document.getElementById('edit-id').value = nextId('LLR');
+  openModal('modal-edit');
+}
+
+function openEditModal(id) {
+  const tc = cases.find(c => c.id === id);
+  if (!tc) return;
+  const st = state[id] || {status:'pending',note:'',annotation:''};
+  document.getElementById('edit-title').textContent = '编辑测试用例';
+  document.getElementById('edit-orig-id').value = id;
+  document.getElementById('edit-id').value   = tc.id;
+  document.getElementById('edit-cat').value  = tc.cat;
+  document.getElementById('edit-cmd').value  = tc.cmd;
+  document.getElementById('edit-desc').value = tc.desc;
+  document.getElementById('edit-exp').value  = tc.exp;
+  document.getElementById('edit-ann').value  = st.annotation || '';
+  document.getElementById('edit-cat').oninput = null;
+  openModal('modal-edit');
+}
+
+function saveEditModal() {
+  const origId = document.getElementById('edit-orig-id').value;
+  const newId  = document.getElementById('edit-id').value.trim();
+  const cat    = document.getElementById('edit-cat').value.trim().toUpperCase() || 'CUST';
+  const cmd    = document.getElementById('edit-cmd').value.trim();
+  const desc   = document.getElementById('edit-desc').value.trim();
+  const exp    = document.getElementById('edit-exp').value.trim();
+  const ann    = document.getElementById('edit-ann').value.trim();
+
+  if (!newId)  { alert('用例 ID 不能为空'); return; }
+  if (!cmd)    { alert('命令不能为空'); return; }
+  if (!desc)   { alert('描述不能为空'); return; }
+
+  // check duplicate ID (only when ID changed)
+  if (newId !== origId && cases.find(c => c.id === newId)) {
+    alert('ID "'+newId+'" 已存在，请修改'); return;
+  }
+
+  if (origId) {
+    // edit
+    const tc = cases.find(c => c.id === origId);
+    if (!tc) return;
+    const oldState = state[origId] || {status:'pending',note:'',annotation:''};
+    oldState.annotation = ann;
+
+    if (newId !== origId) {
+      // ID changed: rename
+      tc.id = newId;
+      state[newId] = oldState;
+      delete state[origId];
+      const row = document.getElementById('row-' + origId);
+      if (row) row.id = 'row-' + newId;
+      row && (row.dataset.id = newId);
+    } else {
+      state[origId].annotation = ann;
+    }
+    tc.cat = cat; tc.cmd = cmd; tc.desc = desc; tc.exp = exp;
+    renderRow(newId);
+  } else {
+    // add
+    const tc = {id:newId, cat, cmd, desc, exp};
+    cases.push(tc);
+    state[newId] = {status:'pending', note:'', annotation: ann};
+    // append row to tbody
+    const tbody = document.getElementById('tc-body');
+    const tr = document.createElement('tr');
+    tr.id = 'row-' + newId;
+    tr.dataset.id   = newId;
+    tr.dataset.cat  = cat;
+    tr.dataset.cmd  = cmd;
+    tr.dataset.desc = desc;
+    tbody.appendChild(tr);
+    renderRow(newId);
+  }
+  updateStats();
+  refreshCatFilter();
+  filterTable();
+  closeModal('modal-edit');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DELETE
+───────────────────────────────────────────────────────────── */
+function openDelModal(id) {
+  pendingDeleteId = id;
+  const tc = cases.find(c => c.id === id);
+  document.getElementById('del-id-show').textContent = id + (tc ? '  —  ' + tc.desc : '');
+  openModal('modal-del');
+}
+function confirmDelete() {
+  const id = pendingDeleteId;
+  if (!id) return;
+  cases = cases.filter(c => c.id !== id);
+  delete state[id];
+  const row = document.getElementById('row-' + id);
+  if (row) row.remove();
+  pendingDeleteId = null;
+  updateStats();
+  refreshCatFilter();
+  closeModal('modal-del');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   IMPORT JSON
+───────────────────────────────────────────────────────────── */
+function triggerImport() { document.getElementById('import-input').click(); }
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const obj = JSON.parse(e.target.result);
+      let importedCases = [], importedState = {};
+
+      if (Array.isArray(obj)) {
+        // pure cases array
+        importedCases = obj;
+      } else if (obj.cases) {
+        importedCases = obj.cases || [];
+        importedState = obj.state || {};
+      } else {
+        alert('JSON 格式不识别：需包含 cases 数组或直接为用例数组');
+        return;
+      }
+
+      if (!importedCases.length) { alert('未找到用例数据'); return; }
+
+      const mode = importedState && Object.keys(importedState).length > 0
+        ? confirm('检测到包含测试结果状态。\n\n[确定] 完全替换当前用例和结果\n[取消] 仅替换用例定义（保留当前结果）')
+        : false;
+
+      // rebuild cases
+      cases = importedCases.map(t => ({
+        id:t.id||'', cat:t.cat||'CUST', cmd:t.cmd||'',
+        desc:t.desc||'', exp:t.exp||''
+      }));
+
+      // rebuild state
+      cases.forEach(tc => {
+        if (mode && importedState[tc.id]) {
+          state[tc.id] = {
+            status:    importedState[tc.id].status     || 'pending',
+            note:      importedState[tc.id].note       || '',
+            annotation:importedState[tc.id].annotation || ''
+          };
+        } else if (!state[tc.id]) {
+          state[tc.id] = {status:'pending', note:'', annotation:''};
+        }
+      });
+      // clean up removed IDs
+      Object.keys(state).forEach(k => { if (!cases.find(c=>c.id===k)) delete state[k]; });
+
+      buildTable();
+      alert(`导入成功：${cases.length} 条用例`);
+    } catch(err) {
+      alert('JSON 解析失败：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   EXPORT JSON
+───────────────────────────────────────────────────────────── */
+function exportJSON() {
+  const obj = {
+    meta: { title:'系统测试', exported: nowStr(), total: cases.length },
+    cases: cases,
+    state: state
+  };
+  download('test_cases_' + new Date().toISOString().slice(0,10) + '.json',
+           JSON.stringify(obj, null, 2), 'application/json');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   EXPORT HTML REPORT
+───────────────────────────────────────────────────────────── */
+function buildReportHTML() {
+  const cnt = {pass:0,fail:0,skip:0,pending:0};
+  Object.values(state).forEach(s => cnt[s.status]++);
+  const total = cases.length;
+  const pct   = total ? Math.round(cnt.pass/total*100) : 0;
+  const date  = nowStr();
+
+  const stColor = {pass:'#38d9a9',fail:'#e05a6e',skip:'#f7a84f',pending:'#6b7399'};
+  const stBg    = {pass:'#152a1e',fail:'#2a1212',skip:'#252210',pending:'#1a1d27'};
+
+  function escH(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  let rows = '';
+  cases.forEach(tc => {
+    const st  = state[tc.id] || {status:'pending',note:'',annotation:''};
+    const sc  = stColor[st.status];
+    const sb  = stBg[st.status];
+    const annBlock = (st.annotation && st.annotation.trim())
+      ? `<div style="margin-top:6px;padding:7px 10px;background:#2a1f08;border:1px solid #f7a84f;
+                     border-radius:5px;font-size:11px;color:#f0d9a0;white-space:pre-wrap">
+           <strong style="font-size:10px;color:#f7a84f">📌 标注</strong><br>${escH(st.annotation)}</div>` : '';
+    const noteBlock = (st.note && st.note.trim())
+      ? `<div style="font-family:monospace;font-size:11px;color:#a0b0c8;white-space:pre-wrap;
+                     margin-top:4px;padding:5px 8px;background:#12152a;border-radius:4px">${escH(st.note)}</div>` : '';
+    const annRow = (st.annotation && st.annotation.trim()) ? ';border-left:4px solid #f7c030' : '';
+    rows += `<tr style="background:${sb};border-bottom:1px solid #2e3450${annRow}">
+      <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:#6b7399;white-space:nowrap">${escH(tc.id)}</td>
+      <td style="padding:8px 10px;white-space:nowrap">
+        <span style="background:${sb};color:${sc};border:1px solid ${sc};border-radius:4px;
+                     padding:2px 7px;font-size:10px;font-weight:600">${escH(tc.cat)}</span></td>
+      <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:#fff;white-space:pre-wrap;max-width:320px">${escH(tc.cmd)}</td>
+      <td style="padding:8px 10px;font-size:12px;max-width:200px">${escH(tc.desc)}</td>
+      <td style="padding:8px 10px;font-size:11px;color:#6b7399;max-width:200px">${escH(tc.exp)}</td>
+      <td style="padding:8px 10px;min-width:160px">${noteBlock}${annBlock}</td>
+      <td style="padding:8px 10px;white-space:nowrap">
+        <span style="background:${sb};color:${sc};border:1px solid ${sc};border-radius:4px;
+                     padding:2px 8px;font-size:11px;font-weight:700">
+          ${{pass:'PASS',fail:'FAIL',skip:'SKIP',pending:'—'}[st.status]}</span></td>
+    </tr>`;
+  });
+
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>测试结果报告</title>
+<style>
+body{background:#0f1117;color:#cdd2e8;font-family:'Segoe UI',sans-serif;font-size:13px;margin:0;padding:0}
+.hdr{background:#12152a;border-bottom:1px solid #2e3450;padding:24px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+h1{font-size:20px;color:#fff;margin-bottom:6px}
+.meta{color:#6b7399;font-size:12px}
+.print-btn{background:#4f8ef7;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;font-weight:500}
+.print-btn:hover{opacity:.85}
+.cont{max-width:1600px;margin:0 auto;padding:24px 32px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.card{background:#22263a;border:1px solid #2e3450;border-radius:7px;padding:12px 20px;text-align:center;min-width:90px}
+.card .n{font-size:26px;font-weight:700} .card .l{font-size:10px;color:#6b7399;text-transform:uppercase}
+.pbar{height:6px;border-radius:3px;background:#2e3450;overflow:hidden;display:flex;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;border-radius:7px;overflow:hidden;border:1px solid #2e3450}
+thead th{background:#1a1d2a;color:#6b7399;font-size:10px;text-transform:uppercase;padding:8px 10px;text-align:left;position:sticky;top:0}
+tfoot td{padding:10px 12px;color:#6b7399;font-size:11px}
+@media print{.print-btn{display:none}.hdr{padding:16px 24px}.cont{padding:16px 24px}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <h1>系统测试结果报告</h1>
+    <div class="meta">生成时间：${date} &nbsp;|&nbsp; 工程：LLR/trunk/xware</div>
+  </div>
+  <button class="print-btn" onclick="window.print()">🖨 打印 / 另存为 PDF</button>
+</div>
+<div class="cont">
+<div class="cards">
+  <div class="card"><div class="n" style="color:#fff">${total}</div><div class="l">Total</div></div>
+  <div class="card"><div class="n" style="color:#38d9a9">${cnt.pass}</div><div class="l">Pass</div></div>
+  <div class="card"><div class="n" style="color:#e05a6e">${cnt.fail}</div><div class="l">Fail</div></div>
+  <div class="card"><div class="n" style="color:#f7a84f">${cnt.skip}</div><div class="l">Skip</div></div>
+  <div class="card"><div class="n" style="color:#6b7399">${cnt.pending}</div><div class="l">Pending</div></div>
+  <div class="card"><div class="n" style="color:#f7a84f">${pct}%</div><div class="l">通过率</div></div>
+</div>
+<div class="pbar">
+  <div style="width:${cnt.pass/total*100}%;background:#38d9a9"></div>
+  <div style="width:${cnt.fail/total*100}%;background:#e05a6e"></div>
+  <div style="width:${cnt.skip/total*100}%;background:#f7a84f"></div>
+</div>
+<table>
+  <thead><tr>
+    <th>ID</th><th>分类</th><th>命令</th><th>描述</th><th>预期结果</th><th>实际结果 / 标注</th><th>状态</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="7">报告由 test_plan.html 生成 · ${date}</td></tr></tfoot>
+</table>
+</div></body></html>`;
+}
+
+function previewHTML() {
+  const html = buildReportHTML();
+  const blob = new Blob([html], {type:'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if (!w) { alert('请允许弹出窗口以预览报告'); return; }
+  // revoke after the new tab has loaded
+  w.addEventListener('load', () => URL.revokeObjectURL(url), {once:true});
+}
+
+function exportHTML() {
+  download('test_report_' + new Date().toISOString().slice(0,10) + '.html', buildReportHTML(), 'text/html');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TEXT REPORT
+───────────────────────────────────────────────────────────── */
+function openReport() {
+  const cnt = {pass:0,fail:0,skip:0,pending:0};
+  Object.values(state).forEach(s => cnt[s.status]++);
+  const total = cases.length;
+  const pct   = total ? Math.round(cnt.pass/total*100) : 0;
+  let lines = [
+    '系统测试报告',
+    '='.repeat(64),
+    `生成时间  : ${nowStr()}`,
+    `工程路径  : LLR/trunk/xware`,
+    `编译命令  : ./build.sh xware -- exec`,
+    '',
+    '── 统计 ' + '─'.repeat(56),
+    `总用例    : ${total}`,
+    `PASS: ${cnt.pass}   FAIL: ${cnt.fail}   SKIP: ${cnt.skip}   PENDING: ${cnt.pending}`,
+    `通过率    : ${pct}%`,
+    ''
+  ];
+  ['fail','skip','pass','pending'].forEach(st => {
+    const lbl   = {fail:'FAIL ❌',skip:'SKIP ⏭',pass:'PASS ✅',pending:'PENDING ⏳'}[st];
+    const items = cases.filter(t => (state[t.id]||{}).status === st);
+    if (!items.length) return;
+    lines.push(`── ${lbl} (${items.length}) ` + '─'.repeat(Math.max(0,52-lbl.length-String(items.length).length-5)));
+    items.forEach(tc => {
+      const s = state[tc.id]||{};
+      lines.push(`  [${tc.id}]  ${tc.desc}`);
+      if (s.annotation && s.annotation.trim()) lines.push(`    📌 标注: ${s.annotation.trim()}`);
+      if (s.note && s.note.trim())             lines.push(`    📝 备注: ${s.note.trim()}`);
+    });
+    lines.push('');
+  });
+  lines.push('='.repeat(64));
+  document.getElementById('rpt-pre').textContent = lines.join('\n');
+  openModal('modal-rpt');
+}
+function copyReport() {
+  navigator.clipboard.writeText(document.getElementById('rpt-pre').textContent)
+    .then(() => alert('已复制到剪贴板'));
+}
+function printReport() {
+  const t = document.getElementById('rpt-pre').textContent;
+  const w = window.open('','_blank');
+  w.document.write('<pre style="font:12px monospace;padding:20px;background:#fff;color:#000">'+t+'</pre>');
+  w.print();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CONTEXT MENU
+───────────────────────────────────────────────────────────── */
+let ctxTargetId = null;
+const ctxMenu = document.getElementById('ctx-menu');
+
+document.getElementById('tc-body').addEventListener('contextmenu', function(e) {
+  const tr = e.target.closest('tr');
+  if (!tr || !tr.dataset.id) return;
+  e.preventDefault();
+  ctxTargetId = tr.dataset.id;
+  const hasAnn = state[ctxTargetId] && state[ctxTargetId].annotation && state[ctxTargetId].annotation.trim();
+  document.getElementById('ctx-clr').style.display = hasAnn ? '' : 'none';
+  const x = Math.min(e.clientX, window.innerWidth - 210);
+  const y = Math.min(e.clientY, window.innerHeight - 120);
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top  = y + 'px';
+  ctxMenu.classList.add('show');
+});
+
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){hideCtxMenu();closeAip();} });
+
+function hideCtxMenu() { ctxMenu.classList.remove('show'); }
+
+function ctxAddAnn() {
+  hideCtxMenu();
+  if (!ctxTargetId) return;
+  openAip(ctxTargetId);
+}
+
+function ctxClearAnn() {
+  hideCtxMenu();
+  if (!ctxTargetId) return;
+  if (!state[ctxTargetId]) state[ctxTargetId] = {status:'pending',note:'',annotation:''};
+  state[ctxTargetId].annotation = '';
+  renderRow(ctxTargetId);
+  updateStats();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANNOTATION INPUT PANEL
+───────────────────────────────────────────────────────────── */
+let aipTargetId = null;
+const aipEl = document.getElementById('aip');
+const aipTa = document.getElementById('aip-ta');
+
+function openAip(id) {
+  aipTargetId = id;
+  const ann = (state[id] && state[id].annotation) || '';
+  aipTa.value = ann;
+  document.getElementById('aip-hdr-id').textContent = id;
+  const tr = document.getElementById('row-' + id);
+  if (tr) {
+    const rect = tr.getBoundingClientRect();
+    let top = rect.bottom + 6;
+    if (top + 200 > window.innerHeight) top = rect.top - 200 - 6;
+    aipEl.style.top  = Math.max(8, top) + 'px';
+    aipEl.style.left = Math.min(rect.left, window.innerWidth - 360) + 'px';
+  } else {
+    aipEl.style.top  = '200px';
+    aipEl.style.left = '200px';
+  }
+  aipEl.classList.add('show');
+  setTimeout(() => aipTa.focus(), 50);
+}
+
+function closeAip() { aipEl.classList.remove('show'); aipTargetId = null; }
+
+function saveAip() {
+  if (!aipTargetId) return;
+  if (!state[aipTargetId]) state[aipTargetId] = {status:'pending',note:'',annotation:''};
+  state[aipTargetId].annotation = aipTa.value.trim();
+  renderRow(aipTargetId);
+  updateStats();
+  closeAip();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MARK PANEL
+───────────────────────────────────────────────────────────── */
+let _hideTimer = null;
+
+function showMarkPanel() {
+  cancelHideMarkPanel();
+  refreshMarkPanel();
+  document.getElementById('mark-panel').classList.add('show');
+}
+
+function scheduleHideMarkPanel() {
+  _hideTimer = setTimeout(hideMarkPanel, 300);
+}
+
+function cancelHideMarkPanel() {
+  if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+}
+
+function hideMarkPanel() {
+  document.getElementById('mark-panel').classList.remove('show');
+}
+
+function refreshMarkPanel() {
+  const annotated = cases.filter(tc => {
+    const st = state[tc.id];
+    return st && st.annotation && st.annotation.trim();
+  });
+  document.getElementById('mark-cnt').textContent = annotated.length;
+  const list = document.getElementById('mark-list');
+  if (!annotated.length) {
+    list.innerHTML = '<div class="mp-empty">暂无标注</div>';
+    return;
+  }
+  list.innerHTML = annotated.map(tc => {
+    const ann = state[tc.id].annotation;
+    return `<div class="mp-item" onclick="jumpToRow('${esc(tc.id)}')">
+      <div class="mp-item-id">${esc(tc.id)}</div>
+      <div class="mp-item-ann">${esc(ann)}</div>
+    </div>`;
+  }).join('');
+}
+
+function jumpToRow(id) {
+  hideMarkPanel();
+  const tr = document.getElementById('row-' + id);
+  if (!tr) return;
+  tr.scrollIntoView({behavior:'smooth', block:'center'});
+  tr.style.outline = '2px solid #f7c030';
+  setTimeout(() => { tr.style.outline = ''; }, 1800);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   INIT
+───────────────────────────────────────────────────────────── */
+buildTable();
+</script>
+
+<!-- Context menu -->
+<div id="ctx-menu">
+  <div class="ctx-item ctx-ann-item" onclick="ctxAddAnn()">📌 添加/编辑标注</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item ctx-clr-item" id="ctx-clr" onclick="ctxClearAnn()">✕ 清除标注</div>
+</div>
+
+<!-- Annotation input panel -->
+<div id="aip">
+  <div class="aip-hdr">📌 标注 — <span id="aip-hdr-id"></span></div>
+  <textarea id="aip-ta" placeholder="输入标注内容…"></textarea>
+  <div class="aip-foot">
+    <button class="btn btn-n btn-sm" onclick="closeAip()">取消</button>
+    <button class="btn btn-a3 btn-sm" onclick="saveAip()">保存</button>
+  </div>
+</div>
+
+</body>
+</html>

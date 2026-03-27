@@ -529,6 +529,22 @@ body.edit-mode .cmd-notes {
 }
 .btn-xs:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
 
+/* ── 当前目录行 ── */
+.cmd-workdir {
+  display: none;
+  font-size: 11px;
+  color: var(--dim);
+  padding: 3px 14px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-family: "SF Mono", Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd-workdir.show { display: block; }
+.cmd-workdir::before { content: "📁 "; }
+
 /* ── 实时执行状态 ── */
 .cmd-block.pending .cmd-block-header { opacity: 0.55; }
 .cmd-block.running .cmd-block-header { background: #162110; }
@@ -1230,7 +1246,7 @@ async function doExec() {
   const results = data.results || [];
   for (let i = 0; i < results.length; i++) {
     await new Promise(r => setTimeout(r, 120));
-    updateReportBlock(i, results[i].output, results[i].exit_code);
+    updateReportBlock(i, results[i].output, results[i].exit_code, results[i].workdir);
     /* 提前激活下一块的运行动画 */
     if (i + 1 < commands.length && i + 1 < results.length) markBlockRunning(i + 1);
   }
@@ -1293,6 +1309,7 @@ function renderReportSkeleton({ host, port, user, workdir = '', commands, marker
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
+          <div class="cmd-workdir" id="wd-${idx}"></div>
           <pre class="cmd-output" id="out-${idx}" contenteditable="false"></pre>
           <div class="cmd-notes" contenteditable="false"></div>
         </div>
@@ -1312,7 +1329,7 @@ function markBlockRunning(idx) {
   if (exitEl) exitEl.innerHTML = '<span class="progress-dot"></span>';
 }
 
-function updateReportBlock(idx, output, exitCode) {
+function updateReportBlock(idx, output, exitCode, workdir) {
   const block = document.getElementById('cb-' + idx);
   if (!block) return;
   block.classList.remove('pending', 'running');
@@ -1324,6 +1341,12 @@ function updateReportBlock(idx, output, exitCode) {
   }
   const out = document.getElementById('out-' + idx);
   if (out) out.textContent = output;
+  /* 显示当前目录 */
+  const wd = document.getElementById('wd-' + idx);
+  if (wd && workdir) {
+    wd.textContent = workdir;
+    wd.classList.add('show');
+  }
 }
 
 function markBlockError(idx, msg) {
@@ -1391,6 +1414,7 @@ function renderReport({ host, port, user, results, markers = [] }) {
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
+          ${r.workdir ? `<div class="cmd-workdir show">${esc(r.workdir)}</div>` : ''}
           <pre class="cmd-output" id="out-${idx}" contenteditable="false">${esc(r.output)}</pre>
           <div class="cmd-notes" contenteditable="false" placeholder="点击添加备注…"></div>
         </div>
@@ -1492,6 +1516,8 @@ function buildReportHTML() {
     .cmd-marker-badge{font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace}
     .cmd-marker-badge.fuzzy{background:#3a2e0a60;color:#d29922;border:1px solid #d2992240}
     .cmd-marker-badge.ignore{background:#21262d;color:#8b949e;border:1px solid #30363d}
+    .cmd-workdir{font-size:11px;color:#8b949e;padding:3px 14px;background:#1c2128;border-bottom:1px solid #30363d;font-family:Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cmd-workdir::before{content:"📁 "}
     .cmd-output{font-family:Consolas,monospace;font-size:12px;color:#adbac7;background:#0d1117;padding:12px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
     .cmd-notes{padding:8px 14px;font-size:12px;color:#8b949e;background:#1c2128;border-top:1px solid #30363d;min-height:24px}
     .compare-body{display:grid;grid-template-columns:1fr 1fr}

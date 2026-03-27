@@ -361,10 +361,12 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
         for (int i = 0; i < result->count; i++) {
             if (i > 0) SB_LIT(&sb, ",");
             SB_LIT(&sb, "{\"cmd\":");
-            sb_json_str(&sb, result->results[i].cmd    ? result->results[i].cmd    : "");
+            sb_json_str(&sb, result->results[i].cmd     ? result->results[i].cmd     : "");
             sb_appendf(&sb, ",\"exit_code\":%d", result->results[i].exit_code);
             SB_LIT(&sb, ",\"output\":");
-            sb_json_str(&sb, result->results[i].output ? result->results[i].output : "");
+            sb_json_str(&sb, result->results[i].output  ? result->results[i].output  : "");
+            SB_LIT(&sb, ",\"workdir\":");
+            sb_json_str(&sb, result->results[i].workdir ? result->results[i].workdir : "");
             SB_LIT(&sb, "}");
         }
     }

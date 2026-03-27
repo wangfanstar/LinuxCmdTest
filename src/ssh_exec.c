@@ -388,9 +388,11 @@ static char *build_session_script(const char *boundary,
     int off = 0;
     off += snprintf(script + off, sz - (size_t)off, "set +e\n");
     for (int i = 0; i < count; i++) {
+        /* 边界格式：BOUNDARY:<exit_code>\t<pwd>\n
+         * 用制表符分隔退出码与路径（路径中不含制表符） */
         off += snprintf(script + off, sz - (size_t)off,
                         "%s\n"
-                        "printf '%s:%%d\\n' $?\n",
+                        "printf '%s:%%d\\t%%s\\n' $? \"$(pwd)\"\n",
                         commands[i], boundary);
     }
     return script;
@@ -420,7 +422,29 @@ static void parse_session_output(const char *output, const char *boundary,
         }
 
         if (marker) {
-            results[i].exit_code = atoi(marker + blen + 1);
+            /* 解析边界行：BOUNDARY:<exit_code>\t<pwd>\n */
+            const char *after_colon = marker + blen + 1;
+            results[i].exit_code = atoi(after_colon);
+
+            /* 提取 workdir（制表符后到换行前） */
+            const char *tab = after_colon;
+            while (*tab && *tab != '\t' && *tab != '\n') tab++;
+            if (*tab == '\t') {
+                const char *wd_start = tab + 1;
+                const char *wd_end   = wd_start;
+                while (*wd_end && *wd_end != '\n' && *wd_end != '\r') wd_end++;
+                size_t wdlen = (size_t)(wd_end - wd_start);
+                results[i].workdir = malloc(wdlen + 1);
+                if (results[i].workdir) {
+                    memcpy(results[i].workdir, wd_start, wdlen);
+                    results[i].workdir[wdlen] = '\0';
+                } else {
+                    results[i].workdir = strdup("");
+                }
+            } else {
+                results[i].workdir = strdup("");
+            }
+
             /* 命令输出 = p 到 marker 之间（去掉末尾换行） */
             size_t len = (size_t)(marker - p);
             while (len > 0 && (p[len-1] == '\n' || p[len-1] == '\r')) len--;
@@ -438,6 +462,7 @@ static void parse_session_output(const char *output, const char *boundary,
         } else {
             /* 未找到标记：剩余内容全归此命令 */
             results[i].output    = strdup(p);
+            results[i].workdir   = strdup("");
             results[i].exit_code = -1;
             p += strlen(p);
         }
@@ -557,8 +582,9 @@ ssh_batch_t *ssh_session_exec(const char *host, int port,
     }
     b->count = cmd_count;
     for (int i = 0; i < cmd_count; i++) {
-        b->results[i].cmd    = strdup(commands[i]);
-        b->results[i].output = strdup("");
+        b->results[i].cmd       = strdup(commands[i]);
+        b->results[i].output    = strdup("");
+        b->results[i].workdir   = strdup("");
         b->results[i].exit_code = -1;
     }
 
@@ -621,6 +647,7 @@ void ssh_batch_free(ssh_batch_t *b)
     for (int i = 0; i < b->count; i++) {
         free(b->results[i].cmd);
         free(b->results[i].output);
+        free(b->results[i].workdir);
     }
     free(b->results);
     free(b);

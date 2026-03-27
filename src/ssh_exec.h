@@ -7,6 +7,7 @@
 typedef struct {
     char *cmd;        /* 命令字符串（heap） */
     char *output;     /* 输出内容（heap，stdout+stderr） */
+    char *workdir;    /* 命令执行后的当前目录（heap，可为空串） */
     int   exit_code;  /* 退出码；-1 表示执行失败 */
 } ssh_cmd_result_t;
 

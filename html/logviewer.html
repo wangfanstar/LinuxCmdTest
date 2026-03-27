@@ -159,6 +159,51 @@
 
   .highlight { background: #d2992240; border-radius: 2px; }
 
+  /* ── 上传按钮 ── */
+  .btn-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: border-color .15s, background .15s;
+  }
+  .btn-upload:hover { background: #21262d; border-color: var(--accent); color: var(--accent); }
+  #file-upload { display: none; }
+
+  .toolbar-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── 拖拽覆盖层 ── */
+  #drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #0d111799;
+    border: 3px dashed var(--accent);
+    border-radius: 12px;
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  #drop-overlay.show { display: flex; }
+
   /* ── 空状态 ── */
   #empty-tip {
     display: none;
@@ -191,6 +236,16 @@
     <option value="30000">每 30 秒</option>
   </select>
 
+  <div class="toolbar-sep"></div>
+
+  <input type="file" id="file-upload" accept=".log,.txt">
+  <label class="btn-upload" for="file-upload" title="上传本地日志文件查看">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    上传日志
+  </label>
+
   <div class="gap"></div>
   <span id="status-badge">加载中…</span>
 </div>
@@ -204,6 +259,14 @@
   <button class="level-btn active" data-level="ERROR">ERROR</button>
   <span id="line-count">0 行</span>
   <button id="btn-bottom" title="滚动到底部">↓ 最新</button>
+</div>
+
+<!-- ── 拖拽覆盖层 ── -->
+<div id="drop-overlay">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+  </svg>
+  松开以加载日志文件
 </div>
 
 <!-- ── 日志内容 ── -->
@@ -384,6 +447,66 @@ document.getElementById('btn-bottom').addEventListener('click', scrollBottom);
 document.getElementById('log-wrap').addEventListener('scroll', function () {
   const atBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 40;
   autoScroll = atBottom;
+});
+
+/* ================================================================
+   本地文件上传 & 拖拽
+   ================================================================ */
+const FILE_INPUT   = document.getElementById('file-upload');
+const DROP_OVERLAY = document.getElementById('drop-overlay');
+
+function loadLocalFile(file) {
+  if (!file) return;
+  // 本地文件无需定时刷新
+  stopTimer();
+  BTN_AUTO.classList.remove('active');
+  BTN_AUTO.textContent = '自动刷新: 关';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    allLines = text.split('\n').filter(l => l.trim()).map(parseLine);
+    renderLog();
+    setBadge(`本地: ${file.name}  ${allLines.length} 行`, false);
+    // 在下拉框显示本地文件名（置顶）
+    let localOpt = document.getElementById('opt-local');
+    if (!localOpt) {
+      localOpt = document.createElement('option');
+      localOpt.id = 'opt-local';
+      FILE_SELECT.insertBefore(localOpt, FILE_SELECT.firstChild);
+    }
+    localOpt.value = '';
+    localOpt.textContent = `[本地] ${file.name}`;
+    FILE_SELECT.value = '';
+  };
+  reader.onerror = () => setBadge('文件读取失败', true);
+  reader.readAsText(file, 'utf-8');
+}
+
+FILE_INPUT.addEventListener('change', () => {
+  loadLocalFile(FILE_INPUT.files[0]);
+  FILE_INPUT.value = ''; // 允许重复选同一文件
+});
+
+// 拖拽到页面任意位置
+let dragCounter = 0;
+document.addEventListener('dragenter', e => {
+  if (e.dataTransfer.types.includes('Files')) {
+    dragCounter++;
+    DROP_OVERLAY.classList.add('show');
+  }
+});
+document.addEventListener('dragleave', () => {
+  dragCounter--;
+  if (dragCounter <= 0) { dragCounter = 0; DROP_OVERLAY.classList.remove('show'); }
+});
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dragCounter = 0;
+  DROP_OVERLAY.classList.remove('show');
+  const file = e.dataTransfer.files[0];
+  if (file) loadLocalFile(file);
 });
 
 /* ================================================================

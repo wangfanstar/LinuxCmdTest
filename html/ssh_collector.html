@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSH 命令信息收集</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --surface2:#1c2128;
+  --border:  #30363d;
+  --text:    #c9d1d9;
+  --dim:     #8b949e;
+  --accent:  #58a6ff;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --yellow:  #d29922;
+  --purple:  #bc8cff;
+  --sidebar: 340px;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 顶栏 ── */
+.topbar {
+  height: 48px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.topbar a {
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.topbar a:hover { color: var(--text); }
+.topbar-title { font-weight: 700; font-size: 15px; color: #f0f6fc; }
+.topbar-sep { color: var(--border); }
+
+/* ── 主布局 ── */
+.layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── 侧边栏 ── */
+aside {
+  width: var(--sidebar);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 表单区块 ── */
+.form-section { display: flex; flex-direction: column; gap: 8px; }
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; color: var(--dim); }
+.field input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+.field input:focus { border-color: var(--accent); }
+.field-row { display: grid; grid-template-columns: 1fr 72px; gap: 8px; }
+
+/* ── 命令列表 ── */
+#cmd-list { display: flex; flex-direction: column; gap: 6px; }
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px 4px 10px;
+}
+.cmd-item input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 12px;
+  outline: none;
+  min-width: 0;
+}
+.cmd-item .btn-del {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.cmd-item .btn-del:hover { background: #3d0a0a; color: var(--red); }
+.cmd-drag { cursor: grab; color: var(--border); font-size: 12px; user-select: none; }
+
+/* ── 命令区工具行 ── */
+.cmd-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+button:hover { background: var(--surface2); border-color: var(--accent); }
+
+/* 预设下拉 */
+.preset-wrap { position: relative; }
+#preset-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 200px;
+  z-index: 50;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+#preset-menu.show { display: block; }
+.preset-group { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.preset-group:last-child { border-bottom: none; }
+.preset-group-label {
+  font-size: 11px;
+  color: var(--dim);
+  padding: 4px 12px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.preset-item {
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+  display: block;
+}
+.preset-item:hover { background: var(--surface2); color: var(--accent); }
+
+/* ── 执行按钮区 ── */
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#btn-exec {
+  width: 100%;
+  padding: 10px;
+  background: #1a5e2e;
+  border: 1px solid #2ea043;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background .15s;
+}
+#btn-exec:hover:not(:disabled) { background: #236c36; }
+#btn-exec:disabled { opacity: .5; cursor: not-allowed; }
+.spinner {
+  display: none;
+  width: 14px; height: 14px;
+  border: 2px solid #ffffff40;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 报告区 ── */
+main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.report-toolbar {
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.report-toolbar-title { font-size: 13px; color: var(--dim); flex: 1; }
+#btn-edit.active { background: #1f3a6e; border-color: var(--accent); color: var(--accent); }
+
+.report-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* ── 占位符 ── */
+#placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dim);
+  text-align: center;
+}
+#placeholder svg { opacity: .2; }
+#placeholder p { font-size: 13px; }
+
+/* ── 报告内容 ── */
+#report { display: none; max-width: 960px; margin: 0 auto; }
+
+.rpt-header {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.rpt-header h2 { font-size: 16px; color: #f0f6fc; margin-bottom: 8px; }
+.rpt-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--dim); }
+.rpt-meta span { display: flex; align-items: center; gap: 5px; }
+.badge-ok  { background: #1a3a24; color: var(--green); border: 1px solid #2ea04340; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+.badge-err { background: #3d0a0a; color: var(--red);   border: 1px solid #f8514940; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+
+.cmd-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.cmd-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface2);
+}
+.cmd-block-header:hover { background: #21262d; }
+.cmd-chevron { color: var(--dim); font-size: 10px; transition: transform .2s; flex-shrink: 0; }
+.cmd-block.collapsed .cmd-chevron { transform: rotate(-90deg); }
+.cmd-block.collapsed .cmd-block-body { display: none; }
+.cmd-text {
+  flex: 1;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd-text::before { content: "$ "; color: var(--dim); }
+.exit-ok  { color: var(--green); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.exit-err { color: var(--red);   font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.btn-copy-cmd {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-copy-cmd:hover { background: var(--surface); color: var(--text); }
+
+.cmd-block-body { padding: 0; }
+.cmd-output {
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+  color: #adbac7;
+  background: var(--bg);
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 32px;
+  max-height: 400px;
+  overflow-y: auto;
+  outline: none;
+}
+.cmd-output:empty::before { content: "(无输出)"; color: var(--dim); font-style: italic; }
+.cmd-output[contenteditable="true"] {
+  border-top: 1px dashed var(--border);
+  background: #0d1117e0;
+}
+.cmd-notes {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--dim);
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  outline: none;
+  min-height: 28px;
+}
+.cmd-notes:empty::before { content: "点击添加备注…"; color: #4a5568; }
+.cmd-notes[contenteditable="true"] { color: var(--text); }
+
+/* edit mode indicator */
+body.edit-mode .cmd-output,
+body.edit-mode .cmd-notes {
+  cursor: text;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/index.html">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+    首页
+  </a>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-title">SSH 命令信息收集</span>
+</div>
+
+<div class="layout">
+
+  <!-- ── 侧边栏 ── -->
+  <aside>
+    <div class="sidebar-body">
+
+      <!-- SSH 连接 -->
+      <div class="form-section">
+        <div class="section-label">SSH 连接</div>
+        <div class="field-row">
+          <div class="field">
+            <label>主机 / IP</label>
+            <input id="f-host" type="text" placeholder="192.168.1.1">
+          </div>
+          <div class="field">
+            <label>端口</label>
+            <input id="f-port" type="number" value="22" min="1" max="65535">
+          </div>
+        </div>
+        <div class="field">
+          <label>用户名</label>
+          <input id="f-user" type="text" placeholder="root">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input id="f-pass" type="password" placeholder="••••••••">
+        </div>
+      </div>
+
+      <!-- 命令集合 -->
+      <div class="form-section">
+        <div class="section-label">命令集合</div>
+        <div id="cmd-list"></div>
+        <div class="cmd-toolbar">
+          <button id="btn-add-cmd">＋ 添加</button>
+          <div class="preset-wrap">
+            <button id="btn-preset">预设模板 ▾</button>
+            <div id="preset-menu">
+              <div class="preset-group">
+                <div class="preset-group-label">系统信息</div>
+                <div class="preset-item" data-cmds="uname -a|hostname|uptime|cat /etc/os-release">系统基本信息</div>
+                <div class="preset-item" data-cmds="nproc|lscpu | head -20|free -h|df -h">硬件资源</div>
+              </div>
+              <div class="preset-group">
+                <div class="preset-group-label">网络</div>
+                <div class="preset-item" data-cmds="ip addr|ip route|ss -tuln|cat /etc/hosts">网络配置</div>
+                <div class="preset-item" data-cmds="netstat -s | head -30|ss -s">网络统计</div>
+              </div>
+              <div class="preset-group">
+                <div class="preset-group-label">进程 / 日志</div>
+                <div class="preset-item" data-cmds="ps aux --sort=-%cpu | head -20|top -bn1 | head -15">进程信息</div>
+                <div class="preset-item" data-cmds="journalctl -n 50 --no-pager|dmesg | tail -30">系统日志</div>
+              </div>
+              <div class="preset-group">
+                <div class="preset-group-label">全量巡检</div>
+                <div class="preset-item" data-cmds="uname -a|hostname|uptime|cat /etc/os-release|nproc|free -h|df -h|ip addr|ss -tuln|ps aux --sort=-%cpu | head -15">完整巡检套餐</div>
+              </div>
+            </div>
+          </div>
+          <button id="btn-clear-cmds">清空</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sidebar-footer">
+      <div id="exec-status" style="font-size:12px;color:var(--dim);text-align:center;min-height:16px;"></div>
+      <button id="btn-exec">
+        <span class="spinner" id="spinner"></span>
+        <span id="exec-label">▶ 执行</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── 报告区 ── -->
+  <main>
+    <div class="report-toolbar">
+      <span class="report-toolbar-title" id="report-title">执行结果将在此显示</span>
+      <button id="btn-edit" title="切换编辑模式">编辑报告</button>
+      <button id="btn-copy-all" title="复制全部输出">复制全部</button>
+      <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
+    </div>
+    <div class="report-body">
+      <div id="placeholder">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 7l3 3-3 3"/>
+        </svg>
+        <p>填写连接信息和命令后点击「执行」</p>
+        <p style="font-size:11px;margin-top:4px;">结果将整理成可预览、编辑并下载的 HTML 报告</p>
+      </div>
+      <div id="report"></div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+/* ================================================================
+   命令列表管理
+   ================================================================ */
+const cmdList = document.getElementById('cmd-list');
+
+function addCmd(value = '') {
+  const item = document.createElement('div');
+  item.className = 'cmd-item';
+  item.innerHTML =
+    `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
+    `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
+    `<button class="btn-del" title="删除">×</button>`;
+  item.querySelector('.btn-del').addEventListener('click', () => item.remove());
+  cmdList.appendChild(item);
+  item.querySelector('input').focus();
+}
+
+function getCommands() {
+  return [...cmdList.querySelectorAll('.cmd-item input')]
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+document.getElementById('btn-add-cmd').addEventListener('click', () => addCmd());
+document.getElementById('btn-clear-cmds').addEventListener('click', () => {
+  cmdList.innerHTML = '';
+});
+
+// 初始添加两行
+addCmd('uname -a');
+addCmd('df -h');
+
+/* ── 预设菜单 ── */
+const presetMenu = document.getElementById('preset-menu');
+document.getElementById('btn-preset').addEventListener('click', e => {
+  e.stopPropagation();
+  presetMenu.classList.toggle('show');
+});
+document.addEventListener('click', () => presetMenu.classList.remove('show'));
+
+presetMenu.querySelectorAll('.preset-item').forEach(el => {
+  el.addEventListener('click', () => {
+    el.dataset.cmds.split('|').forEach(c => addCmd(c));
+    presetMenu.classList.remove('show');
+  });
+});
+
+/* ================================================================
+   执行
+   ================================================================ */
+const btnExec    = document.getElementById('btn-exec');
+const execLabel  = document.getElementById('exec-label');
+const spinner    = document.getElementById('spinner');
+const execStatus = document.getElementById('exec-status');
+
+btnExec.addEventListener('click', doExec);
+
+async function doExec() {
+  const host = document.getElementById('f-host').value.trim();
+  const port = parseInt(document.getElementById('f-port').value) || 22;
+  const user = document.getElementById('f-user').value.trim() || 'root';
+  const pass = document.getElementById('f-pass').value;
+  const commands = getCommands();
+
+  if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
+  if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
+
+  setLoading(true);
+  execStatus.style.color = 'var(--dim)';
+  execStatus.textContent = `连接 ${user}@${host}:${port}…`;
+
+  try {
+    const resp = await fetch('/api/ssh-exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, user, pass, commands })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '错误: ' + data.error;
+      return;
+    }
+
+    execStatus.style.color = 'var(--green)';
+    const ok = data.results.filter(r => r.exit_code === 0).length;
+    execStatus.textContent = `完成 ${ok}/${data.results.length} 成功`;
+    renderReport({ host, port, user, results: data.results });
+
+  } catch (e) {
+    execStatus.style.color = 'var(--red)';
+    execStatus.textContent = '请求失败: ' + e.message;
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(on) {
+  btnExec.disabled = on;
+  spinner.style.display = on ? 'block' : 'none';
+  execLabel.textContent = on ? '执行中…' : '▶ 执行';
+}
+
+/* ================================================================
+   渲染报告
+   ================================================================ */
+const report      = document.getElementById('report');
+const placeholder = document.getElementById('placeholder');
+const reportTitle = document.getElementById('report-title');
+
+function renderReport({ host, port, user, results }) {
+  placeholder.style.display = 'none';
+  report.style.display = 'block';
+
+  const ts   = new Date().toLocaleString('zh-CN', { hour12: false });
+  const okN  = results.filter(r => r.exit_code === 0).length;
+  const failN = results.length - okN;
+
+  // 报告头
+  let html = `
+    <div class="rpt-header">
+      <h2>执行报告</h2>
+      <div class="rpt-meta">
+        <span>🖥 ${esc(host)}:${port}</span>
+        <span>👤 ${esc(user)}</span>
+        <span>🕐 ${ts}</span>
+        <span><span class="badge-ok">✓ ${okN} 成功</span></span>
+        ${failN > 0 ? `<span><span class="badge-err">✗ ${failN} 失败</span></span>` : ''}
+      </div>
+    </div>`;
+
+  results.forEach((r, idx) => {
+    const isOk = r.exit_code === 0;
+    html += `
+      <div class="cmd-block" id="cb-${idx}">
+        <div class="cmd-block-header" onclick="toggleBlock(${idx})">
+          <span class="cmd-chevron">▼</span>
+          <span class="cmd-text" title="${esc(r.cmd)}">${esc(r.cmd)}</span>
+          <span class="${isOk ? 'exit-ok' : 'exit-err'}">${isOk ? '✓ 0' : '✗ ' + r.exit_code}</span>
+          <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
+        </div>
+        <div class="cmd-block-body">
+          <pre class="cmd-output" id="out-${idx}" contenteditable="false">${esc(r.output)}</pre>
+          <div class="cmd-notes" contenteditable="false" placeholder="点击添加备注…"></div>
+        </div>
+      </div>`;
+  });
+
+  report.innerHTML = html;
+  reportTitle.textContent = `报告 · ${host} · ${ts}`;
+}
+
+function toggleBlock(idx) {
+  document.getElementById('cb-' + idx).classList.toggle('collapsed');
+}
+
+/* ================================================================
+   编辑模式
+   ================================================================ */
+const btnEdit = document.getElementById('btn-edit');
+let editMode = false;
+
+btnEdit.addEventListener('click', () => {
+  editMode = !editMode;
+  btnEdit.classList.toggle('active', editMode);
+  btnEdit.textContent = editMode ? '退出编辑' : '编辑报告';
+  document.body.classList.toggle('edit-mode', editMode);
+
+  const ce = editMode ? 'true' : 'false';
+  report.querySelectorAll('.cmd-output, .cmd-notes')
+        .forEach(el => el.setAttribute('contenteditable', ce));
+});
+
+/* ================================================================
+   复制 / 下载
+   ================================================================ */
+document.getElementById('btn-copy-all').addEventListener('click', () => {
+  const outputs = [...report.querySelectorAll('.cmd-output')]
+    .map((el, i) => {
+      const hdr = report.querySelector(`#cb-${i} .cmd-text`);
+      return `$ ${hdr ? hdr.textContent : ''}\n${el.textContent}`;
+    }).join('\n\n' + '─'.repeat(60) + '\n\n');
+  navigator.clipboard.writeText(outputs)
+    .then(() => flash(document.getElementById('btn-copy-all'), '已复制'))
+    .catch(() => {});
+});
+
+function copyOutput(idx) {
+  const el = document.getElementById('out-' + idx);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent)
+    .then(() => flash(el.closest('.cmd-block').querySelector('.btn-copy-cmd'), '✓'))
+    .catch(() => {});
+}
+
+document.getElementById('btn-download').addEventListener('click', downloadReport);
+
+function downloadReport() {
+  if (!report.innerHTML) return;
+
+  const styles = `
+    body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1000px;margin:0 auto}
+    .rpt-header{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;margin-bottom:16px}
+    .rpt-header h2{font-size:16px;color:#f0f6fc;margin-bottom:8px}
+    .rpt-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#8b949e}
+    .badge-ok{background:#1a3a24;color:#3fb950;border:1px solid #2ea04340;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
+    .badge-err{background:#3d0a0a;color:#f85149;border:1px solid #f8514940;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
+    .cmd-block{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
+    .cmd-block-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1c2128;border-bottom:1px solid #30363d}
+    .cmd-text{flex:1;font-family:Consolas,monospace;font-size:12.5px;color:#58a6ff}
+    .cmd-text::before{content:"$ ";color:#8b949e}
+    .exit-ok{color:#3fb950;font-size:11px;font-weight:600}
+    .exit-err{color:#f85149;font-size:11px;font-weight:600}
+    .cmd-output{font-family:Consolas,monospace;font-size:12px;color:#adbac7;background:#0d1117;padding:12px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
+    .cmd-notes{padding:8px 14px;font-size:12px;color:#8b949e;background:#1c2128;border-top:1px solid #30363d;min-height:24px}
+  `;
+
+  // 从当前 DOM 获取（包含用户编辑内容）
+  const bodyHTML = report.innerHTML;
+  const filename = `ssh-report-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.html`;
+  const full = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SSH 执行报告</title>
+<style>${styles}</style>
+</head>
+<body>
+<h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">SSH 命令执行报告</h1>
+${bodyHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([full], { type: 'text/html;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ================================================================
+   工具函数
+   ================================================================ */
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s ?? '').replace(/"/g, '&quot;');
+}
+function flash(el, msg) {
+  if (!el) return;
+  const orig = el.textContent;
+  el.textContent = msg;
+  setTimeout(() => { el.textContent = orig; }, 1200);
+}
+</script>
+</body>
+</html>

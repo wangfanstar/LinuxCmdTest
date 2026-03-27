@@ -15,7 +15,8 @@ TARGET  = $(BIN_DIR)/simpleserver
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/log.c  \
        $(SRC_DIR)/threadpool.c \
-       $(SRC_DIR)/http_handler.c
+       $(SRC_DIR)/http_handler.c \
+       $(SRC_DIR)/ssh_exec.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 

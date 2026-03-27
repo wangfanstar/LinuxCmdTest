@@ -141,6 +141,30 @@ aside {
   padding: 0;
 }
 .cmd-item .btn-del:hover { background: #3d0a0a; color: var(--red); }
+.btn-marker {
+  flex-shrink: 0;
+  width: 22px; height: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.btn-marker:hover { border-color: var(--accent); color: var(--accent); }
+.btn-marker.fuzzy  { border-color: var(--yellow); color: var(--yellow); background: #3a2e0a40; }
+.btn-marker.ignore { border-color: var(--border);  color: var(--dim);    background: #21262d; }
+.cmd-marker-badge {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  font-family: monospace; flex-shrink: 0;
+}
+.cmd-marker-badge.fuzzy  { background: #3a2e0a60; color: var(--yellow); border: 1px solid #d2992240; }
+.cmd-marker-badge.ignore { background: #21262d;   color: var(--dim);    border: 1px solid var(--border); }
+.match-skip { color: var(--dim); font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .cmd-drag { cursor: grab; color: var(--border); font-size: 12px; user-select: none; }
 
 /* ── 命令区工具行 ── */
@@ -800,21 +824,49 @@ free -h</pre>
    ================================================================ */
 const cmdList = document.getElementById('cmd-list');
 
-function addCmd(value = '') {
+function addCmd(value = '', marker = '') {
   const item = document.createElement('div');
   item.className = 'cmd-item';
+  item.dataset.marker = marker;
   item.innerHTML =
     `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
+    `<button class="btn-marker" title="点击切换匹配模式"></button>` +
     `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
     `<button class="btn-del" title="删除">×</button>`;
+  const markerBtn = item.querySelector('.btn-marker');
+  applyMarker(item, markerBtn, marker);
+  markerBtn.addEventListener('click', () => {
+    const next = { '': 'fuzzy', 'fuzzy': 'ignore', 'ignore': '' }[item.dataset.marker] ?? '';
+    applyMarker(item, markerBtn, next);
+  });
   item.querySelector('.btn-del').addEventListener('click', () => item.remove());
   cmdList.appendChild(item);
   item.querySelector('input').focus();
 }
 
+function applyMarker(item, btn, marker) {
+  item.dataset.marker = marker;
+  if (marker === 'fuzzy') {
+    btn.textContent = '~'; btn.title = '模糊匹配 — 忽略空白差异（点击切换）';
+    btn.className = 'btn-marker fuzzy';
+  } else if (marker === 'ignore') {
+    btn.textContent = '!'; btn.title = '忽略比对 — 始终跳过此命令（点击切换）';
+    btn.className = 'btn-marker ignore';
+  } else {
+    btn.textContent = '='; btn.title = '默认匹配 — 跟随全局设置（点击切换）';
+    btn.className = 'btn-marker';
+  }
+}
+
 function getCommands() {
   return [...cmdList.querySelectorAll('.cmd-item input')]
     .map(i => i.value.trim()).filter(Boolean);
+}
+
+function getCommandsWithMarkers() {
+  return [...cmdList.querySelectorAll('.cmd-item')]
+    .map(item => ({ cmd: item.querySelector('input').value.trim(), marker: item.dataset.marker || '' }))
+    .filter(o => o.cmd);
 }
 
 document.getElementById('btn-add-cmd').addEventListener('click', () => addCmd());
@@ -837,7 +889,12 @@ document.getElementById('cmd-file-input').addEventListener('change', function ()
       execStatus.style.color = 'var(--yellow)';
       return;
     }
-    lines.forEach(addCmd);
+    lines.forEach(line => {
+      let marker = '', cmd = line;
+      if (line.startsWith('~ ')) { marker = 'fuzzy';  cmd = line.slice(2); }
+      else if (line.startsWith('! ')) { marker = 'ignore'; cmd = line.slice(2); }
+      if (cmd) addCmd(cmd, marker);
+    });
     execStatus.textContent = `已从 ${file.name} 导入 ${lines.length} 条命令`;
     execStatus.style.color = 'var(--green)';
   };
@@ -849,16 +906,20 @@ document.getElementById('cmd-file-input').addEventListener('change', function ()
   this.value = '';   // 允许重复选同一文件
 });
 
-/* ── 导出命令列表为文本文件 ── */
+/* ── 导出命令列表为文本文件（含标记前缀） ── */
 document.getElementById('btn-export-cmds').addEventListener('click', () => {
-  const cmds = getCommands();
-  if (cmds.length === 0) {
+  const items = getCommandsWithMarkers();
+  if (items.length === 0) {
     execStatus.textContent = '命令列表为空，无可导出内容';
     execStatus.style.color = 'var(--yellow)';
     return;
   }
-  const host     = document.getElementById('f-host').value.trim() || 'commands';
-  const content  = cmds.join('\n') + '\n';
+  const host  = document.getElementById('f-host').value.trim() || 'commands';
+  const lines = items.map(o =>
+    o.marker === 'fuzzy'  ? '~ ' + o.cmd :
+    o.marker === 'ignore' ? '! ' + o.cmd : o.cmd
+  );
+  const content = lines.join('\n') + '\n';
   const filename = `ssh-cmds-${host}-${Date.now()}.txt`;
   const blob     = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const a        = document.createElement('a');
@@ -866,7 +927,7 @@ document.getElementById('btn-export-cmds').addEventListener('click', () => {
   a.download     = filename;
   a.click();
   URL.revokeObjectURL(a.href);
-  execStatus.textContent = `命令已导出: ${filename}（${cmds.length} 条）`;
+  execStatus.textContent = `命令已导出: ${filename}（${items.length} 条）`;
   execStatus.style.color = 'var(--green)';
 });
 
@@ -904,7 +965,9 @@ async function doExec() {
   const port = parseInt(document.getElementById('f-port').value) || 22;
   const user = document.getElementById('f-user').value.trim() || 'root';
   const pass = document.getElementById('f-pass').value;
-  const commands = getCommands();
+  const cmdItems = getCommandsWithMarkers();
+  const commands = cmdItems.map(o => o.cmd);
+  const markers  = cmdItems.map(o => o.marker);
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
@@ -930,7 +993,7 @@ async function doExec() {
     execStatus.style.color = 'var(--green)';
     const ok = data.results.filter(r => r.exit_code === 0).length;
     execStatus.textContent = `完成 ${ok}/${data.results.length} 成功`;
-    renderReport({ host, port, user, results: data.results });
+    renderReport({ host, port, user, results: data.results, markers });
 
   } catch (e) {
     execStatus.style.color = 'var(--red)';
@@ -953,7 +1016,7 @@ const report      = document.getElementById('report');
 const placeholder = document.getElementById('placeholder');
 const reportTitle = document.getElementById('report-title');
 
-function renderReport({ host, port, user, results }) {
+function renderReport({ host, port, user, results, markers = [] }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
 
@@ -975,12 +1038,16 @@ function renderReport({ host, port, user, results }) {
     </div>`;
 
   results.forEach((r, idx) => {
-    const isOk = r.exit_code === 0;
+    const isOk  = r.exit_code === 0;
+    const mark  = markers[idx] || '';
+    const markBadge = mark === 'fuzzy'  ? `<span class="cmd-marker-badge fuzzy"  title="模糊匹配">~</span>` :
+                      mark === 'ignore' ? `<span class="cmd-marker-badge ignore" title="忽略比对">!</span>` : '';
     html += `
-      <div class="cmd-block" id="cb-${idx}">
+      <div class="cmd-block" id="cb-${idx}" data-marker="${mark}">
         <div class="cmd-block-header" onclick="toggleBlock(${idx})">
           <span class="cmd-chevron">▼</span>
           <span class="cmd-text" title="${esc(r.cmd)}">${esc(r.cmd)}</span>
+          ${markBadge}
           <span class="${isOk ? 'exit-ok' : 'exit-err'}">${isOk ? '✓ 0' : '✗ ' + r.exit_code}</span>
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
@@ -1108,7 +1175,7 @@ document.addEventListener('keydown', e => {
    SSH 配置 导出 / 导入
    ================================================================ */
 
-/* 导出：将当前表单（含密码）+ 命令列表存为 JSON */
+/* 导出：将当前表单（含密码）+ 命令列表（含标记）存为 JSON */
 document.getElementById('btn-cfg-export').addEventListener('click', () => {
   const cfg = {
     version:  1,
@@ -1116,7 +1183,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     port:     parseInt(document.getElementById('f-port').value) || 22,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
-    commands: getCommands()
+    commands: getCommandsWithMarkers()   // [{cmd, marker}]
   };
   const json     = JSON.stringify(cfg, null, 2);
   const filename = `ssh-config-${cfg.host || 'unnamed'}-${Date.now()}.json`;
@@ -1144,7 +1211,10 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.pass !== undefined) document.getElementById('f-pass').value = cfg.pass;
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cmdList.innerHTML = '';
-        cfg.commands.forEach(c => addCmd(String(c)));
+        cfg.commands.forEach(c => {
+          if (typeof c === 'string') addCmd(c, '');
+          else addCmd(String(c.cmd ?? ''), String(c.marker ?? ''));
+        });
       }
       execStatus.textContent = cfg.pass
         ? `配置已导入: ${file.name}`
@@ -1258,7 +1328,8 @@ function exportExpected() {
   /* 始终从原始 out-${idx} 读取（compare 模式下该元素被隐藏但内容完整） */
   const items = blocks.map((blk, idx) => ({
     cmd:    blk.querySelector('.cmd-text')?.textContent?.trim() ?? '',
-    output: document.getElementById('out-' + idx)?.textContent ?? ''
+    output: document.getElementById('out-' + idx)?.textContent ?? '',
+    marker: blk.dataset.marker || ''
   }));
   const payload = { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
   const json     = JSON.stringify(payload, null, 2);
@@ -1326,13 +1397,15 @@ btnMatchMode.addEventListener('click', () => {
   if (report.querySelector('.cmd-block')) refreshComparison();
 });
 
-/* 文本匹配 */
-function matchOutput(actual, expected) {
+/* 文本匹配（exact=true 精确，false 模糊） */
+function matchOutputMode(actual, expected, exact) {
   const norm = s => s.replace(/\r\n/g, '\n').trim();
-  if (matchExact) return norm(actual) === norm(expected);
-  /* 模糊：忽略首尾空白、连续空白折叠 */
+  if (exact) return norm(actual) === norm(expected);
   const fuzz = s => norm(s).replace(/\s+/g, ' ');
   return fuzz(actual) === fuzz(expected);
+}
+function matchOutput(actual, expected) {
+  return matchOutputMode(actual, expected, matchExact);
 }
 
 /* 刷新每个命令块的比对区域
@@ -1355,19 +1428,31 @@ function refreshComparison() {
     const exp = expectedData.commands[idx];
     if (!exp) return;
 
-    const actual  = outEl.textContent;
-    const expText = exp.output ?? '';
-    const passed  = matchOutput(actual, expText);
+    const actual    = outEl.textContent;
+    const expText   = exp.output ?? '';
+    const blkMarker = blk.dataset.marker || '';
+
+    /* 按命令标记决定比对逻辑 */
+    let passed;
+    let skipCompare = false;
+    if (blkMarker === 'ignore') {
+      passed = true; skipCompare = true;
+    } else {
+      const useExact = blkMarker === 'fuzzy' ? false : matchExact;
+      passed = matchOutputMode(actual, expText, useExact);
+    }
 
     /* 隐藏原始输出，插入比对面板 */
     outEl.style.display = 'none';
 
-    const notesEl = body.querySelector('.cmd-notes');
-    const cmp = document.createElement('div');
-    cmp.className = 'compare-body';
+    const notesEl   = body.querySelector('.cmd-notes');
+    const cmp       = document.createElement('div');
+    cmp.className   = 'compare-body';
+    const modeNote  = blkMarker === 'fuzzy'  ? ' <span style="font-size:10px;opacity:.6">~模糊</span>' :
+                      blkMarker === 'ignore' ? ' <span style="font-size:10px;opacity:.6">已忽略</span>' : '';
     cmp.innerHTML =
-      `<div class="compare-pane ${passed ? 'pass' : 'fail'}">` +
-        `<div class="compare-label">实际输出</div>` +
+      `<div class="compare-pane ${skipCompare ? '' : passed ? 'pass' : 'fail'}">` +
+        `<div class="compare-label">实际输出${modeNote}</div>` +
         `<pre class="cmd-output" data-cmp="${idx}">${esc(actual)}</pre>` +
       `</div>` +
       `<div class="compare-pane">` +
@@ -1379,8 +1464,13 @@ function refreshComparison() {
     /* 匹配徽章插入到 header 复制按钮之前 */
     const hdr   = blk.querySelector('.cmd-block-header');
     const badge = document.createElement('span');
-    badge.className   = passed ? 'match-pass' : 'match-fail';
-    badge.textContent = passed ? '✓ 通过' : '✗ 不符';
+    if (skipCompare) {
+      badge.className   = 'match-skip';
+      badge.textContent = '— 跳过';
+    } else {
+      badge.className   = passed ? 'match-pass' : 'match-fail';
+      badge.textContent = passed ? '✓ 通过' : '✗ 不符';
+    }
     hdr.querySelector('.btn-copy-cmd').before(badge);
   });
 }

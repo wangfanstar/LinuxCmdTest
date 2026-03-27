@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10.150.71.102 服务器监控</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #21262d;background:#161b22}
+.header-left{display:flex;align-items:center;gap:14px}
+header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
+.back-link{font-size:.75rem;color:#8b949e;text-decoration:none;border:1px solid #30363d;border-radius:5px;padding:3px 10px}
+.back-link:hover{color:#e6edf3;border-color:#58a6ff}
+#status{font-size:.72rem;color:#8b949e}
+#status.ok::before{content:'● ';color:#3fb950}
+#status.err::before{content:'● ';color:#f85149}
+.page{max-width:1400px;margin:0 auto;padding:20px 16px}
+
+/* ── 概要卡片 ── */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;margin-bottom:20px}
+.card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px}
+.card-title{font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;color:#8b949e;margin-bottom:7px}
+.metric-val{font-size:1.65rem;font-weight:700;line-height:1;margin-bottom:3px}
+.metric-sub{font-size:.68rem;color:#8b949e}
+.bar-wrap{height:6px;background:#21262d;border-radius:3px;margin-top:9px;overflow:hidden}
+.bar-inner{height:100%;border-radius:3px;transition:width .5s ease}
+
+/* ── 全局 Top10 ── */
+#top10-section{margin-bottom:20px}
+.section-hd{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.section-hd h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#8b949e;font-weight:600}
+.section-hd .badge{font-size:.65rem;background:#21262d;color:#8b949e;border-radius:10px;padding:2px 8px}
+.top10-table{background:#161b22;border:1px solid #21262d;border-radius:8px;overflow:hidden;width:100%}
+.top10-table th,.top10-table td{padding:7px 14px;font-size:.75rem;text-align:left}
+.top10-table th{background:#1c2128;color:#8b949e;font-weight:500;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em}
+.top10-table td:last-child{text-align:right;font-weight:700;width:80px}
+.top10-table tr:not(:last-child) td{border-bottom:1px solid #21262d}
+.rank{display:inline-block;width:20px;font-size:.68rem;color:#8b949e;text-align:right;margin-right:4px}
+.pname{color:#e6edf3}
+.uname{color:#8b949e;font-size:.68rem;margin-left:6px}
+
+/* ── 核心面板 ── */
+#cores-section{margin-bottom:20px}
+#cores-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+@media(max-width:1000px){#cores-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:500px) {#cores-grid{grid-template-columns:repeat(2,1fr)}}
+.core-card{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:8px 10px;min-width:0}
+.core-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.core-name{font-size:.6rem;color:#8b949e;letter-spacing:.04em}
+.core-pct{font-size:.82rem;font-weight:700;white-space:nowrap}
+.core-bar{height:4px;background:#21262d;border-radius:2px;margin-bottom:5px;overflow:hidden}
+.core-bar-inner{height:100%;border-radius:2px;transition:width .5s ease}
+.core-canvas{display:block;width:100%;height:28px}
+.core-procs{margin-top:5px;display:flex;flex-direction:column;gap:2px}
+.core-proc-row{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;line-height:1.4}
+.cp-name{color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%;font-size:.59rem}
+.cp-user{color:#8b949e;font-size:.56rem;max-width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-pct{color:#d29922;font-size:.6rem;font-weight:600;flex-shrink:0}
+
+/* ── 趋势图 ── */
+.chart-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.chart-label{font-size:.68rem;color:#8b949e;margin-bottom:6px}
+canvas{display:block;width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:600px){.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <a class="back-link" href="/index.html">← 返回</a>
+    <h1>10.150.71.102 服务器监控</h1>
+  </div>
+  <span id="status" class="ok">连接正常</span>
+</header>
+<div class="page">
+
+  <!-- 概要指标 -->
+  <div class="summary-grid">
+    <div class="card">
+      <div class="card-title">系统 CPU（合计）</div>
+      <div class="metric-val" id="sys-cpu" style="color:#3fb950">--</div>
+      <div class="metric-sub">所有核心平均</div>
+      <div class="bar-wrap"><div class="bar-inner" id="sys-cpu-bar" style="background:#3fb950;width:0%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">系统内存</div>
+      <div class="metric-val" id="sys-mem" style="color:#58a6ff">--</div>
+      <div class="metric-sub" id="sys-mem-sub">-- / --</div>
+      <div class="bar-wrap"><div class="bar-inner" id="sys-mem-bar" style="background:#58a6ff;width:0%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">进程 CPU</div>
+      <div class="metric-val" id="proc-cpu" style="color:#d29922">--</div>
+      <div class="metric-sub">simpleserver 进程</div>
+      <div class="bar-wrap"><div class="bar-inner" id="proc-cpu-bar" style="background:#d29922;width:0%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">进程内存</div>
+      <div class="metric-val" id="proc-mem" style="color:#bc8cff">--</div>
+      <div class="metric-sub">RSS 实占内存</div>
+    </div>
+    <div class="card">
+      <div class="card-title">当前在线</div>
+      <div class="metric-val" id="online-now" style="color:#3fb950">--</div>
+      <div class="metric-sub">5 分钟活跃 IP</div>
+    </div>
+    <div class="card">
+      <div class="card-title">历史峰值在线</div>
+      <div class="metric-val" id="online-peak" style="color:#58a6ff">--</div>
+      <div class="metric-sub">自启动以来</div>
+    </div>
+    <div class="card">
+      <div class="card-title">累计请求</div>
+      <div class="metric-val" id="total-reqs">--</div>
+      <div class="metric-sub" id="active-conns">活跃连接: --</div>
+    </div>
+    <div class="card">
+      <div class="card-title">运行时长</div>
+      <div class="metric-val" id="uptime" style="color:#3fb950">--</div>
+      <div class="metric-sub" id="uptime-since">启动时间: --</div>
+    </div>
+  </div>
+
+  <!-- 全局 Top-10 进程 -->
+  <div id="top10-section">
+    <div class="section-hd"><h2>CPU 占用 Top 10 进程</h2></div>
+    <table class="top10-table" id="top10-table">
+      <thead><tr><th>#</th><th>进程名</th><th>用户</th><th>CPU %</th></tr></thead>
+      <tbody id="top10-body"><tr><td colspan="4" style="color:#8b949e;text-align:center;padding:14px">等待数据...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 每核 CPU 面板 -->
+  <div id="cores-section">
+    <div class="section-hd">
+      <h2>各核心 CPU 占用</h2>
+      <span class="badge" id="core-badge">-- 核</span>
+    </div>
+    <div id="cores-grid"><!-- 动态生成 --></div>
+  </div>
+
+  <!-- 趋势图 -->
+  <div class="row2">
+    <div class="chart-card">
+      <div class="chart-label">系统 CPU 历史（最近 60 次）</div>
+      <canvas id="cpu-chart" height="65"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">内存使用率历史</div>
+      <canvas id="mem-chart" height="65"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-label">在线人数历史</div>
+    <canvas id="online-chart" height="50"></canvas>
+  </div>
+
+</div>
+<script>
+const POLL_MS = 3000;
+const MAX_PTS = 60;
+
+const history  = { sysCpu:[], sysMem:[], online:[] };
+const coreHist = {};
+let   startTime = null;
+
+/* ── 工具 ── */
+function pct(v){ return v.toFixed(1)+'%'; }
+function fmtMem(kb){
+  if(kb>=1024*1024) return (kb/1024/1024).toFixed(2)+' GB';
+  if(kb>=1024)      return (kb/1024).toFixed(1)+' MB';
+  return kb+' KB';
+}
+function fmtUptime(s){
+  const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),ss=s%60;
+  if(d) return `${d}天 ${h}小时 ${m}分`;
+  if(h) return `${h}小时 ${m}分 ${ss}秒`;
+  if(m) return `${m}分 ${ss}秒`;
+  return `${ss}秒`;
+}
+function colorFor(v){ return v>=85?'#f85149':v>=60?'#d29922':'#3fb950'; }
+function colorFill(v){ return v>=85?'rgba(248,81,73,.12)':v>=60?'rgba(210,153,34,.12)':'rgba(63,185,80,.12)'; }
+function push(arr,v){ arr.push(v); if(arr.length>MAX_PTS) arr.shift(); }
+
+/* ── 折线图 ── */
+function drawLine(canvas, data, maxVal, color, fill){
+  if(!canvas) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.clientWidth||canvas.parentElement.clientWidth||400;
+  const H=parseInt(canvas.getAttribute('height'))||65;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#21262d'; ctx.lineWidth=1;
+  [.25,.5,.75].forEach(f=>{ const y=H-H*f; ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); });
+  if(data.length<2) return;
+  const n=data.length, step=W/(MAX_PTS-1), top=maxVal||1;
+  const xi=i=>(MAX_PTS-n+i)*step, yi=v=>H-(v/top)*H*.93;
+  ctx.beginPath();
+  data.forEach((v,i)=>{ i?ctx.lineTo(xi(i),yi(v)):ctx.moveTo(xi(i),yi(v)); });
+  ctx.lineTo(xi(n-1),H); ctx.lineTo(xi(0),H); ctx.closePath();
+  ctx.fillStyle=fill; ctx.fill();
+  ctx.beginPath();
+  data.forEach((v,i)=>{ i?ctx.lineTo(xi(i),yi(v)):ctx.moveTo(xi(i),yi(v)); });
+  ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.stroke();
+}
+
+/* ── 核心迷你图 ── */
+function drawCoreChart(canvas, data){
+  if(!canvas||data.length<2) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.clientWidth||120, H=28;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+  const n=data.length, step=W/(MAX_PTS-1);
+  const col=colorFor(data[data.length-1]);
+  const xi=i=>(MAX_PTS-n+i)*step, yi=v=>H-(v/100)*H*.88;
+  ctx.beginPath();
+  data.forEach((v,i)=>{ i?ctx.lineTo(xi(i),yi(v)):ctx.moveTo(xi(i),yi(v)); });
+  ctx.lineTo(xi(n-1),H); ctx.lineTo(xi(0),H); ctx.closePath();
+  ctx.fillStyle=colorFill(data[data.length-1]); ctx.fill();
+  ctx.beginPath();
+  data.forEach((v,i)=>{ i?ctx.lineTo(xi(i),yi(v)):ctx.moveTo(xi(i),yi(v)); });
+  ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.stroke();
+}
+
+/* ── 全局 Top10 表格 ── */
+function updateTop10(top10){
+  const tbody = document.getElementById('top10-body');
+  if(!top10||!top10.length){ tbody.innerHTML='<tr><td colspan="4" style="color:#8b949e;text-align:center;padding:14px">暂无数据</td></tr>'; return; }
+  tbody.innerHTML = top10.map((p,i)=>`
+    <tr>
+      <td><span class="rank">${i+1}</span></td>
+      <td><span class="pname">${esc(p.n)}</span></td>
+      <td><span class="uname">${esc(p.u)}</span></td>
+      <td style="color:${colorFor(p.p)}">${p.p.toFixed(1)}%</td>
+    </tr>`).join('');
+}
+
+/* ── 每核卡片 ── */
+function syncCores(cores){
+  const grid  = document.getElementById('cores-grid');
+  const badge = document.getElementById('core-badge');
+  badge.textContent = cores.length+' 核';
+  cores.forEach((c,i)=>{
+    const v   = c.pct;
+    const top = c.top || [];
+    if(!coreHist[i]) coreHist[i]=[];
+    push(coreHist[i], v);
+    let card = document.getElementById('cc'+i);
+    if(!card){
+      card = document.createElement('div');
+      card.className='core-card'; card.id='cc'+i;
+      card.innerHTML=
+        `<div class="core-header"><span class="core-name">C${i}</span>`+
+        `<span class="core-pct" id="cp${i}">0%</span></div>`+
+        `<div class="core-bar"><div class="core-bar-inner" id="cb${i}" style="width:0%"></div></div>`+
+        `<canvas class="core-canvas" id="cv${i}" height="28"></canvas>`+
+        `<div class="core-procs" id="cpr${i}"></div>`;
+      grid.appendChild(card);
+    }
+    const col = colorFor(v);
+    document.getElementById('cp'+i).textContent = pct(v);
+    document.getElementById('cp'+i).style.color = col;
+    document.getElementById('cb'+i).style.width = Math.min(v,100)+'%';
+    document.getElementById('cb'+i).style.background = col;
+    drawCoreChart(document.getElementById('cv'+i), coreHist[i]);
+    /* top-3 进程 */
+    const cpr = document.getElementById('cpr'+i);
+    cpr.innerHTML = top.length ? top.map(p=>
+      `<div class="core-proc-row">`+
+      `<span class="cp-name" title="${esc(p.n)}">${esc(p.n)}</span>`+
+      `<span class="cp-user" title="${esc(p.u)}">${esc(p.u)}</span>`+
+      `<span class="cp-pct">${p.p.toFixed(1)}%</span>`+
+      `</div>`).join('') : '';
+  });
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ── 摘要更新 ── */
+function update(d){
+  const s=d.sys_cpu_pct, p=d.proc_cpu_pct, m=d.sys_mem_pct;
+  const set=(id,t,c)=>{ const e=document.getElementById(id); e.textContent=t; if(c) e.style.color=c; };
+  const bar=(id,v,c)=>{ const e=document.getElementById(id); e.style.width=Math.min(v,100)+'%'; e.style.background=c; };
+  set('sys-cpu',  pct(s), colorFor(s)); bar('sys-cpu-bar', s, colorFor(s));
+  set('proc-cpu', pct(p), colorFor(p)); bar('proc-cpu-bar',p, colorFor(p));
+  set('sys-mem',  pct(m), colorFor(m)); bar('sys-mem-bar', m, colorFor(m));
+  set('sys-mem-sub', fmtMem(d.sys_mem_used_kb)+' / '+fmtMem(d.sys_mem_total_kb));
+  set('proc-mem', fmtMem(d.proc_mem_kb), '#bc8cff');
+  set('online-now',  String(d.online_now),  '#3fb950');
+  set('online-peak', String(d.online_peak), '#58a6ff');
+  set('total-reqs',  d.total_requests.toLocaleString());
+  set('active-conns','活跃连接: '+d.active_conns);
+  set('uptime', fmtUptime(d.uptime_sec), '#3fb950');
+  if(!startTime){
+    const t=new Date(); t.setSeconds(t.getSeconds()-d.uptime_sec);
+    startTime=t.toLocaleString('zh-CN');
+  }
+  set('uptime-since','启动: '+startTime);
+
+  updateTop10(d.top10);
+  if(Array.isArray(d.cores)&&d.cores.length) syncCores(d.cores);
+
+  push(history.sysCpu, s); push(history.sysMem, m); push(history.online, d.online_now);
+  drawLine(document.getElementById('cpu-chart'),    history.sysCpu, 100,   '#3fb950','rgba(63,185,80,.12)');
+  drawLine(document.getElementById('mem-chart'),    history.sysMem, 100,   '#58a6ff','rgba(88,166,255,.12)');
+  drawLine(document.getElementById('online-chart'), history.online, Math.max(...history.online,1), '#bc8cff','rgba(188,140,255,.12)');
+}
+
+/* ── 轮询 ── */
+const statusEl = document.getElementById('status');
+async function poll(){
+  try{
+    const r = await fetch('/api/monitor');
+    if(!r.ok) throw new Error(r.status);
+    update(await r.json());
+    statusEl.className='ok'; statusEl.textContent='连接正常';
+  }catch{
+    statusEl.className='err'; statusEl.textContent='连接失败';
+  }
+}
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

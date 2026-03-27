@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    stats_init();
     LOG_INFO("=== simplewebserver starting ===");
     LOG_INFO("port=%d  threads=%d  queue=%d  logdir=%s",
              port, threads, queue_size, log_dir);

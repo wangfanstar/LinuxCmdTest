@@ -724,6 +724,10 @@ body.edit-mode .cmd-notes {
           <label>密码</label>
           <input id="f-pass" type="password" placeholder="••••••••">
         </div>
+        <div class="field">
+          <label>起始目录 <span style="color:var(--dim);font-weight:400">（可选，每条命令前自动 cd）</span></label>
+          <input id="f-workdir" type="text" placeholder="/home/user/project">
+        </div>
       </div>
 
       <!-- 命令集合 -->
@@ -1123,13 +1127,18 @@ btnExec.addEventListener('click', () => {
 });
 
 async function doExec() {
-  const host = document.getElementById('f-host').value.trim();
-  const port = parseInt(document.getElementById('f-port').value) || 22;
-  const user = document.getElementById('f-user').value.trim() || 'root';
-  const pass = document.getElementById('f-pass').value;
+  const host    = document.getElementById('f-host').value.trim();
+  const port    = parseInt(document.getElementById('f-port').value) || 22;
+  const user    = document.getElementById('f-user').value.trim() || 'root';
+  const pass    = document.getElementById('f-pass').value;
+  const workdir = document.getElementById('f-workdir').value.trim();
   const cmdItems = getCommandsWithMarkers();
   const commands = cmdItems.map(o => o.cmd);
   const markers  = cmdItems.map(o => o.marker);
+  /* 若设置了起始目录，生成实际执行命令（display 保持原始命令不变） */
+  const execCmds = workdir
+    ? commands.map(c => `cd '${workdir.replace(/'/g, "'\\''")}' && ${c}`)
+    : commands;
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
@@ -1140,7 +1149,7 @@ async function doExec() {
   execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
   /* 先渲染所有骨架块 */
-  renderReportSkeleton({ host, port, user, commands, markers });
+  renderReportSkeleton({ host, port, user, workdir, commands, markers });
 
   const results = [];
 
@@ -1159,7 +1168,7 @@ async function doExec() {
       const resp = await fetch('/api/ssh-exec-one', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host, port, user, pass, command: commands[i] })
+        body: JSON.stringify({ host, port, user, pass, command: execCmds[i] })
       });
       const data = await resp.json();
 
@@ -1223,7 +1232,7 @@ const placeholder = document.getElementById('placeholder');
 const reportTitle = document.getElementById('report-title');
 
 /* ── 骨架渲染（执行前预占位） ── */
-function renderReportSkeleton({ host, port, user, commands, markers }) {
+function renderReportSkeleton({ host, port, user, workdir = '', commands, markers }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
   const ts = new Date().toLocaleString('zh-CN', { hour12: false });
@@ -1234,6 +1243,7 @@ function renderReportSkeleton({ host, port, user, commands, markers }) {
       <div class="rpt-meta">
         <span>🖥 ${esc(host)}:${port}</span>
         <span>👤 ${esc(user)}</span>
+        ${workdir ? `<span>📁 ${esc(workdir)}</span>` : ''}
         <span>🕐 ${ts}</span>
         <span id="rpt-summary"><span class="badge-ok" style="opacity:.5">正在执行…</span></span>
       </div>
@@ -1542,6 +1552,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     port:     parseInt(document.getElementById('f-port').value) || 22,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
+    workdir:  document.getElementById('f-workdir').value.trim(),
     commands: getCommandsWithMarkers()   // [{cmd, marker}]
   };
   const json     = JSON.stringify(cfg, null, 2);
@@ -1564,10 +1575,11 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
   reader.onload = e => {
     try {
       const cfg = JSON.parse(e.target.result);
-      if (cfg.host !== undefined) document.getElementById('f-host').value = cfg.host;
-      if (cfg.port !== undefined) document.getElementById('f-port').value = cfg.port;
-      if (cfg.user !== undefined) document.getElementById('f-user').value = cfg.user;
-      if (cfg.pass !== undefined) document.getElementById('f-pass').value = cfg.pass;
+      if (cfg.host    !== undefined) document.getElementById('f-host').value    = cfg.host;
+      if (cfg.port    !== undefined) document.getElementById('f-port').value    = cfg.port;
+      if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
+      if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
+      if (cfg.workdir !== undefined) document.getElementById('f-workdir').value = cfg.workdir;
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cmdList.innerHTML = '';
         cfg.commands.forEach(c => {

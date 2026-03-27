@@ -4,7 +4,7 @@
 #  用法: ./simplewebserver.sh {start|stop|restart|status|build} [选项]
 #
 #  start 支持的选项（均为可选）：
-#    -p <port>      监听端口         (默认: 8081)
+#    -p <port>      监听端口         (默认: 8181)
 #    -t <threads>   工作线程数       (默认: 自动)
 #    -q <size>      任务队列长度     (默认: 128)
 #    -l <dir>       日志目录         (默认: logs)
@@ -98,10 +98,10 @@ cmd_start() {
     if kill -0 "${pid}" 2>/dev/null; then
         ok "simplewebserver 已在后台启动 (PID=${pid})"
         # 从参数提取端口（用于显示）
-        local port=8081
+        local port=8181
         for i in "${!extra_args[@]}"; do
             if [[ "${extra_args[$i]}" == "-p" ]]; then
-                port="${extra_args[$((i+1))]:-8081}"
+                port="${extra_args[$((i+1))]:-8181}"
             fi
         done
         ok "访问地址:  http://localhost:${port}"
@@ -198,7 +198,7 @@ ${BOLD}用法: ./simplewebserver.sh <命令> [选项]${RESET}
   status             查看运行状态与最近日志
 
 start / restart 选项:
-  -p <port>          监听端口       (默认: 8081)
+  -p <port>          监听端口       (默认: 8181)
   -t <threads>       工作线程数     (默认: 自动)
   -q <size>          任务队列长度   (默认: 128)
   -l <dir>           日志目录       (默认: logs)

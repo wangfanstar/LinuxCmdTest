@@ -25,7 +25,7 @@ make
 ### 启动 / 停止
 
 ```bash
-./simplewebserver.sh start          # 默认端口 8081
+./simplewebserver.sh start          # 默认端口 8181
 ./simplewebserver.sh start -p 9000  # 自定义端口
 ./simplewebserver.sh stop
 ./simplewebserver.sh status
@@ -33,7 +33,7 @@ make
 ./simplewebserver.sh build          # 仅编译，不启动
 ```
 
-启动后浏览器访问 `http://<host>:8081`。
+启动后浏览器访问 `http://<host>:8181`。
 
 ### 依赖
 
@@ -127,7 +127,7 @@ make clean      # 清除构建产物
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `-p <port>` | 监听端口 | `8081` |
+| `-p <port>` | 监听端口 | `8181` |
 | `-t <threads>` | 工作线程数 | CPU 核数 × 1.5 |
 | `-q <size>` | 任务队列长度 | `128` |
 | `-l <dir>` | 日志目录 | `logs/` |

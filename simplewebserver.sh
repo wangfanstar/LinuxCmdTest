@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  simplewebserver 管理脚本
-#  用法: ./server.sh {start|stop|restart|status|build} [选项]
+#  用法: ./simplewebserver.sh {start|stop|restart|status|build} [选项]
 #
 #  start 支持的选项（均为可选）：
 #    -p <port>      监听端口         (默认: 8081)
@@ -32,13 +32,21 @@ die()     { error "$*"; exit 1; }
 
 # ── 内部工具函数 ──────────────────────────────────────────────────────────────
 
-# 从 PID 文件读取 PID，若进程存在返回 0，否则返回 1
+# 从 PID 文件读取 PID；若进程存在则输出 PID 并返回 0，否则返回 1
 get_pid() {
     [[ -f "${PID_FILE}" ]] || return 1
     local pid
     pid=$(<"${PID_FILE}")
     [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null || return 1
     echo "${pid}"
+}
+
+# 检查 PID 对应进程是否属于当前用户；返回 0=属于本用户，1=不属于
+owned_by_me() {
+    local pid="$1"
+    local proc_user
+    proc_user=$(ps -p "${pid}" -o user= 2>/dev/null | tr -d '[:space:]') || return 1
+    [[ "${proc_user}" == "$(id -un)" ]]
 }
 
 # 确保必要目录存在，并创建日志目录到 html 的软链接（供浏览器访问）
@@ -68,7 +76,7 @@ cmd_start() {
     fi
 
     # 检查二进制文件
-    [[ -x "${BIN}" ]] || die "未找到可执行文件 ${BIN}，请先执行: ./server.sh build"
+    [[ -x "${BIN}" ]] || die "未找到可执行文件 ${BIN}，请先执行: ./simplewebserver.sh build"
 
     prepare_dirs
 
@@ -109,17 +117,29 @@ cmd_stop() {
     local pid
     pid=$(get_pid) || { warn "服务器未在运行"; return 0; }
 
-    info "停止 simplewebserver (PID=${pid})..."
-    kill -TERM "${pid}"
+    # 非 root 用户只能终止自己启动的进程
+    if [[ "$(id -u)" -ne 0 ]] && ! owned_by_me "${pid}"; then
+        die "PID=${pid} 不属于当前用户 $(id -un)，无权终止"
+    fi
 
-    # 等待最多 10 秒
+    info "停止 simplewebserver (PID=${pid})..."
+
+    # 第一步：发送 SIGTERM，等待进程优雅退出（最多 10 秒）
+    kill -TERM "${pid}" 2>/dev/null || { warn "发送 SIGTERM 失败，进程可能已退出"; rm -f "${PID_FILE}"; return 0; }
+
     local waited=0
     while kill -0 "${pid}" 2>/dev/null; do
         sleep 0.5
         (( waited++ ))
         if (( waited >= 20 )); then
-            warn "进程未在 10 秒内退出，强制 kill -9"
-            kill -9 "${pid}" 2>/dev/null || true
+            # 第二步：SIGTERM 超时，发送 SIGKILL 强制终止
+            warn "进程未在 10 秒内退出，发送 SIGKILL 强制终止..."
+            kill -KILL "${pid}" 2>/dev/null || true
+            # 再等 2 秒确认彻底退出
+            sleep 2
+            if kill -0 "${pid}" 2>/dev/null; then
+                error "SIGKILL 后进程仍存在，请手动检查 (PID=${pid})"
+            fi
             break
         fi
     done
@@ -146,6 +166,7 @@ cmd_status() {
             vmrss=$(awk '/VmRSS/{print $2, $3}' "/proc/${pid}/status" 2>/dev/null || echo "N/A")
             echo    "  内存:   ${vmrss}"
         fi
+        echo    "  归属:   $(ps -p "${pid}" -o user= 2>/dev/null || echo 'N/A')"
         echo    "  启动时: $(ps -p "${pid}" -o lstart= 2>/dev/null || echo 'N/A')"
     else
         echo -e "  状态:   ${RED}未运行${RESET}"
@@ -154,7 +175,6 @@ cmd_status() {
 
     echo
     echo -e "${BOLD}── 最近日志 (最新 20 行) ────────────────────${RESET}"
-    # 取最新的日志文件
     local latest_log
     latest_log=$(ls -t "${LOG_DIR}"/server_*.log 2>/dev/null | head -1 || true)
     if [[ -n "${latest_log}" ]]; then
@@ -168,7 +188,7 @@ cmd_status() {
 
 cmd_usage() {
     cat <<EOF
-${BOLD}用法: ./server.sh <命令> [选项]${RESET}
+${BOLD}用法: ./simplewebserver.sh <命令> [选项]${RESET}
 
 命令:
   build              编译服务器
@@ -184,11 +204,11 @@ start / restart 选项:
   -l <dir>           日志目录       (默认: logs)
 
 示例:
-  ./server.sh build
-  ./server.sh start -p 9000 -t 8
-  ./server.sh status
-  ./server.sh restart -p 9000
-  ./server.sh stop
+  ./simplewebserver.sh build
+  ./simplewebserver.sh start -p 9000 -t 8
+  ./simplewebserver.sh status
+  ./simplewebserver.sh restart -p 9000
+  ./simplewebserver.sh stop
 EOF
 }
 

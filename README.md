@@ -55,7 +55,7 @@ make
 │   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
 ├── html/
 │   ├── index.html          # 工具导航首页
-│   ├── ssh_collector.html  # SSH 命令行测试主页面
+│   ├── linux_cmd_test.html  # SSH 命令行测试主页面
 │   └── logviewer.html      # 日志查看器
 ├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
 ├── Makefile

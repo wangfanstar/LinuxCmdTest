@@ -29,10 +29,13 @@ ssh_batch_t *ssh_batch_exec(const char *host, int port,
                              const char *user, const char *pass,
                              char **commands, int cmd_count);
 
-/* 所有命令共享同一 SSH 会话（cd/env 持久，推荐） */
+/* 所有命令共享同一 SSH 会话（cd/env 持久，推荐）
+ * idle_timeout_sec：单条命令无任何输出超过此秒数则强制终止；
+ *                   传 0 使用默认值（300s）。 */
 ssh_batch_t *ssh_session_exec(const char *host, int port,
                                const char *user, const char *pass,
-                               char **commands, int cmd_count);
+                               char **commands, int cmd_count,
+                               int idle_timeout_sec);
 
 void ssh_batch_free(ssh_batch_t *b);
 
@@ -49,10 +52,12 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
                                  const char *output, int exit_code,
                                  void *ud);
 
+/* idle_timeout_sec：同上，传 0 使用默认值（300s）。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
                               ssh_stream_cb_t cb, void *ud,
-                              char *error_buf, size_t error_buf_sz);
+                              char *error_buf, size_t error_buf_sz,
+                              int idle_timeout_sec);
 
 #endif /* SSH_EXEC_H */

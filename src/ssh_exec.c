@@ -232,7 +232,8 @@ static int run_ssh_cmd(const char *host, int port,
 static int run_ssh_session(const char *host, int port,
                             const char *user, const char *askpass_file,
                             const char *script,
-                            char **out_buf, size_t *out_len)
+                            char **out_buf, size_t *out_len,
+                            int idle_timeout_sec)
 {
     char userhost[320], port_str[8];
     snprintf(userhost, sizeof(userhost), "%s@%s", user, host);
@@ -320,7 +321,8 @@ static int run_ssh_session(const char *host, int port,
     close(in_pipe[1]);
 
     /* 读取全部输出（带空闲超时，避免卡死） */
-#define SESSION_IDLE_TIMEOUT_SEC 60    /* 60s 无任何输出则强制终止 */
+#define SESSION_IDLE_TIMEOUT_DEFAULT 300   /* 默认空闲超时 300s */
+    if (idle_timeout_sec <= 0) idle_timeout_sec = SESSION_IDLE_TIMEOUT_DEFAULT;
 
     char *buf = malloc(SSH_OUTPUT_MAX);
     if (!buf) {
@@ -337,14 +339,14 @@ static int run_ssh_session(const char *host, int port,
         struct timeval tv;
         FD_ZERO(&rfds);
         FD_SET(out_pipe[0], &rfds);
-        tv.tv_sec  = SESSION_IDLE_TIMEOUT_SEC;
+        tv.tv_sec  = idle_timeout_sec;
         tv.tv_usec = 0;
 
         int sel = select(out_pipe[0] + 1, &rfds, NULL, NULL, &tv);
         if (sel == 0) {
             /* 超时：强制终止 SSH 子进程 */
             LOG_INFO("ssh_session: idle timeout (%ds), killing pid=%d",
-                     SESSION_IDLE_TIMEOUT_SEC, (int)pid);
+                     idle_timeout_sec, (int)pid);
             kill(pid, SIGKILL);
             break;
         }
@@ -378,15 +380,24 @@ static char *build_session_script(const char *boundary,
                                    char **commands, int count)
 {
     /* 估算脚本大小 */
-    size_t sz = 32;
+    size_t sz = 256;  /* 为 trap 行预留空间 */
     for (int i = 0; i < count; i++)
-        sz += strlen(commands[i]) + strlen(boundary) + 64; /* +64 for _SWWD line */
+        sz += strlen(commands[i]) + strlen(boundary) + 64;
 
     char *script = malloc(sz);
     if (!script) return NULL;
 
     int off = 0;
-    off += snprintf(script + off, sz - (size_t)off, "set +e\n");
+    /* 会话结束（正常退出/连接断开/信号）时，向整个进程组发送 SIGTERM，
+     * 确保命令启动的子进程（及其后代）随 SSH 会话一起终止，
+     * 避免测试结束或用户复位后仍有进程在远端占用 CPU。
+     * kill -- -$$  向 PGID=$$ 的全部进程发 SIGTERM（bash 是进程组组长）。
+     * kill -9 -- -$$ 兜底，防止子进程忽略 SIGTERM。               */
+    off += snprintf(script + off, sz - (size_t)off,
+        "trap 'trap \"\" HUP EXIT INT TERM;"
+        "kill -- -$$ 2>/dev/null;"
+        "kill -9 -- -$$ 2>/dev/null' HUP EXIT INT TERM\n"
+        "set +e\n");
     for (int i = 0; i < count; i++) {
         /* 边界格式：BOUNDARY:<exit_code>\n
          * 不捕获 pwd：某些命令（如自定义交互式视图）会从 stdin 读取输入，
@@ -526,7 +537,8 @@ ssh_batch_t *ssh_batch_exec(const char *host, int port,
 
 ssh_batch_t *ssh_session_exec(const char *host, int port,
                                const char *user, const char *pass,
-                               char **commands, int cmd_count)
+                               char **commands, int cmd_count,
+                               int idle_timeout_sec)
 {
     ssh_batch_t *b = calloc(1, sizeof(ssh_batch_t));
     if (!b) return NULL;
@@ -593,7 +605,7 @@ ssh_batch_t *ssh_session_exec(const char *host, int port,
         char  *output = NULL;
         size_t out_len = 0;
         run_ssh_session(host, port, user, askpass_file,
-                        script, &output, &out_len);
+                        script, &output, &out_len, idle_timeout_sec);
 
         if (output) {
             /* SSH 连接失败时输出通常含 "Permission denied" 等错误关键词 */
@@ -633,7 +645,8 @@ void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
                               ssh_stream_cb_t cb, void *ud,
-                              char *error_buf, size_t error_buf_sz)
+                              char *error_buf, size_t error_buf_sz,
+                              int idle_timeout_sec)
 {
     error_buf[0] = '\0';
 
@@ -660,6 +673,8 @@ void ssh_session_exec_stream(const char *host, int port,
     pid_t  pid = (pid_t)-1;
     char   boundary[24] = {0};
     size_t blen = 0;
+
+    if (idle_timeout_sec <= 0) idle_timeout_sec = SESSION_IDLE_TIMEOUT_DEFAULT;
 
     if (create_pass_file(pass, pass_file, sizeof(pass_file)) < 0) {
         snprintf(error_buf, error_buf_sz,
@@ -797,13 +812,14 @@ void ssh_session_exec_stream(const char *host, int port,
         if (cmd_idx >= cmd_count) break;
 
         fd_set rfds;
-        struct timeval tv = { SESSION_IDLE_TIMEOUT_SEC, 0 };
+        struct timeval tv = { idle_timeout_sec, 0 };
         FD_ZERO(&rfds);
         FD_SET(out_pipe[0], &rfds);
 
         int sel = select(out_pipe[0] + 1, &rfds, NULL, NULL, &tv);
         if (sel == 0) {
-            LOG_INFO("ssh_session_exec_stream: idle timeout, killing pid=%d", (int)pid);
+            LOG_INFO("ssh_session_exec_stream: idle timeout (%ds), killing pid=%d",
+                     idle_timeout_sec, (int)pid);
             kill(pid, SIGKILL);
             break;
         }

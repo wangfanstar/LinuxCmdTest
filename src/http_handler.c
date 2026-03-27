@@ -335,7 +335,8 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
     }
     json_get_str(body, "user", user, sizeof(user));
     json_get_str(body, "pass", pass, sizeof(pass));
-    port = json_get_int(body, "port", 22);
+    port    = json_get_int(body, "port",    22);
+    int timeout = json_get_int(body, "timeout", 0);
     if (!user[0]) strcpy(user, "root");
 
     /* 提取命令数组 */
@@ -350,10 +351,11 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
                   "{\"error\":\"no commands\"}", 22); return;
     }
 
-    LOG_INFO("api_ssh_exec: %s@%s:%d  commands=%d", user, host, port, cmd_count);
+    LOG_INFO("api_ssh_exec: %s@%s:%d  commands=%d timeout=%d",
+             user, host, port, cmd_count, timeout);
 
     ssh_batch_t *result = ssh_session_exec(host, port, user, pass,
-                                           cmd_ptrs, cmd_count);
+                                           cmd_ptrs, cmd_count, timeout);
 
     /* 构造 JSON 响应 */
     strbuf_t sb = {0};
@@ -423,7 +425,8 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     }
     json_get_str(body, "user", user, sizeof(user));
     json_get_str(body, "pass", pass, sizeof(pass));
-    port = json_get_int(body, "port", 22);
+    port        = json_get_int(body, "port",    22);
+    int timeout = json_get_int(body, "timeout", 0);
     if (!user[0]) strcpy(user, "root");
 
     char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
@@ -436,8 +439,8 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                   "{\"error\":\"no commands\"}", 22); return;
     }
 
-    LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d",
-             user, host, port, cmd_count);
+    LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d timeout=%d",
+             user, host, port, cmd_count, timeout);
 
     /* SSE 响应头（无 Content-Length，流式） */
     const char *sse_hdr =
@@ -455,7 +458,7 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     ssh_session_exec_stream(host, port, user, pass,
                             cmd_ptrs, cmd_count,
                             on_stream_result, &ctx,
-                            error_buf, sizeof(error_buf));
+                            error_buf, sizeof(error_buf), timeout);
 
     /* 结束事件 */
     strbuf_t sb = {0};

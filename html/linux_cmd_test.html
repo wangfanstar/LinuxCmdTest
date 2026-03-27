@@ -799,6 +799,10 @@ body.edit-mode .cmd-notes {
             <label>端口</label>
             <input id="f-port" type="number" value="22" min="1" max="65535">
           </div>
+          <div class="field">
+            <label title="单条命令无输出超过此秒数自动终止（0=默认300s）">超时(s)</label>
+            <input id="f-timeout" type="number" value="300" min="10" max="3600">
+          </div>
         </div>
         <div class="field">
           <label>用户名</label>
@@ -1283,6 +1287,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 async function doExec() {
   const host    = document.getElementById('f-host').value.trim();
   const port    = parseInt(document.getElementById('f-port').value) || 22;
+  const timeout = parseInt(document.getElementById('f-timeout').value) || 300;
   const user    = document.getElementById('f-user').value.trim() || 'root';
   const pass    = document.getElementById('f-pass').value;
   const workdir = document.getElementById('f-workdir').value.trim();
@@ -1322,7 +1327,7 @@ async function doExec() {
     resp = await fetch('/api/ssh-exec-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, commands: execCmds }),
+      body: JSON.stringify({ host, port, user, pass, timeout, commands: execCmds }),
       signal: _execAbortCtrl.signal
     });
   } catch (e) {
@@ -1784,6 +1789,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     version:  1,
     host:     document.getElementById('f-host').value.trim(),
     port:     parseInt(document.getElementById('f-port').value) || 22,
+    timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
     workdir:  document.getElementById('f-workdir').value.trim(),
@@ -1811,6 +1817,7 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       const cfg = JSON.parse(e.target.result);
       if (cfg.host    !== undefined) document.getElementById('f-host').value    = cfg.host;
       if (cfg.port    !== undefined) document.getElementById('f-port').value    = cfg.port;
+      if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
       if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
       if (cfg.workdir !== undefined) document.getElementById('f-workdir').value = cfg.workdir;

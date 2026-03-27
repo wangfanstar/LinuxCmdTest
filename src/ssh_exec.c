@@ -121,27 +121,39 @@ static int run_ssh_cmd(const char *host, int port,
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
 
-        /* 脱离控制终端 */
+        /* stdin → /dev/null：彻底断开终端输入，
+         * 防止 SSH 在 askpass 失败时回退到交互输入 */
+        int devnull = open("/dev/null", O_RDONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            close(devnull);
+        }
+
+        /* 脱离控制终端（旧版 OpenSSH 依赖此条件才会调用 SSH_ASKPASS） */
         setsid();
 
-        /* 构造环境变量 */
-        char env_askpass[300], env_display[32], env_require[32];
-        snprintf(env_askpass, sizeof(env_askpass),
-                 "SSH_ASKPASS=%s", askpass_file);
+        /* 构造环境变量：传入 HOME 以便 SSH 找到 ~/.ssh 目录 */
+        char env_askpass[300], env_display[32], env_require[32], env_home[256];
+        snprintf(env_askpass, sizeof(env_askpass), "SSH_ASKPASS=%s", askpass_file);
         snprintf(env_display, sizeof(env_display), "DISPLAY=:0");
-        snprintf(env_require, sizeof(env_require),
-                 "SSH_ASKPASS_REQUIRE=force");
+        snprintf(env_require, sizeof(env_require), "SSH_ASKPASS_REQUIRE=force");
+        const char *home = getenv("HOME");
+        snprintf(env_home, sizeof(env_home), "HOME=%s", home ? home : "/tmp");
 
-        /* 继承 HOME / PATH，追加 SSH_ASKPASS 相关变量 */
         char *envp[] = {
             env_askpass,
             env_display,
             env_require,
+            env_home,
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             NULL
         };
 
-        /* SSH 参数 */
+        /* SSH 参数：
+         *   GSSAPIAuthentication=no        跳过 GSSAPI，避免它抢占密码提示名额
+         *   PreferredAuthentications=password  只用密码认证
+         *   NumberOfPasswordPrompts=1      只提示一次密码，失败即退出
+         */
         char *argv[] = {
             "ssh",
             "-o", "StrictHostKeyChecking=no",
@@ -149,6 +161,9 @@ static int run_ssh_cmd(const char *host, int port,
             "-o", "BatchMode=no",
             "-o", "PasswordAuthentication=yes",
             "-o", "PubkeyAuthentication=no",
+            "-o", "GSSAPIAuthentication=no",
+            "-o", "PreferredAuthentications=password",
+            "-o", "NumberOfPasswordPrompts=1",
             "-o", "LogLevel=ERROR",
             "-p", port_str,
             userhost,
@@ -157,7 +172,6 @@ static int run_ssh_cmd(const char *host, int port,
         };
 
         execvpe("ssh", argv, envp);
-        /* execvpe 失败时输出错误并退出 */
         fprintf(stderr, "execvpe ssh failed: %s\n", strerror(errno));
         _exit(127);
     }

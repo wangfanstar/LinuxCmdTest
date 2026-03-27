@@ -251,32 +251,6 @@ td.c-op  {white-space:nowrap}
 <section>
   <h2>测试环境 &amp; 进入流程</h2>
   <div class="env-grid">
-    <div class="env-card">
-      <h3>代码路径</h3>
-      <code>LLR/trunk/xware</code>
-    </div>
-    <div class="env-card">
-      <h3>编译命令</h3>
-      <code>cd LLR/trunk/xware
-./build.sh xware -- exec</code>
-    </div>
-    <div class="env-card">
-      <h3>进入 DEBUG 视图</h3>
-      <div class="step-flow">
-        <span class="step">&lt;GT&gt;</span><span class="step-arr">→</span>
-        <span class="step">system-view</span><span class="step-arr">→</span>
-        <span class="step">[GT]</span><span class="step-arr">→</span>
-        <span class="step">debug-view</span><span class="step-arr">→</span>
-        <span class="step">[ DEBUG ]</span>
-      </div>
-    </div>
-    <div class="env-card">
-      <h3>硬件拓扑</h3>
-      <code>chip 0 · NPU 0-3 · Pipe 0-63
-pipe    = port-id / 8  (0-63)
-channel = port-id % 8  (0-7)
-port-id range: 0 – 511</code>
-    </div>
   </div>
 </section>
 
@@ -415,94 +389,10 @@ port-id range: 0 – 511</code>
 <!-- ════════════════ SCRIPT ════════════════ -->
 <script>
 /* ─────────────────────────────────────────────────────────────
-   DEFAULT TEST CASES
+   DEFAULT TEST CASES  (intentionally empty — use 导入 JSON to load)
 ───────────────────────────────────────────────────────────── */
 const DEFAULT_CASES = [
-/* ENV */
-{id:'ENV-001',cat:'ENV',cmd:'./build.sh xware -- exec',desc:'编译工程',exp:'编译完成，无 error，生成可执行文件'},
-{id:'ENV-002',cat:'ENV',cmd:'<GT> system-view\n[GT] debug-view',desc:'进入 DEBUG 视图',exp:'提示符变为 [ DEBUG ]，无报错'},
-{id:'ENV-003',cat:'ENV',cmd:'[ DEBUG ] [chip 0] ?',desc:'查看已注册命令（help），确认 llr / rlm / show 命令存在',exp:'列表含 llr、show llr、rlm、show rlm；无 "fails to init element" 错误'},
-/* LLR enable/disable */
-{id:'LLR-001',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1',desc:'port-id=0 enable LLR，→ pipe=0 channel=0',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
-{id:'LLR-002',cat:'LLR',cmd:'[chip 0] llr enable pipe 0 channel 0 100GR1',desc:'pipe 形式 enable LLR，等价 LLR-001',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
-{id:'LLR-003',cat:'LLR',cmd:'[chip 0] llr enable port-id 8 100GR1',desc:'port-id=8 → pipe=1 channel=0',exp:'"LLR enabled: chip=0 pipe=1 channel=0 speed=100GR1"'},
-{id:'LLR-004',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 800GR8',desc:'800GR8 channel=0 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
-{id:'LLR-005',cat:'LLR',cmd:'[chip 0] llr enable port-id 1 800GR8',desc:'800GR8 只允许 channel=0，port-id=1→channel=1 非法',exp:'"Error: pipe=0 channel=1 is invalid for speed 800GR8"'},
-{id:'LLR-006',cat:'LLR',cmd:'[chip 0] llr enable port-id 4 400GR4',desc:'400GR4 允许 channel=0/4，port-id=4→channel=4 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=4 speed=400GR4"'},
-{id:'LLR-007',cat:'LLR',cmd:'[chip 0] llr enable port-id 2 200GR2',desc:'200GR2 允许偶数 channel，port-id=2→channel=2 合法',exp:'"LLR enabled: chip=0 pipe=0 channel=2 speed=200GR2"'},
-{id:'LLR-008',cat:'LLR',cmd:'[chip 0] llr enable port-id 504 100GR1',desc:'port-id=504 → pipe=63 channel=0（接近上限）',exp:'"LLR enabled: chip=0 pipe=63 channel=0 speed=100GR1"'},
-{id:'LLR-009',cat:'LLR',cmd:'[chip 0] llr enable port-id 511 100GR1',desc:'port-id 最大值 511 → pipe=63 channel=7',exp:'"LLR enabled: chip=0 pipe=63 channel=7 speed=100GR1"'},
-{id:'LLR-010',cat:'LLR',cmd:'[chip 0] llr enable pipe 63 channel 7 100GR1',desc:'pipe/channel 最大值',exp:'"LLR enabled: chip=0 pipe=63 channel=7 speed=100GR1"'},
-{id:'LLR-011',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 100GR1',desc:'port-id 形式 disable',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
-{id:'LLR-012',cat:'LLR',cmd:'[chip 0] llr disable pipe 0 channel 0 100GR1',desc:'pipe 形式 disable',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=100GR1"'},
-{id:'LLR-013',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 800GR8',desc:'disable 800GR8',exp:'"LLR disabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
-/* LLR show config */
-{id:'LLR-020',cat:'LLR',cmd:'[chip 0] show llr config port-id 0',desc:'读取 pipe=0 LLR 配置寄存器，验证 raw 值输出',exp:'输出 [MAC_ADA][MAC_IP][MACW_PCS] 三段；每段含 raw=0x… 及解析字段'},
-{id:'LLR-021',cat:'LLR',cmd:'[chip 0] show llr config pipe 0 channel 0',desc:'pipe 形式，等价 LLR-020',exp:'输出与 LLR-020 相同'},
-{id:'LLR-022',cat:'LLR',cmd:'[chip 0] show llr config port-id 504',desc:'验证 pipe=63 寄存器可读',exp:'输出三段寄存器信息，无读错误'},
-/* LLR show status */
-{id:'LLR-030',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1\n[chip 0] show llr status port-id 0',desc:'enable 后查 TX/RX FSM 状态',exp:'TX FSM State ≠ OFF；显示 [MAC_ADA LLR_DEBUG_TX_STATE addr=0x19e] 注释'},
-{id:'LLR-031',cat:'LLR',cmd:'[chip 0] show llr status pipe 0 channel 0',desc:'pipe 形式查状态',exp:'输出与 LLR-030 等价'},
-{id:'LLR-032',cat:'LLR',cmd:'[chip 0] llr disable port-id 0 100GR1\n[chip 0] show llr status port-id 0',desc:'disable 后查 TX/RX FSM，应为 OFF',exp:'TX FSM State = 0 (OFF)'},
-/* LLR debug-port */
-{id:'LLR-040',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 0',desc:'设置 debug mux=channel=0，显示 config+status+counter',exp:'输出 "====== LLR Debug ======"，含三段；DEBUG_PORT 字段=0'},
-{id:'LLR-041',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 7',desc:'port-id=7→channel=7，选 sub-port 7',exp:'输出 debug mux=7，三段内容正常'},
-{id:'LLR-042',cat:'LLR',cmd:'[chip 0] llr debug-port pipe 0 channel 3',desc:'pipe 形式，sub-port=3',exp:'输出 sub-port=3，三段内容正常'},
-/* LLR counter */
-{id:'LLR-050',cat:'LLR',cmd:'[chip 0] show llr counter port-id 0',desc:'读 port=0 LLR RC 计数器，验证 Addr 列',exp:'Counter/Value/Addr 三列；Addr 显示 0x1xx；末尾提示 RC cleared on read'},
-{id:'LLR-051',cat:'LLR',cmd:'[chip 0] show llr counter pipe 0 channel 0',desc:'pipe 形式计数器',exp:'格式与 LLR-050 一致'},
-{id:'LLR-052',cat:'LLR',cmd:'[chip 0] show llr counter port-id 0\n[chip 0] show llr counter port-id 0',desc:'连读两次 RC，第二次应全为 0',exp:'第二次所有值均为 0'},
-/* LLR 边界 */
-{id:'LLR-060',cat:'LLR',cmd:'[chip 0] llr enable port-id 512 100GR1',desc:'port-id 超范围 511',exp:'CLI 拒绝，报错'},
-{id:'LLR-061',cat:'LLR',cmd:'[chip 0] llr enable pipe 64 channel 0 100GR1',desc:'pipe 超范围 63',exp:'CLI 拒绝，报错'},
-{id:'LLR-062',cat:'LLR',cmd:'[chip 0] llr enable pipe 0 channel 8 100GR1',desc:'channel 超范围 7',exp:'CLI 拒绝，报错'},
-/* RLM enable/disable */
-{id:'RLM-001',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 800GR8',desc:'port-id 形式 enable RLM，800GR8 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
-{id:'RLM-002',cat:'RLM',cmd:'[chip 0] rlm enable pipe 0 channel 0 800GR8',desc:'pipe 形式，等价 RLM-001',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
-{id:'RLM-003',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 400GR4',desc:'400GR4 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=400GR4"'},
-{id:'RLM-004',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 200GR2',desc:'200GR2 支持',exp:'"RLM enabled: chip=0 pipe=0 channel=0 speed=200GR2"'},
-{id:'RLM-005',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 400GR8',desc:'400GR8 不支持（no-op）',exp:'返回成功但无实际写入（no-op）'},
-{id:'RLM-006',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 100GR1',desc:'100GR1 不支持（no-op）',exp:'no-op 行为，不报错'},
-{id:'RLM-007',cat:'RLM',cmd:'[chip 0] rlm disable port-id 0 800GR8',desc:'port-id 形式 disable',exp:'"RLM disabled: chip=0 pipe=0 channel=0 speed=800GR8"'},
-{id:'RLM-008',cat:'RLM',cmd:'[chip 0] rlm disable pipe 0 channel 0 400GR4',desc:'pipe 形式 disable',exp:'"RLM disabled: chip=0 pipe=0 channel=0 speed=400GR4"'},
-/* RLM loopback */
-{id:'RLM-010',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0xFF enable',desc:'全 8 lane loopback 使能',exp:'"RLM loopback enabled: … lane-mask=0xff"'},
-{id:'RLM-011',cat:'RLM',cmd:'[chip 0] rlm loopback pipe 0 channel 0 lane-mask 0x01 enable',desc:'pipe 形式，lane 0 loopback',exp:'"RLM loopback enabled: … lane-mask=0x01"'},
-{id:'RLM-012',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0xFF disable',desc:'全 lane loopback 去使能',exp:'"RLM loopback disabled: … lane-mask=0xff"'},
-/* RLM bypass */
-{id:'RLM-020',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0xF enable',desc:'全 4 port bypass 使能',exp:'"RLM bypass enabled: … port-mask=0xf"'},
-{id:'RLM-021',cat:'RLM',cmd:'[chip 0] rlm bypass pipe 0 channel 0 port-mask 0x1 enable',desc:'pipe 形式，port 0 bypass',exp:'"RLM bypass enabled: … port-mask=0x1"'},
-{id:'RLM-022',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0xF disable',desc:'bypass 去使能',exp:'"RLM bypass disabled: … port-mask=0xf"'},
-/* RLM reset */
-{id:'RLM-030',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-tx lane-mask 0xFF assert',desc:'PCS TX 复位 assert，全 lane',exp:'"RLM reset asserted: … type=pcs-tx lane-mask=0xff"'},
-{id:'RLM-031',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-tx lane-mask 0xFF deassert',desc:'PCS TX 复位 deassert',exp:'"RLM reset deasserted: … type=pcs-tx"'},
-{id:'RLM-032',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 pcs-rx lane-mask 0xFF assert',desc:'PCS RX 复位 assert',exp:'"RLM reset asserted: … type=pcs-rx"'},
-{id:'RLM-033',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 sds-tx lane-mask 0xFF assert',desc:'Serdes TX 复位 assert',exp:'"RLM reset asserted: … type=sds-tx"'},
-{id:'RLM-034',cat:'RLM',cmd:'[chip 0] rlm reset port-id 0 sds-rx lane-mask 0xFF assert',desc:'Serdes RX 复位 assert',exp:'"RLM reset asserted: … type=sds-rx"'},
-{id:'RLM-035',cat:'RLM',cmd:'[chip 0] rlm reset pipe 0 channel 0 pcs-tx lane-mask 0x01 assert',desc:'pipe 形式，单 lane reset',exp:'"RLM reset asserted: … lane-mask=0x01"'},
-/* RLM show config */
-{id:'RLM-040',cat:'RLM',cmd:'[chip 0] show rlm config port-id 0',desc:'读取 MACW_PCS CFG_RLM、CRC_CHECK、LANE_SWAP，验证 raw 值',exp:'三个寄存器均显示 raw=0x… 及解析；LANE_SWAP 显示 TX/RX→SDS 映射'},
-{id:'RLM-041',cat:'RLM',cmd:'[chip 0] show rlm config pipe 0 channel 0',desc:'pipe 形式，等价 RLM-040',exp:'输出与 RLM-040 一致'},
-{id:'RLM-042',cat:'RLM',cmd:'[chip 0] rlm enable port-id 0 800GR8\n[chip 0] show rlm config port-id 0',desc:'enable 后查 CFG_RLM.EN 应为 1',exp:'CFG_RLM (0x170) EN=1'},
-{id:'RLM-043',cat:'RLM',cmd:'[chip 0] rlm disable port-id 0 800GR8\n[chip 0] show rlm config port-id 0',desc:'disable 后查 CFG_RLM.EN 应为 0',exp:'CFG_RLM (0x170) EN=0'},
-{id:'RLM-044',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0x0F enable\n[chip 0] show rlm config port-id 0',desc:'loopback enable 后查 LOOP_BACK_EN',exp:'CFG_RLM LOOP_BACK_EN=0x0f；bit 图 [00001111]'},
-{id:'RLM-045',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0x3 enable\n[chip 0] show rlm config port-id 0',desc:'bypass enable 后查 BYPASS_RLM_EN',exp:'CFG_RLM BYPASS_EN=0x3；显示 [0011]'},
-/* RLM show status/fsm/counter */
-{id:'RLM-050',cat:'RLM',cmd:'[chip 0] show rlm status port-id 0',desc:'查 RX Link Status / TX/RX Fault',exp:'输出 [MACW_PCS subblock] 注释；Port 0-3 Link 状态；TX/RX Fault 字段'},
-{id:'RLM-051',cat:'RLM',cmd:'[chip 0] show rlm status pipe 0 channel 0',desc:'pipe 形式 status',exp:'与 RLM-050 一致'},
-{id:'RLM-052',cat:'RLM',cmd:'[chip 0] show rlm fsm port-id 0',desc:'查 TX FSM（per lane）和 RX FSM（per port/lane）',exp:'[MACW_PCS] 注释；TX 8 lane 状态；RX lane 与 port 对应'},
-{id:'RLM-053',cat:'RLM',cmd:'[chip 0] show rlm fsm pipe 0 channel 0',desc:'pipe 形式 FSM',exp:'与 RLM-052 一致'},
-{id:'RLM-054',cat:'RLM',cmd:'[chip 0] show rlm counter port-id 0',desc:'查 TX/RX Switch、Fault、AM CRC Err 计数器',exp:'[MACW_PCS] 注释；per-lane 表格；末尾 RC cleared on read'},
-{id:'RLM-055',cat:'RLM',cmd:'[chip 0] show rlm counter pipe 0 channel 0',desc:'pipe 形式 counter',exp:'与 RLM-054 一致'},
-{id:'RLM-056',cat:'RLM',cmd:'[chip 0] show rlm counter port-id 0\n[chip 0] show rlm counter port-id 0',desc:'连读两次，第二次全 0',exp:'第二次所有计数均为 0'},
-/* RLM 边界 */
-{id:'RLM-060',cat:'RLM',cmd:'[chip 0] rlm enable port-id 512 800GR8',desc:'port-id 超范围',exp:'CLI 拒绝'},
-{id:'RLM-061',cat:'RLM',cmd:'[chip 0] rlm loopback port-id 0 lane-mask 0x100 enable',desc:'lane-mask 超 HEX<0-FF>',exp:'CLI 拒绝'},
-{id:'RLM-062',cat:'RLM',cmd:'[chip 0] rlm bypass port-id 0 port-mask 0x10 enable',desc:'port-mask 超 HEX<0-F>',exp:'CLI 拒绝'},
-/* CMB */
-{id:'CMB-001',cat:'LLR',cmd:'[chip 0] llr enable port-id 0 100GR1\n[chip 0] rlm enable port-id 0 800GR8\n[chip 0] show llr config port-id 0\n[chip 0] show rlm config port-id 0',desc:'LLR + RLM 同时使能，寄存器互不干扰',exp:'两个 show config 均显示正确使能状态'},
-{id:'CMB-002',cat:'LLR',cmd:'[chip 0] llr debug-port port-id 0\n[chip 0] show rlm status port-id 0\n[chip 0] show rlm fsm port-id 0',desc:'debug-port 后 RLM 命令仍正常（两模块寄存器空间独立）',exp:'RLM status/fsm 正常，不受 LLR debug-port 影响'},
-{id:'CMB-003',cat:'LLR',cmd:'[chip 0] llr enable pipe 63 channel 7 100GR1\n[chip 0] show llr config pipe 63 channel 7\n[chip 0] show llr status pipe 63 channel 7\n[chip 0] llr disable pipe 63 channel 7 100GR1',desc:'最高 pipe/channel 完整流程',exp:'各步骤正确，chip=0 pipe=63 channel=7'},
+/* empty — 通过「导入 JSON」加载测试用例 */
 ];
 
 /* ─────────────────────────────────────────────────────────────

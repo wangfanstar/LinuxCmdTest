@@ -1,6 +1,8 @@
 #ifndef SSH_EXEC_H
 #define SSH_EXEC_H
 
+#include <stddef.h>  /* size_t */
+
 #define SSH_MAX_CMDS     64
 #define SSH_OUTPUT_MAX   (512 * 1024)   /* 单条命令输出上限 512KB */
 

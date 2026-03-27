@@ -130,7 +130,7 @@ cmd_stop() {
     local waited=0
     while kill -0 "${pid}" 2>/dev/null; do
         sleep 0.5
-        (( waited++ ))
+        waited=$(( waited + 1 ))
         if (( waited >= 20 )); then
             # 第二步：SIGTERM 超时，发送 SIGKILL 强制终止
             warn "进程未在 10 秒内退出，发送 SIGKILL 强制终止..."

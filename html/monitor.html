@@ -480,6 +480,32 @@ function runSearch(){
 }
 
 /* ── Kill 命令 ── */
+/* 兼容性复制：优先 clipboard API，降级到 execCommand，再降级到 prompt */
+function copyText(text, onOk, onFail){
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(onOk, ()=>copyFallback(text,onOk,onFail));
+  } else {
+    copyFallback(text, onOk, onFail);
+  }
+}
+function copyFallback(text, onOk, onFail){
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(ok){ onOk && onOk(); }
+    else  { onFail && onFail(text); }
+  }catch(e){ onFail && onFail(text); }
+}
+function copyFailPrompt(text){
+  /* 最后的降级：弹出可手动复制的对话框 */
+  prompt('自动复制不可用（非 HTTPS），请手动复制：', text);
+}
+
 function updateKillBar(){
   const chks = document.querySelectorAll('#search-body .kill-chk:checked');
   const pids = [...chks].map(c=>c.dataset.pid).filter(Boolean);
@@ -492,10 +518,9 @@ function updateKillBar(){
     cmdEl.textContent = cmd;
     btnEl.disabled = false;
     btnEl.onclick = ()=>{
-      navigator.clipboard.writeText(cmd).then(()=>{
-        btnEl.textContent='已复制';
-        setTimeout(()=>{ btnEl.textContent='复制命令'; }, 1500);
-      });
+      copyText(cmd,
+        ()=>{ btnEl.textContent='已复制'; setTimeout(()=>{ btnEl.textContent='复制命令'; },1500); },
+        copyFailPrompt);
     };
   } else {
     cmdEl.textContent = '';
@@ -508,11 +533,10 @@ function copySingleKill(btn){
   const pid = btn.dataset.pid;
   if(!pid) return;
   const cmd = 'kill -9 '+pid;
-  navigator.clipboard.writeText(cmd).then(()=>{
-    const orig = btn.textContent;
-    btn.textContent = '已复制';
-    setTimeout(()=>{ btn.textContent = orig; }, 1500);
-  });
+  const orig = btn.textContent;
+  copyText(cmd,
+    ()=>{ btn.textContent='已复制'; setTimeout(()=>{ btn.textContent=orig; },1500); },
+    copyFailPrompt);
 }
 
 /* 输入事件绑定 */

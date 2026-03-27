@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 make              # 编译（输出 bin/simpleserver）
-make run          # 编译后以默认端口 8181 运行
+make run          # 编译后以默认端口 8881 运行
 make clean        # 清除 obj/ 和 bin/
 make debug        # 带 -g -O0 的调试构建
 make memcheck     # Valgrind 内存检查（需先 make debug）
@@ -44,7 +44,7 @@ main.c
 | `WEB_ROOT` | `http_handler.h` | 静态文件根目录，默认 `"html"` |
 | `LOG_MAX_SIZE` | `log.h` | 单日志文件上限，默认 100 MB |
 | `LOG_MAX_FILES` | `log.h` | 最多保留日志文件数，默认 10 |
-| `DEFAULT_PORT` | `main.c` | 默认监听端口 8181 |
+| `DEFAULT_PORT` | `main.c` | 默认监听端口 8881 |
 | `MAX_THREADS` | `main.c` | 线程数上限 64 |
 
 ## 平台说明

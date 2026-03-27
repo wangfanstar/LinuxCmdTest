@@ -17,7 +17,7 @@
 /*  默认配置                                                            */
 /* ------------------------------------------------------------------ */
 
-#define DEFAULT_PORT        8181
+#define DEFAULT_PORT        8881
 #define DEFAULT_QUEUE_SIZE  128
 #define MIN_THREADS         2
 #define MAX_THREADS         64

@@ -9,6 +9,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/select.h>
+#include <signal.h>
 
 /* ------------------------------------------------------------------ */
 /*  输入校验                                                            */
@@ -258,6 +260,8 @@ static int run_ssh_session(const char *host, int port,
             "-o", "PreferredAuthentications=password",
             "-o", "NumberOfPasswordPrompts=1",
             "-o", "LogLevel=ERROR",
+            "-o", "ServerAliveInterval=10",   /* 每 10s 发送 keepalive */
+            "-o", "ServerAliveCountMax=6",    /* 连续 6 次无响应（60s）则断开 */
             "-T",           /* 不分配 TTY */
             "-p", port_str,
             userhost,
@@ -287,7 +291,9 @@ static int run_ssh_session(const char *host, int port,
     }
     close(in_pipe[1]);
 
-    /* 读取全部输出 */
+    /* 读取全部输出（带空闲超时，避免卡死） */
+#define SESSION_IDLE_TIMEOUT_SEC 300   /* 300s 无任何输出则强制终止 */
+
     char *buf = malloc(SSH_OUTPUT_MAX);
     if (!buf) {
         close(out_pipe[0]);
@@ -297,14 +303,33 @@ static int run_ssh_session(const char *host, int port,
 
     size_t  total = 0;
     char    tmp[8192];
-    ssize_t nr;
-    while ((nr = read(out_pipe[0], tmp, sizeof(tmp))) > 0) {
+
+    while (total < SSH_OUTPUT_MAX - 1) {
+        fd_set rfds;
+        struct timeval tv;
+        FD_ZERO(&rfds);
+        FD_SET(out_pipe[0], &rfds);
+        tv.tv_sec  = SESSION_IDLE_TIMEOUT_SEC;
+        tv.tv_usec = 0;
+
+        int sel = select(out_pipe[0] + 1, &rfds, NULL, NULL, &tv);
+        if (sel == 0) {
+            /* 超时：强制终止 SSH 子进程 */
+            LOG_INFO("ssh_session: idle timeout (%ds), killing pid=%d",
+                     SESSION_IDLE_TIMEOUT_SEC, (int)pid);
+            kill(pid, SIGKILL);
+            break;
+        }
+        if (sel < 0) break;   /* select 出错 */
+
+        ssize_t nr = read(out_pipe[0], tmp, sizeof(tmp));
+        if (nr <= 0) break;   /* EOF 或读错误 */
+
         size_t copy = (size_t)nr;
         if (total + copy >= SSH_OUTPUT_MAX - 1)
             copy = SSH_OUTPUT_MAX - 1 - total;
         memcpy(buf + total, tmp, copy);
         total += copy;
-        if (total >= SSH_OUTPUT_MAX - 1) break;
     }
     buf[total] = '\0';
     close(out_pipe[0]);

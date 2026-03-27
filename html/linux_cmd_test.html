@@ -544,9 +544,21 @@ body.edit-mode .cmd-notes {
 @keyframes pdot { from { opacity:.2; transform:scale(.6); } to { opacity:1; transform:scale(1); } }
 .cmd-block.pending .cmd-output:empty::before { content: "等待执行…"; color: #4a5568; font-style: italic; }
 .cmd-block.running .cmd-output:empty::before { content: "正在执行…"; color: var(--accent); font-style: italic; }
-/* 停止按钮样式 */
-#btn-exec.stop { background: #3d0a0a; border-color: var(--red); }
-#btn-exec.stop:hover:not(:disabled) { background: #5a1010; }
+/* 复位按钮 */
+#btn-reset {
+  width: 100%;
+  padding: 7px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+#btn-reset:hover { border-color: var(--red); color: var(--red); background: #3d0a0a22; }
+#btn-reset.active { border-color: var(--red); color: var(--red); background: #3d0a0a44; animation: pulse-red .8s ease-in-out infinite alternate; }
+@keyframes pulse-red { from { opacity:.7; } to { opacity:1; } }
 
 /* ── 预览模态框 ── */
 #preview-overlay {
@@ -782,6 +794,7 @@ body.edit-mode .cmd-notes {
         <span class="spinner" id="spinner"></span>
         <span id="exec-label">▶ 执行</span>
       </button>
+      <button id="btn-reset" title="强制终止当前执行并重置视图">↺ 复位</button>
     </div>
   </aside>
 
@@ -1114,9 +1127,27 @@ const execLabel  = document.getElementById('exec-label');
 const spinner    = document.getElementById('spinner');
 const execStatus = document.getElementById('exec-status');
 
-let _execAbort = false;
+let _execAbortCtrl = null;   /* 当前执行的 AbortController */
 
 btnExec.addEventListener('click', () => { doExec(); });
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  /* 1. 终止正在进行的 fetch */
+  if (_execAbortCtrl) {
+    _execAbortCtrl.abort();
+    _execAbortCtrl = null;
+  }
+  /* 2. 重置执行状态 */
+  setLoading(false);
+  execStatus.textContent = '已复位';
+  execStatus.style.color = 'var(--yellow)';
+  document.getElementById('btn-reset').classList.remove('active');
+  /* 3. 清空报告，显示占位符 */
+  report.innerHTML = '';
+  report.style.display = 'none';
+  placeholder.style.display = '';
+  reportTitle.textContent = '报告';
+});
 
 async function doExec() {
   const host    = document.getElementById('f-host').value.trim();
@@ -1135,8 +1166,9 @@ async function doExec() {
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
 
-  _execAbort = false;
   setLoading(true);
+  const btnReset = document.getElementById('btn-reset');
+  btnReset.classList.add('active');
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
@@ -1148,21 +1180,29 @@ async function doExec() {
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
 
+  _execAbortCtrl = new AbortController();
   let data;
   try {
     const resp = await fetch('/api/ssh-exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, commands: execCmds })
+      body: JSON.stringify({ host, port, user, pass, commands: execCmds }),
+      signal: _execAbortCtrl.signal
     });
     data = await resp.json();
   } catch (e) {
-    for (let j = 0; j < commands.length; j++) markBlockError(j, e.message);
-    execStatus.style.color = 'var(--red)';
-    execStatus.textContent = '请求失败: ' + e.message;
+    const aborted = e.name === 'AbortError';
+    if (!aborted) {
+      for (let j = 0; j < commands.length; j++) markBlockError(j, e.message);
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '请求失败: ' + e.message;
+    }
     setLoading(false);
+    btnReset.classList.remove('active');
+    _execAbortCtrl = null;
     return;
   }
+  _execAbortCtrl = null;
 
   if (data.error) {
     for (let j = 0; j < commands.length; j++) markBlockError(j, data.error);
@@ -1185,6 +1225,7 @@ async function doExec() {
 
   finalizeReportHeader(results);
   setLoading(false);
+  document.getElementById('btn-reset').classList.remove('active');
 
   const ok = results.filter(r => r.exit_code === 0).length;
   execStatus.style.color = ok === results.length ? 'var(--green)' : 'var(--yellow)';

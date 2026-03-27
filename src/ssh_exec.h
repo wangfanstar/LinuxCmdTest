@@ -21,9 +21,15 @@ typedef struct {
  * 返回堆分配结果，调用方须调用 ssh_batch_free()。
  * 返回 NULL 仅在内存分配失败时发生。
  */
+/* 每条命令独立 SSH 连接（无状态，cd 不持久） */
 ssh_batch_t *ssh_batch_exec(const char *host, int port,
                              const char *user, const char *pass,
                              char **commands, int cmd_count);
+
+/* 所有命令共享同一 SSH 会话（cd/env 持久，推荐） */
+ssh_batch_t *ssh_session_exec(const char *host, int port,
+                               const char *user, const char *pass,
+                               char **commands, int cmd_count);
 
 void ssh_batch_free(ssh_batch_t *b);
 

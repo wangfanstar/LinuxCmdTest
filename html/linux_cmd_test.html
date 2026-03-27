@@ -1116,15 +1116,7 @@ const execStatus = document.getElementById('exec-status');
 
 let _execAbort = false;
 
-btnExec.addEventListener('click', () => {
-  if (btnExec.dataset.mode === 'stop') {
-    _execAbort = true;
-    execStatus.textContent = '正在停止，等待当前命令完成…';
-    execStatus.style.color = 'var(--yellow)';
-  } else {
-    doExec();
-  }
-});
+btnExec.addEventListener('click', () => { doExec(); });
 
 async function doExec() {
   const host    = document.getElementById('f-host').value.trim();
@@ -1148,80 +1140,63 @@ async function doExec() {
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
-  /* 先渲染所有骨架块 */
+  /* 先渲染所有骨架块，全部标记为「等待」 */
   renderReportSkeleton({ host, port, user, workdir, commands, markers });
+  /* 将第一块设为运行中，给用户即时反馈 */
+  if (commands.length > 0) markBlockRunning(0);
 
-  const results = [];
+  execStatus.style.color = 'var(--dim)';
+  execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
 
-  for (let i = 0; i < commands.length; i++) {
-    if (_execAbort) {
-      /* 将剩余块标记为已跳过 */
-      for (let j = i; j < commands.length; j++) markBlockSkipped(j);
-      break;
-    }
-
-    markBlockRunning(i);
-    execStatus.style.color = 'var(--dim)';
-    execStatus.textContent = `${i + 1}/${commands.length}  执行: ${commands[i]}`;
-
-    try {
-      const resp = await fetch('/api/ssh-exec-one', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host, port, user, pass, command: execCmds[i] })
-      });
-      const data = await resp.json();
-
-      if (data.error) {
-        markBlockError(i, data.error);
-        execStatus.style.color = 'var(--red)';
-        execStatus.textContent = '错误: ' + data.error;
-        for (let j = i + 1; j < commands.length; j++) markBlockSkipped(j);
-        setLoading(false);
-        return;
-      }
-
-      results.push({ cmd: commands[i], output: data.output, exit_code: data.exit_code });
-      updateReportBlock(i, data.output, data.exit_code);
-
-    } catch (e) {
-      markBlockError(i, e.message);
-      for (let j = i + 1; j < commands.length; j++) markBlockSkipped(j);
-      execStatus.style.color = 'var(--red)';
-      execStatus.textContent = '请求失败: ' + e.message;
-      setLoading(false);
-      return;
-    }
+  let data;
+  try {
+    const resp = await fetch('/api/ssh-exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, user, pass, commands: execCmds })
+    });
+    data = await resp.json();
+  } catch (e) {
+    for (let j = 0; j < commands.length; j++) markBlockError(j, e.message);
+    execStatus.style.color = 'var(--red)';
+    execStatus.textContent = '请求失败: ' + e.message;
+    setLoading(false);
+    return;
   }
+
+  if (data.error) {
+    for (let j = 0; j < commands.length; j++) markBlockError(j, data.error);
+    execStatus.style.color = 'var(--red)';
+    execStatus.textContent = '错误: ' + data.error;
+    setLoading(false);
+    return;
+  }
+
+  /* 逐条显示结果（交错动画，每条延迟 120ms） */
+  const results = data.results || [];
+  for (let i = 0; i < results.length; i++) {
+    await new Promise(r => setTimeout(r, 120));
+    updateReportBlock(i, results[i].output, results[i].exit_code);
+    /* 提前激活下一块的运行动画 */
+    if (i + 1 < commands.length && i + 1 < results.length) markBlockRunning(i + 1);
+  }
+  /* 未返回结果的块标为跳过（理论上不会发生） */
+  for (let j = results.length; j < commands.length; j++) markBlockSkipped(j);
 
   finalizeReportHeader(results);
   setLoading(false);
 
-  if (_execAbort) {
-    execStatus.style.color = 'var(--yellow)';
-    const ok = results.filter(r => r.exit_code === 0).length;
-    execStatus.textContent = `已停止，已完成 ${results.length} 条（${ok} 成功）`;
-  } else {
-    execStatus.style.color = 'var(--green)';
-    const ok = results.filter(r => r.exit_code === 0).length;
-    execStatus.textContent = `完成 ${ok}/${results.length} 成功`;
-  }
+  const ok = results.filter(r => r.exit_code === 0).length;
+  execStatus.style.color = ok === results.length ? 'var(--green)' : 'var(--yellow)';
+  execStatus.textContent = `完成 ${ok}/${results.length} 成功`;
 
   if (expectedData) refreshComparison();
 }
 
 function setLoading(on) {
+  btnExec.disabled = on;
   spinner.style.display = on ? 'block' : 'none';
-  if (on) {
-    btnExec.disabled = false;
-    btnExec.classList.add('stop');
-    btnExec.dataset.mode = 'stop';
-    execLabel.textContent = '■ 停止';
-  } else {
-    btnExec.classList.remove('stop');
-    btnExec.dataset.mode = '';
-    execLabel.textContent = '▶ 执行';
-  }
+  execLabel.textContent = on ? '执行中…' : '▶ 执行';
 }
 
 /* ================================================================

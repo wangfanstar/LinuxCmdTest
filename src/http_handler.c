@@ -348,8 +348,8 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
 
     LOG_INFO("api_ssh_exec: %s@%s:%d  commands=%d", user, host, port, cmd_count);
 
-    ssh_batch_t *result = ssh_batch_exec(host, port, user, pass,
-                                          cmd_ptrs, cmd_count);
+    ssh_batch_t *result = ssh_session_exec(host, port, user, pass,
+                                           cmd_ptrs, cmd_count);
 
     /* 构造 JSON 响应 */
     strbuf_t sb = {0};

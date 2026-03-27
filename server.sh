@@ -80,7 +80,7 @@ cmd_start() {
     done
 
     info "启动 simplewebserver..."
-    nohup "${BIN}" "${extra_args[@]}" \
+    nohup "${BIN}" "${extra_args[@]+"${extra_args[@]}"}" \
         > "${NOHUP_OUT}" 2>&1 &
     local pid=$!
     echo "${pid}" > "${PID_FILE}"

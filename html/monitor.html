@@ -80,6 +80,12 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
 .search-result-table td.td-pct{text-align:right;font-weight:700;width:80px}
 .search-empty{text-align:center;color:#8b949e;padding:16px 0;font-size:.78rem}
 .search-hit td{background:rgba(88,166,255,.04)}
+.toggle-wrap{display:flex;align-items:center;gap:6px;font-size:.68rem;color:#8b949e;cursor:pointer;white-space:nowrap;user-select:none}
+.toggle-wrap input[type=checkbox]{display:none}
+.toggle-track{width:28px;height:15px;background:#30363d;border-radius:8px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle-track::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;background:#8b949e;border-radius:50%;transition:transform .2s,background .2s}
+.toggle-wrap input:checked + .toggle-track{background:#1f6feb}
+.toggle-wrap input:checked + .toggle-track::after{transform:translateX(13px);background:#e6edf3}
 .btn-pause{background:none;border:1px solid #30363d;border-radius:6px;color:#8b949e;
   font-size:.72rem;padding:4px 12px;cursor:pointer;transition:border-color .15s,color .15s,background .15s;white-space:nowrap}
 .btn-pause:hover{border-color:#d29922;color:#d29922}
@@ -194,6 +200,11 @@ canvas{display:block;width:100%}
         <input id="q-core" type="text" placeholder="如 0 或 0-7 或留空">
       </div>
       <button class="btn-search-clear" id="btn-search-clear">清空</button>
+      <label class="toggle-wrap" title="开启后全量搜索包含 CPU 为 0% 的进程（默认只搜索有 CPU 活动的进程）">
+        <input type="checkbox" id="chk-zero-cpu">
+        <span class="toggle-track"></span>
+        含 0% CPU
+      </label>
     </div>
     <div class="search-hint" id="search-hint">输入任意条件后自动过滤，留空则显示所有已采集进程</div>
     <table class="search-result-table" id="search-table">
@@ -450,9 +461,12 @@ function runSearch(){
       try {
         const resp = await fetch('/api/procs?q='+q);
         const data = await resp.json();
+        const inclZero = document.getElementById('chk-zero-cpu').checked;
         let rows = (data.procs||[]).map(p=>({
           core: p.c, name: p.n, user: p.u, pct: p.p, pid: p.i
         }));
+        /* 默认过滤掉 0% CPU 进程 */
+        if(!inclZero) rows = rows.filter(r=>r.pct >= 0.05);
         /* 若同时有名称+用户双重条件，在客户端再过滤一次 */
         if(qName && qUser){
           const ln=qName.toLowerCase(), lu=qUser.toLowerCase();
@@ -467,7 +481,7 @@ function runSearch(){
         if(qName) conds.push(`进程名含"${qName}"`);
         if(qUser) conds.push(`用户含"${qUser}"`);
         if(qCore) conds.push(`核心 [${[...qCore].sort((a,b)=>a-b).join(',')}]`);
-        hint.textContent = `全量搜索：${conds.join(' + ')}，共 ${rows.length} 条（含 0% CPU 进程）`;
+        hint.textContent = `全量搜索：${conds.join(' + ')}，共 ${rows.length} 条${inclZero?'（含 0% CPU 进程）':'（仅活跃进程）'}`;
         renderSearchRows(rows, tbody);
       } catch(e){
         hint.textContent = '搜索失败: '+e.message;
@@ -583,6 +597,7 @@ document.getElementById('btn-search-clear').addEventListener('click', ()=>{
   ['q-name','q-user','q-core'].forEach(id=>{ document.getElementById(id).value=''; });
   runSearch();
 });
+document.getElementById('chk-zero-cpu').addEventListener('change', runSearch);
 /* ── 暂停 / 继续 ── */
 document.getElementById('btn-pause').addEventListener('click', function(){
   searchPaused = !searchPaused;

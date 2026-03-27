@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>simplewebserver</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 48px 56px;
+            max-width: 520px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .badge {
+            display: inline-block;
+            background: #22c55e20;
+            color: #22c55e;
+            border: 1px solid #22c55e40;
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 13px;
+            letter-spacing: .5px;
+            margin-bottom: 24px;
+        }
+        h1 { font-size: 2rem; font-weight: 700; margin-bottom: 12px; color: #f8fafc; }
+        p  { color: #94a3b8; line-height: 1.7; margin-bottom: 8px; }
+        .features {
+            margin-top: 32px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            text-align: left;
+        }
+        .feat {
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 13px;
+            color: #7dd3fc;
+        }
+        .feat span { display: block; color: #94a3b8; font-size: 11px; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">&#9679; Running</div>
+        <h1>simplewebserver</h1>
+        <p>一个用 C 语言编写的轻量级 HTTP 服务器</p>
+        <p>支持多线程、日志滚动与自定义端口</p>
+        <div class="features">
+            <div class="feat">多线程处理 <span>Thread Pool</span></div>
+            <div class="feat">静态文件服务 <span>Static Files</span></div>
+            <div class="feat">滚动日志 <span>Rotating Logs</span></div>
+            <div class="feat">自定义端口 <span>Custom Port</span></div>
+        </div>
+    </div>
+</body>
+</html>

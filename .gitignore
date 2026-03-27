@@ -1,0 +1,17 @@
+# 构建产物
+bin/
+obj/
+
+# 运行时
+logs/
+*.pid
+nohup.out
+
+# 日志软链接（运行时创建）
+html/logs
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~

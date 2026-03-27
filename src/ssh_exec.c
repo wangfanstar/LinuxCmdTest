@@ -144,7 +144,7 @@ static int run_ssh_cmd(const char *host, int port,
         /* SSH 参数 */
         char *argv[] = {
             "ssh",
-            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout=15",
             "-o", "BatchMode=no",
             "-o", "PasswordAuthentication=yes",

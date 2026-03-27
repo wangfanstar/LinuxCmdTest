@@ -450,6 +450,9 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
             if (body) handle_api_ssh_exec_one(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"error\":\"empty body\"}", 21);
+        } else if (strcmp(path, "/api/cancel") == 0) {
+            ssh_cancel_current();
+            send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");

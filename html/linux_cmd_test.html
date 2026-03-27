@@ -1131,18 +1131,32 @@ let _execAbortCtrl = null;   /* 当前执行的 AbortController */
 
 btnExec.addEventListener('click', () => { doExec(); });
 
-document.getElementById('btn-reset').addEventListener('click', () => {
-  /* 1. 终止正在进行的 fetch */
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  const btnReset = document.getElementById('btn-reset');
+  btnReset.disabled = true;
+  btnReset.textContent = '复位中…';
+
+  /* 1. 通知后端强制杀死 SSH 进程（不等响应）*/
+  try {
+    await fetch('/api/cancel', { method: 'POST',
+      signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
+  } catch (_) { /* 超时或网络错误忽略 */ }
+
+  /* 2. 中断正在进行的 fetch */
   if (_execAbortCtrl) {
     _execAbortCtrl.abort();
     _execAbortCtrl = null;
   }
-  /* 2. 重置执行状态 */
+
+  /* 3. 重置执行状态 */
   setLoading(false);
-  execStatus.textContent = '已复位';
+  execStatus.textContent = '已复位，SSH 会话已终止';
   execStatus.style.color = 'var(--yellow)';
-  document.getElementById('btn-reset').classList.remove('active');
-  /* 3. 清空报告，显示占位符 */
+  btnReset.classList.remove('active');
+  btnReset.disabled = false;
+  btnReset.textContent = '↺ 复位';
+
+  /* 4. 清空报告，显示占位符 */
   report.innerHTML = '';
   report.style.display = 'none';
   placeholder.style.display = '';

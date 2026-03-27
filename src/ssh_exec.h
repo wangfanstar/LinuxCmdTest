@@ -33,4 +33,7 @@ ssh_batch_t *ssh_session_exec(const char *host, int port,
 
 void ssh_batch_free(ssh_batch_t *b);
 
+/* 强制终止当前正在运行的 SSH 会话（线程安全） */
+void ssh_cancel_current(void);
+
 #endif /* SSH_EXEC_H */

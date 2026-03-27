@@ -11,6 +11,31 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <signal.h>
+#include <pthread.h>
+
+/* ------------------------------------------------------------------ */
+/*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
+/* ------------------------------------------------------------------ */
+static volatile pid_t  g_session_pid   = (pid_t)-1;
+static pthread_mutex_t g_session_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void session_pid_set(pid_t pid)
+{
+    pthread_mutex_lock(&g_session_mutex);
+    g_session_pid = pid;
+    pthread_mutex_unlock(&g_session_mutex);
+}
+
+void ssh_cancel_current(void)
+{
+    pthread_mutex_lock(&g_session_mutex);
+    pid_t pid = g_session_pid;
+    pthread_mutex_unlock(&g_session_mutex);
+    if (pid > (pid_t)0) {
+        kill(pid, SIGKILL);
+        LOG_INFO("ssh_cancel_current: SIGKILL -> pid=%d", (int)pid);
+    }
+}
 
 /* ------------------------------------------------------------------ */
 /*  输入校验                                                            */
@@ -278,6 +303,9 @@ static int run_ssh_session(const char *host, int port,
     close(out_pipe[1]);
     close(in_pipe[0]);
 
+    /* 注册当前 SSH 子进程 PID，供 ssh_cancel_current() 使用 */
+    session_pid_set(pid);
+
     /* 将脚本写入 stdin 管道，完成后关闭（远端 bash 收到 EOF 后退出） */
     {
         const char *p   = script;
@@ -292,7 +320,7 @@ static int run_ssh_session(const char *host, int port,
     close(in_pipe[1]);
 
     /* 读取全部输出（带空闲超时，避免卡死） */
-#define SESSION_IDLE_TIMEOUT_SEC 300   /* 300s 无任何输出则强制终止 */
+#define SESSION_IDLE_TIMEOUT_SEC 60    /* 60s 无任何输出则强制终止 */
 
     char *buf = malloc(SSH_OUTPUT_MAX);
     if (!buf) {
@@ -333,6 +361,9 @@ static int run_ssh_session(const char *host, int port,
     }
     buf[total] = '\0';
     close(out_pipe[0]);
+
+    /* 清除全局 PID（会话结束） */
+    session_pid_set((pid_t)-1);
 
     int status = 0;
     waitpid(pid, &status, 0);

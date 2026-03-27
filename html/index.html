@@ -54,6 +54,22 @@
             color: #7dd3fc;
         }
         .feat span { display: block; color: #94a3b8; font-size: 11px; margin-top: 2px; }
+        .log-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 28px;
+            padding: 9px 20px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #7dd3fc;
+            font-size: 13px;
+            text-decoration: none;
+            transition: border-color .2s, background .2s;
+        }
+        .log-link:hover { background: #1e3a5f; border-color: #58a6ff; color: #bfdbfe; }
+        .log-link svg { flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -68,6 +84,12 @@
             <div class="feat">滚动日志 <span>Rotating Logs</span></div>
             <div class="feat">自定义端口 <span>Custom Port</span></div>
         </div>
+        <a class="log-link" href="/logviewer.html">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+            </svg>
+            查看访问日志
+        </a>
     </div>
 </body>
 </html>

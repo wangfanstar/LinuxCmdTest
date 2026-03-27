@@ -530,20 +530,25 @@ body.edit-mode .cmd-notes {
 .btn-xs:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
 
 /* ── 当前目录行 ── */
-.cmd-workdir {
+.cmd-prompt {
   display: none;
-  font-size: 11px;
-  color: var(--dim);
-  padding: 3px 14px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  padding: 5px 14px;
+  background: #0d1117;
+  border-top: 1px solid #1c2128;
   font-family: "SF Mono", Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: text;
 }
-.cmd-workdir.show { display: block; }
-.cmd-workdir::before { content: "📁 "; }
+.cmd-prompt.show { display: block; }
+.ps-b { color: #3fb950; }
+.ps-u { color: #3fb950; font-weight: 700; }
+.ps-a { color: #8b949e; }
+.ps-h { color: #3fb950; }
+.ps-d { color: #58a6ff; font-weight: 700; }
+.ps-s { color: #c9d1d9; margin-left: 3px; }
 
 /* ── 实时执行状态 ── */
 .cmd-block.pending .cmd-block-header { opacity: 0.55; }
@@ -1278,6 +1283,29 @@ const placeholder = document.getElementById('placeholder');
 const reportTitle = document.getElementById('report-title');
 
 /* ── 骨架渲染（执行前预占位） ── */
+/* 将完整路径缩短为 basename（/home/user 显示为 ~） */
+function promptDirName(workdir, user) {
+  if (!workdir) return '';
+  const p = workdir.replace(/\/+$/, '');
+  if (!p || p === '/home/' + user || p === '/root') return '~';
+  const parts = p.split('/');
+  return parts[parts.length - 1] || '/';
+}
+
+/* 构造仿终端提示符 HTML */
+function buildPromptHtml(user, host, workdir) {
+  if (!workdir) return '';
+  const dir       = promptDirName(workdir, user || 'user');
+  const shortHost = (host || '').split('.')[0] || host || 'host';
+  return `<span class="ps-b">[</span>` +
+         `<span class="ps-u">${esc(user || 'user')}</span>` +
+         `<span class="ps-a">@</span>` +
+         `<span class="ps-h">${esc(shortHost)}</span>` +
+         ` <span class="ps-d">${esc(dir)}</span>` +
+         `<span class="ps-b">]</span>` +
+         `<span class="ps-s">$</span>`;
+}
+
 function renderReportSkeleton({ host, port, user, workdir = '', commands, markers }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
@@ -1309,8 +1337,8 @@ function renderReportSkeleton({ host, port, user, workdir = '', commands, marker
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
-          <div class="cmd-workdir" id="wd-${idx}"></div>
           <pre class="cmd-output" id="out-${idx}" contenteditable="false"></pre>
+          <div class="cmd-prompt" id="wd-${idx}"></div>
           <div class="cmd-notes" contenteditable="false"></div>
         </div>
       </div>`;
@@ -1344,7 +1372,10 @@ function updateReportBlock(idx, output, exitCode, workdir) {
   /* 显示当前目录 */
   const wd = document.getElementById('wd-' + idx);
   if (wd && workdir) {
-    wd.textContent = workdir;
+    const u = document.getElementById('f-user')?.value.trim() || '';
+    const h = document.getElementById('f-host')?.value.trim() || '';
+    wd.innerHTML = buildPromptHtml(u, h, workdir);
+    wd.title     = workdir;   /* 悬停显示完整路径 */
     wd.classList.add('show');
   }
 }
@@ -1414,8 +1445,8 @@ function renderReport({ host, port, user, results, markers = [] }) {
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
-          ${r.workdir ? `<div class="cmd-workdir show">${esc(r.workdir)}</div>` : ''}
           <pre class="cmd-output" id="out-${idx}" contenteditable="false">${ansiToHtml(r.output)}</pre>
+          ${r.workdir ? `<div class="cmd-prompt show" id="wd-${idx}" title="${esc(r.workdir)}">${buildPromptHtml(user, host, r.workdir)}</div>` : ''}
           <div class="cmd-notes" contenteditable="false" placeholder="点击添加备注…"></div>
         </div>
       </div>`;
@@ -1516,8 +1547,8 @@ function buildReportHTML() {
     .cmd-marker-badge{font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace}
     .cmd-marker-badge.fuzzy{background:#3a2e0a60;color:#d29922;border:1px solid #d2992240}
     .cmd-marker-badge.ignore{background:#21262d;color:#8b949e;border:1px solid #30363d}
-    .cmd-workdir{font-size:11px;color:#8b949e;padding:3px 14px;background:#1c2128;border-bottom:1px solid #30363d;font-family:Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .cmd-workdir::before{content:"📁 "}
+    .cmd-prompt{font-size:12px;padding:5px 14px;background:#0d1117;border-top:1px solid #1c2128;font-family:Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ps-b{color:#3fb950}.ps-u{color:#3fb950;font-weight:700}.ps-a{color:#8b949e}.ps-h{color:#3fb950}.ps-d{color:#58a6ff;font-weight:700}.ps-s{color:#c9d1d9;margin-left:3px}
     .cmd-output{font-family:Consolas,monospace;font-size:12px;color:#adbac7;background:#0d1117;padding:12px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
     .cmd-notes{padding:8px 14px;font-size:12px;color:#8b949e;background:#1c2128;border-top:1px solid #30363d;min-height:24px}
     .compare-body{display:grid;grid-template-columns:1fr 1fr}

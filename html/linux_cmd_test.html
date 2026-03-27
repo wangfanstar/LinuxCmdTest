@@ -1340,7 +1340,7 @@ function updateReportBlock(idx, output, exitCode, workdir) {
     exitEl.textContent = isOk ? '✓ 0' : '✗ ' + exitCode;
   }
   const out = document.getElementById('out-' + idx);
-  if (out) out.textContent = output;
+  if (out) out.innerHTML = ansiToHtml(output);
   /* 显示当前目录 */
   const wd = document.getElementById('wd-' + idx);
   if (wd && workdir) {
@@ -1356,7 +1356,7 @@ function markBlockError(idx, msg) {
   const exitEl = document.getElementById('exit-' + idx);
   if (exitEl) { exitEl.className = 'exit-err'; exitEl.textContent = '✗ ERR'; }
   const out = document.getElementById('out-' + idx);
-  if (out) out.textContent = msg;
+  if (out) out.innerHTML = ansiToHtml(msg);
 }
 
 function markBlockSkipped(idx) {
@@ -1415,7 +1415,7 @@ function renderReport({ host, port, user, results, markers = [] }) {
         </div>
         <div class="cmd-block-body">
           ${r.workdir ? `<div class="cmd-workdir show">${esc(r.workdir)}</div>` : ''}
-          <pre class="cmd-output" id="out-${idx}" contenteditable="false">${esc(r.output)}</pre>
+          <pre class="cmd-output" id="out-${idx}" contenteditable="false">${ansiToHtml(r.output)}</pre>
           <div class="cmd-notes" contenteditable="false" placeholder="点击添加备注…"></div>
         </div>
       </div>`;
@@ -1909,6 +1909,56 @@ function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* 将 ANSI 转义序列转为带颜色的 HTML（用于 pre.cmd-output） */
+function ansiToHtml(str) {
+  /* 标准 16 色：前景色 30-37 / 90-97，背景色 40-47 / 100-107 */
+  const FG = {
+    30:'#4d4d4d', 31:'#cc3333', 32:'#4e9a06', 33:'#c4a000',
+    34:'#3465a4', 35:'#75507b', 36:'#06989a', 37:'#d3d7cf',
+    90:'#888a85', 91:'#ef2929', 92:'#8ae234', 93:'#fce94f',
+    94:'#729fcf', 95:'#ad7fa8', 96:'#34e2e2', 97:'#eeeeec',
+  };
+  const BG = {
+    40:'#2e3436', 41:'#3d0000', 42:'#1a3a00', 43:'#3a2e00',
+    44:'#00003d', 45:'#3a003a', 46:'#003a3a', 47:'#555753',
+    100:'#555753',101:'#ef2929',102:'#8ae234',103:'#fce94f',
+    104:'#729fcf',105:'#ad7fa8',106:'#34e2e2',107:'#eeeeec',
+  };
+  /* split 含捕获组：奇数索引为 SGR 参数串，偶数索引为普通文本 */
+  const parts = str.split(/\x1b\[([0-9;]*)m/);
+  let html = '', bold = false, fg = null, bg = null, open = false;
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      /* 文本段：HTML 转义后追加 */
+      if (parts[i]) html += esc(parts[i]);
+    } else {
+      /* SGR 参数：先关闭当前 span，再根据新状态决定是否开新 span */
+      if (open) { html += '</span>'; open = false; }
+      const codes = parts[i] === '' ? [0] : parts[i].split(';').map(Number);
+      for (const c of codes) {
+        if (c === 0)                       { bold = false; fg = null; bg = null; }
+        else if (c === 1)                  { bold = true;  }
+        else if (c === 2)                  { bold = false; }
+        else if (c === 22)                 { bold = false; }
+        else if (c === 39)                 { fg = null;    }
+        else if (c === 49)                 { bg = null;    }
+        else if (FG[c] !== undefined)      { fg = FG[c];  }
+        else if (BG[c] !== undefined)      { bg = BG[c];  }
+      }
+      if (bold || fg || bg) {
+        let style = '';
+        if (bold) style += 'font-weight:bold;';
+        if (fg)   style += `color:${fg};`;
+        if (bg)   style += `background:${bg};`;
+        html += `<span style="${style}">`;
+        open = true;
+      }
+    }
+  }
+  if (open) html += '</span>';
+  return html;
 }
 function escAttr(s) {
   return String(s ?? '').replace(/"/g, '&quot;');

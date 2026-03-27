@@ -162,6 +162,23 @@ button {
 }
 button:hover { background: var(--surface2); border-color: var(--accent); }
 
+/* 文件上传按钮（label 伪装成 button） */
+.btn-upload-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.btn-upload-cmd:hover { background: var(--surface2); border-color: var(--accent); }
+
 /* 预设下拉 */
 .preset-wrap { position: relative; }
 #preset-menu {
@@ -444,6 +461,14 @@ body.edit-mode .cmd-notes {
               </div>
             </div>
           </div>
+          <input type="file" id="cmd-file-input" accept=".txt,.sh,.conf" style="display:none">
+          <label for="cmd-file-input" class="btn-upload-cmd" title="从文本文件导入命令（每行一条，# 开头为注释）">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            导入文件
+          </label>
           <button id="btn-clear-cmds">清空</button>
         </div>
       </div>
@@ -507,6 +532,33 @@ function getCommands() {
 document.getElementById('btn-add-cmd').addEventListener('click', () => addCmd());
 document.getElementById('btn-clear-cmds').addEventListener('click', () => {
   cmdList.innerHTML = '';
+});
+
+/* ── 从文件导入命令 ── */
+document.getElementById('cmd-file-input').addEventListener('change', function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#'));   // 跳过空行和注释
+    if (lines.length === 0) {
+      execStatus.textContent = '文件中未找到有效命令（空行和 # 开头行已跳过）';
+      execStatus.style.color = 'var(--yellow)';
+      return;
+    }
+    lines.forEach(addCmd);
+    execStatus.textContent = `已从 ${file.name} 导入 ${lines.length} 条命令`;
+    execStatus.style.color = 'var(--green)';
+  };
+  reader.onerror = () => {
+    execStatus.textContent = '文件读取失败';
+    execStatus.style.color = 'var(--red)';
+  };
+  reader.readAsText(file, 'utf-8');
+  this.value = '';   // 允许重复选同一文件
 });
 
 // 初始添加两行

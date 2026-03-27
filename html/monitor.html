@@ -185,6 +185,11 @@ canvas{display:block;width:100%}
       <h2>进程 CPU 查询</h2>
       <span class="paused-badge" id="paused-badge">已暂停</span>
       <button class="btn-pause" id="btn-pause" title="暂停后刷新不会重置勾选状态">⏸ 暂停刷新</button>
+      <label class="toggle-wrap" title="开启后全量搜索包含 CPU 为 0% 的进程（默认只搜索有 CPU 活动的进程）">
+        <input type="checkbox" id="chk-zero-cpu">
+        <span class="toggle-track"></span>
+        含 0% CPU
+      </label>
     </div>
     <div class="search-bar">
       <div class="search-field">
@@ -200,11 +205,6 @@ canvas{display:block;width:100%}
         <input id="q-core" type="text" placeholder="如 0 或 0-7 或留空">
       </div>
       <button class="btn-search-clear" id="btn-search-clear">清空</button>
-      <label class="toggle-wrap" title="开启后全量搜索包含 CPU 为 0% 的进程（默认只搜索有 CPU 活动的进程）">
-        <input type="checkbox" id="chk-zero-cpu">
-        <span class="toggle-track"></span>
-        含 0% CPU
-      </label>
     </div>
     <div class="search-hint" id="search-hint">输入任意条件后自动过滤，留空则显示所有已采集进程</div>
     <table class="search-result-table" id="search-table">

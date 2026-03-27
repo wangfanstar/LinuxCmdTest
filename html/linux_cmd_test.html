@@ -2099,34 +2099,39 @@ function flash(el, msg) {
 (function(){
   /* 面板状态 */
   let rtEnabled = false;
-  let rtState   = null;   /* { startMs, host, user, rows:[{cmd,status,exitCode,startMs,elapsed}] } */
+  let rtState   = null;
   let rtTicker  = null;
 
-  const panel    = document.getElementById('rt-panel');
-  const rtBody   = document.getElementById('rt-body');
-  const rtTogBtn = document.getElementById('btn-rt-panel');
+  /* 元素访问全部延迟到 DOMContentLoaded 之后 */
+  let panel, rtBody, rtTogBtn;
 
-  /* 开关 */
-  rtTogBtn.addEventListener('click', () => {
-    rtEnabled = !rtEnabled;
-    rtTogBtn.classList.toggle('rt-on', rtEnabled);
-    if (rtEnabled) {
-      panel.classList.remove('rt-hidden');
-      if (!rtState) rtShowIdle();
-    } else {
+  document.addEventListener('DOMContentLoaded', function() {
+    panel    = document.getElementById('rt-panel');
+    rtBody   = document.getElementById('rt-body');
+    rtTogBtn = document.getElementById('btn-rt-panel');
+
+    /* 开关 */
+    rtTogBtn.addEventListener('click', () => {
+      rtEnabled = !rtEnabled;
+      rtTogBtn.classList.toggle('rt-on', rtEnabled);
+      if (rtEnabled) {
+        panel.classList.remove('rt-hidden');
+        if (!rtState) rtShowIdle();
+      } else {
+        panel.classList.add('rt-hidden');
+      }
+    });
+
+    /* 最小化 / 关闭 */
+    document.getElementById('rt-minimize').addEventListener('click', () => {
+      panel.classList.toggle('rt-minimized');
+      document.getElementById('rt-minimize').textContent = panel.classList.contains('rt-minimized') ? '▲' : '─';
+    });
+    document.getElementById('rt-close').addEventListener('click', () => {
+      rtEnabled = false;
+      rtTogBtn.classList.remove('rt-on');
       panel.classList.add('rt-hidden');
-    }
-  });
-
-  /* 最小化 / 关闭 */
-  document.getElementById('rt-minimize').addEventListener('click', () => {
-    panel.classList.toggle('rt-minimized');
-    document.getElementById('rt-minimize').textContent = panel.classList.contains('rt-minimized') ? '▲' : '─';
-  });
-  document.getElementById('rt-close').addEventListener('click', () => {
-    rtEnabled = false;
-    rtTogBtn.classList.remove('rt-on');
-    panel.classList.add('rt-hidden');
+    });
   });
 
   /* 空闲占位 */
@@ -2143,7 +2148,7 @@ function flash(el, msg) {
 
   /* 公开接口：由 doExec 调用 */
   window.rtInit = function(commands, host, user) {
-    if (!rtEnabled) return;
+    if (!rtEnabled || !panel) return;
     panel.classList.remove('rt-hidden', 'rt-minimized');
     document.getElementById('rt-minimize').textContent = '─';
     rtState = {

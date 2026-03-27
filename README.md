@@ -1,32 +1,129 @@
-# simplewebserver
+# Linux 命令行测试工具
 
-一个用 **C 语言**编写的轻量级 HTTP 静态文件服务器，具备以下特性：
+基于 C 语言的轻量级 HTTP 服务器，内置 SSH 批量命令执行与结果比对功能，适用于 Linux 系统巡检、版本验证和回归测试场景。
 
-- 多线程线程池（生产者-消费者模型）负载分担
-- 滚动日志（最多 10 个文件，单文件 100 MB 上限）
-- 自定义监听端口、线程数、队列大小
-- 目录遍历防御、SIGINT/SIGTERM 优雅关闭
+## 功能概览
 
----
+| 模块 | 说明 |
+|------|------|
+| SSH 命令行测试 | 输入 SSH 连接信息，批量执行命令，生成可编辑 HTML 报告 |
+| 预期结果比对 | 导入预期结果 JSON，与实际执行输出并列对比，自动判断通过/不符 |
+| 命令匹配标记 | 每条命令可单独设置：默认 `=` / 模糊 `~` / 忽略 `!` |
+| 配置导入导出 | SSH 连接配置与命令列表可保存为 JSON 文件复用 |
+| 日志查看器 | 实时查看服务器日志，支持级别过滤、关键字搜索、本地文件上传 |
 
 ## 快速开始
 
+### 编译
+
 ```bash
-# 编译
 make
-
-# 运行（默认端口 8081）
-make run
-
-# 自定义参数
-./bin/simpleserver -p 9000 -t 8 -q 256 -l /var/log/simpleserver
 ```
 
-浏览器访问 `http://localhost:8081`
+产出：`bin/simpleserver`
 
----
+### 启动 / 停止
 
-## 命令行参数
+```bash
+./simplewebserver.sh start          # 默认端口 8081
+./simplewebserver.sh start -p 9000  # 自定义端口
+./simplewebserver.sh stop
+./simplewebserver.sh status
+./simplewebserver.sh restart
+./simplewebserver.sh build          # 仅编译，不启动
+```
+
+启动后浏览器访问 `http://<host>:8081`。
+
+### 依赖
+
+- GCC（支持 C11）
+- OpenSSH 客户端（`ssh` 命令，≥ 6.x）
+- pthread
+
+无需 `sshpass`，密码认证通过 `SSH_ASKPASS` 机制实现。
+
+## 项目结构
+
+```
+.
+├── src/
+│   ├── main.c              # 入口：参数解析、socket、accept 循环
+│   ├── http_handler.c/h    # HTTP 请求处理、静态文件服务、/api/ssh-exec 接口
+│   ├── ssh_exec.c/h        # SSH 批量命令执行（fork/pipe/execvpe）
+│   ├── threadpool.c/h      # 线程池（生产者-消费者，循环队列）
+│   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
+├── html/
+│   ├── index.html          # 工具导航首页
+│   ├── ssh_collector.html  # SSH 命令行测试主页面
+│   └── logviewer.html      # 日志查看器
+├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
+├── Makefile
+└── README.md
+```
+
+## SSH 命令行测试
+
+### 基本流程
+
+1. 填写 SSH **主机 / IP**、**端口**、**用户名**、**密码**
+2. 添加要执行的命令（支持预设模板、文件导入）
+3. 点击 **⚡ 测试连接** 验证连接可用性
+4. 点击 **▶ 执行** 批量执行，右侧生成报告
+5. 点击 **↓ 下载** 将报告保存为独立 HTML 文件
+
+### 命令匹配标记
+
+在命令左侧点击标记按钮循环切换：
+
+| 标记 | 含义 |
+|------|------|
+| `=` 默认 | 跟随全局精确 / 模糊匹配开关 |
+| `~` 模糊 | 此命令始终忽略空白差异 |
+| `!` 忽略 | 跳过此命令的比对，固定显示「跳过」 |
+
+### 预期结果比对
+
+1. 执行命令后点击工具栏 **导出预期**，将当前输出保存为 JSON 基线
+2. 下次执行后点击 **导入预期**，自动进行并列比对
+3. **对比视图** 按钮切换比对视图与单结果视图
+4. **模糊匹配 / 精确匹配** 按钮控制全局匹配模式
+
+### 命令文件格式（.txt）
+
+```
+# 注释行（以 # 开头）会被跳过
+uname -a
+~ df -h          # ~ 前缀：模糊匹配
+! free -h        # ! 前缀：忽略比对
+```
+
+### SSH 配置文件格式（.json）
+
+```json
+{
+  "version": 1,
+  "host": "192.168.1.100",
+  "port": 22,
+  "user": "root",
+  "pass": "password",
+  "commands": [
+    { "cmd": "uname -a", "marker": "" },
+    { "cmd": "df -h",    "marker": "fuzzy" },
+    { "cmd": "free -h",  "marker": "ignore" }
+  ]
+}
+```
+
+## 编译选项
+
+```bash
+make debug      # 带 -g -O0 调试符号
+make memcheck   # Valgrind 内存检查
+make clean      # 清除构建产物
+```
+
+自定义启动参数：
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
@@ -34,47 +131,10 @@ make run
 | `-t <threads>` | 工作线程数 | CPU 核数 × 1.5 |
 | `-q <size>` | 任务队列长度 | `128` |
 | `-l <dir>` | 日志目录 | `logs/` |
-| `-h` | 显示帮助 | — |
 
----
+## 平台
 
-## 构建命令
-
-```bash
-make          # 编译
-make run      # 编译并在 8081 端口运行
-make debug    # 带调试符号编译
-make memcheck # Valgrind 内存检查
-make clean    # 清理构建产物
-```
-
----
-
-## 目录结构
-
-```
-simplewebserver/
-├── src/
-│   ├── main.c           # 入口：参数解析、socket 监听、accept 循环
-│   ├── threadpool.c/h   # 线程池：循环队列 + mutex/cond 同步
-│   ├── http_handler.c/h # HTTP 解析、文件服务、MIME 映射
-│   └── log.c/h          # 线程安全的滚动日志
-├── html/                # Web 根目录（静态文件放这里）
-├── logs/                # 运行时日志（自动创建）
-├── bin/                 # 可执行文件（构建产物）
-├── obj/                 # 目标文件（构建产物）
-└── Makefile
-```
-
----
-
-## 系统要求
-
-- Linux / macOS（或 WSL）
-- GCC 7+，支持 C11
-- pthread 库
-
----
+目标平台：Linux（RHEL / CentOS / Ubuntu）。编译需 `_GNU_SOURCE`，运行需 `openssh-client`，服务端需开启密码认证。
 
 ## 许可证
 

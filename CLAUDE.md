@@ -51,3 +51,6 @@ main.c
 
 - 目标平台：Linux / macOS（或 WSL）；`_mkdir` 有条件编译分支支持 Windows。
 - 编译标志：`-D_GNU_SOURCE`（启用 `strdup` 等扩展）、`-std=c11`、`-lpthread`。
+
+## 说明
+当前代码是在win下平台开发维护，实际代码要运行在linux平台编译运行

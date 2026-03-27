@@ -37,4 +37,20 @@ void ssh_batch_free(ssh_batch_t *b);
 /* 强制终止当前正在运行的 SSH 会话（线程安全） */
 void ssh_cancel_current(void);
 
+/*
+ * 流式执行：每条命令完成后立即回调，无需等待全部命令结束。
+ * cb(idx, cmd, output, exit_code, ud) 在持有 output 期间同步调用，
+ * 调用返回后 output 内存即释放，cb 内部如需保留须自行复制。
+ * error_buf 在连接失败时填写错误信息；正常结束时为空字符串。
+ */
+typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
+                                 const char *output, int exit_code,
+                                 void *ud);
+
+void ssh_session_exec_stream(const char *host, int port,
+                              const char *user, const char *pass,
+                              char **commands, int cmd_count,
+                              ssh_stream_cb_t cb, void *ud,
+                              char *error_buf, size_t error_buf_sz);
+
 #endif /* SSH_EXEC_H */

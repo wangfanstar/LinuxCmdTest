@@ -382,6 +382,93 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
     if (result) ssh_batch_free(result);
 }
 
+/* ------------------------------------------------------------------ */
+/*  POST /api/ssh-exec-stream  (SSE 流式，每条命令完成即推送)          */
+/* ------------------------------------------------------------------ */
+
+static void sse_write_json(int fd, const char *json)
+{
+    /* data: <json>\n\n */
+    char hdr[16];
+    int  hlen = snprintf(hdr, sizeof(hdr), "data: ");
+    int  jlen = (int)strlen(json);
+    write(fd, hdr, hlen);
+    write(fd, json, jlen);
+    write(fd, "\n\n", 2);
+}
+
+typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; } stream_ctx_t;
+
+static void on_stream_result(int idx, const char *cmd, const char *output,
+                              int exit_code, void *ud)
+{
+    int fd = ((stream_ctx_t *)ud)->fd;
+    strbuf_t sb = {0};
+    sb_appendf(&sb, "{\"type\":\"result\",\"i\":%d,\"cmd\":", idx);
+    sb_json_str(&sb, cmd    ? cmd    : "");
+    sb_appendf(&sb, ",\"exit_code\":%d,\"output\":", exit_code);
+    sb_json_str(&sb, output ? output : "");
+    SB_LIT(&sb, "}");
+    if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+}
+
+static void handle_api_ssh_exec_stream(int client_fd, const char *body)
+{
+    char host[256] = {0}, user[64] = {0}, pass[256] = {0};
+    int  port = 22;
+
+    if (json_get_str(body, "host", host, sizeof(host)) < 0 || !host[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"error\":\"missing host\"}", 24); return;
+    }
+    json_get_str(body, "user", user, sizeof(user));
+    json_get_str(body, "pass", pass, sizeof(pass));
+    port = json_get_int(body, "port", 22);
+    if (!user[0]) strcpy(user, "root");
+
+    char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
+    char *cmd_ptrs[MAX_CMD_COUNT];
+    for (int i = 0; i < MAX_CMD_COUNT; i++) cmd_ptrs[i] = cmd_bufs[i];
+    int cmd_count = json_get_str_array(body, "commands",
+                                        cmd_ptrs, MAX_CMD_COUNT, CMD_BUF_SIZE);
+    if (cmd_count <= 0) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"error\":\"no commands\"}", 22); return;
+    }
+
+    LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d",
+             user, host, port, cmd_count);
+
+    /* SSE 响应头（无 Content-Length，流式） */
+    const char *sse_hdr =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/event-stream\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+    write(client_fd, sse_hdr, strlen(sse_hdr));
+
+    /* 流式执行 */
+    stream_ctx_t ctx = { client_fd, cmd_bufs };
+    char error_buf[512] = {0};
+    ssh_session_exec_stream(host, port, user, pass,
+                            cmd_ptrs, cmd_count,
+                            on_stream_result, &ctx,
+                            error_buf, sizeof(error_buf));
+
+    /* 结束事件 */
+    strbuf_t sb = {0};
+    if (error_buf[0]) {
+        SB_LIT(&sb, "{\"type\":\"error\",\"message\":");
+        sb_json_str(&sb, error_buf);
+        SB_LIT(&sb, "}");
+    } else {
+        sb_appendf(&sb, "{\"type\":\"done\",\"total\":%d}", cmd_count);
+    }
+    if (sb.data) { sse_write_json(client_fd, sb.data); free(sb.data); }
+}
+
 /* ================================================================
    监控统计模块
    ================================================================ */
@@ -1026,6 +1113,10 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
         if (strcmp(path, "/api/ssh-exec") == 0) {
             if (body) handle_api_ssh_exec(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"error\":\"empty body\"}", 21);
+        } else if (strcmp(path, "/api/ssh-exec-stream") == 0) {
+            if (body) handle_api_ssh_exec_stream(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"error\":\"empty body\"}", 21);
         } else if (strcmp(path, "/api/ssh-exec-one") == 0) {

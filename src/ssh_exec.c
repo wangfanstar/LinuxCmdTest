@@ -625,6 +625,315 @@ cleanup:
     return b;
 }
 
+/* ------------------------------------------------------------------ */
+/*  流式执行：每条命令完成后立即回调                                   */
+/* ------------------------------------------------------------------ */
+
+void ssh_session_exec_stream(const char *host, int port,
+                              const char *user, const char *pass,
+                              char **commands, int cmd_count,
+                              ssh_stream_cb_t cb, void *ud,
+                              char *error_buf, size_t error_buf_sz)
+{
+    error_buf[0] = '\0';
+
+    /* 输入校验 */
+    if (!validate_safe(host)) {
+        snprintf(error_buf, error_buf_sz,
+                 "非法主机名: %s（仅允许字母、数字及 . - _ : []）", host);
+        return;
+    }
+    if (!validate_safe(user)) {
+        snprintf(error_buf, error_buf_sz, "非法用户名: %s", user);
+        return;
+    }
+    if (port <= 0 || port > 65535) {
+        snprintf(error_buf, error_buf_sz, "非法端口: %d", port);
+        return;
+    }
+
+    char   pass_file[64] = {0}, askpass_file[64] = {0};
+    int    has_pass_file = 0, has_askpass = 0;
+    char  *script = NULL;
+    char   userhost[320] = {0}, port_str[8] = {0};
+    int    out_pipe[2] = {-1,-1}, in_pipe[2] = {-1,-1};
+    pid_t  pid = (pid_t)-1;
+    char   boundary[24] = {0};
+    size_t blen = 0;
+
+    if (create_pass_file(pass, pass_file, sizeof(pass_file)) < 0) {
+        snprintf(error_buf, error_buf_sz,
+                 "创建临时密码文件失败: %s", strerror(errno));
+        return;
+    }
+    has_pass_file = 1;
+
+    if (create_askpass_script(pass_file, askpass_file, sizeof(askpass_file)) < 0) {
+        snprintf(error_buf, error_buf_sz,
+                 "创建 askpass 脚本失败: %s", strerror(errno));
+        has_askpass = 0;
+        goto cleanup;
+    }
+    has_askpass = 1;
+
+    /* 生成唯一边界标记 */
+    {
+        unsigned int token = (unsigned int)time(NULL) ^ (unsigned int)getpid();
+        FILE *rf = fopen("/dev/urandom", "r");
+        if (rf) { fread(&token, sizeof(token), 1, rf); fclose(rf); }
+        snprintf(boundary, sizeof(boundary), "SWBND%08X", token);
+    }
+    blen = strlen(boundary);
+
+    script = build_session_script(boundary, commands, cmd_count);
+    if (!script) {
+        snprintf(error_buf, error_buf_sz, "构建脚本失败（内存不足）");
+        goto cleanup;
+    }
+
+    LOG_INFO("ssh_session_exec_stream: %s@%s:%d  commands=%d boundary=%s",
+             user, host, port, cmd_count, boundary);
+
+    /* 创建管道 + fork */
+    snprintf(userhost, sizeof(userhost), "%s@%s", user, host);
+    snprintf(port_str,  sizeof(port_str),  "%d",   port);
+
+    if (pipe(out_pipe) < 0) {
+        snprintf(error_buf, error_buf_sz, "pipe() 失败: %s", strerror(errno));
+        goto cleanup;
+    }
+    if (pipe(in_pipe) < 0) {
+        snprintf(error_buf, error_buf_sz, "pipe() 失败: %s", strerror(errno));
+        close(out_pipe[0]); close(out_pipe[1]);
+        goto cleanup;
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        snprintf(error_buf, error_buf_sz, "fork() 失败: %s", strerror(errno));
+        close(out_pipe[0]); close(out_pipe[1]);
+        close(in_pipe[0]);  close(in_pipe[1]);
+        out_pipe[0] = out_pipe[1] = in_pipe[0] = in_pipe[1] = -1;
+        goto cleanup;
+    }
+
+    if (pid == 0) {
+        /* ── 子进程（与 run_ssh_session 完全相同） ── */
+        close(out_pipe[0]);
+        close(in_pipe[1]);
+        dup2(out_pipe[1], STDOUT_FILENO);
+        dup2(out_pipe[1], STDERR_FILENO);
+        close(out_pipe[1]);
+        dup2(in_pipe[0], STDIN_FILENO);
+        close(in_pipe[0]);
+        setsid();
+
+        char env_askpass[300], env_display[32], env_require[32], env_home[256];
+        snprintf(env_askpass, sizeof(env_askpass), "SSH_ASKPASS=%s", askpass_file);
+        snprintf(env_display, sizeof(env_display), "DISPLAY=:0");
+        snprintf(env_require, sizeof(env_require), "SSH_ASKPASS_REQUIRE=force");
+        const char *home = getenv("HOME");
+        snprintf(env_home, sizeof(env_home), "HOME=%s", home ? home : "/tmp");
+
+        char *envp[] = { env_askpass, env_display, env_require, env_home,
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            NULL };
+        char *argv[] = {
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            "-o", "BatchMode=no",
+            "-o", "PasswordAuthentication=yes",
+            "-o", "PubkeyAuthentication=no",
+            "-o", "GSSAPIAuthentication=no",
+            "-o", "PreferredAuthentications=password",
+            "-o", "NumberOfPasswordPrompts=1",
+            "-o", "LogLevel=ERROR",
+            "-o", "ServerAliveInterval=10",
+            "-o", "ServerAliveCountMax=6",
+            "-T",
+            "-p", port_str,
+            userhost,
+            "bash -s",
+            NULL
+        };
+        execvpe("ssh", argv, envp);
+        _exit(127);
+    }
+
+    /* ── 父进程 ── */
+    close(out_pipe[1]);
+    close(in_pipe[0]);
+    session_pid_set(pid);
+
+    /* 写入脚本到 SSH stdin */
+    {
+        const char *p   = script;
+        size_t      rem = strlen(script);
+        while (rem > 0) {
+            ssize_t n = write(in_pipe[1], p, rem);
+            if (n <= 0) break;
+            p += n; rem -= (size_t)n;
+        }
+    }
+    close(in_pipe[1]);
+
+    /* ── 流式读取 + 实时边界解析 ── */
+    char *accum = malloc(SSH_OUTPUT_MAX);
+    if (!accum) {
+        kill(pid, SIGKILL);
+        close(out_pipe[0]);
+        waitpid(pid, NULL, 0);
+        session_pid_set((pid_t)-1);
+        snprintf(error_buf, error_buf_sz, "内存不足");
+        goto cleanup;
+    }
+
+    size_t accum_len  = 0;
+    size_t scan_from  = 0;
+    int    cmd_idx    = 0;
+
+    for (;;) {
+        if (cmd_idx >= cmd_count) break;
+
+        fd_set rfds;
+        struct timeval tv = { SESSION_IDLE_TIMEOUT_SEC, 0 };
+        FD_ZERO(&rfds);
+        FD_SET(out_pipe[0], &rfds);
+
+        int sel = select(out_pipe[0] + 1, &rfds, NULL, NULL, &tv);
+        if (sel == 0) {
+            LOG_INFO("ssh_session_exec_stream: idle timeout, killing pid=%d", (int)pid);
+            kill(pid, SIGKILL);
+            break;
+        }
+        if (sel < 0) break;
+
+        char tmp[8192];
+        ssize_t nr = read(out_pipe[0], tmp, sizeof(tmp));
+        if (nr <= 0) break;  /* EOF */
+
+        size_t copy = (size_t)nr;
+        if (accum_len + copy >= SSH_OUTPUT_MAX - 1)
+            copy = SSH_OUTPUT_MAX - 1 - accum_len;
+        if (copy == 0) break;  /* buffer full */
+        memcpy(accum + accum_len, tmp, copy);
+        accum_len += copy;
+
+        /* 扫描缓冲区中的边界标记，可能一次读到多条命令的结果 */
+        while (cmd_idx < cmd_count) {
+            const char *p   = accum + scan_from;
+            const char *end = accum + accum_len;
+            const char *marker = NULL;
+
+            while (p < end) {
+                /* 需要至少 blen+':'+digit+'\n' 字符才能判断 */
+                if ((size_t)(end - p) < blen + 3) break;
+                if (strncmp(p, boundary, blen) == 0 && p[blen] == ':') {
+                    const char *r = p + blen + 1;
+                    while (r < end && (unsigned char)*r >= '0' && (unsigned char)*r <= '9') r++;
+                    if (r > p + blen + 1 && r < end && (*r == '\n' || *r == '\r')) {
+                        marker = p; break;
+                    }
+                }
+                p++;
+            }
+
+            if (!marker) {
+                /* 留出 blen+2 字节防止边界被截断 */
+                if (accum_len > blen + 2)
+                    scan_from = accum_len - blen - 2;
+                break;
+            }
+
+            /* 提取本条命令输出（去掉末尾换行） */
+            size_t out_end = (size_t)(marker - accum);
+            while (out_end > 0 &&
+                   (accum[out_end-1] == '\n' || accum[out_end-1] == '\r'))
+                out_end--;
+
+            /* 解析退出码 */
+            const char *after_colon = marker + blen + 1;
+            int exit_code = atoi(after_colon);
+
+            /* 定位边界行末尾 */
+            const char *eol = after_colon;
+            while (eol < end && *eol != '\n') eol++;
+            if (eol < end && *eol == '\n') eol++;
+            size_t consumed = (size_t)(eol - accum);
+
+            /* 临时截断，调用回调 */
+            char saved = accum[out_end];
+            accum[out_end] = '\0';
+            if (cb) cb(cmd_idx, commands[cmd_idx], accum, exit_code, ud);
+            accum[out_end] = saved;
+
+            /* 压缩缓冲区：将已处理数据移出，为下一条命令腾出空间 */
+            size_t remaining = accum_len - consumed;
+            if (remaining > 0)
+                memmove(accum, accum + consumed, remaining);
+            accum_len = remaining;
+            scan_from = 0;
+            cmd_idx++;
+        }
+    }
+
+    /* 未找到任何边界 → SSH 连接/认证失败，读取剩余输出作为错误信息 */
+    if (cmd_idx == 0) {
+        /* 排空管道（最多等 2 秒）以获取完整错误信息 */
+        {
+            char tmp2[4096];
+            struct timeval tv2 = { 2, 0 };
+            fd_set rfds2;
+            while (accum_len < SSH_OUTPUT_MAX - 1) {
+                FD_ZERO(&rfds2);
+                FD_SET(out_pipe[0], &rfds2);
+                if (select(out_pipe[0] + 1, &rfds2, NULL, NULL, &tv2) <= 0) break;
+                ssize_t nr2 = read(out_pipe[0], tmp2, sizeof(tmp2));
+                if (nr2 <= 0) break;
+                size_t cp2 = (size_t)nr2;
+                if (accum_len + cp2 >= SSH_OUTPUT_MAX - 1)
+                    cp2 = SSH_OUTPUT_MAX - 1 - accum_len;
+                memcpy(accum + accum_len, tmp2, cp2);
+                accum_len += cp2;
+            }
+        }
+        if (accum_len > 0) {
+            accum[accum_len] = '\0';
+            size_t elen = accum_len < error_buf_sz - 1 ? accum_len : error_buf_sz - 1;
+            memcpy(error_buf, accum, elen);
+            error_buf[elen] = '\0';
+            size_t el = strlen(error_buf);
+            while (el > 0 && (error_buf[el-1]=='\n'||error_buf[el-1]=='\r'||
+                               error_buf[el-1]==' '))
+                error_buf[--el] = '\0';
+        }
+    }
+
+    free(accum);
+
+    /* 排空剩余输出，确保 SSH 子进程能正常退出 */
+    {
+        char drain[4096];
+        struct timeval dtv = { 1, 0 };
+        fd_set dfds;
+        while (1) {
+            FD_ZERO(&dfds);
+            FD_SET(out_pipe[0], &dfds);
+            if (select(out_pipe[0] + 1, &dfds, NULL, NULL, &dtv) <= 0) break;
+            if (read(out_pipe[0], drain, sizeof(drain)) <= 0) break;
+        }
+    }
+    close(out_pipe[0]);
+    session_pid_set((pid_t)-1);
+    waitpid(pid, NULL, 0);
+
+cleanup:
+    free(script);
+    if (has_pass_file)  unlink(pass_file);
+    if (has_askpass)    unlink(askpass_file);
+}
+
 void ssh_batch_free(ssh_batch_t *b)
 {
     if (!b) return;

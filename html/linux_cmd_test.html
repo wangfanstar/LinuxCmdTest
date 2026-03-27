@@ -1315,15 +1315,16 @@ async function doExec() {
   execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
 
   _execAbortCtrl = new AbortController();
-  let data;
+
+  /* 流式请求：每条命令完成后服务端立即推送 SSE 事件 */
+  let resp;
   try {
-    const resp = await fetch('/api/ssh-exec', {
+    resp = await fetch('/api/ssh-exec-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ host, port, user, pass, commands: execCmds }),
       signal: _execAbortCtrl.signal
     });
-    data = await resp.json();
   } catch (e) {
     const aborted = e.name === 'AbortError';
     if (!aborted) {
@@ -1336,43 +1337,81 @@ async function doExec() {
     _execAbortCtrl = null;
     return;
   }
-  _execAbortCtrl = null;
 
-  if (data.error) {
-    for (let j = 0; j < commands.length; j++) markBlockError(j, data.error);
-    if (window.rtFinish) rtFinish();
-    execStatus.style.color = 'var(--red)';
-    execStatus.textContent = '错误: ' + data.error;
-    setLoading(false);
-    return;
-  }
+  /* 逐行读取 SSE 流 */
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let   sseBuf  = '';
+  const streamResults = [];
 
-  /* 逐条显示结果（交错动画，每条延迟 120ms） */
-  const results = data.results || [];
-  for (let i = 0; i < results.length; i++) {
-    await new Promise(r => setTimeout(r, 120));
-    updateReportBlock(i, results[i].output, results[i].exit_code, results[i].workdir);
-    if (window.rtMarkDone) rtMarkDone(i, results[i].exit_code);
-    /* 提前激活下一块的运行动画 */
-    if (i + 1 < commands.length && i + 1 < results.length) {
-      markBlockRunning(i + 1);
-      if (window.rtMarkRunning) rtMarkRunning(i + 1);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuf += decoder.decode(value, { stream: true });
+
+      /* SSE 事件以 \n\n 分隔 */
+      const parts = sseBuf.split('\n\n');
+      sseBuf = parts.pop();  /* 保留不完整的最后一段 */
+
+      for (const part of parts) {
+        const m = part.match(/^data:\s*(.+)$/m);
+        if (!m) continue;
+        let ev;
+        try { ev = JSON.parse(m[1]); } catch { continue; }
+
+        if (ev.type === 'result') {
+          const i = ev.i;
+          streamResults[i] = ev;
+          updateReportBlock(i, ev.output, ev.exit_code, '');
+          if (window.rtMarkDone) rtMarkDone(i, ev.exit_code);
+          /* 激活下一块运行动画 */
+          if (i + 1 < commands.length) {
+            markBlockRunning(i + 1);
+            if (window.rtMarkRunning) rtMarkRunning(i + 1);
+          }
+          const done_n = streamResults.filter(Boolean).length;
+          execStatus.textContent = `执行中 ${done_n}/${commands.length}…`;
+
+        } else if (ev.type === 'error') {
+          for (let j = 0; j < commands.length; j++) markBlockError(j, ev.message);
+          if (window.rtFinish) rtFinish();
+          execStatus.style.color = 'var(--red)';
+          execStatus.textContent = '错误: ' + ev.message;
+          setLoading(false);
+          btnReset.classList.remove('active');
+          _execAbortCtrl = null;
+          if (expectedData) refreshComparison();
+          return;
+
+        } else if (ev.type === 'done') {
+          /* 补全未收到结果的命令块（容错） */
+          for (let j = 0; j < commands.length; j++) {
+            if (!streamResults[j]) {
+              markBlockSkipped(j);
+              if (window.rtMarkSkipped) rtMarkSkipped(j);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '流读取失败: ' + e.message;
     }
   }
-  /* 未返回结果的块标为跳过（理论上不会发生） */
-  for (let j = results.length; j < commands.length; j++) {
-    markBlockSkipped(j);
-    if (window.rtMarkSkipped) rtMarkSkipped(j);
-  }
 
+  _execAbortCtrl = null;
   if (window.rtFinish) rtFinish();
-  finalizeReportHeader(results);
+  finalizeReportHeader(streamResults.filter(Boolean));
   setLoading(false);
   document.getElementById('btn-reset').classList.remove('active');
 
-  const ok = results.filter(r => r.exit_code === 0).length;
-  execStatus.style.color = ok === results.length ? 'var(--green)' : 'var(--yellow)';
-  execStatus.textContent = `完成 ${ok}/${results.length} 成功`;
+  const ok = streamResults.filter(r => r && r.exit_code === 0).length;
+  const total = streamResults.filter(Boolean).length;
+  execStatus.style.color = ok === total && total > 0 ? 'var(--green)' : 'var(--yellow)';
+  execStatus.textContent = `完成 ${ok}/${total} 成功`;
 
   if (expectedData) refreshComparison();
 }

@@ -380,7 +380,7 @@ static char *build_session_script(const char *boundary,
     /* 估算脚本大小 */
     size_t sz = 32;
     for (int i = 0; i < count; i++)
-        sz += strlen(commands[i]) + strlen(boundary) + 32;
+        sz += strlen(commands[i]) + strlen(boundary) + 64; /* +64 for _SWWD line */
 
     char *script = malloc(sz);
     if (!script) return NULL;
@@ -389,10 +389,14 @@ static char *build_session_script(const char *boundary,
     off += snprintf(script + off, sz - (size_t)off, "set +e\n");
     for (int i = 0; i < count; i++) {
         /* 边界格式：BOUNDARY:<exit_code>\t<pwd>\n
-         * 用制表符分隔退出码与路径（路径中不含制表符） */
+         * pwd 在命令执行前捕获，避免命令进入交互式子视图后
+         * shell 展开 $(pwd) 触发 ">" 提示符问题。
+         * 对于 cd 等命令，workdir 反映的是执行前的目录；
+         * 若需要 cd 后的目录，用户可在 cd 后加一条 pwd 命令。 */
         off += snprintf(script + off, sz - (size_t)off,
+                        "_SWWD=$(pwd 2>/dev/null||echo '')\n"
                         "%s\n"
-                        "printf '%s:%%d\\t%%s\\n' $? \"$(pwd)\"\n",
+                        "printf '%s:%%d\\t%%s\\n' $? \"$_SWWD\"\n",
                         commands[i], boundary);
     }
     return script;

@@ -529,6 +529,25 @@ body.edit-mode .cmd-notes {
 }
 .btn-xs:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
 
+/* ── 实时执行状态 ── */
+.cmd-block.pending .cmd-block-header { opacity: 0.55; }
+.cmd-block.running .cmd-block-header { background: #162110; }
+.exit-pending { color: var(--dim); font-size: 11px; flex-shrink: 0; }
+.progress-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pdot .7s ease-in-out infinite alternate;
+}
+@keyframes pdot { from { opacity:.2; transform:scale(.6); } to { opacity:1; transform:scale(1); } }
+.cmd-block.pending .cmd-output:empty::before { content: "等待执行…"; color: #4a5568; font-style: italic; }
+.cmd-block.running .cmd-output:empty::before { content: "正在执行…"; color: var(--accent); font-style: italic; }
+/* 停止按钮样式 */
+#btn-exec.stop { background: #3d0a0a; border-color: var(--red); }
+#btn-exec.stop:hover:not(:disabled) { background: #5a1010; }
+
 /* ── 预览模态框 ── */
 #preview-overlay {
   display: none;
@@ -1091,7 +1110,17 @@ const execLabel  = document.getElementById('exec-label');
 const spinner    = document.getElementById('spinner');
 const execStatus = document.getElementById('exec-status');
 
-btnExec.addEventListener('click', doExec);
+let _execAbort = false;
+
+btnExec.addEventListener('click', () => {
+  if (btnExec.dataset.mode === 'stop') {
+    _execAbort = true;
+    execStatus.textContent = '正在停止，等待当前命令完成…';
+    execStatus.style.color = 'var(--yellow)';
+  } else {
+    doExec();
+  }
+});
 
 async function doExec() {
   const host = document.getElementById('f-host').value.trim();
@@ -1105,41 +1134,85 @@ async function doExec() {
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
 
+  _execAbort = false;
   setLoading(true);
   execStatus.style.color = 'var(--dim)';
-  execStatus.textContent = `连接 ${user}@${host}:${port}…`;
+  execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
-  try {
-    const resp = await fetch('/api/ssh-exec', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, commands })
-    });
-    const data = await resp.json();
+  /* 先渲染所有骨架块 */
+  renderReportSkeleton({ host, port, user, commands, markers });
 
-    if (data.error) {
-      execStatus.style.color = 'var(--red)';
-      execStatus.textContent = '错误: ' + data.error;
-      return;
+  const results = [];
+
+  for (let i = 0; i < commands.length; i++) {
+    if (_execAbort) {
+      /* 将剩余块标记为已跳过 */
+      for (let j = i; j < commands.length; j++) markBlockSkipped(j);
+      break;
     }
 
-    execStatus.style.color = 'var(--green)';
-    const ok = data.results.filter(r => r.exit_code === 0).length;
-    execStatus.textContent = `完成 ${ok}/${data.results.length} 成功`;
-    renderReport({ host, port, user, results: data.results, markers });
+    markBlockRunning(i);
+    execStatus.style.color = 'var(--dim)';
+    execStatus.textContent = `${i + 1}/${commands.length}  执行: ${commands[i]}`;
 
-  } catch (e) {
-    execStatus.style.color = 'var(--red)';
-    execStatus.textContent = '请求失败: ' + e.message;
-  } finally {
-    setLoading(false);
+    try {
+      const resp = await fetch('/api/ssh-exec-one', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, user, pass, command: commands[i] })
+      });
+      const data = await resp.json();
+
+      if (data.error) {
+        markBlockError(i, data.error);
+        execStatus.style.color = 'var(--red)';
+        execStatus.textContent = '错误: ' + data.error;
+        for (let j = i + 1; j < commands.length; j++) markBlockSkipped(j);
+        setLoading(false);
+        return;
+      }
+
+      results.push({ cmd: commands[i], output: data.output, exit_code: data.exit_code });
+      updateReportBlock(i, data.output, data.exit_code);
+
+    } catch (e) {
+      markBlockError(i, e.message);
+      for (let j = i + 1; j < commands.length; j++) markBlockSkipped(j);
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '请求失败: ' + e.message;
+      setLoading(false);
+      return;
+    }
   }
+
+  finalizeReportHeader(results);
+  setLoading(false);
+
+  if (_execAbort) {
+    execStatus.style.color = 'var(--yellow)';
+    const ok = results.filter(r => r.exit_code === 0).length;
+    execStatus.textContent = `已停止，已完成 ${results.length} 条（${ok} 成功）`;
+  } else {
+    execStatus.style.color = 'var(--green)';
+    const ok = results.filter(r => r.exit_code === 0).length;
+    execStatus.textContent = `完成 ${ok}/${results.length} 成功`;
+  }
+
+  if (expectedData) refreshComparison();
 }
 
 function setLoading(on) {
-  btnExec.disabled = on;
   spinner.style.display = on ? 'block' : 'none';
-  execLabel.textContent = on ? '执行中…' : '▶ 执行';
+  if (on) {
+    btnExec.disabled = false;
+    btnExec.classList.add('stop');
+    btnExec.dataset.mode = 'stop';
+    execLabel.textContent = '■ 停止';
+  } else {
+    btnExec.classList.remove('stop');
+    btnExec.dataset.mode = '';
+    execLabel.textContent = '▶ 执行';
+  }
 }
 
 /* ================================================================
@@ -1149,6 +1222,99 @@ const report      = document.getElementById('report');
 const placeholder = document.getElementById('placeholder');
 const reportTitle = document.getElementById('report-title');
 
+/* ── 骨架渲染（执行前预占位） ── */
+function renderReportSkeleton({ host, port, user, commands, markers }) {
+  placeholder.style.display = 'none';
+  report.style.display = 'block';
+  const ts = new Date().toLocaleString('zh-CN', { hour12: false });
+
+  let html = `
+    <div class="rpt-header" id="rpt-header">
+      <h2>执行报告</h2>
+      <div class="rpt-meta">
+        <span>🖥 ${esc(host)}:${port}</span>
+        <span>👤 ${esc(user)}</span>
+        <span>🕐 ${ts}</span>
+        <span id="rpt-summary"><span class="badge-ok" style="opacity:.5">正在执行…</span></span>
+      </div>
+    </div>`;
+
+  commands.forEach((cmd, idx) => {
+    const mark = markers[idx] || '';
+    const markBadge = mark === 'fuzzy'  ? `<span class="cmd-marker-badge fuzzy"  title="模糊匹配">~</span>` :
+                      mark === 'ignore' ? `<span class="cmd-marker-badge ignore" title="忽略比对">!</span>` : '';
+    html += `
+      <div class="cmd-block pending" id="cb-${idx}" data-marker="${mark}">
+        <div class="cmd-block-header" onclick="toggleBlock(${idx})">
+          <span class="cmd-chevron">▼</span>
+          <span class="cmd-text" title="${esc(cmd)}">${esc(cmd)}</span>
+          ${markBadge}
+          <span class="exit-pending" id="exit-${idx}">…</span>
+          <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
+        </div>
+        <div class="cmd-block-body">
+          <pre class="cmd-output" id="out-${idx}" contenteditable="false"></pre>
+          <div class="cmd-notes" contenteditable="false"></div>
+        </div>
+      </div>`;
+  });
+
+  report.innerHTML = html;
+  reportTitle.textContent = `报告 · ${host} · ${ts}`;
+}
+
+function markBlockRunning(idx) {
+  const block = document.getElementById('cb-' + idx);
+  if (!block) return;
+  block.classList.remove('pending');
+  block.classList.add('running');
+  const exitEl = document.getElementById('exit-' + idx);
+  if (exitEl) exitEl.innerHTML = '<span class="progress-dot"></span>';
+}
+
+function updateReportBlock(idx, output, exitCode) {
+  const block = document.getElementById('cb-' + idx);
+  if (!block) return;
+  block.classList.remove('pending', 'running');
+  const isOk = exitCode === 0;
+  const exitEl = document.getElementById('exit-' + idx);
+  if (exitEl) {
+    exitEl.className = isOk ? 'exit-ok' : 'exit-err';
+    exitEl.textContent = isOk ? '✓ 0' : '✗ ' + exitCode;
+  }
+  const out = document.getElementById('out-' + idx);
+  if (out) out.textContent = output;
+}
+
+function markBlockError(idx, msg) {
+  const block = document.getElementById('cb-' + idx);
+  if (!block) return;
+  block.classList.remove('pending', 'running');
+  const exitEl = document.getElementById('exit-' + idx);
+  if (exitEl) { exitEl.className = 'exit-err'; exitEl.textContent = '✗ ERR'; }
+  const out = document.getElementById('out-' + idx);
+  if (out) out.textContent = msg;
+}
+
+function markBlockSkipped(idx) {
+  const block = document.getElementById('cb-' + idx);
+  if (!block) return;
+  block.classList.remove('pending', 'running');
+  const exitEl = document.getElementById('exit-' + idx);
+  if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '跳过'; }
+}
+
+function finalizeReportHeader(results) {
+  const summary = document.getElementById('rpt-summary');
+  if (!summary) return;
+  const ok   = results.filter(r => r.exit_code === 0).length;
+  const fail = results.length - ok;
+  summary.innerHTML =
+    `<span class="badge-ok">✓ ${ok} 成功</span>` +
+    (fail > 0 ? ` <span class="badge-err">✗ ${fail} 失败</span>` : '');
+}
+
+/* ── 完整渲染（批量结果，兼容旧接口） ── */
 function renderReport({ host, port, user, results, markers = [] }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';

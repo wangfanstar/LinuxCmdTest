@@ -267,12 +267,58 @@ static int send_file(int fd, const char *filepath)
 }
 
 /* ------------------------------------------------------------------ */
-/*  POST /api/ssh-exec                                                  */
+/*  POST /api/ssh-exec-one  (单条命令，实时响应)                       */
 /* ------------------------------------------------------------------ */
 
 #define MAX_BODY_SIZE  (64 * 1024)
 #define MAX_CMD_COUNT  SSH_MAX_CMDS
 #define CMD_BUF_SIZE   2048
+
+static void handle_api_ssh_exec_one(int client_fd, const char *body)
+{
+    char host[256] = {0}, user[64] = {0}, pass[256] = {0};
+    char command[CMD_BUF_SIZE] = {0};
+    int  port = 22;
+
+    if (json_get_str(body, "host", host, sizeof(host)) < 0 || !host[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"error\":\"missing host\"}", 24); return;
+    }
+    json_get_str(body, "user", user, sizeof(user));
+    json_get_str(body, "pass", pass, sizeof(pass));
+    port = json_get_int(body, "port", 22);
+    if (!user[0]) strcpy(user, "root");
+
+    if (json_get_str(body, "command", command, sizeof(command)) < 0 || !command[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"error\":\"missing command\"}", 26); return;
+    }
+
+    LOG_INFO("api_ssh_exec_one: %s@%s:%d  cmd=%s", user, host, port, command);
+
+    char *cmds[1] = { command };
+    ssh_batch_t *result = ssh_batch_exec(host, port, user, pass, cmds, 1);
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"error\":");
+    sb_json_str(&sb, (result && result->error[0]) ? result->error : "");
+    if (result && !result->error[0] && result->count > 0) {
+        sb_appendf(&sb, ",\"exit_code\":%d", result->results[0].exit_code);
+        SB_LIT(&sb, ",\"output\":");
+        sb_json_str(&sb, result->results[0].output ? result->results[0].output : "");
+    } else {
+        SB_LIT(&sb, ",\"exit_code\":-1,\"output\":\"\"");
+    }
+    SB_LIT(&sb, "}");
+
+    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    free(sb.data);
+    if (result) ssh_batch_free(result);
+}
+
+/* ------------------------------------------------------------------ */
+/*  POST /api/ssh-exec                                                  */
+/* ------------------------------------------------------------------ */
 
 static void handle_api_ssh_exec(int client_fd, const char *body)
 {
@@ -398,6 +444,10 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
         if (strcmp(path, "/api/ssh-exec") == 0) {
             if (body) handle_api_ssh_exec(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"error\":\"empty body\"}", 21);
+        } else if (strcmp(path, "/api/ssh-exec-one") == 0) {
+            if (body) handle_api_ssh_exec_one(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"error\":\"empty body\"}", 21);
         } else {

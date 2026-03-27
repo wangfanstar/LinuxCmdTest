@@ -1,95 +1,150 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>simplewebserver</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 48px 56px;
-            max-width: 520px;
-            width: 90%;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-        }
-        .badge {
-            display: inline-block;
-            background: #22c55e20;
-            color: #22c55e;
-            border: 1px solid #22c55e40;
-            border-radius: 20px;
-            padding: 4px 14px;
-            font-size: 13px;
-            letter-spacing: .5px;
-            margin-bottom: 24px;
-        }
-        h1 { font-size: 2rem; font-weight: 700; margin-bottom: 12px; color: #f8fafc; }
-        p  { color: #94a3b8; line-height: 1.7; margin-bottom: 8px; }
-        .features {
-            margin-top: 32px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            text-align: left;
-        }
-        .feat {
-            background: #0f172a;
-            border: 1px solid #1e3a5f;
-            border-radius: 8px;
-            padding: 12px 14px;
-            font-size: 13px;
-            color: #7dd3fc;
-        }
-        .feat span { display: block; color: #94a3b8; font-size: 11px; margin-top: 2px; }
-        .log-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 28px;
-            padding: 9px 20px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            color: #7dd3fc;
-            font-size: 13px;
-            text-decoration: none;
-            transition: border-color .2s, background .2s;
-        }
-        .log-link:hover { background: #1e3a5f; border-color: #58a6ff; color: #bfdbfe; }
-        .log-link svg { flex-shrink: 0; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>simplewebserver · 工具导航</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #c9d1d9;
+    --dim:     #8b949e;
+    --accent:  #58a6ff;
+    --green:   #3fb950;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding: 48px 24px;
+  }
+
+  /* ── 顶部 ── */
+  header {
+    max-width: 860px;
+    margin: 0 auto 40px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  header h1 { font-size: 1.25rem; font-weight: 700; color: #f0f6fc; }
+  header p  { margin-left: auto; font-size: 13px; color: var(--dim); }
+
+  /* ── 网格 ── */
+  .grid {
+    max-width: 860px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── 卡片 ── */
+  a.card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
+  }
+  a.card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .card-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .card-icon svg { width: 18px; height: 18px; }
+  .card-title { font-size: 14px; font-weight: 600; color: #f0f6fc; }
+  .card-desc  { font-size: 12px; color: var(--dim); line-height: 1.6; flex: 1; }
+  .card-link  { font-size: 11px; color: var(--accent); margin-top: 4px; }
+
+  /* 图标背景色 */
+  .ic-blue   { background: #1f3a6e; color: #58a6ff; }
+  .ic-purple { background: #2d1f6e; color: #bc8cff; }
+  .ic-green  { background: #1a3a24; color: #3fb950; }
+  .ic-yellow { background: #3a2e0a; color: #d29922; }
+</style>
 </head>
 <body>
-    <div class="card">
-        <div class="badge">&#9679; Running</div>
-        <h1>simplewebserver</h1>
-        <p>一个用 C 语言编写的轻量级 HTTP 服务器</p>
-        <p>支持多线程、日志滚动与自定义端口</p>
-        <div class="features">
-            <div class="feat">多线程处理 <span>Thread Pool</span></div>
-            <div class="feat">静态文件服务 <span>Static Files</span></div>
-            <div class="feat">滚动日志 <span>Rotating Logs</span></div>
-            <div class="feat">自定义端口 <span>Custom Port</span></div>
-        </div>
-        <a class="log-link" href="/logviewer.html">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
-            </svg>
-            查看访问日志
-        </a>
+
+<header>
+  <div class="dot"></div>
+  <h1>simplewebserver &nbsp;·&nbsp; 工具导航</h1>
+  <p id="clock"></p>
+</header>
+
+<div class="grid">
+
+  <a class="card" href="/logviewer.html">
+    <div class="card-icon ic-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+      </svg>
     </div>
+    <div class="card-title">日志查看器</div>
+    <div class="card-desc">实时查看服务器访问日志，支持级别过滤、关键字搜索与本地文件上传。</div>
+    <div class="card-link">logviewer.html →</div>
+  </a>
+
+  <a class="card" href="/cli_codegen.html">
+    <div class="card-icon ic-purple">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+      </svg>
+    </div>
+    <div class="card-title">CLI C 代码生成器</div>
+    <div class="card-desc">根据命令模板自动生成 C 语言命令行解析代码，支持自定义参数与选项。</div>
+    <div class="card-link">cli_codegen.html →</div>
+  </a>
+
+  <a class="card" href="/extract.html">
+    <div class="card-icon ic-green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6h16M4 12h10M4 18h7"/><path d="M15 15l5 5m0-5l-5 5"/>
+      </svg>
+    </div>
+    <div class="card-title">文本行提取工具</div>
+    <div class="card-desc">按规则从文本中批量提取指定行内容，快速整理日志或数据。</div>
+    <div class="card-link">extract.html →</div>
+  </a>
+
+  <a class="card" href="/test_plan.html">
+    <div class="card-icon ic-yellow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <div class="card-title">系统测试用例</div>
+    <div class="card-desc">查看系统测试计划与用例，包含测试环境、执行流程与结果记录。</div>
+    <div class="card-link">test_plan.html →</div>
+  </a>
+
+</div>
+
+<script>
+  const cl = document.getElementById('clock');
+  function tick() {
+    cl.textContent = new Date().toLocaleString('zh-CN', { hour12: false });
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
 </body>
 </html>

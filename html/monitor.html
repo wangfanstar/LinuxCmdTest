@@ -58,6 +58,29 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
 .cp-user{color:#8b949e;font-size:.56rem;max-width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cp-pct{color:#d29922;font-size:.6rem;font-weight:600;flex-shrink:0}
 
+/* ── 进程查询 ── */
+#search-section{margin-bottom:20px}
+.search-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.search-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px}
+.search-field label{font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:#8b949e}
+.search-field input{background:#161b22;border:1px solid #30363d;border-radius:6px;color:#e6edf3;
+  font-size:.82rem;padding:7px 10px;outline:none;transition:border-color .15s}
+.search-field input:focus{border-color:#58a6ff}
+.search-field input::placeholder{color:#484f58}
+.btn-search-clear{background:none;border:1px solid #30363d;border-radius:6px;color:#8b949e;
+  font-size:.78rem;padding:7px 16px;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap;align-self:flex-end}
+.btn-search-clear:hover{border-color:#58a6ff;color:#e6edf3}
+.search-hint{font-size:.68rem;color:#484f58;margin-bottom:8px}
+.search-result-table{background:#161b22;border:1px solid #21262d;border-radius:8px;overflow:hidden;width:100%}
+.search-result-table th,.search-result-table td{padding:7px 14px;font-size:.75rem;text-align:left}
+.search-result-table th{background:#1c2128;color:#8b949e;font-weight:500;font-size:.66rem;
+  text-transform:uppercase;letter-spacing:.06em}
+.search-result-table tr:not(:last-child) td{border-bottom:1px solid #21262d}
+.search-result-table td.td-core{color:#58a6ff;font-weight:600;width:60px}
+.search-result-table td.td-pct{text-align:right;font-weight:700;width:80px}
+.search-empty{text-align:center;color:#8b949e;padding:16px 0;font-size:.78rem}
+.search-hit td{background:rgba(88,166,255,.04)}
+
 /* ── 趋势图 ── */
 .chart-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
 .chart-label{font-size:.68rem;color:#8b949e;margin-bottom:6px}
@@ -132,6 +155,31 @@ canvas{display:block;width:100%}
     </table>
   </div>
 
+  <!-- 进程查询 -->
+  <div id="search-section">
+    <div class="section-hd"><h2>进程 CPU 查询</h2></div>
+    <div class="search-bar">
+      <div class="search-field">
+        <label>进程名</label>
+        <input id="q-name" type="text" placeholder="部分匹配，如 java">
+      </div>
+      <div class="search-field">
+        <label>用户名</label>
+        <input id="q-user" type="text" placeholder="部分匹配，如 root">
+      </div>
+      <div class="search-field">
+        <label>核心号</label>
+        <input id="q-core" type="text" placeholder="如 0 或 0-7 或留空">
+      </div>
+      <button class="btn-search-clear" id="btn-search-clear">清空</button>
+    </div>
+    <div class="search-hint" id="search-hint">输入任意条件后自动过滤，留空则显示所有已采集进程</div>
+    <table class="search-result-table" id="search-table">
+      <thead><tr><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th></tr></thead>
+      <tbody id="search-body"><tr><td colspan="4" class="search-empty">等待数据...</td></tr></tbody>
+    </table>
+  </div>
+
   <!-- 每核 CPU 面板 -->
   <div id="cores-section">
     <div class="section-hd">
@@ -165,6 +213,7 @@ const MAX_PTS = 60;
 const history  = { sysCpu:[], sysMem:[], online:[] };
 const coreHist = {};
 let   startTime = null;
+let   lastData  = null;   /* 最新 API 响应，供查询功能使用 */
 
 /* ── 工具 ── */
 function pct(v){ return v.toFixed(1)+'%'; }
@@ -305,11 +354,97 @@ function update(d){
   updateTop10(d.top10);
   if(Array.isArray(d.cores)&&d.cores.length) syncCores(d.cores);
 
+  lastData = d;
+  runSearch();
+
   push(history.sysCpu, s); push(history.sysMem, m); push(history.online, d.online_now);
   drawLine(document.getElementById('cpu-chart'),    history.sysCpu, 100,   '#3fb950','rgba(63,185,80,.12)');
   drawLine(document.getElementById('mem-chart'),    history.sysMem, 100,   '#58a6ff','rgba(88,166,255,.12)');
   drawLine(document.getElementById('online-chart'), history.online, Math.max(...history.online,1), '#bc8cff','rgba(188,140,255,.12)');
 }
+
+/* ── 进程查询 ── */
+
+/* 解析核心号过滤：支持单个数字 "3"、范围 "0-7"、逗号列表 "0,2,4" */
+function parseCoreFilter(str){
+  str = str.trim();
+  if(!str) return null;                   /* null = 不过滤 */
+  const set = new Set();
+  str.split(',').forEach(seg=>{
+    seg = seg.trim();
+    const m = seg.match(/^(\d+)-(\d+)$/);
+    if(m){
+      const lo=parseInt(m[1]), hi=parseInt(m[2]);
+      for(let i=lo;i<=hi;i++) set.add(i);
+    } else if(/^\d+$/.test(seg)){
+      set.add(parseInt(seg));
+    }
+  });
+  return set.size ? set : null;
+}
+
+/* 从最新数据中构建平铺进程列表 [{core, name, user, pct}, ...] */
+function buildProcList(data){
+  if(!data || !Array.isArray(data.cores)) return [];
+  const rows = [];
+  data.cores.forEach((c, i)=>{
+    if(!Array.isArray(c.top)) return;
+    c.top.forEach(p=>{
+      rows.push({ core: i, name: p.n, user: p.u, pct: p.p });
+    });
+  });
+  /* 按 pct 降序 */
+  rows.sort((a,b)=>b.pct-a.pct);
+  return rows;
+}
+
+function runSearch(){
+  const qName = document.getElementById('q-name').value.trim().toLowerCase();
+  const qUser = document.getElementById('q-user').value.trim().toLowerCase();
+  const qCore = parseCoreFilter(document.getElementById('q-core').value);
+  const hint  = document.getElementById('search-hint');
+  const tbody = document.getElementById('search-body');
+
+  const rows = buildProcList(lastData);
+
+  /* 过滤 */
+  const filtered = rows.filter(r=>{
+    if(qName && !r.name.toLowerCase().includes(qName)) return false;
+    if(qUser && !r.user.toLowerCase().includes(qUser)) return false;
+    if(qCore && !qCore.has(r.core)) return false;
+    return true;
+  });
+
+  /* 条件说明 */
+  const conds = [];
+  if(qName) conds.push(`进程名含"${qName}"`);
+  if(qUser) conds.push(`用户含"${qUser}"`);
+  if(qCore) conds.push(`核心 [${[...qCore].sort((a,b)=>a-b).join(',')}]`);
+  hint.textContent = conds.length
+    ? `过滤条件：${conds.join(' + ')}，共 ${filtered.length} 条结果`
+    : `共采集到 ${rows.length} 条进程记录（来自各核心 Top-3）`;
+
+  if(!filtered.length){
+    tbody.innerHTML='<tr><td colspan="4" class="search-empty">无匹配结果</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(r=>`
+    <tr class="search-hit">
+      <td class="td-core">C${r.core}</td>
+      <td><span class="pname">${esc(r.name)}</span></td>
+      <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
+      <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>
+    </tr>`).join('');
+}
+
+/* 输入事件绑定 */
+['q-name','q-user','q-core'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', runSearch);
+});
+document.getElementById('btn-search-clear').addEventListener('click', ()=>{
+  ['q-name','q-user','q-core'].forEach(id=>{ document.getElementById(id).value=''; });
+  runSearch();
+});
 
 /* ── 轮询 ── */
 const statusEl = document.getElementById('status');

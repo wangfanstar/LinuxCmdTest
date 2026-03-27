@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <pwd.h>
+#include <ctype.h>
 
 /* ------------------------------------------------------------------ */
 /*  MIME 类型映射                                                       */
@@ -430,6 +431,7 @@ static int             g_global_top_cnt = 0;
 static proc_snap_t     g_prev_procs[MAX_PROCS];
 static int             g_prev_proc_count  = 0;
 static pthread_mutex_t g_proc_mutex       = PTHREAD_MUTEX_INITIALIZER;
+static double          g_last_scan_dt     = 3.0; /* 上次 scan 的采样间隔，供 /api/procs 估算 CPU% */
 
 void stats_init(void) { g_start_time = time(NULL); }
 
@@ -679,6 +681,7 @@ static void scan_proc_top(double dt, int core_count)
     for (int j = 0; j < tmp_global_cnt; j++) g_global_top[j] = tmp_global[j];
     memcpy(g_prev_procs, cur, sizeof(proc_snap_t) * (size_t)cur_count);
     g_prev_proc_count = cur_count;
+    g_last_scan_dt    = dt;
     pthread_mutex_unlock(&g_proc_mutex);
 }
 
@@ -769,6 +772,90 @@ static int count_online(void)
         if (now - g_ip_slots[i].ts <= ONLINE_WINDOW_SEC) cnt++;
     pthread_mutex_unlock(&g_ip_mutex);
     return cnt;
+}
+
+/* GET /api/procs?q=<query>
+ * 实时扫描 /proc，按进程名或用户名做大小写不敏感子串过滤，返回 JSON 数组。
+ * CPU% 用上次快照 ticks 与当前 ticks 差值估算，dt 取上次 scan_proc_top 的采样间隔。
+ */
+static void handle_api_procs(int client_fd, const char *query)
+{
+    /* 复制上次快照 */
+    static proc_snap_t prev_snap[MAX_PROCS];
+    int    prev_cnt;
+    double last_dt;
+    pthread_mutex_lock(&g_proc_mutex);
+    prev_cnt = g_prev_proc_count;
+    last_dt  = g_last_scan_dt;
+    memcpy(prev_snap, g_prev_procs, sizeof(proc_snap_t) * (size_t)prev_cnt);
+    pthread_mutex_unlock(&g_proc_mutex);
+
+    long clk = sysconf(_SC_CLK_TCK);
+    if (clk <= 0) clk = 100;
+    double scale = (last_dt > 0.1) ? 100.0 / ((double)clk * last_dt) : 0.0;
+
+    /* 小写化 query，用于大小写不敏感匹配 */
+    char qlo[128] = "";
+    if (query && *query) {
+        size_t ql = strlen(query);
+        if (ql >= sizeof(qlo)) ql = sizeof(qlo) - 1;
+        for (size_t k = 0; k < ql; k++)
+            qlo[k] = (char)tolower((unsigned char)query[k]);
+        qlo[ql] = '\0';
+    }
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"procs\":[");
+
+    DIR *dir = opendir("/proc");
+    if (dir) {
+        int first = 1;
+        struct dirent *de;
+        while ((de = readdir(dir)) != NULL) {
+            const char *nm = de->d_name;
+            if (*nm < '1' || *nm > '9') continue;
+            const char *ep = nm;
+            while (*ep >= '0' && *ep <= '9') ep++;
+            if (*ep != '\0') continue;
+
+            pid_t pid = (pid_t)atoi(nm);
+            char name[32]; unsigned long long ticks; int last_cpu;
+            if (read_proc_stat_entry(pid, name, sizeof(name), &ticks, &last_cpu) < 0)
+                continue;
+
+            char user[20] = "?";
+            read_proc_user(pid, user, sizeof(user));
+
+            /* 过滤（大小写不敏感子串匹配） */
+            if (qlo[0]) {
+                char nlo[32], ulo[20];
+                size_t nl = strlen(name), ul = strlen(user);
+                for (size_t k = 0; k < nl; k++) nlo[k] = (char)tolower((unsigned char)name[k]);
+                nlo[nl] = '\0';
+                for (size_t k = 0; k < ul; k++) ulo[k] = (char)tolower((unsigned char)user[k]);
+                ulo[ul] = '\0';
+                if (!strstr(nlo, qlo) && !strstr(ulo, qlo)) continue;
+            }
+
+            /* 估算 CPU% */
+            unsigned long long prev_ticks = 0;
+            for (int i = 0; i < prev_cnt; i++)
+                if (prev_snap[i].pid == pid) { prev_ticks = prev_snap[i].ticks; break; }
+            float pct = (scale > 0 && ticks > prev_ticks)
+                        ? (float)((double)(ticks - prev_ticks) * scale) : 0.0f;
+
+            char entry[200];
+            int en = snprintf(entry, sizeof(entry),
+                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d}",
+                              first ? "" : ",", name, user, pct, (int)pid, last_cpu);
+            sb_append(&sb, entry, (size_t)en);
+            first = 0;
+        }
+        closedir(dir);
+    }
+    SB_LIT(&sb, "]}");
+    send_json(client_fd, 200, "OK", sb.data ? sb.data : "{\"procs\":[]}", sb.len);
+    free(sb.data);
 }
 
 /* GET /api/monitor */
@@ -971,6 +1058,36 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/monitor") == 0) {
         handle_api_monitor(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/procs", 10) == 0 &&
+        (path[10] == '\0' || path[10] == '?')) {
+        /* 解析 ?q= 参数 */
+        const char *q = "";
+        const char *qs = strchr(path, '?');
+        char query_buf[128] = "";
+        if (qs) {
+            const char *qp = strstr(qs, "q=");
+            if (qp) {
+                qp += 2;
+                size_t qi = 0;
+                while (*qp && *qp != '&' && qi < sizeof(query_buf) - 1) {
+                    /* 简单 URL 解码：%xx 和 + */
+                    if (*qp == '+') { query_buf[qi++] = ' '; qp++; }
+                    else if (*qp == '%' && isxdigit((unsigned char)qp[1]) && isxdigit((unsigned char)qp[2])) {
+                        char hex[3] = { qp[1], qp[2], '\0' };
+                        query_buf[qi++] = (char)strtol(hex, NULL, 16);
+                        qp += 3;
+                    } else {
+                        query_buf[qi++] = *qp++;
+                    }
+                }
+                query_buf[qi] = '\0';
+                q = query_buf;
+            }
+        }
+        handle_api_procs(client_fd, q);
         goto done;
     }
 

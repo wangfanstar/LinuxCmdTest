@@ -431,42 +431,78 @@ function buildProcList(data){
   return rows;
 }
 
+let _searchTimer = null;
 function runSearch(){
-  const qName = document.getElementById('q-name').value.trim().toLowerCase();
-  const qUser = document.getElementById('q-user').value.trim().toLowerCase();
+  const qName = document.getElementById('q-name').value.trim();
+  const qUser = document.getElementById('q-user').value.trim();
   const qCore = parseCoreFilter(document.getElementById('q-core').value);
   const hint  = document.getElementById('search-hint');
   const tbody = document.getElementById('search-body');
 
-  const rows = buildProcList(lastData);
+  /* 有进程名/用户名关键词时走 /api/procs 全量搜索（含 0% CPU 进程）
+     仅有核心号过滤时走本地 Top-3 数据 */
+  if(qName || qUser){
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(async ()=>{
+      const q = encodeURIComponent(qName || qUser);
+      hint.textContent = '搜索中…';
+      tbody.innerHTML = '<tr><td colspan="7" class="search-empty">搜索中…</td></tr>';
+      try {
+        const resp = await fetch('/api/procs?q='+q);
+        const data = await resp.json();
+        let rows = (data.procs||[]).map(p=>({
+          core: p.c, name: p.n, user: p.u, pct: p.p, pid: p.i
+        }));
+        /* 若同时有名称+用户双重条件，在客户端再过滤一次 */
+        if(qName && qUser){
+          const ln=qName.toLowerCase(), lu=qUser.toLowerCase();
+          rows = rows.filter(r=>
+            r.name.toLowerCase().includes(ln) && r.user.toLowerCase().includes(lu));
+        }
+        /* 核心过滤 */
+        if(qCore) rows = rows.filter(r=>qCore.has(r.core));
+        rows.sort((a,b)=>b.pct-a.pct);
 
-  /* 过滤 */
-  const filtered = rows.filter(r=>{
-    if(qName && !r.name.toLowerCase().includes(qName)) return false;
-    if(qUser && !r.user.toLowerCase().includes(qUser)) return false;
+        const conds = [];
+        if(qName) conds.push(`进程名含"${qName}"`);
+        if(qUser) conds.push(`用户含"${qUser}"`);
+        if(qCore) conds.push(`核心 [${[...qCore].sort((a,b)=>a-b).join(',')}]`);
+        hint.textContent = `全量搜索：${conds.join(' + ')}，共 ${rows.length} 条（含 0% CPU 进程）`;
+        renderSearchRows(rows, tbody);
+      } catch(e){
+        hint.textContent = '搜索失败: '+e.message;
+        tbody.innerHTML = '<tr><td colspan="7" class="search-empty">请求失败</td></tr>';
+      }
+    }, 300);
+    return;
+  }
+
+  /* 无文字关键词：从 Top-3 本地数据过滤（可按核心号筛选） */
+  const rows = buildProcList(lastData).filter(r=>{
     if(qCore && !qCore.has(r.core)) return false;
     return true;
   });
 
-  /* 条件说明 */
   const conds = [];
-  if(qName) conds.push(`进程名含"${qName}"`);
-  if(qUser) conds.push(`用户含"${qUser}"`);
   if(qCore) conds.push(`核心 [${[...qCore].sort((a,b)=>a-b).join(',')}]`);
   hint.textContent = conds.length
-    ? `过滤条件：${conds.join(' + ')}，共 ${filtered.length} 条结果`
+    ? `过滤条件：${conds.join(' + ')}，共 ${rows.length} 条结果（来自各核心 Top-3）`
     : `共采集到 ${rows.length} 条进程记录（来自各核心 Top-3）`;
 
-  if(!filtered.length){
+  renderSearchRows(rows, tbody);
+}
+
+function renderSearchRows(rows, tbody){
+  if(!rows.length){
     tbody.innerHTML='<tr><td colspan="7" class="search-empty">无匹配结果</td></tr>';
     updateKillBar();
     return;
   }
-  tbody.innerHTML = filtered.map(r=>`
+  tbody.innerHTML = rows.map(r=>`
     <tr class="search-hit">
       <td style="text-align:center"><input type="checkbox" class="kill-chk" data-pid="${r.pid||''}" data-name="${esc(r.name)}"></td>
       <td style="font-family:monospace;color:#8b949e;font-size:.7rem">${r.pid||''}</td>
-      <td class="td-core">C${r.core}</td>
+      <td class="td-core">C${r.core!=null?r.core:'?'}</td>
       <td><span class="pname">${esc(r.name)}</span></td>
       <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
       <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>

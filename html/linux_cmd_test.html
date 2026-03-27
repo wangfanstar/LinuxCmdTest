@@ -1668,7 +1668,6 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
       if (cfg.workdir !== undefined) document.getElementById('f-workdir').value = cfg.workdir;
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
-        cmdList.innerHTML = '';
         cfg.commands.forEach(c => {
           if (typeof c === 'string') addCmd(c, '');
           else addCmd(String(c.cmd ?? ''), String(c.marker ?? ''));

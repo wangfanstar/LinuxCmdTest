@@ -420,7 +420,7 @@ static pthread_mutex_t g_cpu_mutex             = PTHREAD_MUTEX_INITIALIZER;
 #define TOP_GLOBAL   10
 #define MAX_PROCS  2048
 
-typedef struct { char name[32]; char user[20]; float pct; } top_proc_t;
+typedef struct { char name[32]; char user[20]; float pct; pid_t pid; } top_proc_t;
 typedef struct { pid_t pid; unsigned long long ticks; } proc_snap_t;
 
 static top_proc_t      g_core_top[MAX_CORES][TOP_PER_CORE];
@@ -589,7 +589,7 @@ static void read_proc_user(pid_t pid, char *user, int ul)
 
 /* 插入排序维护 top-N（按 pct 降序） */
 static void top_insert(top_proc_t top[], int *cnt, int max,
-                       const char *name, const char *user, float pct)
+                       const char *name, const char *user, float pct, pid_t pid)
 {
     int tc = *cnt, pos = tc;
     for (int i = 0; i < tc; i++) { if (pct > top[i].pct) { pos = i; break; } }
@@ -599,6 +599,7 @@ static void top_insert(top_proc_t top[], int *cnt, int max,
     strncpy(top[pos].name, name, 31); top[pos].name[31] = '\0';
     strncpy(top[pos].user, user, 19); top[pos].user[19] = '\0';
     top[pos].pct = pct;
+    top[pos].pid = pid;
     if (tc < max) (*cnt)++;
 }
 
@@ -662,8 +663,8 @@ static void scan_proc_top(double dt, int core_count)
         read_proc_user(pid, user, sizeof(user));
 
         top_insert(tmp_core[last_cpu], &tmp_core_cnt[last_cpu], TOP_PER_CORE,
-                   name, user, pct);
-        top_insert(tmp_global, &tmp_global_cnt, TOP_GLOBAL, name, user, pct);
+                   name, user, pct, pid);
+        top_insert(tmp_global, &tmp_global_cnt, TOP_GLOBAL, name, user, pct, pid);
     }
     closedir(dir);
 
@@ -840,11 +841,12 @@ static void handle_api_monitor(int client_fd)
                           core_pct[i]);
         sb_append(&sb, hdr, (size_t)hn);
         for (int j = 0; j < snap_core_cnt[i]; j++) {
-            char entry[128];
+            char entry[144];
             int en = snprintf(entry, sizeof(entry),
-                j ? ",{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f}"
-                  :  "{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f}",
-                snap_core[i][j].name, snap_core[i][j].user, snap_core[i][j].pct);
+                j ? ",{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d}"
+                  :  "{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d}",
+                snap_core[i][j].name, snap_core[i][j].user,
+                snap_core[i][j].pct,  (int)snap_core[i][j].pid);
             sb_append(&sb, entry, (size_t)en);
         }
         SB_LIT(&sb, "]}");
@@ -854,11 +856,12 @@ static void handle_api_monitor(int client_fd)
     /* "top10": 全局 Top-10 */
     SB_LIT(&sb, "\"top10\":[");
     for (int j = 0; j < snap_global_cnt; j++) {
-        char entry[128];
+        char entry[144];
         int en = snprintf(entry, sizeof(entry),
-            j ? ",{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f}"
-              :  "{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f}",
-            snap_global[j].name, snap_global[j].user, snap_global[j].pct);
+            j ? ",{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d}"
+              :  "{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d}",
+            snap_global[j].name, snap_global[j].user,
+            snap_global[j].pct,  (int)snap_global[j].pid);
         sb_append(&sb, entry, (size_t)en);
     }
     SB_LIT(&sb, "]}");

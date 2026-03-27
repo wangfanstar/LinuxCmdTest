@@ -406,14 +406,14 @@ static void parse_session_output(const char *output, const char *boundary,
     const char *p = output;
 
     for (int i = 0; i < count; i++) {
-        /* 在 p 之后寻找  boundary:<digits>\n  */
+        /* 在 p 之后寻找  boundary:<digits>\t<pwd>\n  */
         const char *marker = NULL;
         const char *q = p;
         while (*q) {
             if (strncmp(q, boundary, blen) == 0 && q[blen] == ':') {
                 const char *r = q + blen + 1;
                 while (*r >= '0' && *r <= '9') r++;
-                if (r > q + blen + 1 && (*r == '\n' || *r == '\0')) {
+                if (r > q + blen + 1 && (*r == '\n' || *r == '\0' || *r == '\t' || *r == '\r')) {
                     marker = q;
                     break;
                 }

@@ -80,6 +80,24 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
 .search-result-table td.td-pct{text-align:right;font-weight:700;width:80px}
 .search-empty{text-align:center;color:#8b949e;padding:16px 0;font-size:.78rem}
 .search-hit td{background:rgba(88,166,255,.04)}
+.btn-pause{background:none;border:1px solid #30363d;border-radius:6px;color:#8b949e;
+  font-size:.72rem;padding:4px 12px;cursor:pointer;transition:border-color .15s,color .15s,background .15s;white-space:nowrap}
+.btn-pause:hover{border-color:#d29922;color:#d29922}
+.btn-pause.paused{border-color:#f85149;color:#f85149;background:rgba(248,81,73,.08)}
+.btn-pause.paused:hover{border-color:#ff7b72;color:#ff7b72}
+.paused-badge{font-size:.65rem;background:rgba(248,81,73,.15);color:#f85149;border-radius:10px;
+  padding:2px 8px;border:1px solid rgba(248,81,73,.3);display:none}
+.paused-badge.show{display:inline}
+.cp-pid{color:#484f58;font-family:monospace;font-size:.52rem;margin-left:3px;margin-right:2px}
+.btn-kill-copy{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;
+  font-size:.65rem;padding:2px 8px;cursor:pointer;white-space:nowrap;transition:border-color .15s,color .15s}
+.btn-kill-copy:hover{border-color:#f85149;color:#f85149}
+.kill-chk{cursor:pointer;accent-color:#58a6ff;width:14px;height:14px}
+.kill-bar{margin-top:10px;background:#161b22;border:1px solid #21262d;border-radius:6px;
+  padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kill-cmd-text{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:5px 10px;
+  font-size:.78rem;color:#3fb950;flex:1;min-width:180px;font-family:monospace;word-break:break-all}
+.kill-bar-info{font-size:.72rem;color:#8b949e;white-space:nowrap}
 
 /* ── 趋势图 ── */
 .chart-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
@@ -150,14 +168,18 @@ canvas{display:block;width:100%}
   <div id="top10-section">
     <div class="section-hd"><h2>CPU 占用 Top 10 进程</h2></div>
     <table class="top10-table" id="top10-table">
-      <thead><tr><th>#</th><th>进程名</th><th>用户</th><th>CPU %</th></tr></thead>
-      <tbody id="top10-body"><tr><td colspan="4" style="color:#8b949e;text-align:center;padding:14px">等待数据...</td></tr></tbody>
+      <thead><tr><th>#</th><th>PID</th><th>进程名</th><th>用户</th><th>CPU %</th></tr></thead>
+      <tbody id="top10-body"><tr><td colspan="5" style="color:#8b949e;text-align:center;padding:14px">等待数据...</td></tr></tbody>
     </table>
   </div>
 
   <!-- 进程查询 -->
   <div id="search-section">
-    <div class="section-hd"><h2>进程 CPU 查询</h2></div>
+    <div class="section-hd">
+      <h2>进程 CPU 查询</h2>
+      <span class="paused-badge" id="paused-badge">已暂停</span>
+      <button class="btn-pause" id="btn-pause" title="暂停后刷新不会重置勾选状态">⏸ 暂停刷新</button>
+    </div>
     <div class="search-bar">
       <div class="search-field">
         <label>进程名</label>
@@ -175,9 +197,17 @@ canvas{display:block;width:100%}
     </div>
     <div class="search-hint" id="search-hint">输入任意条件后自动过滤，留空则显示所有已采集进程</div>
     <table class="search-result-table" id="search-table">
-      <thead><tr><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th></tr></thead>
-      <tbody id="search-body"><tr><td colspan="4" class="search-empty">等待数据...</td></tr></tbody>
+      <thead><tr>
+        <th style="width:32px;text-align:center"><input type="checkbox" id="chk-all" class="kill-chk"></th>
+        <th>PID</th><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th><th>操作</th>
+      </tr></thead>
+      <tbody id="search-body"><tr><td colspan="7" class="search-empty">等待数据...</td></tr></tbody>
     </table>
+    <div class="kill-bar" id="kill-bar">
+      <span class="kill-bar-info" id="kill-sel-info">已选 0 个进程</span>
+      <code class="kill-cmd-text" id="kill-cmd-text"></code>
+      <button class="btn-search-clear" id="btn-copy-kill" disabled>复制命令</button>
+    </div>
   </div>
 
   <!-- 每核 CPU 面板 -->
@@ -213,7 +243,8 @@ const MAX_PTS = 60;
 const history  = { sysCpu:[], sysMem:[], online:[] };
 const coreHist = {};
 let   startTime = null;
-let   lastData  = null;   /* 最新 API 响应，供查询功能使用 */
+let   lastData     = null;   /* 最新 API 响应，供查询功能使用 */
+let   searchPaused = false;  /* 暂停时不重绘查询结果，保留勾选状态 */
 
 /* ── 工具 ── */
 function pct(v){ return v.toFixed(1)+'%'; }
@@ -279,10 +310,11 @@ function drawCoreChart(canvas, data){
 /* ── 全局 Top10 表格 ── */
 function updateTop10(top10){
   const tbody = document.getElementById('top10-body');
-  if(!top10||!top10.length){ tbody.innerHTML='<tr><td colspan="4" style="color:#8b949e;text-align:center;padding:14px">暂无数据</td></tr>'; return; }
+  if(!top10||!top10.length){ tbody.innerHTML='<tr><td colspan="5" style="color:#8b949e;text-align:center;padding:14px">暂无数据</td></tr>'; return; }
   tbody.innerHTML = top10.map((p,i)=>`
     <tr>
       <td><span class="rank">${i+1}</span></td>
+      <td style="color:#8b949e;font-family:monospace;font-size:.7rem">${p.i||''}</td>
       <td><span class="pname">${esc(p.n)}</span></td>
       <td><span class="uname">${esc(p.u)}</span></td>
       <td style="color:${colorFor(p.p)}">${p.p.toFixed(1)}%</td>
@@ -322,6 +354,7 @@ function syncCores(cores){
     cpr.innerHTML = top.length ? top.map(p=>
       `<div class="core-proc-row">`+
       `<span class="cp-name" title="${esc(p.n)}">${esc(p.n)}</span>`+
+      `<span class="cp-pid">${p.i||''}</span>`+
       `<span class="cp-user" title="${esc(p.u)}">${esc(p.u)}</span>`+
       `<span class="cp-pct">${p.p.toFixed(1)}%</span>`+
       `</div>`).join('') : '';
@@ -355,7 +388,7 @@ function update(d){
   if(Array.isArray(d.cores)&&d.cores.length) syncCores(d.cores);
 
   lastData = d;
-  runSearch();
+  if(!searchPaused) runSearch();
 
   push(history.sysCpu, s); push(history.sysMem, m); push(history.online, d.online_now);
   drawLine(document.getElementById('cpu-chart'),    history.sysCpu, 100,   '#3fb950','rgba(63,185,80,.12)');
@@ -390,7 +423,7 @@ function buildProcList(data){
   data.cores.forEach((c, i)=>{
     if(!Array.isArray(c.top)) return;
     c.top.forEach(p=>{
-      rows.push({ core: i, name: p.n, user: p.u, pct: p.p });
+      rows.push({ core: i, name: p.n, user: p.u, pct: p.p, pid: p.i });
     });
   });
   /* 按 pct 降序 */
@@ -425,16 +458,61 @@ function runSearch(){
     : `共采集到 ${rows.length} 条进程记录（来自各核心 Top-3）`;
 
   if(!filtered.length){
-    tbody.innerHTML='<tr><td colspan="4" class="search-empty">无匹配结果</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" class="search-empty">无匹配结果</td></tr>';
+    updateKillBar();
     return;
   }
   tbody.innerHTML = filtered.map(r=>`
     <tr class="search-hit">
+      <td style="text-align:center"><input type="checkbox" class="kill-chk" data-pid="${r.pid||''}" data-name="${esc(r.name)}"></td>
+      <td style="font-family:monospace;color:#8b949e;font-size:.7rem">${r.pid||''}</td>
       <td class="td-core">C${r.core}</td>
       <td><span class="pname">${esc(r.name)}</span></td>
       <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
       <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>
+      <td><button class="btn-kill-copy" data-pid="${r.pid||''}" onclick="copySingleKill(this)">复制 kill</button></td>
     </tr>`).join('');
+  tbody.querySelectorAll('.kill-chk').forEach(chk=>{
+    chk.addEventListener('change', updateKillBar);
+  });
+  document.getElementById('chk-all').checked = false;
+  updateKillBar();
+}
+
+/* ── Kill 命令 ── */
+function updateKillBar(){
+  const chks = document.querySelectorAll('#search-body .kill-chk:checked');
+  const pids = [...chks].map(c=>c.dataset.pid).filter(Boolean);
+  const infoEl = document.getElementById('kill-sel-info');
+  const cmdEl  = document.getElementById('kill-cmd-text');
+  const btnEl  = document.getElementById('btn-copy-kill');
+  infoEl.textContent = `已选 ${pids.length} 个进程`;
+  if(pids.length){
+    const cmd = 'kill -9 '+pids.join(' ');
+    cmdEl.textContent = cmd;
+    btnEl.disabled = false;
+    btnEl.onclick = ()=>{
+      navigator.clipboard.writeText(cmd).then(()=>{
+        btnEl.textContent='已复制';
+        setTimeout(()=>{ btnEl.textContent='复制命令'; }, 1500);
+      });
+    };
+  } else {
+    cmdEl.textContent = '';
+    btnEl.disabled = true;
+    btnEl.onclick = null;
+  }
+}
+
+function copySingleKill(btn){
+  const pid = btn.dataset.pid;
+  if(!pid) return;
+  const cmd = 'kill -9 '+pid;
+  navigator.clipboard.writeText(cmd).then(()=>{
+    const orig = btn.textContent;
+    btn.textContent = '已复制';
+    setTimeout(()=>{ btn.textContent = orig; }, 1500);
+  });
 }
 
 /* 输入事件绑定 */
@@ -444,6 +522,19 @@ function runSearch(){
 document.getElementById('btn-search-clear').addEventListener('click', ()=>{
   ['q-name','q-user','q-core'].forEach(id=>{ document.getElementById(id).value=''; });
   runSearch();
+});
+/* ── 暂停 / 继续 ── */
+document.getElementById('btn-pause').addEventListener('click', function(){
+  searchPaused = !searchPaused;
+  this.textContent  = searchPaused ? '▶ 继续刷新' : '⏸ 暂停刷新';
+  this.classList.toggle('paused', searchPaused);
+  document.getElementById('paused-badge').classList.toggle('show', searchPaused);
+  if(!searchPaused) runSearch();   /* 恢复时立即同步最新数据 */
+});
+
+document.getElementById('chk-all').addEventListener('change', function(){
+  document.querySelectorAll('#search-body .kill-chk').forEach(c=>{ c.checked=this.checked; });
+  updateKillBar();
 });
 
 /* ── 轮询 ── */

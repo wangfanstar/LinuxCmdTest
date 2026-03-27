@@ -158,6 +158,9 @@ aside {
 .btn-marker:hover { border-color: var(--accent); color: var(--accent); }
 .btn-marker.fuzzy  { border-color: var(--yellow); color: var(--yellow); background: #3a2e0a40; }
 .btn-marker.ignore { border-color: var(--border);  color: var(--dim);    background: #21262d; }
+.btn-marker.ctrlc  { border-color: var(--red);     color: var(--red);    background: #3d0a0a40; cursor: default; }
+.cmd-item.ctrlc { border-color: #f8514940; background: #1a0808; }
+.cmd-item.ctrlc input { color: #f85149; font-style: italic; }
 .cmd-marker-badge {
   font-size: 10px; padding: 1px 5px; border-radius: 3px;
   font-family: monospace; flex-shrink: 0;
@@ -803,6 +806,7 @@ body.edit-mode .cmd-notes {
           </label>
           <button id="btn-export-cmds" title="将当前命令列表导出为文本文件">导出文件</button>
           <button id="btn-clear-cmds">清空</button>
+          <button id="btn-add-ctrlc" title="插入 ^C（kill -INT $$ 发送 SIGINT，后续命令将停止）&#10;快捷键：Ctrl+Shift+C（在命令输入框内按下）" style="color:#f85149;border-color:#f8514960">^C</button>
         </div>
       </div>
 
@@ -971,6 +975,7 @@ function addCmd(value = '', marker = '', afterItem = null) {
   const markerBtn = item.querySelector('.btn-marker');
   applyMarker(item, markerBtn, marker);
   markerBtn.addEventListener('click', () => {
+    if (item.dataset.marker === 'ctrlc') return;   /* ^C 项不可切换 */
     const next = { '': 'fuzzy', 'fuzzy': 'ignore', 'ignore': '' }[item.dataset.marker] ?? '';
     applyMarker(item, markerBtn, next);
   });
@@ -1032,6 +1037,16 @@ function addCmd(value = '', marker = '', afterItem = null) {
     cmdList.appendChild(item);
   }
   item.querySelector('input').focus();
+
+  /* Ctrl+Shift+C 在当前行后插入 ^C 项 */
+  item.querySelector('input').addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      addCtrlCCmd(item);
+    }
+  });
+
+  return item;
 }
 
 function applyMarker(item, btn, marker) {
@@ -1042,9 +1057,14 @@ function applyMarker(item, btn, marker) {
   } else if (marker === 'ignore') {
     btn.textContent = '!'; btn.title = '忽略比对 — 始终跳过此命令（点击切换）';
     btn.className = 'btn-marker ignore';
+  } else if (marker === 'ctrlc') {
+    btn.textContent = '^C'; btn.title = 'Ctrl+C — 发送 SIGINT，后续命令将停止执行';
+    btn.className = 'btn-marker ctrlc';
+    item.classList.add('ctrlc');
   } else {
     btn.textContent = '='; btn.title = '默认匹配 — 跟随全局设置（点击切换）';
     btn.className = 'btn-marker';
+    item.classList.remove('ctrlc');
   }
 }
 
@@ -1059,7 +1079,17 @@ function getCommandsWithMarkers() {
     .filter(o => o.cmd);
 }
 
+function addCtrlCCmd(afterItem = null) {
+  return addCmd('kill -INT $$', 'ctrlc', afterItem);
+}
+
 document.getElementById('btn-add-cmd').addEventListener('click', () => addCmd());
+document.getElementById('btn-add-ctrlc').addEventListener('click', () => {
+  /* 若某行输入框已聚焦，插入到该行后；否则追加到末尾 */
+  const focused = cmdList.querySelector('.cmd-item input:focus');
+  const after = focused ? focused.closest('.cmd-item') : null;
+  addCtrlCCmd(after);
+});
 document.getElementById('btn-clear-cmds').addEventListener('click', () => {
   cmdList.innerHTML = '';
 });
@@ -1083,6 +1113,7 @@ document.getElementById('cmd-file-input').addEventListener('change', function ()
       let marker = '', cmd = line;
       if (line.startsWith('~ ')) { marker = 'fuzzy';  cmd = line.slice(2); }
       else if (line.startsWith('! ')) { marker = 'ignore'; cmd = line.slice(2); }
+      else if (line === '^C' || line.startsWith('^C ')) { marker = 'ctrlc'; cmd = line === '^C' ? 'kill -INT $$' : line.slice(3); }
       if (cmd) addCmd(cmd, marker);
     });
     execStatus.textContent = `已从 ${file.name} 导入 ${lines.length} 条命令`;

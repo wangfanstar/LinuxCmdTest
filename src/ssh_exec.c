@@ -388,15 +388,13 @@ static char *build_session_script(const char *boundary,
     int off = 0;
     off += snprintf(script + off, sz - (size_t)off, "set +e\n");
     for (int i = 0; i < count; i++) {
-        /* 边界格式：BOUNDARY:<exit_code>\t<pwd>\n
-         * pwd 在命令执行前捕获，避免命令进入交互式子视图后
-         * shell 展开 $(pwd) 触发 ">" 提示符问题。
-         * 对于 cd 等命令，workdir 反映的是执行前的目录；
-         * 若需要 cd 后的目录，用户可在 cd 后加一条 pwd 命令。 */
+        /* 边界格式：BOUNDARY:<exit_code>\n
+         * 不捕获 pwd：某些命令（如自定义交互式视图）会从 stdin 读取输入，
+         * 若在命令后放置 printf/$(pwd) 等行，这些行会被交互式程序消费，
+         * 导致 "> $(pwd)" 等乱输出。纯数字边界行最短，被误消费的可能最低。 */
         off += snprintf(script + off, sz - (size_t)off,
-                        "_SWWD=$(pwd 2>/dev/null||echo '')\n"
                         "%s\n"
-                        "printf '%s:%%d\\t%%s\\n' $? \"$_SWWD\"\n",
+                        "printf '%s:%%d\\n' $?\n",
                         commands[i], boundary);
     }
     return script;
@@ -410,14 +408,14 @@ static void parse_session_output(const char *output, const char *boundary,
     const char *p = output;
 
     for (int i = 0; i < count; i++) {
-        /* 在 p 之后寻找  boundary:<digits>\t<pwd>\n  */
+        /* 在 p 之后寻找  BOUNDARY:<digits>\n  */
         const char *marker = NULL;
         const char *q = p;
         while (*q) {
             if (strncmp(q, boundary, blen) == 0 && q[blen] == ':') {
                 const char *r = q + blen + 1;
                 while (*r >= '0' && *r <= '9') r++;
-                if (r > q + blen + 1 && (*r == '\n' || *r == '\0' || *r == '\t' || *r == '\r')) {
+                if (r > q + blen + 1 && (*r == '\n' || *r == '\r' || *r == '\0')) {
                     marker = q;
                     break;
                 }
@@ -426,28 +424,10 @@ static void parse_session_output(const char *output, const char *boundary,
         }
 
         if (marker) {
-            /* 解析边界行：BOUNDARY:<exit_code>\t<pwd>\n */
+            /* 解析边界行：BOUNDARY:<exit_code>\n  （不含 pwd） */
             const char *after_colon = marker + blen + 1;
             results[i].exit_code = atoi(after_colon);
-
-            /* 提取 workdir（制表符后到换行前） */
-            const char *tab = after_colon;
-            while (*tab && *tab != '\t' && *tab != '\n') tab++;
-            if (*tab == '\t') {
-                const char *wd_start = tab + 1;
-                const char *wd_end   = wd_start;
-                while (*wd_end && *wd_end != '\n' && *wd_end != '\r') wd_end++;
-                size_t wdlen = (size_t)(wd_end - wd_start);
-                results[i].workdir = malloc(wdlen + 1);
-                if (results[i].workdir) {
-                    memcpy(results[i].workdir, wd_start, wdlen);
-                    results[i].workdir[wdlen] = '\0';
-                } else {
-                    results[i].workdir = strdup("");
-                }
-            } else {
-                results[i].workdir = strdup("");
-            }
+            results[i].workdir   = strdup("");
 
             /* 命令输出 = p 到 marker 之间（去掉末尾换行） */
             size_t len = (size_t)(marker - p);

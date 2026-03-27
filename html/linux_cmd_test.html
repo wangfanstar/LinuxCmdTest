@@ -712,6 +712,56 @@ body.edit-mode .cmd-notes {
   color: var(--dim);
   margin: 10px 0;
 }
+
+/* ── 实时面板 ── */
+#rt-panel {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+  background: #161b22; border-top: 2px solid #30363d;
+  display: flex; flex-direction: column;
+  max-height: 280px; box-shadow: 0 -4px 24px rgba(0,0,0,.5);
+  transition: transform .2s ease;
+}
+#rt-panel.rt-minimized { max-height: 38px; overflow: hidden; }
+#rt-panel.rt-hidden    { transform: translateY(100%); pointer-events: none; }
+#rt-hd {
+  display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+  background: #1c2128; border-bottom: 1px solid #30363d; flex-shrink: 0; min-height: 38px;
+}
+#rt-hd .rt-title { font-size: .72rem; font-weight: 600; color: #8b949e;
+  text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+#rt-host-lbl { font-size: .72rem; color: #58a6ff; white-space: nowrap; }
+.rt-prog-wrap { flex: 1; height: 5px; background: #21262d; border-radius: 3px; overflow: hidden; min-width: 60px; }
+.rt-prog-bar  { height: 100%; border-radius: 3px; background: #58a6ff;
+  transition: width .3s ease, background .3s; }
+#rt-prog-txt  { font-size: .72rem; color: #8b949e; white-space: nowrap; }
+#rt-elapsed   { font-size: .72rem; color: #8b949e; white-space: nowrap; min-width: 44px; text-align: right; }
+.rt-badge-ok  { font-size: .68rem; color: #3fb950; }
+.rt-badge-err { font-size: .68rem; color: #f85149; }
+#rt-hd .rt-ctrl { background: none; border: 1px solid #30363d; color: #8b949e;
+  border-radius: 4px; font-size: .68rem; padding: 1px 7px; cursor: pointer; flex-shrink: 0; }
+#rt-hd .rt-ctrl:hover { border-color: #58a6ff; color: #e6edf3; }
+#rt-body {
+  overflow-y: auto; flex: 1;
+  padding: 4px 0;
+}
+.rt-row {
+  display: grid; grid-template-columns: 22px 1fr 54px 80px;
+  align-items: center; gap: 0; padding: 3px 14px;
+  font-size: .72rem; font-family: 'SF Mono', Consolas, monospace;
+  border-left: 3px solid transparent; transition: background .15s;
+}
+.rt-row.running  { background: rgba(88,166,255,.07); border-left-color: #58a6ff; }
+.rt-row.done     { border-left-color: transparent; }
+.rt-row.rt-error { border-left-color: #f85149; background: rgba(248,81,73,.05); }
+.rt-icon  { font-size: .8rem; text-align: center; flex-shrink: 0; }
+.rt-cmd   { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 6px; }
+.rt-time  { color: #8b949e; text-align: right; padding-right: 8px; }
+.rt-exit  { text-align: right; }
+.rt-row.running .rt-icon { animation: rt-blink .8s step-end infinite; }
+@keyframes rt-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* 面板开关按钮激活态 */
+#btn-rt-panel.rt-on { border-color: #58a6ff; color: #58a6ff; background: #1f3a6e40; }
 </style>
 </head>
 <body>
@@ -814,6 +864,7 @@ body.edit-mode .cmd-notes {
 
     <div class="sidebar-footer">
       <div id="exec-status" style="font-size:12px;color:var(--dim);text-align:center;min-height:16px;"></div>
+      <button id="btn-rt-panel" title="显示/隐藏实时执行面板">📊 实时面板</button>
       <button id="btn-test">⚡ 测试连接</button>
       <button id="btn-exec">
         <span class="spinner" id="spinner"></span>
@@ -1243,6 +1294,9 @@ async function doExec() {
   /* 将第一块设为运行中，给用户即时反馈 */
   if (commands.length > 0) markBlockRunning(0);
 
+  /* 实时面板初始化 */
+  if (window.rtInit) { rtInit(commands, host, user); rtMarkRunning(0); }
+
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
 
@@ -1272,6 +1326,7 @@ async function doExec() {
 
   if (data.error) {
     for (let j = 0; j < commands.length; j++) markBlockError(j, data.error);
+    if (window.rtFinish) rtFinish();
     execStatus.style.color = 'var(--red)';
     execStatus.textContent = '错误: ' + data.error;
     setLoading(false);
@@ -1283,12 +1338,20 @@ async function doExec() {
   for (let i = 0; i < results.length; i++) {
     await new Promise(r => setTimeout(r, 120));
     updateReportBlock(i, results[i].output, results[i].exit_code, results[i].workdir);
+    if (window.rtMarkDone) rtMarkDone(i, results[i].exit_code);
     /* 提前激活下一块的运行动画 */
-    if (i + 1 < commands.length && i + 1 < results.length) markBlockRunning(i + 1);
+    if (i + 1 < commands.length && i + 1 < results.length) {
+      markBlockRunning(i + 1);
+      if (window.rtMarkRunning) rtMarkRunning(i + 1);
+    }
   }
   /* 未返回结果的块标为跳过（理论上不会发生） */
-  for (let j = results.length; j < commands.length; j++) markBlockSkipped(j);
+  for (let j = results.length; j < commands.length; j++) {
+    markBlockSkipped(j);
+    if (window.rtMarkSkipped) rtMarkSkipped(j);
+  }
 
+  if (window.rtFinish) rtFinish();
   finalizeReportHeader(results);
   setLoading(false);
   document.getElementById('btn-reset').classList.remove('active');
@@ -2030,6 +2093,182 @@ function flash(el, msg) {
   el.textContent = msg;
   setTimeout(() => { el.textContent = orig; }, 1200);
 }
+/* ================================================================
+   实时面板
+   ================================================================ */
+(function(){
+  /* 面板状态 */
+  let rtEnabled = false;
+  let rtState   = null;   /* { startMs, host, user, rows:[{cmd,status,exitCode,startMs,elapsed}] } */
+  let rtTicker  = null;
+
+  const panel    = document.getElementById('rt-panel');
+  const rtBody   = document.getElementById('rt-body');
+  const rtTogBtn = document.getElementById('btn-rt-panel');
+
+  /* 开关 */
+  rtTogBtn.addEventListener('click', () => {
+    rtEnabled = !rtEnabled;
+    rtTogBtn.classList.toggle('rt-on', rtEnabled);
+    if (rtEnabled) {
+      panel.classList.remove('rt-hidden');
+      if (!rtState) rtShowIdle();
+    } else {
+      panel.classList.add('rt-hidden');
+    }
+  });
+
+  /* 最小化 / 关闭 */
+  document.getElementById('rt-minimize').addEventListener('click', () => {
+    panel.classList.toggle('rt-minimized');
+    document.getElementById('rt-minimize').textContent = panel.classList.contains('rt-minimized') ? '▲' : '─';
+  });
+  document.getElementById('rt-close').addEventListener('click', () => {
+    rtEnabled = false;
+    rtTogBtn.classList.remove('rt-on');
+    panel.classList.add('rt-hidden');
+  });
+
+  /* 空闲占位 */
+  function rtShowIdle() {
+    document.getElementById('rt-host-lbl').textContent = '等待执行…';
+    document.getElementById('rt-prog-txt').textContent = '0/0';
+    document.getElementById('rt-elapsed').textContent  = '--';
+    document.getElementById('rt-ok-n').textContent     = '0';
+    document.getElementById('rt-err-n').textContent    = '0';
+    document.getElementById('rt-prog-bar').style.width = '0%';
+    document.getElementById('rt-prog-bar').style.background = '#58a6ff';
+    rtBody.innerHTML = '<div style="padding:14px;text-align:center;color:#484f58;font-size:.72rem">等待执行开始…</div>';
+  }
+
+  /* 公开接口：由 doExec 调用 */
+  window.rtInit = function(commands, host, user) {
+    if (!rtEnabled) return;
+    panel.classList.remove('rt-hidden', 'rt-minimized');
+    document.getElementById('rt-minimize').textContent = '─';
+    rtState = {
+      startMs: Date.now(), host, user,
+      rows: commands.map(cmd => ({ cmd, status: 'pending', exitCode: null, startMs: null, elapsed: null }))
+    };
+    rtRender();
+    rtStartTicker();
+  };
+
+  window.rtMarkRunning = function(i) {
+    if (!rtState || i >= rtState.rows.length) return;
+    rtState.rows[i].status  = 'running';
+    rtState.rows[i].startMs = Date.now();
+    rtRender();
+    /* 自动滚动到当前行 */
+    const row = rtBody.children[i];
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
+  window.rtMarkDone = function(i, exitCode) {
+    if (!rtState || i >= rtState.rows.length) return;
+    const r = rtState.rows[i];
+    r.status   = exitCode === 0 ? 'done' : 'rt-error';
+    r.exitCode = exitCode;
+    r.elapsed  = (Date.now() - (r.startMs || rtState.startMs)) / 1000;
+    rtRender();
+  };
+
+  window.rtMarkSkipped = function(i) {
+    if (!rtState || i >= rtState.rows.length) return;
+    rtState.rows[i].status = 'skipped';
+    rtRender();
+  };
+
+  window.rtFinish = function() {
+    rtStopTicker();
+    rtRender();
+  };
+
+  /* 定时刷新（更新 running 行的秒数） */
+  function rtStartTicker(){ rtStopTicker(); rtTicker = setInterval(rtRender, 300); }
+  function rtStopTicker() { if (rtTicker){ clearInterval(rtTicker); rtTicker = null; } }
+
+  function rtRender() {
+    if (!rtState) return;
+    const rows   = rtState.rows;
+    const total  = rows.length;
+    const done   = rows.filter(r => r.status !== 'pending' && r.status !== 'running').length;
+    const ok     = rows.filter(r => r.status === 'done').length;
+    const err    = rows.filter(r => r.status === 'rt-error').length;
+    const pct    = total > 0 ? done / total * 100 : 0;
+    const nowMs  = Date.now();
+    const elap   = ((nowMs - rtState.startMs) / 1000).toFixed(1) + 's';
+    const barCol = err > 0 ? '#f85149' : done === total ? '#3fb950' : '#58a6ff';
+
+    document.getElementById('rt-host-lbl').textContent = `${rtState.user}@${rtState.host}`;
+    document.getElementById('rt-prog-txt').textContent = `${done}/${total}`;
+    document.getElementById('rt-elapsed').textContent  = elap;
+    document.getElementById('rt-ok-n').textContent     = ok;
+    document.getElementById('rt-err-n').textContent    = err;
+    const bar = document.getElementById('rt-prog-bar');
+    bar.style.width      = pct + '%';
+    bar.style.background = barCol;
+
+    /* 逐行更新（避免整体 innerHTML 替换导致滚动位置跳动） */
+    if (rtBody.children.length !== total) {
+      rtBody.innerHTML = rows.map((r,i) => rtRowHtml(r, i, nowMs)).join('');
+    } else {
+      rows.forEach((r, i) => {
+        const el = rtBody.children[i];
+        const newHtml = rtRowHtml(r, i, nowMs);
+        /* 只有状态变化时才替换，减少重排 */
+        if (el.dataset.status !== r.status || r.status === 'running') {
+          el.outerHTML = newHtml;
+        }
+      });
+    }
+  }
+
+  const RT_ICONS  = { pending:'○', running:'▶', done:'✓', 'rt-error':'✗', skipped:'⊘' };
+  const RT_COLORS = { pending:'#484f58', running:'#58a6ff', done:'#3fb950', 'rt-error':'#f85149', skipped:'#484f58' };
+
+  function rtRowHtml(r, i, nowMs) {
+    const icon  = RT_ICONS[r.status]  || '○';
+    const color = RT_COLORS[r.status] || '#8b949e';
+    const cmd   = r.cmd.length > 55 ? r.cmd.substring(0, 54) + '…' : r.cmd;
+    let timeStr, exitStr;
+    if (r.status === 'running') {
+      timeStr = ((nowMs - (r.startMs || nowMs)) / 1000).toFixed(1) + 's';
+      exitStr = '<span style="color:#58a6ff;font-size:.65rem">运行中…</span>';
+    } else if (r.elapsed != null) {
+      timeStr = r.elapsed.toFixed(2) + 's';
+      exitStr = r.exitCode != null
+        ? `<span style="color:${color};font-size:.65rem">exit: ${r.exitCode}</span>`
+        : '';
+    } else {
+      timeStr = '--';
+      exitStr = '';
+    }
+    return `<div class="rt-row ${r.status}" data-status="${r.status}" data-idx="${i}">` +
+      `<span class="rt-icon" style="color:${color}">${icon}</span>` +
+      `<span class="rt-cmd" title="${escAttr(r.cmd)}">${esc(cmd)}</span>` +
+      `<span class="rt-time">${timeStr}</span>` +
+      `<span class="rt-exit">${exitStr}</span>` +
+      `</div>`;
+  }
+})();
 </script>
+
+<!-- ── 实时执行面板 ── -->
+<div id="rt-panel" class="rt-hidden">
+  <div id="rt-hd">
+    <span class="rt-title">实时面板</span>
+    <span id="rt-host-lbl">--</span>
+    <div class="rt-prog-wrap"><div id="rt-prog-bar" class="rt-prog-bar" style="width:0%"></div></div>
+    <span id="rt-prog-txt">0/0</span>
+    <span id="rt-elapsed">--</span>
+    <span class="rt-badge-ok" id="rt-ok-n">0</span><span style="color:#3fb950;font-size:.68rem"> ✓</span>
+    <span class="rt-badge-err" id="rt-err-n" style="margin-left:6px">0</span><span style="color:#f85149;font-size:.68rem"> ✗</span>
+    <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
+    <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
+  </div>
+  <div id="rt-body"></div>
+</div>
+
 </body>
 </html>

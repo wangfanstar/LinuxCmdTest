@@ -166,6 +166,27 @@ aside {
 .cmd-marker-badge.ignore { background: #21262d;   color: var(--dim);    border: 1px solid var(--border); }
 .match-skip { color: var(--dim); font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .cmd-drag { cursor: grab; color: var(--border); font-size: 12px; user-select: none; }
+.cmd-drag:active { cursor: grabbing; }
+.cmd-item.drag-over { border-color: var(--accent); background: #1f3a6e22; }
+.cmd-item.drag-over-above { box-shadow: 0 -2px 0 var(--accent); }
+.cmd-item.drag-over-below { box-shadow: 0 2px 0 var(--accent); }
+.btn-insert {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cmd-item:hover .btn-insert { opacity: 1; }
+.btn-insert:hover { background: #1a3a24; color: var(--green); }
 
 /* ── 命令区工具行 ── */
 .cmd-toolbar {
@@ -315,7 +336,7 @@ main {
 #placeholder p { font-size: 13px; }
 
 /* ── 报告内容 ── */
-#report { display: none; max-width: 960px; margin: 0 auto; }
+#report { display: none; max-width: 1440px; margin: 0 auto; }
 
 .rpt-header {
   background: var(--surface);
@@ -877,7 +898,9 @@ hostname
    ================================================================ */
 const cmdList = document.getElementById('cmd-list');
 
-function addCmd(value = '', marker = '') {
+let _dragSrc = null;
+
+function addCmd(value = '', marker = '', afterItem = null) {
   const item = document.createElement('div');
   item.className = 'cmd-item';
   item.dataset.marker = marker;
@@ -885,7 +908,9 @@ function addCmd(value = '', marker = '') {
     `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
     `<button class="btn-marker" title="点击切换匹配模式"></button>` +
     `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
+    `<button class="btn-insert" title="在此处下方插入命令">+</button>` +
     `<button class="btn-del" title="删除">×</button>`;
+
   const markerBtn = item.querySelector('.btn-marker');
   applyMarker(item, markerBtn, marker);
   markerBtn.addEventListener('click', () => {
@@ -893,7 +918,62 @@ function addCmd(value = '', marker = '') {
     applyMarker(item, markerBtn, next);
   });
   item.querySelector('.btn-del').addEventListener('click', () => item.remove());
-  cmdList.appendChild(item);
+  item.querySelector('.btn-insert').addEventListener('click', () => {
+    addCmd('', '', item);
+  });
+
+  /* ── 拖拽排序 ── */
+  const handle = item.querySelector('.cmd-drag');
+  handle.addEventListener('mousedown', () => { item.draggable = true; });
+  handle.addEventListener('mouseup',   () => { item.draggable = false; });
+
+  item.addEventListener('dragstart', e => {
+    _dragSrc = item;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => item.style.opacity = '0.4', 0);
+  });
+  item.addEventListener('dragend', () => {
+    item.style.opacity = '';
+    item.draggable = false;
+    _dragSrc = null;
+    cmdList.querySelectorAll('.cmd-item').forEach(el => {
+      el.classList.remove('drag-over', 'drag-over-above', 'drag-over-below');
+    });
+  });
+  item.addEventListener('dragover', e => {
+    if (!_dragSrc || _dragSrc === item) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = item.getBoundingClientRect();
+    const above = e.clientY < rect.top + rect.height / 2;
+    cmdList.querySelectorAll('.cmd-item').forEach(el => {
+      el.classList.remove('drag-over-above', 'drag-over-below');
+    });
+    item.classList.add(above ? 'drag-over-above' : 'drag-over-below');
+  });
+  item.addEventListener('dragleave', e => {
+    if (!item.contains(e.relatedTarget)) {
+      item.classList.remove('drag-over-above', 'drag-over-below');
+    }
+  });
+  item.addEventListener('drop', e => {
+    if (!_dragSrc || _dragSrc === item) return;
+    e.preventDefault();
+    const rect = item.getBoundingClientRect();
+    const above = e.clientY < rect.top + rect.height / 2;
+    if (above) {
+      cmdList.insertBefore(_dragSrc, item);
+    } else {
+      cmdList.insertBefore(_dragSrc, item.nextSibling);
+    }
+    item.classList.remove('drag-over-above', 'drag-over-below');
+  });
+
+  if (afterItem) {
+    cmdList.insertBefore(item, afterItem.nextSibling);
+  } else {
+    cmdList.appendChild(item);
+  }
   item.querySelector('input').focus();
 }
 
@@ -1165,9 +1245,30 @@ function copyOutput(idx) {
 
 document.getElementById('btn-download').addEventListener('click', downloadReport);
 
+function buildCmdsTxt() {
+  return getCommandsWithMarkers()
+    .map(o => {
+      if (o.marker === 'fuzzy')  return '~ ' + o.cmd;
+      if (o.marker === 'ignore') return '! ' + o.cmd;
+      return o.cmd;
+    })
+    .join('\n');
+}
+
 function buildReportHTML() {
+  /* 将命令列表编码为 base64 作为内嵌附件 */
+  const txtContent = buildCmdsTxt();
+  const b64 = btoa(unescape(encodeURIComponent(txtContent)));
+  const txtDataURI = 'data:text/plain;charset=utf-8;base64,' + b64;
+  const tsStr = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  const attachBtn = `<div style="margin-bottom:16px">
+  <a href="${txtDataURI}" download="commands-${tsStr}.txt"
+     style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:12px;text-decoration:none">
+    ↓ 下载命令列表 (commands-${tsStr}.txt)
+  </a>
+</div>`;
   const styles = `
-    body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1000px;margin:0 auto}
+    body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1500px;margin:0 auto}
     .rpt-header{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;margin-bottom:16px}
     .rpt-header h2{font-size:16px;color:#f0f6fc;margin-bottom:8px}
     .rpt-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#8b949e}
@@ -1203,6 +1304,7 @@ function buildReportHTML() {
 </head>
 <body>
 <h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">Linux 命令行测试报告</h1>
+${attachBtn}
 ${report.innerHTML}
 </body>
 </html>`;

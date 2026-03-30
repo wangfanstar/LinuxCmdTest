@@ -981,7 +981,7 @@ static void handle_api_port(int client_fd, int query_port)
         fclose(f);
     }
 
-    /* Step 2: 扫描 /proc/*/fd/* 找到持有该 socket inode 的进程 */
+    /* Step 2: 扫描 /proc/PID/fd/ 找到持有该 socket inode 的进程 */
     typedef struct { pid_t pid; int state; } port_proc_t;
     port_proc_t found[64];
     int         found_cnt = 0;

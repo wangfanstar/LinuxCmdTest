@@ -582,11 +582,12 @@ static void uid_lookup(uid_t uid, char *out, int outlen)
 }
 
 /* ── /api/monitor 响应缓存 ── */
-#define MONITOR_CACHE_SEC 2
+#define MONITOR_CACHE_SEC 4
 static char           *g_monitor_json     = NULL;
 static size_t          g_monitor_json_len = 0;
 static time_t          g_monitor_json_ts  = 0;
-static pthread_mutex_t g_monitor_json_mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_monitor_json_mtx    = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_monitor_update_mtx  = PTHREAD_MUTEX_INITIALIZER;
 
 void stats_init(void) { g_start_time = time(NULL); }
 
@@ -630,44 +631,42 @@ static void stats_req_start(const char *ip)
 
 static void stats_req_end(void) { __sync_fetch_and_sub(&g_active_conns, 1); }
 
-/* 读取系统 CPU 快照 (/proc/stat) */
-static int snap_sys_cpu(cpu_snap_t *s)
-{
-    FILE *f = fopen("/proc/stat", "r");
-    if (!f) return -1;
-    unsigned long long u, n, sy, id, iow, irq, si, st;
-    int r = fscanf(f, "cpu %llu %llu %llu %llu %llu %llu %llu %llu",
-                   &u, &n, &sy, &id, &iow, &irq, &si, &st);
-    fclose(f);
-    if (r < 4) return -1;
-    s->work  = u + n + sy + irq + si + st;
-    s->total = s->work + id + iow;
-    return 0;
-}
-
-/* 读取每个逻辑核心的 CPU 快照（/proc/stat 中 cpu0/cpu1/... 行） */
-static int snap_core_cpus(cpu_snap_t *cores, int max_cores, int *count)
+/* 一次读取 /proc/stat，同时获取汇总行（cpu）和各核行（cpu0/cpu1/...）
+ * 避免两次 open() 系统调用 */
+static int snap_sys_and_cores(cpu_snap_t *sys, cpu_snap_t *cores,
+                               int max_cores, int *count)
 {
     FILE *f = fopen("/proc/stat", "r");
     if (!f) return -1;
     char line[256];
     *count = 0;
-    while (*count < max_cores && fgets(line, sizeof(line), f)) {
-        /* 只处理 "cpuN " 行（N 为数字），跳过汇总 "cpu " 行及其他行 */
-        if (strncmp(line, "cpu", 3) != 0) break;
-        if (line[3] < '0' || line[3] > '9') continue;
+    int sys_done = 0;
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, "cpu", 3) != 0) break;   /* cpu 行结束 */
         unsigned long long u=0, n=0, sy=0, id=0, iow=0, irq=0, si=0, st=0;
-        /* 跳过 "cpuN" 标签，找到第一个空格后开始解析数字 */
         char *p = line + 3;
-        while (*p && *p != ' ' && *p != '\t') p++;
-        if (sscanf(p, " %llu %llu %llu %llu %llu %llu %llu %llu",
-                   &u, &n, &sy, &id, &iow, &irq, &si, &st) < 4) continue;
-        cores[*count].work  = u + n + sy + irq + si + st;
-        cores[*count].total = cores[*count].work + id + iow;
-        (*count)++;
+        if (*p == ' ' || *p == '\t') {
+            /* 汇总行 "cpu " */
+            if (!sys_done &&
+                sscanf(p, " %llu %llu %llu %llu %llu %llu %llu %llu",
+                       &u, &n, &sy, &id, &iow, &irq, &si, &st) >= 4) {
+                sys->work  = u + n + sy + irq + si + st;
+                sys->total = sys->work + id + iow;
+                sys_done = 1;
+            }
+        } else if (*p >= '0' && *p <= '9' && *count < max_cores) {
+            /* 各核行 "cpuN " */
+            while (*p && *p != ' ' && *p != '\t') p++;
+            if (sscanf(p, " %llu %llu %llu %llu %llu %llu %llu %llu",
+                       &u, &n, &sy, &id, &iow, &irq, &si, &st) >= 4) {
+                cores[*count].work  = u + n + sy + irq + si + st;
+                cores[*count].total = cores[*count].work + id + iow;
+                (*count)++;
+            }
+        }
     }
     fclose(f);
-    return 0;
+    return sys_done ? 0 : -1;
 }
 
 /* 读取进程 CPU 快照 (/proc/self/stat，utime+stime，clock ticks) */
@@ -852,8 +851,8 @@ static void update_cpu(void)
     cpu_snap_t core_now[MAX_CORES];
     int core_count = 0;
     time_t now = time(NULL);
-    if (snap_sys_cpu(&sys_now) < 0 || snap_proc_cpu(&proc_now) < 0) return;
-    snap_core_cpus(core_now, MAX_CORES, &core_count);
+    if (snap_sys_and_cores(&sys_now, core_now, MAX_CORES, &core_count) < 0) return;
+    if (snap_proc_cpu(&proc_now) < 0) return;
 
     double dt = 0.0;
     pthread_mutex_lock(&g_cpu_mutex);
@@ -1031,6 +1030,20 @@ static void handle_api_monitor(int client_fd)
     }
     pthread_mutex_unlock(&g_monitor_json_mtx);
 
+    /* 序列化 update_cpu()：同一时刻只有一个线程执行，其余等待后复用缓存 */
+    pthread_mutex_lock(&g_monitor_update_mtx);
+    pthread_mutex_lock(&g_monitor_json_mtx);
+    int cache_valid = g_monitor_json &&
+                      difftime(time(NULL), g_monitor_json_ts) < MONITOR_CACHE_SEC;
+    pthread_mutex_unlock(&g_monitor_json_mtx);
+    if (cache_valid) {
+        pthread_mutex_unlock(&g_monitor_update_mtx);
+        pthread_mutex_lock(&g_monitor_json_mtx);
+        if (g_monitor_json)
+            send_json(client_fd, 200, "OK", g_monitor_json, g_monitor_json_len);
+        pthread_mutex_unlock(&g_monitor_json_mtx);
+        return;
+    }
     update_cpu();
 
     long mem_total_kb = 0, mem_used_kb = 0;
@@ -1130,6 +1143,7 @@ static void handle_api_monitor(int client_fd)
     g_monitor_json_len = sb.len;
     g_monitor_json_ts  = time(NULL);
     pthread_mutex_unlock(&g_monitor_json_mtx);
+    pthread_mutex_unlock(&g_monitor_update_mtx);
 
     send_json(client_fd, 200, "OK", sb.data, sb.len);
     free(sb.data);
@@ -1166,8 +1180,12 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
     char method[16] = {0}, path[2048] = {0}, version[16] = {0};
     sscanf(req_buf, "%15s %2047s %15s", method, path, version);
 
-    LOG_INFO("request  %s:%d \"%s %s %s\"",
-             client_ip, client_port, method, path, version);
+    /* 高频轮询接口不写日志，避免无谓 I/O */
+    int is_poll_api = (strncmp(path, "/api/monitor", 12) == 0 ||
+                       strncmp(path, "/api/procs",   10) == 0);
+    if (!is_poll_api)
+        LOG_INFO("request  %s:%d \"%s %s %s\"",
+                 client_ip, client_port, method, path, version);
 
     /* ── POST ──────────────────────────────────────── */
     if (strcasecmp(method, "POST") == 0) {
@@ -1316,8 +1334,9 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 done:;
     stats_req_end();
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
-    LOG_INFO("response %s:%d \"%s\" done in %.2fms",
-             client_ip, client_port, path, elapsed);
+    if (!is_poll_api)
+        LOG_INFO("response %s:%d \"%s\" done in %.2fms",
+                 client_ip, client_port, path, elapsed);
 
     close(client_fd);
 }

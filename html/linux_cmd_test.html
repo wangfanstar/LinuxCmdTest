@@ -1823,6 +1823,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
 /* 导入：读取 JSON 文件，填充表单并替换命令列表 */
 document.getElementById('cfg-import-input').addEventListener('change', function () {
   const file = this.files[0];
+  this.value = '';   // 立即重置，允许重复选同一文件
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
@@ -1833,6 +1834,8 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
       if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
+      /* 替换命令列表（先清空再填入，避免与现有命令合并） */
+      cmdList.innerHTML = '';
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cfg.commands.forEach(c => {
           if (typeof c === 'string') addCmd(c, '');
@@ -1855,7 +1858,6 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
     execStatus.style.color = 'var(--red)';
   };
   reader.readAsText(file, 'utf-8');
-  this.value = '';
 });
 
 /* ================================================================

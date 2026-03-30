@@ -66,8 +66,9 @@ static int open_log_file(void)
         fprintf(stderr, "log_init: cannot open %s: %s\n", path, strerror(errno));
         return -1;
     }
-    /* 关闭用户空间缓冲，确保日志立即落盘 */
-    setvbuf(g_fp, NULL, _IONBF, 0);
+    /* 使用块缓冲：每次 log_write 末尾手动 fflush，确保每行立即落盘，
+     * 同时避免 _IONBF 导致 fprintf 多次调用 write() 系统调用 */
+    setvbuf(g_fp, NULL, _IOFBF, 4096);
 
     /* 获取已有大小 */
     fseek(g_fp, 0, SEEK_END);
@@ -146,6 +147,7 @@ void log_write(log_level_t level, const char *fmt, ...)
                           (int)getpid(),
                           msg);
     if (written > 0) g_cur_size += written;
+    fflush(g_fp);   /* 每行立即落盘（配合 _IOFBF 将多次 write 合并为单次） */
 
 unlock:
     pthread_mutex_unlock(&g_mutex);

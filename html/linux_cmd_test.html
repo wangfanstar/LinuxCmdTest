@@ -719,7 +719,6 @@ body.edit-mode .cmd-notes {
   background: #161b22; border-top: 2px solid #30363d;
   display: flex; flex-direction: column;
   max-height: 260px; flex-shrink: 0;
-  margin-left: var(--sidebar);
 }
 #rt-panel.rt-minimized { max-height: 38px; overflow: hidden; }
 #rt-panel.rt-hidden    { display: none; }
@@ -920,24 +919,23 @@ body.edit-mode .cmd-notes {
       </div>
       <div id="report"></div>
     </div>
+    <!-- ── 实时执行面板（报告区底部，与侧边栏底部对齐） ── -->
+    <div id="rt-panel" class="rt-hidden">
+      <div id="rt-hd">
+        <span class="rt-title">实时面板</span>
+        <span id="rt-host-lbl">--</span>
+        <div class="rt-prog-wrap"><div id="rt-prog-bar" class="rt-prog-bar" style="width:0%"></div></div>
+        <span id="rt-prog-txt">0/0</span>
+        <span id="rt-elapsed">--</span>
+        <span class="rt-badge-ok" id="rt-ok-n">0</span><span style="color:#3fb950;font-size:.68rem"> ✓</span>
+        <span class="rt-badge-err" id="rt-err-n" style="margin-left:6px">0</span><span style="color:#f85149;font-size:.68rem"> ✗</span>
+        <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
+        <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
+      </div>
+      <div id="rt-body"></div>
+    </div>
   </main>
 
-</div>
-
-<!-- ── 实时执行面板（页面底部） ── -->
-<div id="rt-panel" class="rt-hidden">
-  <div id="rt-hd">
-    <span class="rt-title">实时面板</span>
-    <span id="rt-host-lbl">--</span>
-    <div class="rt-prog-wrap"><div id="rt-prog-bar" class="rt-prog-bar" style="width:0%"></div></div>
-    <span id="rt-prog-txt">0/0</span>
-    <span id="rt-elapsed">--</span>
-    <span class="rt-badge-ok" id="rt-ok-n">0</span><span style="color:#3fb950;font-size:.68rem"> ✓</span>
-    <span class="rt-badge-err" id="rt-err-n" style="margin-left:6px">0</span><span style="color:#f85149;font-size:.68rem"> ✗</span>
-    <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
-    <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
-  </div>
-  <div id="rt-body"></div>
 </div>
 
 <!-- ── 帮助模态框 ── -->

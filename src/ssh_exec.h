@@ -55,7 +55,10 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
 /* idle_timeout_sec：同上，传 0 使用默认值（300s）。
  * out_timed_out：非 NULL 时，超时中断置 1，正常/连接失败置 0。
  * out_partial_buf/out_partial_sz：非 NULL 时，超时中断后填入被中断命令
- *   的已采集输出（不完整），正常结束置为空字符串。 */
+ *   的已采集输出（不完整），正常结束置为空字符串。
+ * net_device_mode：非 0 时使用交互式提示符检测模式（适用于 Huawei VRP 等
+ *   网络设备 CLI），逐条发命令并等待提示符回显，退出码固定为 0；
+ *   为 0 时使用 bash -s 脚本模式（适用于 Linux/Unix 服务器）。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
@@ -63,6 +66,7 @@ void ssh_session_exec_stream(const char *host, int port,
                               char *error_buf, size_t error_buf_sz,
                               int idle_timeout_sec,
                               int *out_timed_out,
-                              char *out_partial_buf, size_t out_partial_sz);
+                              char *out_partial_buf, size_t out_partial_sz,
+                              int net_device_mode);
 
 #endif /* SSH_EXEC_H */

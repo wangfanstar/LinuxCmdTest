@@ -38,6 +38,66 @@ void ssh_cancel_current(void)
 }
 
 /* ------------------------------------------------------------------ */
+/*  网络设备模式辅助函数                                               */
+/* ------------------------------------------------------------------ */
+
+/* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
+ * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
+ * Linux 提示符示例：root@host:~#   user@host:~$ */
+static int is_prompt(const char *buf, size_t len)
+{
+    if (!len) return 0;
+    /* 跳过末尾换行，找最后一个实际内容字符 */
+    while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) len--;
+    if (!len) return 0;
+    /* 找最后一行的起始位置 */
+    size_t i = len;
+    while (i > 0 && buf[i-1] != '\n') i--;
+    const char *last = buf + i;
+    size_t ll = len - i;
+    /* 去掉行末空格和 \r */
+    while (ll > 0 && (last[ll-1] == ' ' || last[ll-1] == '\r')) ll--;
+    if (!ll) return 0;
+    char c = last[ll - 1];
+    return c == '>' || c == '#' || c == '$' || c == ']' || c == '%';
+}
+
+/* 清理命令输出：去掉首行回显和末尾提示符行，返回堆分配字符串（调用方 free）。 */
+static char *strip_cmd_output(const char *buf, size_t len)
+{
+    size_t start = 0, end = len;
+
+    /* 去首行（设备回显的命令行），找第一个 \n */
+    while (start < end && buf[start] != '\n') start++;
+    if (start < end) start++;   /* 跳过 \n 本身 */
+
+    /* 去末尾提示符行（以 > # $ ] % 结尾的行） */
+    while (end > start) {
+        /* 去末尾空白 */
+        while (end > start && (buf[end-1]=='\n'||buf[end-1]=='\r'||buf[end-1]==' '))
+            end--;
+        if (end <= start) break;
+        char c = buf[end-1];
+        if (c == '>' || c == '#' || c == '$' || c == ']' || c == '%') {
+            /* 找该行起始 */
+            while (end > start && buf[end-1] != '\n') end--;
+        } else {
+            break;
+        }
+    }
+    /* 去末尾空行 */
+    while (end > start && (buf[end-1]=='\n'||buf[end-1]=='\r'||buf[end-1]==' '))
+        end--;
+
+    size_t rlen = (end > start) ? (end - start) : 0;
+    char *result = malloc(rlen + 1);
+    if (!result) return NULL;
+    if (rlen) memcpy(result, buf + start, rlen);
+    result[rlen] = '\0';
+    return result;
+}
+
+/* ------------------------------------------------------------------ */
 /*  输入校验                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -644,7 +704,8 @@ void ssh_session_exec_stream(const char *host, int port,
                               char *error_buf, size_t error_buf_sz,
                               int idle_timeout_sec,
                               int *out_timed_out,
-                              char *out_partial_buf, size_t out_partial_sz)
+                              char *out_partial_buf, size_t out_partial_sz,
+                              int net_device_mode)
 {
     error_buf[0] = '\0';
     if (out_timed_out)    *out_timed_out = 0;
@@ -754,7 +815,9 @@ void ssh_session_exec_stream(const char *host, int port,
         char *envp[] = { env_askpass, env_display, env_require, env_home,
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             NULL };
-        char *argv[] = {
+        /* 网络设备模式：不指定远端命令，直接打开交互式 shell；
+         * Linux 模式：指定 "bash -s"，通过 stdin 管道输入脚本。   */
+        char *argv_linux[] = {
             "ssh",
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout=15",
@@ -773,7 +836,25 @@ void ssh_session_exec_stream(const char *host, int port,
             "bash -s",
             NULL
         };
-        execvpe("ssh", argv, envp);
+        char *argv_netdev[] = {
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            "-o", "BatchMode=no",
+            "-o", "PasswordAuthentication=yes",
+            "-o", "PubkeyAuthentication=no",
+            "-o", "GSSAPIAuthentication=no",
+            "-o", "PreferredAuthentications=password",
+            "-o", "NumberOfPasswordPrompts=1",
+            "-o", "LogLevel=ERROR",
+            "-o", "ServerAliveInterval=10",
+            "-o", "ServerAliveCountMax=6",
+            "-T",
+            "-p", port_str,
+            userhost,
+            NULL
+        };
+        execvpe("ssh", net_device_mode ? argv_netdev : argv_linux, envp);
         _exit(127);
     }
 
@@ -782,8 +863,8 @@ void ssh_session_exec_stream(const char *host, int port,
     close(in_pipe[0]);
     session_pid_set(pid);
 
-    /* 写入脚本到 SSH stdin */
-    {
+    if (!net_device_mode) {
+    /* ── Linux 模式：一次性写入脚本 ── */
         const char *p   = script;
         size_t      rem = strlen(script);
         while (rem > 0) {
@@ -791,10 +872,11 @@ void ssh_session_exec_stream(const char *host, int port,
             if (n <= 0) break;
             p += n; rem -= (size_t)n;
         }
+        close(in_pipe[1]);
+        in_pipe[1] = -1;
     }
-    close(in_pipe[1]);
 
-    /* ── 流式读取 + 实时边界解析 ── */
+    /* ── 流式读取 + 实时边界解析（Linux）/ 提示符检测（网络设备）── */
     char *accum = malloc(SSH_OUTPUT_MAX);
     if (!accum) {
         kill(pid, SIGKILL);
@@ -805,6 +887,104 @@ void ssh_session_exec_stream(const char *host, int port,
         goto cleanup;
     }
 
+    /* ================================================================
+     * 网络设备模式：交互式提示符检测，逐条发命令
+     * ================================================================ */
+    if (net_device_mode) {
+        /* Step 1: 读取初始提示符（最多等 5 秒） */
+        size_t init_len = 0;
+        {
+            time_t t0 = time(NULL), t_data = time(NULL);
+            for (;;) {
+                struct timeval tv = { 0, 200000 };
+                fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
+                if (select(out_pipe[0]+1, &rset, NULL, NULL, &tv) > 0) {
+                    ssize_t nr = read(out_pipe[0], accum + init_len,
+                                      SSH_OUTPUT_MAX - 1 - init_len);
+                    if (nr > 0) { init_len += (size_t)nr; t_data = time(NULL); }
+                    else break;
+                } else {
+                    if (init_len > 0 && is_prompt(accum, init_len)) break;
+                    if (difftime(time(NULL), t0) >= 5.0) break;
+                }
+            }
+        }
+        if (!is_prompt(accum, init_len)) {
+            /* 未检测到提示符：连接失败或设备无响应 */
+            if (init_len > 0) {
+                size_t el = init_len < error_buf_sz-1 ? init_len : error_buf_sz-1;
+                memcpy(error_buf, accum, el); error_buf[el] = '\0';
+                size_t el2 = strlen(error_buf);
+                while (el2 > 0 && (error_buf[el2-1]=='\n'||error_buf[el2-1]=='\r'))
+                    error_buf[--el2] = '\0';
+            } else {
+                snprintf(error_buf, error_buf_sz, "连接后未检测到设备提示符");
+            }
+            goto net_done;
+        }
+
+        LOG_INFO("ssh_session_exec_stream(net): initial prompt detected, sending %d cmds",
+                 cmd_count);
+
+        /* Step 2: 逐条发送命令，等待提示符返回 */
+        for (int i = 0; i < cmd_count; i++) {
+            const char *cmd  = commands[i];
+            size_t      clen = strlen(cmd);
+
+            /* 发送命令 + 换行 */
+            write(in_pipe[1], cmd, clen);
+            write(in_pipe[1], "\n", 1);
+
+            /* 读取命令输出，直到提示符出现或超时 */
+            size_t cmd_len = 0;
+            time_t t_last  = time(NULL);
+
+            for (;;) {
+                struct timeval tv = { 0, 200000 };
+                fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
+                int sel = select(out_pipe[0]+1, &rset, NULL, NULL, &tv);
+                if (sel > 0) {
+                    ssize_t nr = read(out_pipe[0], accum + cmd_len,
+                                      SSH_OUTPUT_MAX - 1 - cmd_len);
+                    if (nr <= 0) { timed_out = 1; break; }   /* EOF */
+                    cmd_len += (size_t)nr;
+                    t_last = time(NULL);
+                } else {
+                    /* 200ms 无新数据 */
+                    if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;
+                    if (difftime(time(NULL), t_last) >= idle_timeout_sec) {
+                        LOG_INFO("ssh_session_exec_stream(net): idle timeout (%ds) on cmd[%d]",
+                                 idle_timeout_sec, i);
+                        if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
+                            size_t cp = cmd_len < out_partial_sz-1 ? cmd_len : out_partial_sz-1;
+                            memcpy(out_partial_buf, accum, cp);
+                            out_partial_buf[cp] = '\0';
+                        }
+                        timed_out = 1;
+                        break;
+                    }
+                }
+            }
+
+            accum[cmd_len] = '\0';
+            char *clean = strip_cmd_output(accum, cmd_len);
+            if (cb) cb(i, cmd, clean ? clean : "", 0, ud);
+            free(clean);
+
+            if (timed_out) break;
+        }
+
+net_done:
+        if (in_pipe[1] >= 0) { close(in_pipe[1]); in_pipe[1] = -1; }
+        free(accum);
+        accum = NULL;
+        goto stream_drain;
+    }
+
+    /* ================================================================
+     * Linux/bash 模式：sentinel 边界解析
+     * ================================================================ */
+    {
     size_t accum_len  = 0;
     size_t scan_from  = 0;
     int    cmd_idx    = 0;
@@ -941,7 +1121,10 @@ void ssh_session_exec_stream(const char *host, int port,
     }
 
     free(accum);
+    accum = NULL;
+    } /* end Linux/bash block */
 
+stream_drain:
     /* 排空剩余输出，确保 SSH 子进程能正常退出
      * 注意：timeval 在 Linux 上会被 select 修改，必须每次迭代重置，
      * 否则降至 {0,0} 后 select 退化为非阻塞轮询，导致 CPU 占用飙升 */

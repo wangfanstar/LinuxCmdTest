@@ -427,8 +427,9 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     }
     json_get_str(body, "user", user, sizeof(user));
     json_get_str(body, "pass", pass, sizeof(pass));
-    port        = json_get_int(body, "port",    22);
-    int timeout = json_get_int(body, "timeout", 0);
+    port             = json_get_int(body, "port",       22);
+    int timeout      = json_get_int(body, "timeout",    0);
+    int net_device   = json_get_int(body, "net_device", 0);
     if (!user[0]) strcpy(user, "root");
 
     char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
@@ -465,7 +466,8 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                             on_stream_result, &ctx,
                             error_buf, sizeof(error_buf), timeout,
                             &timed_out,
-                            partial_buf, partial_buf ? PARTIAL_BUF_MAX : 0);
+                            partial_buf, partial_buf ? PARTIAL_BUF_MAX : 0,
+                            net_device);
 
     /* 结束事件 */
     int timeout_sec = (timeout > 0) ? timeout : 300;   /* 实际使用的超时秒数 */

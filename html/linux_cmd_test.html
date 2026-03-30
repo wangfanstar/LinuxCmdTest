@@ -741,6 +741,17 @@ body.edit-mode .cmd-notes {
 
 /* 面板开关按钮激活态 */
 #btn-rt-panel.rt-on { border-color: #58a6ff; color: #58a6ff; background: #1f3a6e40; }
+
+/* 网络设备模式 toggle */
+.toggle-wrap { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim);
+  cursor:pointer; user-select:none; margin-top:4px; }
+.toggle-wrap input[type=checkbox] { display:none; }
+.toggle-track { width:28px; height:15px; background:#30363d; border-radius:8px;
+  position:relative; transition:background .2s; flex-shrink:0; }
+.toggle-track::after { content:''; position:absolute; top:2px; left:2px; width:11px; height:11px;
+  background:#8b949e; border-radius:50%; transition:transform .2s, background .2s; }
+.toggle-wrap input:checked + .toggle-track { background:#1f6feb; }
+.toggle-wrap input:checked + .toggle-track::after { transform:translateX(13px); background:#e6edf3; }
 </style>
 </head>
 <body>
@@ -793,6 +804,11 @@ body.edit-mode .cmd-notes {
           <label>密码</label>
           <input id="f-pass" type="password" placeholder="••••••••">
         </div>
+        <label class="toggle-wrap" title="适用于 Huawei VRP 等网络设备 CLI，使用交互式提示符检测替代 bash 脚本模式">
+          <input type="checkbox" id="f-net-device">
+          <span class="toggle-track"></span>
+          网络设备模式
+        </label>
 
       </div>
 
@@ -1264,11 +1280,12 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 });
 
 async function doExec() {
-  const host    = document.getElementById('f-host').value.trim();
-  const port    = parseInt(document.getElementById('f-port').value) || 22;
-  const timeout = parseInt(document.getElementById('f-timeout').value) || 300;
-  const user    = document.getElementById('f-user').value.trim() || 'root';
-  const pass    = document.getElementById('f-pass').value;
+  const host       = document.getElementById('f-host').value.trim();
+  const port       = parseInt(document.getElementById('f-port').value) || 22;
+  const timeout    = parseInt(document.getElementById('f-timeout').value) || 300;
+  const user       = document.getElementById('f-user').value.trim() || 'root';
+  const pass       = document.getElementById('f-pass').value;
+  const net_device = document.getElementById('f-net-device').checked ? 1 : 0;
   const cmdItems = getCommandsWithMarkers();
   const commands = cmdItems.map(o => o.cmd);
   const markers  = cmdItems.map(o => o.marker);
@@ -1301,7 +1318,7 @@ async function doExec() {
     resp = await fetch('/api/ssh-exec-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, timeout, commands }),
+      body: JSON.stringify({ host, port, user, pass, timeout, commands, net_device }),
       signal: _execAbortCtrl.signal
     });
   } catch (e) {

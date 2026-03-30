@@ -696,7 +696,7 @@ body.edit-mode .cmd-notes {
 
 /* ── 实时面板 ── */
 #rt-panel {
-  background: #161b22; border-bottom: 2px solid #30363d;
+  background: #161b22; border-top: 2px solid #30363d;
   display: flex; flex-direction: column;
   max-height: 260px; flex-shrink: 0;
 }
@@ -873,22 +873,6 @@ body.edit-mode .cmd-notes {
       <button id="btn-toggle-compare" title="切换对比视图 / 单结果视图">对比视图</button>
       <button class="btn-clear-exp" id="btn-clear-exp" title="清除预期结果">×</button>
     </div>
-    <!-- ── 实时执行面板（内联，折叠时不占空间） ── -->
-    <div id="rt-panel" class="rt-hidden">
-      <div id="rt-hd">
-        <span class="rt-title">实时面板</span>
-        <span id="rt-host-lbl">--</span>
-        <div class="rt-prog-wrap"><div id="rt-prog-bar" class="rt-prog-bar" style="width:0%"></div></div>
-        <span id="rt-prog-txt">0/0</span>
-        <span id="rt-elapsed">--</span>
-        <span class="rt-badge-ok" id="rt-ok-n">0</span><span style="color:#3fb950;font-size:.68rem"> ✓</span>
-        <span class="rt-badge-err" id="rt-err-n" style="margin-left:6px">0</span><span style="color:#f85149;font-size:.68rem"> ✗</span>
-        <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
-        <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
-      </div>
-      <div id="rt-body"></div>
-    </div>
-
     <div class="report-body">
       <div id="placeholder">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
@@ -903,6 +887,21 @@ body.edit-mode .cmd-notes {
 
 </div>
 
+<!-- ── 实时执行面板（页面底部） ── -->
+<div id="rt-panel" class="rt-hidden">
+  <div id="rt-hd">
+    <span class="rt-title">实时面板</span>
+    <span id="rt-host-lbl">--</span>
+    <div class="rt-prog-wrap"><div id="rt-prog-bar" class="rt-prog-bar" style="width:0%"></div></div>
+    <span id="rt-prog-txt">0/0</span>
+    <span id="rt-elapsed">--</span>
+    <span class="rt-badge-ok" id="rt-ok-n">0</span><span style="color:#3fb950;font-size:.68rem"> ✓</span>
+    <span class="rt-badge-err" id="rt-err-n" style="margin-left:6px">0</span><span style="color:#f85149;font-size:.68rem"> ✗</span>
+    <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
+    <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
+  </div>
+  <div id="rt-body"></div>
+</div>
 
 <!-- ── 帮助模态框 ── -->
 <div id="help-overlay">

@@ -394,6 +394,8 @@ static char *build_session_script(const char *boundary,
      * kill -- -$$  向 PGID=$$ 的全部进程发 SIGTERM（bash 是进程组组长）。
      * kill -9 -- -$$ 兜底，防止子进程忽略 SIGTERM。               */
     off += snprintf(script + off, sz - (size_t)off,
+        /* 关闭 stdin：防止 cat/read 等命令从管道消费后续脚本行（导致边界标记丢失） */
+        "exec 0</dev/null\n"
         "trap 'trap \"\" HUP EXIT INT TERM;"
         "kill -- -$$ 2>/dev/null;"
         "kill -9 -- -$$ 2>/dev/null' HUP EXIT INT TERM\n"
@@ -917,9 +919,9 @@ void ssh_session_exec_stream(const char *host, int port,
         /* 排空管道（最多等 2 秒）以获取完整错误信息 */
         {
             char tmp2[4096];
-            struct timeval tv2 = { 2, 0 };
             fd_set rfds2;
             while (accum_len < SSH_OUTPUT_MAX - 1) {
+                struct timeval tv2 = { 2, 0 };   /* 每次重置，防止 select 消耗后成为忙轮询 */
                 FD_ZERO(&rfds2);
                 FD_SET(out_pipe[0], &rfds2);
                 if (select(out_pipe[0] + 1, &rfds2, NULL, NULL, &tv2) <= 0) break;
@@ -946,12 +948,14 @@ void ssh_session_exec_stream(const char *host, int port,
 
     free(accum);
 
-    /* 排空剩余输出，确保 SSH 子进程能正常退出 */
+    /* 排空剩余输出，确保 SSH 子进程能正常退出
+     * 注意：timeval 在 Linux 上会被 select 修改，必须每次迭代重置，
+     * 否则降至 {0,0} 后 select 退化为非阻塞轮询，导致 CPU 占用飙升 */
     {
         char drain[4096];
-        struct timeval dtv = { 1, 0 };
         fd_set dfds;
         while (1) {
+            struct timeval dtv = { 1, 0 };   /* 每次重置：等待最多 1 秒有新数据 */
             FD_ZERO(&dfds);
             FD_SET(out_pipe[0], &dfds);
             if (select(out_pipe[0] + 1, &dfds, NULL, NULL, &dtv) <= 0) break;

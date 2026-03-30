@@ -1030,7 +1030,7 @@ function addCmd(value = '', marker = '', afterItem = null) {
   applyMarker(item, markerBtn, marker);
   markerBtn.addEventListener('click', () => {
     if (item.dataset.marker === 'ctrlc') return;   /* ^C 项不可切换 */
-    const next = { '': 'fuzzy', 'fuzzy': 'ignore', 'ignore': '' }[item.dataset.marker] ?? '';
+    const next = { '': 'fuzzy', 'fuzzy': 'ignore', 'ignore': '' }[item.dataset.marker] || '';
     applyMarker(item, markerBtn, next);
   });
   item.querySelector('.btn-del').addEventListener('click', () => item.remove());
@@ -1369,9 +1369,9 @@ async function doExec() {
           return;
 
         } else if (ev.type === 'timeout') {
-          const completed  = ev.completed ?? 0;
-          const timeoutSec = ev.timeout_sec ?? parseInt(document.getElementById('f-timeout').value) || 300;
-          streamTimeout = { completed, total: ev.total ?? commands.length, partial: ev.partial ?? null, timeoutSec };
+          const completed  = ev.completed != null ? ev.completed : 0;
+          const timeoutSec = ev.timeout_sec != null ? ev.timeout_sec : (parseInt(document.getElementById('f-timeout').value) || 300);
+          streamTimeout = { completed, total: ev.total != null ? ev.total : commands.length, partial: ev.partial != null ? ev.partial : null, timeoutSec };
           /* 超时命令：显示截断输出 + 超时时长 */
           if (completed < commands.length) {
             markBlockTimeout(completed, streamTimeout.partial, timeoutSec);
@@ -1541,8 +1541,8 @@ function updateReportBlock(idx, output, exitCode, workdir) {
   /* 显示当前目录 */
   const wd = document.getElementById('wd-' + idx);
   if (wd && workdir) {
-    const u = document.getElementById('f-user')?.value.trim() || '';
-    const h = document.getElementById('f-host')?.value.trim() || '';
+    var _fu = document.getElementById('f-user'); const u = _fu ? _fu.value.trim() : '';
+    var _fh = document.getElementById('f-host'); const h = _fh ? _fh.value.trim() : '';
     wd.innerHTML = buildPromptHtml(u, h, workdir);
     wd.title     = workdir;   /* 悬停显示完整路径 */
     wd.classList.add('show');
@@ -1842,7 +1842,7 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cfg.commands.forEach(c => {
           if (typeof c === 'string') addCmd(c, '');
-          else addCmd(String(c.cmd ?? ''), String(c.marker ?? ''));
+          else addCmd(String(c.cmd != null ? c.cmd : ''), String(c.marker != null ? c.marker : ''));
         });
       }
       execStatus.textContent = cfg.pass
@@ -1957,8 +1957,8 @@ function exportExpected() {
   const host = document.getElementById('f-host').value.trim() || 'unknown';
   /* 始终从原始 out-${idx} 读取（compare 模式下该元素被隐藏但内容完整） */
   const items = blocks.map((blk, idx) => ({
-    cmd:    blk.querySelector('.cmd-text')?.textContent?.trim() ?? '',
-    output: document.getElementById('out-' + idx)?.textContent ?? '',
+    cmd:    (function(){ var _e = blk.querySelector('.cmd-text'); return _e ? (_e.textContent || '').trim() : ''; })(),
+    output: (function(){ var _e = document.getElementById('out-' + idx); return _e ? _e.textContent : ''; })(),
     marker: blk.dataset.marker || ''
   }));
   const payload = { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
@@ -2047,8 +2047,8 @@ function refreshComparison() {
     const body = blk.querySelector('.cmd-block-body');
 
     /* 清理旧比对视图和旧徽章 */
-    body.querySelector('.compare-body')?.remove();
-    blk.querySelector('.match-pass, .match-fail')?.remove();
+    var _cb = body.querySelector('.compare-body'); if (_cb) _cb.remove();
+    var _mb = blk.querySelector('.match-pass, .match-fail'); if (_mb) _mb.remove();
     outEl.style.display = '';   // 恢复显示
 
     /* 无预期数据或视图切换为单结果：直接返回（原始输出已恢复显示） */
@@ -2058,7 +2058,7 @@ function refreshComparison() {
     if (!exp) return;
 
     const actual    = outEl.textContent;
-    const expText   = exp.output ?? '';
+    const expText   = exp.output != null ? exp.output : '';
     const blkMarker = blk.dataset.marker || '';
 
     /* 按命令标记决定比对逻辑 */
@@ -2108,7 +2108,7 @@ function refreshComparison() {
    工具函数
    ================================================================ */
 function esc(s) {
-  return String(s ?? '')
+  return String(s != null ? s : '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -2163,7 +2163,7 @@ function ansiToHtml(str) {
   return html;
 }
 function escAttr(s) {
-  return String(s ?? '').replace(/"/g, '&quot;');
+  return String(s != null ? s : '').replace(/"/g, '&quot;');
 }
 function flash(el, msg) {
   if (!el) return;
@@ -2408,11 +2408,11 @@ function flash(el, msg) {
       /* 命令列表 */
       if (Array.isArray(state.cmds) && state.cmds.length > 0) {
         cmdList.innerHTML = '';
-        state.cmds.forEach(o => addCmd(o.cmd ?? '', o.marker ?? ''));
+        state.cmds.forEach(function(o) { addCmd(o.cmd != null ? o.cmd : '', o.marker != null ? o.marker : ''); });
       }
 
       /* 报告 */
-      if (state.report?.html) {
+      if (state.report && state.report.html) {
         report.innerHTML           = state.report.html;
         reportTitle.textContent    = state.report.title || '';
         placeholder.style.display  = 'none';
@@ -2439,7 +2439,7 @@ function flash(el, msg) {
         btnToggleCompare.textContent = '对比视图';
         btnToggleCompare.classList.remove('off');
         expectedBar.classList.add('show');
-        expectedBarInfo.textContent = `· 已恢复（${expectedData.commands?.length ?? 0} 条）`;
+        expectedBarInfo.textContent = '· 已恢复（' + (expectedData.commands ? expectedData.commands.length : 0) + ' 条）';
         if (report.querySelector('.cmd-block')) refreshComparison();
       }
     } finally {

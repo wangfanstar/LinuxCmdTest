@@ -98,6 +98,17 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
 .btn-kill-copy{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;
   font-size:.65rem;padding:2px 8px;cursor:pointer;white-space:nowrap;transition:border-color .15s,color .15s}
 .btn-kill-copy:hover{border-color:#f85149;color:#f85149}
+.btn-kill{background:none;border:1px solid #f8514960;border-radius:4px;color:#f85149;
+  font-size:.65rem;padding:2px 8px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn-kill:hover{background:rgba(248,81,73,.12);border-color:#f85149}
+.btn-kill-confirm{background:rgba(248,81,73,.18);border:1px solid #f85149;border-radius:4px;color:#ff7b72;
+  font-size:.65rem;padding:2px 8px;cursor:pointer;white-space:nowrap;font-weight:600;transition:background .15s}
+.btn-kill-confirm:hover{background:rgba(248,81,73,.32)}
+.btn-kill-cancel{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;
+  font-size:.65rem;padding:2px 8px;cursor:pointer;white-space:nowrap;transition:border-color .15s}
+.btn-kill-cancel:hover{border-color:#8b949e;color:#e6edf3}
+.kill-confirm-info{font-size:.65rem;color:#d29922;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:180px;display:inline-block;vertical-align:middle}
 .kill-chk{cursor:pointer;accent-color:#58a6ff;width:14px;height:14px}
 .kill-bar{margin-top:10px;background:#161b22;border:1px solid #21262d;border-radius:6px;
   padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -520,7 +531,10 @@ function renderSearchRows(rows, tbody){
       <td><span class="pname">${esc(r.name)}</span></td>
       <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
       <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>
-      <td><button class="btn-kill-copy" data-pid="${r.pid||''}" onclick="copySingleKill(this)">复制 kill</button></td>
+      <td style="white-space:nowrap;display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
+        <button class="btn-kill-copy" data-pid="${r.pid||''}" onclick="copySingleKill(this)">复制</button>
+        <button class="btn-kill" data-pid="${r.pid||''}" data-name="${esc(r.name)}" data-user="${esc(r.user)}" onclick="startKill(this)">Kill</button>
+      </td>
     </tr>`).join('');
   tbody.querySelectorAll('.kill-chk').forEach(chk=>{
     chk.addEventListener('change', updateKillBar);
@@ -587,6 +601,83 @@ function copySingleKill(btn){
   copyText(cmd,
     ()=>{ btn.textContent='已复制'; setTimeout(()=>{ btn.textContent=orig; },1500); },
     copyFailPrompt);
+}
+
+/* ── 两步 Kill 确认 ── */
+let _killPendingTd = null;   /* 当前处于确认状态的 td，用于取消其他行的确认 */
+
+function startKill(btn){
+  const pid  = btn.dataset.pid;
+  const name = btn.dataset.name;
+  const user = btn.dataset.user;
+  if(!pid){ return; }
+
+  const td = btn.closest('td');
+
+  /* 若其他行已有确认状态，先复原 */
+  if(_killPendingTd && _killPendingTd !== td) resetKillTd(_killPendingTd);
+
+  _killPendingTd = td;
+
+  td.innerHTML =
+    `<span class="kill-confirm-info" title="kill -9 ${pid}  ${name} (${user})">` +
+      `⚠ ${esc(name)} / ${esc(user)}` +
+    `</span>` +
+    `<button class="btn-kill-confirm" onclick="confirmKill(this,${parseInt(pid,10)})">确认 Kill</button>` +
+    `<button class="btn-kill-cancel"  onclick="cancelKill(this)">取消</button>`;
+}
+
+function cancelKill(btn){
+  const td = btn.closest('td');
+  resetKillTd(td);
+  if(_killPendingTd === td) _killPendingTd = null;
+}
+
+function resetKillTd(td){
+  /* 从最近的 tr 重新取 pid/name/user */
+  const row  = td.closest('tr');
+  if(!row) return;
+  const chk  = row.querySelector('.kill-chk');
+  const pid  = chk ? chk.dataset.pid  : '';
+  const name = chk ? chk.dataset.name : '';
+  /* user 通过 uname span 取 */
+  const uEl  = row.querySelector('.uname');
+  const user = uEl ? uEl.textContent : '';
+  td.style.cssText = 'white-space:nowrap;display:flex;gap:5px;align-items:center;flex-wrap:nowrap';
+  td.innerHTML =
+    `<button class="btn-kill-copy" data-pid="${esc(pid)}" onclick="copySingleKill(this)">复制</button>` +
+    `<button class="btn-kill" data-pid="${esc(pid)}" data-name="${esc(name)}" data-user="${esc(user)}" onclick="startKill(this)">Kill</button>`;
+}
+
+async function confirmKill(btn, pid){
+  const td = btn.closest('td');
+  btn.disabled = true;
+  btn.textContent = '执行中…';
+  try {
+    const resp = await fetch('/api/kill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pid })
+    });
+    const data = await resp.json();
+    if(data.ok){
+      const row = td.closest('tr');
+      if(row){
+        row.style.transition = 'opacity .4s';
+        row.style.opacity = '0.3';
+        setTimeout(()=>{ row.remove(); updateKillBar(); }, 450);
+      }
+    } else {
+      td.innerHTML =
+        `<span style="color:#f85149;font-size:.65rem">失败: ${esc(data.error||'unknown')}</span>` +
+        `<button class="btn-kill-cancel" style="margin-left:4px" onclick="cancelKill(this)">关闭</button>`;
+    }
+  } catch(e) {
+    td.innerHTML =
+      `<span style="color:#f85149;font-size:.65rem">请求失败</span>` +
+      `<button class="btn-kill-cancel" style="margin-left:4px" onclick="cancelKill(this)">关闭</button>`;
+  }
+  if(_killPendingTd === td) _killPendingTd = null;
 }
 
 /* 输入事件绑定 */

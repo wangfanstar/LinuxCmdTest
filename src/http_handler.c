@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <errno.h>
+#include <signal.h>
 #include <pthread.h>
 #include <dirent.h>
 #include <pwd.h>
@@ -399,11 +400,12 @@ static void sse_write_json(int fd, const char *json)
     write(fd, "\n\n", 2);
 }
 
-typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; } stream_ctx_t;
+typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; int completed; } stream_ctx_t;
 
 static void on_stream_result(int idx, const char *cmd, const char *output,
                               int exit_code, void *ud)
 {
+    ((stream_ctx_t *)ud)->completed++;
     int fd = ((stream_ctx_t *)ud)->fd;
     strbuf_t sb = {0};
     sb_appendf(&sb, "{\"type\":\"result\",\"i\":%d,\"cmd\":", idx);
@@ -453,16 +455,29 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     write(client_fd, sse_hdr, strlen(sse_hdr));
 
     /* 流式执行 */
-    stream_ctx_t ctx = { client_fd, cmd_bufs };
+    stream_ctx_t ctx = { client_fd, cmd_bufs, 0 };
     char error_buf[512] = {0};
+    int  timed_out = 0;
     ssh_session_exec_stream(host, port, user, pass,
                             cmd_ptrs, cmd_count,
                             on_stream_result, &ctx,
-                            error_buf, sizeof(error_buf), timeout);
+                            error_buf, sizeof(error_buf), timeout,
+                            &timed_out);
 
     /* 结束事件 */
     strbuf_t sb = {0};
-    if (error_buf[0]) {
+    if (timed_out) {
+        /* 超时中断：告知客户端已完成数量，若第一条命令未完成则附带部分输出 */
+        if (ctx.completed == 0 && error_buf[0]) {
+            SB_LIT(&sb, "{\"type\":\"timeout\",\"completed\":0,\"total\":");
+            sb_appendf(&sb, "%d,\"partial\":", cmd_count);
+            sb_json_str(&sb, error_buf);
+            SB_LIT(&sb, "}");
+        } else {
+            sb_appendf(&sb, "{\"type\":\"timeout\",\"completed\":%d,\"total\":%d}",
+                       ctx.completed, cmd_count);
+        }
+    } else if (error_buf[0]) {
         SB_LIT(&sb, "{\"type\":\"error\",\"message\":");
         sb_json_str(&sb, error_buf);
         SB_LIT(&sb, "}");
@@ -522,6 +537,53 @@ static proc_snap_t     g_prev_procs[MAX_PROCS];
 static int             g_prev_proc_count  = 0;
 static pthread_mutex_t g_proc_mutex       = PTHREAD_MUTEX_INITIALIZER;
 static double          g_last_scan_dt     = 3.0; /* 上次 scan 的采样间隔，供 /api/procs 估算 CPU% */
+
+/* ── UID→用户名缓存（避免对每个进程重复调 getpwuid_r） ── */
+#define UID_CACHE_SIZE 64
+typedef struct { uid_t uid; char name[32]; } uid_ce_t;
+static uid_ce_t        g_uid_cache[UID_CACHE_SIZE];
+static int             g_uid_cache_cnt = 0;
+static pthread_mutex_t g_uid_mutex     = PTHREAD_MUTEX_INITIALIZER;
+
+static void uid_lookup(uid_t uid, char *out, int outlen)
+{
+    pthread_mutex_lock(&g_uid_mutex);
+    for (int i = 0; i < g_uid_cache_cnt; i++) {
+        if (g_uid_cache[i].uid == uid) {
+            strncpy(out, g_uid_cache[i].name, (size_t)(outlen - 1));
+            out[outlen - 1] = '\0';
+            pthread_mutex_unlock(&g_uid_mutex);
+            return;
+        }
+    }
+    pthread_mutex_unlock(&g_uid_mutex);
+
+    /* cache miss: 调系统接口 */
+    struct passwd pw0, *pw = NULL; char pbuf[256];
+    char name[32] = "?";
+    if (getpwuid_r(uid, &pw0, pbuf, sizeof(pbuf), &pw) == 0 && pw)
+        strncpy(name, pw->pw_name, 31);
+    else
+        snprintf(name, sizeof(name), "%u", (unsigned)uid);
+    name[31] = '\0';
+
+    pthread_mutex_lock(&g_uid_mutex);
+    int slot = (g_uid_cache_cnt < UID_CACHE_SIZE)
+               ? g_uid_cache_cnt++ : (int)((unsigned)uid % UID_CACHE_SIZE);
+    g_uid_cache[slot].uid = uid;
+    memcpy(g_uid_cache[slot].name, name, 32);
+    pthread_mutex_unlock(&g_uid_mutex);
+
+    strncpy(out, name, (size_t)(outlen - 1));
+    out[outlen - 1] = '\0';
+}
+
+/* ── /api/monitor 响应缓存 ── */
+#define MONITOR_CACHE_SEC 2
+static char           *g_monitor_json     = NULL;
+static size_t          g_monitor_json_len = 0;
+static time_t          g_monitor_json_ts  = 0;
+static pthread_mutex_t g_monitor_json_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void stats_init(void) { g_start_time = time(NULL); }
 
@@ -657,26 +719,19 @@ static int read_proc_stat_entry(pid_t pid, char *name, int nl,
     return 0;
 }
 
-/* 读取 /proc/[pid]/status 的 UID，并解析为用户名 */
+/* 读取 /proc/[pid]/status 的 UID，通过缓存转换为用户名 */
 static void read_proc_user(pid_t pid, char *user, int ul)
 {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/status", (int)pid);
     FILE *f = fopen(path, "r");
-    if (!f) { strncpy(user, "?", ul); return; }
+    if (!f) { strncpy(user, "?", (size_t)ul); return; }
     char line[128]; uid_t uid = (uid_t)-1;
     while (fgets(line, sizeof(line), f))
         if (strncmp(line, "Uid:", 4) == 0) { sscanf(line + 4, " %u", &uid); break; }
     fclose(f);
-    struct passwd pw0, *pw = NULL; char pbuf[256];
-    if (uid != (uid_t)-1 &&
-        getpwuid_r(uid, &pw0, pbuf, sizeof(pbuf), &pw) == 0 && pw)
-        strncpy(user, pw->pw_name, (size_t)ul - 1);
-    else if (uid != (uid_t)-1)
-        snprintf(user, (size_t)ul, "%u", uid);
-    else
-        strncpy(user, "?", (size_t)ul);
-    user[ul - 1] = '\0';
+    if (uid == (uid_t)-1) { strncpy(user, "?", (size_t)ul); return; }
+    uid_lookup(uid, user, ul);
 }
 
 /* 插入排序维护 top-N（按 pct 降序） */
@@ -699,6 +754,16 @@ static void top_insert(top_proc_t top[], int *cnt, int max,
 static void scan_proc_top(double dt, int core_count)
 {
     if (dt < 0.3 || core_count <= 0) return;
+
+    /* trylock：另一线程正在扫描时直接跳过，避免并发重扫 /proc */
+    static pthread_mutex_t scan_lock = PTHREAD_MUTEX_INITIALIZER;
+    static time_t          last_scan = 0;
+    if (pthread_mutex_trylock(&scan_lock) != 0) return;
+    /* 同一秒内不重复扫描（dt 精度为秒级，防止同秒多次触发） */
+    time_t scan_now = time(NULL);
+    if (scan_now == last_scan) { pthread_mutex_unlock(&scan_lock); return; }
+    last_scan = scan_now;
+
     long clk = sysconf(_SC_CLK_TCK);
     if (clk <= 0) clk = 100;
     double scale = 100.0 / ((double)clk * dt);
@@ -724,7 +789,7 @@ static void scan_proc_top(double dt, int core_count)
 
     /* 扫描 /proc */
     DIR *dir = opendir("/proc");
-    if (!dir) return;
+    if (!dir) { pthread_mutex_unlock(&scan_lock); return; }
     struct dirent *de;
     while ((de = readdir(dir)) != NULL && cur_count < MAX_PROCS) {
         const char *p = de->d_name;
@@ -773,6 +838,8 @@ static void scan_proc_top(double dt, int core_count)
     g_prev_proc_count = cur_count;
     g_last_scan_dt    = dt;
     pthread_mutex_unlock(&g_proc_mutex);
+
+    pthread_mutex_unlock(&scan_lock);
 }
 
 /* 更新 CPU 百分比（与上次快照比较） */
@@ -951,6 +1018,16 @@ static void handle_api_procs(int client_fd, const char *query)
 /* GET /api/monitor */
 static void handle_api_monitor(int client_fd)
 {
+    /* 缓存检查：MONITOR_CACHE_SEC 秒内多个并发请求共用同一快照 */
+    pthread_mutex_lock(&g_monitor_json_mtx);
+    if (g_monitor_json &&
+        difftime(time(NULL), g_monitor_json_ts) < MONITOR_CACHE_SEC) {
+        send_json(client_fd, 200, "OK", g_monitor_json, g_monitor_json_len);
+        pthread_mutex_unlock(&g_monitor_json_mtx);
+        return;
+    }
+    pthread_mutex_unlock(&g_monitor_json_mtx);
+
     update_cpu();
 
     long mem_total_kb = 0, mem_used_kb = 0;
@@ -1043,6 +1120,14 @@ static void handle_api_monitor(int client_fd)
     }
     SB_LIT(&sb, "]}");
 
+    /* 写入缓存后再发送 */
+    pthread_mutex_lock(&g_monitor_json_mtx);
+    free(g_monitor_json);
+    g_monitor_json     = sb.data ? strdup(sb.data) : NULL;
+    g_monitor_json_len = sb.len;
+    g_monitor_json_ts  = time(NULL);
+    pthread_mutex_unlock(&g_monitor_json_mtx);
+
     send_json(client_fd, 200, "OK", sb.data, sb.len);
     free(sb.data);
 }
@@ -1129,6 +1214,30 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         } else if (strcmp(path, "/api/cancel") == 0) {
             ssh_cancel_current();
             send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+        } else if (strcmp(path, "/api/kill") == 0) {
+            if (body) {
+                int pid = json_get_int(body, "pid", -1);
+                if (pid > 1) {
+                    if (kill((pid_t)pid, SIGKILL) == 0) {
+                        char resp[64];
+                        int rlen = snprintf(resp, sizeof(resp),
+                                            "{\"ok\":true,\"pid\":%d}", pid);
+                        send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+                    } else {
+                        char resp[128];
+                        int rlen = snprintf(resp, sizeof(resp),
+                                            "{\"ok\":false,\"error\":\"%s\",\"pid\":%d}",
+                                            strerror(errno), pid);
+                        send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+                    }
+                } else {
+                    send_json(client_fd, 400, "Bad Request",
+                              "{\"ok\":false,\"error\":\"invalid pid\"}", 35);
+                }
+            } else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"error\":\"empty body\"}", 21);
+            }
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");

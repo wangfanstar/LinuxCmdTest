@@ -646,9 +646,12 @@ void ssh_session_exec_stream(const char *host, int port,
                               char **commands, int cmd_count,
                               ssh_stream_cb_t cb, void *ud,
                               char *error_buf, size_t error_buf_sz,
-                              int idle_timeout_sec)
+                              int idle_timeout_sec,
+                              int *out_timed_out)
 {
     error_buf[0] = '\0';
+    if (out_timed_out) *out_timed_out = 0;
+    int timed_out = 0;
 
     /* 输入校验 */
     if (!validate_safe(host)) {
@@ -821,6 +824,7 @@ void ssh_session_exec_stream(const char *host, int port,
             LOG_INFO("ssh_session_exec_stream: idle timeout (%ds), killing pid=%d",
                      idle_timeout_sec, (int)pid);
             kill(pid, SIGKILL);
+            timed_out = 1;
             break;
         }
         if (sel < 0) break;
@@ -943,6 +947,7 @@ void ssh_session_exec_stream(const char *host, int port,
     close(out_pipe[0]);
     session_pid_set((pid_t)-1);
     waitpid(pid, NULL, 0);
+    if (out_timed_out) *out_timed_out = timed_out;
 
 cleanup:
     free(script);

@@ -387,6 +387,7 @@ main {
 .cmd-text::before { content: "$ "; color: var(--dim); }
 .exit-ok  { color: var(--green); font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .exit-err { color: var(--red);   font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.cmd-elapsed { color: #8b949e; font-size: 11px; flex-shrink: 0; }
 .btn-copy-cmd {
   flex-shrink: 0;
   background: transparent;
@@ -556,7 +557,9 @@ body.edit-mode .cmd-notes {
 /* ── 实时执行状态 ── */
 .cmd-block.pending .cmd-block-header { opacity: 0.55; }
 .cmd-block.running .cmd-block-header { background: #162110; }
-.exit-pending { color: var(--dim); font-size: 11px; flex-shrink: 0; }
+.cmd-block.timedout .cmd-block-header { background: #2d1f06; }
+.exit-pending  { color: var(--dim);    font-size: 11px; flex-shrink: 0; }
+.exit-timeout  { color: #d29922;       font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .progress-dot {
   display: inline-block;
   width: 7px; height: 7px;
@@ -584,28 +587,6 @@ body.edit-mode .cmd-notes {
 #btn-reset.active { border-color: var(--red); color: var(--red); background: #3d0a0a44; animation: pulse-red .8s ease-in-out infinite alternate; }
 @keyframes pulse-red { from { opacity:.7; } to { opacity:1; } }
 
-/* ── 预览模态框 ── */
-#preview-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  flex-direction: column;
-  background: rgba(0,0,0,.9);
-}
-#preview-overlay.show { display: flex; }
-.preview-bar {
-  height: 44px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.preview-bar-title { flex: 1; font-size: 13px; color: var(--dim); }
-#preview-iframe { flex: 1; border: none; background: #0d1117; }
 
 /* ── 帮助按钮（topbar） ── */
 .btn-help {
@@ -812,10 +793,7 @@ body.edit-mode .cmd-notes {
           <label>密码</label>
           <input id="f-pass" type="password" placeholder="••••••••">
         </div>
-        <div class="field">
-          <label>起始目录 <span style="color:var(--dim);font-weight:400">（可选，每条命令前自动 cd）</span></label>
-          <input id="f-workdir" type="text" placeholder="/home/user/project">
-        </div>
+
       </div>
 
       <!-- 命令集合 -->
@@ -925,15 +903,6 @@ body.edit-mode .cmd-notes {
 
 </div>
 
-<!-- ── 预览报告模态框 ── -->
-<div id="preview-overlay">
-  <div class="preview-bar">
-    <span class="preview-bar-title" id="preview-bar-title">报告预览</span>
-    <button id="btn-preview-dl">↓ 下载</button>
-    <button id="btn-preview-close">✕ 关闭</button>
-  </div>
-  <iframe id="preview-iframe" sandbox="allow-same-origin allow-scripts"></iframe>
-</div>
 
 <!-- ── 帮助模态框 ── -->
 <div id="help-overlay">
@@ -1221,9 +1190,7 @@ document.getElementById('btn-export-cmds').addEventListener('click', () => {
   execStatus.style.color = 'var(--green)';
 });
 
-// 初始添加两行
-addCmd('uname -a');
-addCmd('df -h');
+// 初始添加两行（仅首次打开，已持久化时由恢复逻辑接管）
 
 /* ── 预设菜单 ── */
 const presetMenu = document.getElementById('preset-menu');
@@ -1282,6 +1249,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
   report.style.display = 'none';
   placeholder.style.display = '';
   reportTitle.textContent = '报告';
+  if (window._saveStateNow) window._saveStateNow();
 });
 
 async function doExec() {
@@ -1290,14 +1258,9 @@ async function doExec() {
   const timeout = parseInt(document.getElementById('f-timeout').value) || 300;
   const user    = document.getElementById('f-user').value.trim() || 'root';
   const pass    = document.getElementById('f-pass').value;
-  const workdir = document.getElementById('f-workdir').value.trim();
   const cmdItems = getCommandsWithMarkers();
   const commands = cmdItems.map(o => o.cmd);
   const markers  = cmdItems.map(o => o.marker);
-  /* 若设置了起始目录，生成实际执行命令（display 保持原始命令不变） */
-  const execCmds = workdir
-    ? commands.map(c => `cd '${workdir.replace(/'/g, "'\\''")}' && ${c}`)
-    : commands;
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
@@ -1309,7 +1272,7 @@ async function doExec() {
   execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
   /* 先渲染所有骨架块，全部标记为「等待」 */
-  renderReportSkeleton({ host, port, user, workdir, commands, markers });
+  renderReportSkeleton({ host, port, user, commands, markers });
   /* 将第一块设为运行中，给用户即时反馈 */
   if (commands.length > 0) markBlockRunning(0);
 
@@ -1327,7 +1290,7 @@ async function doExec() {
     resp = await fetch('/api/ssh-exec-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, timeout, commands: execCmds }),
+      body: JSON.stringify({ host, port, user, pass, timeout, commands }),
       signal: _execAbortCtrl.signal
     });
   } catch (e) {
@@ -1348,6 +1311,7 @@ async function doExec() {
   const decoder = new TextDecoder();
   let   sseBuf  = '';
   const streamResults = [];
+  let   streamTimeout = null;   /* {completed, total, partial} — 超时时填写 */
 
   try {
     while (true) {
@@ -1379,7 +1343,10 @@ async function doExec() {
           execStatus.textContent = `执行中 ${done_n}/${commands.length}…`;
 
         } else if (ev.type === 'error') {
-          for (let j = 0; j < commands.length; j++) markBlockError(j, ev.message);
+          /* 仅标记尚未完成的块，不覆盖已有结果 */
+          for (let j = 0; j < commands.length; j++) {
+            if (!streamResults[j]) markBlockError(j, ev.message);
+          }
           if (window.rtFinish) rtFinish();
           execStatus.style.color = 'var(--red)';
           execStatus.textContent = '错误: ' + ev.message;
@@ -1388,6 +1355,30 @@ async function doExec() {
           _execAbortCtrl = null;
           if (expectedData) refreshComparison();
           return;
+
+        } else if (ev.type === 'timeout') {
+          const completed = ev.completed ?? 0;
+          streamTimeout = { completed, total: ev.total ?? commands.length, partial: ev.partial ?? null };
+          /* 超时命令：显示截断输出 */
+          if (completed < commands.length) {
+            markBlockTimeout(completed, streamTimeout.partial);
+            if (window.rtMarkSkipped) rtMarkSkipped(completed);
+          }
+          /* 后续命令：标跳过 */
+          for (let j = completed + 1; j < commands.length; j++) {
+            markBlockSkipped(j);
+            if (window.rtMarkSkipped) rtMarkSkipped(j);
+          }
+          /* 报告头加超时徽章 */
+          const summaryEl = document.getElementById('rpt-summary');
+          if (summaryEl) {
+            const doneN = streamResults.filter(Boolean).length;
+            const okN   = streamResults.filter(r => r && r.exit_code === 0).length;
+            summaryEl.innerHTML =
+              (okN > 0 ? `<span class="badge-ok">✓ ${okN} 成功</span> ` : '') +
+              (doneN - okN > 0 ? `<span class="badge-err">✗ ${doneN - okN} 失败</span> ` : '') +
+              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${completed + 1}/${commands.length} 条）</span>`;
+          }
 
         } else if (ev.type === 'done') {
           /* 补全未收到结果的命令块（容错） */
@@ -1415,10 +1406,18 @@ async function doExec() {
 
   const ok = streamResults.filter(r => r && r.exit_code === 0).length;
   const total = streamResults.filter(Boolean).length;
-  execStatus.style.color = ok === total && total > 0 ? 'var(--green)' : 'var(--yellow)';
-  execStatus.textContent = `完成 ${ok}/${total} 成功`;
+  if (streamTimeout) {
+    execStatus.style.color = 'var(--yellow)';
+    execStatus.textContent =
+      `执行超时中断 · 已完成 ${streamTimeout.completed}/${commands.length} 条` +
+      (ok > 0 ? `（其中 ${ok} 条成功）` : '');
+  } else {
+    execStatus.style.color = ok === total && total > 0 ? 'var(--green)' : 'var(--yellow)';
+    execStatus.textContent = `完成 ${ok}/${total} 成功`;
+  }
 
   if (expectedData) refreshComparison();
+  if (window._saveStateNow) window._saveStateNow();
 }
 
 function setLoading(on) {
@@ -1458,7 +1457,7 @@ function buildPromptHtml(user, host, workdir) {
          `<span class="ps-s">$</span>`;
 }
 
-function renderReportSkeleton({ host, port, user, workdir = '', commands, markers }) {
+function renderReportSkeleton({ host, port, user, commands, markers }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
   const ts = new Date().toLocaleString('zh-CN', { hour12: false });
@@ -1469,7 +1468,6 @@ function renderReportSkeleton({ host, port, user, workdir = '', commands, marker
       <div class="rpt-meta">
         <span>🖥 ${esc(host)}:${port}</span>
         <span>👤 ${esc(user)}</span>
-        ${workdir ? `<span>📁 ${esc(workdir)}</span>` : ''}
         <span>🕐 ${ts}</span>
         <span id="rpt-summary"><span class="badge-ok" style="opacity:.5">正在执行…</span></span>
       </div>
@@ -1486,6 +1484,7 @@ function renderReportSkeleton({ host, port, user, workdir = '', commands, marker
           <span class="cmd-text" title="${esc(cmd)}">${esc(cmd)}</span>
           ${markBadge}
           <span class="exit-pending" id="exit-${idx}">…</span>
+          <span class="cmd-elapsed" id="el-${idx}">--</span>
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
@@ -1505,6 +1504,7 @@ function markBlockRunning(idx) {
   if (!block) return;
   block.classList.remove('pending');
   block.classList.add('running');
+  block.dataset.startMs = Date.now();
   const exitEl = document.getElementById('exit-' + idx);
   if (exitEl) exitEl.innerHTML = '<span class="progress-dot"></span>';
 }
@@ -1519,6 +1519,10 @@ function updateReportBlock(idx, output, exitCode, workdir) {
     exitEl.className = isOk ? 'exit-ok' : 'exit-err';
     exitEl.textContent = isOk ? '✓ 0' : '✗ ' + exitCode;
   }
+  const startMs = parseInt(block.dataset.startMs || '0');
+  const elapsed = startMs ? ((Date.now() - startMs) / 1000).toFixed(2) + 's' : '--';
+  const elEl = document.getElementById('el-' + idx);
+  if (elEl) elEl.textContent = elapsed;
   const out = document.getElementById('out-' + idx);
   if (out) out.innerHTML = ansiToHtml(output);
   /* 显示当前目录 */
@@ -1548,6 +1552,30 @@ function markBlockSkipped(idx) {
   block.classList.remove('pending', 'running');
   const exitEl = document.getElementById('exit-' + idx);
   if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '跳过'; }
+}
+
+function markBlockTimeout(idx, partialOutput) {
+  const block = document.getElementById('cb-' + idx);
+  if (!block) return;
+  block.classList.remove('pending', 'running');
+  block.classList.add('timedout');
+  const exitEl = document.getElementById('exit-' + idx);
+  if (exitEl) { exitEl.className = 'exit-timeout'; exitEl.textContent = '⏱ 超时'; }
+  const elEl = document.getElementById('el-' + idx);
+  if (elEl) elEl.textContent = '--';
+  if (partialOutput !== undefined && partialOutput !== null) {
+    const out = document.getElementById('out-' + idx);
+    if (out) {
+      out.innerHTML = (partialOutput ? ansiToHtml(partialOutput) : '') +
+        '<span style="display:block;margin-top:6px;color:#d29922;font-style:italic">' +
+        '[执行超时，SSH 会话已终止，输出不完整]</span>';
+    }
+  } else {
+    const out = document.getElementById('out-' + idx);
+    if (out && !out.textContent.trim()) {
+      out.innerHTML = '<span style="color:#d29922;font-style:italic">[命令执行中超时，无输出]</span>';
+    }
+  }
 }
 
 function finalizeReportHeader(results) {
@@ -1594,6 +1622,7 @@ function renderReport({ host, port, user, results, markers = [] }) {
           <span class="cmd-text" title="${esc(r.cmd)}">${esc(r.cmd)}</span>
           ${markBadge}
           <span class="${isOk ? 'exit-ok' : 'exit-err'}">${isOk ? '✓ 0' : '✗ ' + r.exit_code}</span>
+          <span class="cmd-elapsed">--</span>
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
         </div>
         <div class="cmd-block-body">
@@ -1693,6 +1722,7 @@ function buildReportHTML() {
     .cmd-text::before{content:"$ ";color:#8b949e}
     .exit-ok{color:#3fb950;font-size:11px;font-weight:600}
     .exit-err{color:#f85149;font-size:11px;font-weight:600}
+    .cmd-elapsed{color:#8b949e;font-size:11px;flex-shrink:0}
     .match-pass{color:#3fb950;font-size:11px;font-weight:700}
     .match-fail{color:#f85149;font-size:11px;font-weight:700}
     .match-skip{color:#8b949e;font-size:11px;font-weight:700}
@@ -1702,7 +1732,9 @@ function buildReportHTML() {
     .cmd-prompt{font-size:12px;padding:5px 14px;background:#0d1117;border-top:1px solid #1c2128;font-family:Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .ps-b{color:#3fb950}.ps-u{color:#3fb950;font-weight:700}.ps-a{color:#8b949e}.ps-h{color:#3fb950}.ps-d{color:#58a6ff;font-weight:700}.ps-s{color:#c9d1d9;margin-left:3px}
     .cmd-output{font-family:Consolas,monospace;font-size:12px;color:#adbac7;background:#0d1117;padding:12px 14px;white-space:pre-wrap;word-break:break-all;margin:0}
-    .cmd-notes{padding:8px 14px;font-size:12px;color:#8b949e;background:#1c2128;border-top:1px solid #30363d;min-height:24px}
+    .cmd-notes{padding:8px 14px;font-size:12px;color:#c9d1d9;background:#1c2128;border-top:1px solid #30363d}
+    .cmd-notes:empty{display:none}
+    .cmd-notes:not(:empty)::before{content:"备注  ";font-weight:600;color:#58a6ff}
     .compare-body{display:grid;grid-template-columns:1fr 1fr}
     .compare-pane{border-right:1px solid #30363d}
     .compare-pane:last-child{border-right:none}
@@ -1737,32 +1769,16 @@ function downloadReport() {
 }
 
 /* ================================================================
-   预览报告
+   预览报告（新标签页）
    ================================================================ */
-const previewOverlay = document.getElementById('preview-overlay');
-let   previewBlobUrl = null;
-
 document.getElementById('btn-preview').addEventListener('click', () => {
   if (!report.innerHTML) return;
-  if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
-  previewBlobUrl = URL.createObjectURL(
+  const url = URL.createObjectURL(
     new Blob([buildReportHTML()], { type: 'text/html;charset=utf-8' })
   );
-  document.getElementById('preview-iframe').src = previewBlobUrl;
-  document.getElementById('preview-bar-title').textContent =
-    '报告预览 · ' + (reportTitle.textContent || '');
-  previewOverlay.classList.add('show');
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 });
-
-document.getElementById('btn-preview-close').addEventListener('click', closePreview);
-document.getElementById('btn-preview-dl').addEventListener('click', downloadReport);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
-
-function closePreview() {
-  previewOverlay.classList.remove('show');
-  document.getElementById('preview-iframe').src = '';
-  if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); previewBlobUrl = null; }
-}
 
 /* ================================================================
    帮助模态框
@@ -1792,7 +1808,6 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
-    workdir:  document.getElementById('f-workdir').value.trim(),
     commands: getCommandsWithMarkers()   // [{cmd, marker}]
   };
   const json     = JSON.stringify(cfg, null, 2);
@@ -1820,7 +1835,6 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
       if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
-      if (cfg.workdir !== undefined) document.getElementById('f-workdir').value = cfg.workdir;
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
         cfg.commands.forEach(c => {
           if (typeof c === 'string') addCmd(c, '');
@@ -1832,6 +1846,7 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
         : `配置已导入: ${file.name}（密码请手动填写）`;
       execStatus.style.color = 'var(--green)';
       if (!cfg.pass) document.getElementById('f-pass').focus();
+      if (window._saveStateNow) window._saveStateNow();
     } catch (err) {
       execStatus.textContent = `配置文件解析失败: ${err.message}`;
       execStatus.style.color = 'var(--red)';
@@ -1973,6 +1988,7 @@ document.getElementById('expected-import-input').addEventListener('change', func
       execStatus.textContent = `预期结果已导入: ${file.name}`;
       execStatus.style.color = 'var(--green)';
       if (report.querySelector('.cmd-block')) refreshComparison();
+      if (window._saveState) window._saveState();
     } catch (err) {
       execStatus.textContent = `预期文件解析失败: ${err.message}`;
       execStatus.style.color = 'var(--red)';
@@ -1990,6 +2006,7 @@ document.getElementById('btn-clear-exp').addEventListener('click', () => {
   execStatus.textContent = '预期结果已清除';
   execStatus.style.color = 'var(--dim)';
   if (report.querySelector('.cmd-block')) refreshComparison();
+  if (window._saveState) window._saveState();
 });
 
 /* 切换对比视图 / 单结果视图 */
@@ -2006,6 +2023,7 @@ btnMatchMode.addEventListener('click', () => {
   btnMatchMode.textContent = matchExact ? '精确匹配' : '模糊匹配';
   btnMatchMode.classList.toggle('exact', matchExact);
   if (report.querySelector('.cmd-block')) refreshComparison();
+  if (window._saveState) window._saveState();
 });
 
 /* 文本匹配（exact=true 精确，false 模糊） */
@@ -2315,6 +2333,131 @@ function flash(el, msg) {
       `<span class="rt-time">${timeStr}</span>` +
       `<span class="rt-exit">${exitStr}</span>` +
       `</div>`;
+  }
+})();
+
+/* ================================================================
+   状态持久化（localStorage）
+   ================================================================ */
+(function () {
+  const KEY = 'lct_v1';
+  let _timer    = null;
+  let _restoring = false;
+
+  /* ── 防抖保存 ── */
+  function saveNow() {
+    if (_restoring) return;
+    const state = {
+      v: 1,
+      conn: {
+        host:    document.getElementById('f-host').value,
+        port:    document.getElementById('f-port').value,
+        user:    document.getElementById('f-user').value,
+        pass:    document.getElementById('f-pass').value,
+        timeout: document.getElementById('f-timeout').value,
+      },
+      cmds:       getCommandsWithMarkers(),
+      matchExact: matchExact,
+    };
+    if (report.innerHTML) state.report = { html: report.innerHTML, title: reportTitle.textContent };
+    if (expectedData)     state.expected = expectedData;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (_) {
+      /* 存储空间不足时，尝试不保存报告 */
+      try { delete state.report; localStorage.setItem(KEY, JSON.stringify(state)); } catch (__) {}
+    }
+  }
+
+  window._saveState    = function () { if (_restoring) return; clearTimeout(_timer); _timer = setTimeout(saveNow, 400); };
+  window._saveStateNow = saveNow;
+
+  /* ── 监听连接表单 ── */
+  ['f-host','f-port','f-user','f-pass','f-timeout'].forEach(id => {
+    document.getElementById(id).addEventListener('input', window._saveState);
+  });
+
+  /* ── 监听命令列表（结构变动 + 输入） ── */
+  new MutationObserver(window._saveState).observe(cmdList, { childList: true });
+  cmdList.addEventListener('input', window._saveState);
+
+  /* ── 监听报告区（执行更新 + 编辑备注） ── */
+  new MutationObserver(window._saveState).observe(report, { childList: true, subtree: true });
+  report.addEventListener('input', window._saveState);
+
+  /* ── 恢复 ── */
+  function restore() {
+    let state;
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return false;
+      state = JSON.parse(raw);
+      if (!state || state.v !== 1) return false;
+    } catch (_) { return false; }
+
+    _restoring = true;
+    try {
+      /* 连接信息 */
+      const c = state.conn || {};
+      if (c.host    != null) document.getElementById('f-host').value    = c.host;
+      if (c.port    != null) document.getElementById('f-port').value    = c.port;
+      if (c.user    != null) document.getElementById('f-user').value    = c.user;
+      if (c.pass    != null) document.getElementById('f-pass').value    = c.pass;
+      if (c.timeout != null) document.getElementById('f-timeout').value = c.timeout;
+
+      /* 命令列表 */
+      if (Array.isArray(state.cmds) && state.cmds.length > 0) {
+        cmdList.innerHTML = '';
+        state.cmds.forEach(o => addCmd(o.cmd ?? '', o.marker ?? ''));
+      }
+
+      /* 报告 */
+      if (state.report?.html) {
+        report.innerHTML           = state.report.html;
+        reportTitle.textContent    = state.report.title || '';
+        placeholder.style.display  = 'none';
+        report.style.display       = 'block';
+        /* 将中断的块规范化：running / pending → 已中断 */
+        report.querySelectorAll('.cmd-block.running, .cmd-block.pending').forEach(blk => {
+          blk.classList.remove('running', 'pending');
+          const exitEl = blk.querySelector('[id^="exit-"]');
+          if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '中断'; }
+        });
+      }
+
+      /* 匹配模式 */
+      if (state.matchExact != null) {
+        matchExact = state.matchExact;
+        btnMatchMode.textContent = matchExact ? '精确匹配' : '模糊匹配';
+        btnMatchMode.classList.toggle('exact', matchExact);
+      }
+
+      /* 预期数据 */
+      if (state.expected) {
+        expectedData = state.expected;
+        showCompare  = true;
+        btnToggleCompare.textContent = '对比视图';
+        btnToggleCompare.classList.remove('off');
+        expectedBar.classList.add('show');
+        expectedBarInfo.textContent = `· 已恢复（${expectedData.commands?.length ?? 0} 条）`;
+        if (report.querySelector('.cmd-block')) refreshComparison();
+      }
+    } finally {
+      _restoring = false;
+    }
+
+    return true;
+  }
+
+  /* ── 首次启动 ── */
+  const restored = restore();
+  if (!restored) {
+    /* 无持久化状态：添加默认示例命令 */
+    addCmd('uname -a');
+    addCmd('df -h');
+  } else if (report.innerHTML) {
+    execStatus.textContent = '已恢复上次会话';
+    execStatus.style.color = 'var(--dim)';
   }
 })();
 </script>

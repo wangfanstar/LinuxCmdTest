@@ -52,12 +52,14 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
                                  const char *output, int exit_code,
                                  void *ud);
 
-/* idle_timeout_sec：同上，传 0 使用默认值（300s）。 */
+/* idle_timeout_sec：同上，传 0 使用默认值（300s）。
+ * out_timed_out：非 NULL 时，超时中断置 1，正常/连接失败置 0。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
                               ssh_stream_cb_t cb, void *ud,
                               char *error_buf, size_t error_buf_sz,
-                              int idle_timeout_sec);
+                              int idle_timeout_sec,
+                              int *out_timed_out);
 
 #endif /* SSH_EXEC_H */

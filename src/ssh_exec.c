@@ -382,7 +382,7 @@ static char *build_session_script(const char *boundary,
     /* 估算脚本大小 */
     size_t sz = 256;  /* 为 trap 行预留空间 */
     for (int i = 0; i < count; i++)
-        sz += strlen(commands[i]) + strlen(boundary) + 64;
+        sz += strlen(commands[i]) + strlen(boundary) + 84; /* +20 for { }\n</dev/null wrapping */
 
     char *script = malloc(sz);
     if (!script) return NULL;
@@ -394,19 +394,19 @@ static char *build_session_script(const char *boundary,
      * kill -- -$$  向 PGID=$$ 的全部进程发 SIGTERM（bash 是进程组组长）。
      * kill -9 -- -$$ 兜底，防止子进程忽略 SIGTERM。               */
     off += snprintf(script + off, sz - (size_t)off,
-        /* 关闭 stdin：防止 cat/read 等命令从管道消费后续脚本行（导致边界标记丢失） */
-        "exec 0</dev/null\n"
         "trap 'trap \"\" HUP EXIT INT TERM;"
         "kill -- -$$ 2>/dev/null;"
         "kill -9 -- -$$ 2>/dev/null' HUP EXIT INT TERM\n"
         "set +e\n");
     for (int i = 0; i < count; i++) {
-        /* 边界格式：BOUNDARY:<exit_code>\n
-         * 不捕获 pwd：某些命令（如自定义交互式视图）会从 stdin 读取输入，
-         * 若在命令后放置 printf/$(pwd) 等行，这些行会被交互式程序消费，
-         * 导致 "> $(pwd)" 等乱输出。纯数字边界行最短，被误消费的可能最低。 */
+        /* 每条命令用 { ...\n} </dev/null 包裹：
+         * - bash 脚本本身仍从 stdin 管道读取（bash 的 I/O 重定向在 {} 范围内生效，
+         *   退出后恢复），不影响 bash 继续读下一条命令；
+         * - 用户命令的 stdin 被重定向为 /dev/null，
+         *   cat/read 等命令无法消费后续脚本行（含边界标记），避免会话卡死；
+         * - 在当前 shell 上下文执行（非子 shell），cd/export 等状态变更持久有效。*/
         off += snprintf(script + off, sz - (size_t)off,
-                        "%s\n"
+                        "{ %s\n} </dev/null\n"
                         "printf '%s:%%d\\n' $?\n",
                         commands[i], boundary);
     }

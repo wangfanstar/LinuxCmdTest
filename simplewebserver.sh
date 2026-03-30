@@ -151,7 +151,7 @@ cmd_stop() {
 cmd_restart() {
     info "重启服务器..."
     cmd_stop
-    sleep 0.3
+    cmd_build
     cmd_start "$@"
 }
 

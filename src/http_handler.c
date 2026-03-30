@@ -933,6 +933,139 @@ static int count_online(void)
     return cnt;
 }
 
+/* GET /api/port?port=<number>
+ * 通过 /proc/net/tcp[6] 查找占用指定端口的进程。
+ * 返回 JSON: {"port":8881,"procs":[{"pid":123,"name":"simpleserver","user":"root","state":"LISTEN"},...]}
+ */
+static void handle_api_port(int client_fd, int query_port)
+{
+    if (query_port <= 0 || query_port > 65535) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"error\":\"invalid port\"}", 23);
+        return;
+    }
+
+    static const char *tcp_states[] = {
+        "","ESTABLISHED","SYN_SENT","SYN_RECV","FIN_WAIT1",
+        "FIN_WAIT2","TIME_WAIT","CLOSE","CLOSE_WAIT","LAST_ACK",
+        "LISTEN","CLOSING","NEW_SYN_RECV"
+    };
+
+    /* Step 1: 收集匹配端口的 socket inode */
+    unsigned long inodes[256];
+    int           istates[256];
+    int           inode_cnt = 0;
+
+    const char *tcp_files[] = { "/proc/net/tcp", "/proc/net/tcp6" };
+    for (int fi = 0; fi < 2; fi++) {
+        FILE *f = fopen(tcp_files[fi], "r");
+        if (!f) continue;
+        char line[512];
+        fgets(line, sizeof(line), f);   /* skip header */
+        while (fgets(line, sizeof(line), f) && inode_cnt < 256) {
+            char local_addr[72];
+            unsigned int st = 0;
+            unsigned long inode = 0;
+            int n = sscanf(line, " %*d: %71s %*s %x %*s %*s %*s %*d %*d %lu",
+                           local_addr, &st, &inode);
+            if (n < 3) continue;
+            char *colon = strchr(local_addr, ':');
+            if (!colon) continue;
+            unsigned int port_hex = 0;
+            sscanf(colon + 1, "%x", &port_hex);
+            if ((int)port_hex != query_port) continue;
+            inodes[inode_cnt]  = inode;
+            istates[inode_cnt] = (int)st;
+            inode_cnt++;
+        }
+        fclose(f);
+    }
+
+    /* Step 2: 扫描 /proc/*/fd/* 找到持有该 socket inode 的进程 */
+    typedef struct { pid_t pid; int state; } port_proc_t;
+    port_proc_t found[64];
+    int         found_cnt = 0;
+
+    if (inode_cnt > 0) {
+        DIR *proc_dir = opendir("/proc");
+        if (proc_dir) {
+            struct dirent *pde;
+            while ((pde = readdir(proc_dir)) != NULL && found_cnt < 64) {
+                const char *nm = pde->d_name;
+                if (*nm < '1' || *nm > '9') continue;
+                const char *ep = nm;
+                while (*ep >= '0' && *ep <= '9') ep++;
+                if (*ep != '\0') continue;
+
+                pid_t pid = (pid_t)atoi(nm);
+                char fd_dir[64];
+                snprintf(fd_dir, sizeof(fd_dir), "/proc/%d/fd", (int)pid);
+                DIR *fd_d = opendir(fd_dir);
+                if (!fd_d) continue;
+                struct dirent *fde;
+                while ((fde = readdir(fd_d)) != NULL) {
+                    if (fde->d_name[0] == '.') continue;
+                    char fd_path[128];
+                    snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%s",
+                             (int)pid, fde->d_name);
+                    char link[128];
+                    ssize_t lr = readlink(fd_path, link, sizeof(link) - 1);
+                    if (lr < 10) continue;
+                    link[lr] = '\0';
+                    if (strncmp(link, "socket:[", 8) != 0) continue;
+                    unsigned long sock_inode = strtoul(link + 8, NULL, 10);
+                    for (int k = 0; k < inode_cnt; k++) {
+                        if (inodes[k] != sock_inode) continue;
+                        int dup = 0;
+                        for (int j = 0; j < found_cnt; j++)
+                            if (found[j].pid == pid) { dup = 1; break; }
+                        if (!dup) {
+                            found[found_cnt].pid   = pid;
+                            found[found_cnt].state = istates[k];
+                            found_cnt++;
+                        }
+                        break;
+                    }
+                }
+                closedir(fd_d);
+            }
+            closedir(proc_dir);
+        }
+    }
+
+    /* Step 3: 组装 JSON */
+    strbuf_t sb = {0};
+    char hdr[64];
+    int hlen = snprintf(hdr, sizeof(hdr), "{\"port\":%d,\"procs\":[", query_port);
+    sb_append(&sb, hdr, (size_t)hlen);
+
+    for (int i = 0; i < found_cnt; i++) {
+        pid_t pid   = found[i].pid;
+        int   state = found[i].state;
+
+        char name[32] = "?";
+        unsigned long long ticks; int cpu_idx;
+        if (read_proc_stat_entry(pid, name, sizeof(name), &ticks, &cpu_idx) < 0)
+            snprintf(name, sizeof(name), "?");
+
+        char user[20] = "?";
+        read_proc_user(pid, user, sizeof(user));
+
+        const char *state_str = (state >= 1 && state <= 12) ? tcp_states[state] : "UNKNOWN";
+
+        char entry[256];
+        int en = snprintf(entry, sizeof(entry),
+                          "%s{\"pid\":%d,\"name\":\"%s\",\"user\":\"%s\",\"state\":\"%s\"}",
+                          i ? "," : "", (int)pid, name, user, state_str);
+        sb_append(&sb, entry, (size_t)en);
+    }
+
+    SB_LIT(&sb, "]}");
+    send_json(client_fd, 200, "OK",
+              sb.data ? sb.data : "{\"port\":0,\"procs\":[]}", sb.len);
+    free(sb.data);
+}
+
 /* GET /api/procs?q=<query>
  * 实时扫描 /proc，按进程名或用户名做大小写不敏感子串过滤，返回 JSON 数组。
  * CPU% 用上次快照 ticks 与当前 ticks 差值估算，dt 取上次 scan_proc_top 的采样间隔。
@@ -1312,6 +1445,18 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
             }
         }
         handle_api_procs(client_fd, q);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/port", 9) == 0 &&
+        (path[9] == '\0' || path[9] == '?')) {
+        int port_num = 0;
+        const char *qs = strchr(path, '?');
+        if (qs) {
+            const char *pp = strstr(qs, "port=");
+            if (pp) port_num = atoi(pp + 5);
+        }
+        handle_api_port(client_fd, port_num);
         goto done;
     }
 

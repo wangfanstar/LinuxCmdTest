@@ -382,7 +382,7 @@ static char *build_session_script(const char *boundary,
     /* 估算脚本大小 */
     size_t sz = 256;  /* 为 trap 行预留空间 */
     for (int i = 0; i < count; i++)
-        sz += strlen(commands[i]) + strlen(boundary) + 84; /* +20 for { }\n</dev/null wrapping */
+        sz += strlen(commands[i]) + strlen(boundary) + 64;
 
     char *script = malloc(sz);
     if (!script) return NULL;
@@ -399,14 +399,8 @@ static char *build_session_script(const char *boundary,
         "kill -9 -- -$$ 2>/dev/null' HUP EXIT INT TERM\n"
         "set +e\n");
     for (int i = 0; i < count; i++) {
-        /* 每条命令用 { ...\n} </dev/null 包裹：
-         * - bash 脚本本身仍从 stdin 管道读取（bash 的 I/O 重定向在 {} 范围内生效，
-         *   退出后恢复），不影响 bash 继续读下一条命令；
-         * - 用户命令的 stdin 被重定向为 /dev/null，
-         *   cat/read 等命令无法消费后续脚本行（含边界标记），避免会话卡死；
-         * - 在当前 shell 上下文执行（非子 shell），cd/export 等状态变更持久有效。*/
         off += snprintf(script + off, sz - (size_t)off,
-                        "{ %s\n} </dev/null\n"
+                        "%s\n"
                         "printf '%s:%%d\\n' $?\n",
                         commands[i], boundary);
     }

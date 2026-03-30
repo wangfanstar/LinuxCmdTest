@@ -2176,7 +2176,7 @@ function flash(el, msg) {
    ================================================================ */
 (function(){
   /* 面板状态 */
-  let rtEnabled = false;
+  let rtEnabled = true;
   let rtState   = null;
   let rtTicker  = null;
 
@@ -2187,6 +2187,11 @@ function flash(el, msg) {
     panel    = document.getElementById('rt-panel');
     rtBody   = document.getElementById('rt-body');
     rtTogBtn = document.getElementById('btn-rt-panel');
+
+    /* 默认展开实时面板 */
+    panel.classList.remove('rt-hidden');
+    rtTogBtn.classList.add('rt-on');
+    rtShowIdle();
 
     /* 开关 */
     rtTogBtn.addEventListener('click', () => {

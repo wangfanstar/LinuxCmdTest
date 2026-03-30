@@ -116,6 +116,29 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
   font-size:.78rem;color:#3fb950;flex:1;min-width:180px;font-family:monospace;word-break:break-all}
 .kill-bar-info{font-size:.72rem;color:#8b949e;white-space:nowrap}
 
+/* ── 端口查询 ── */
+#port-section{margin-bottom:20px}
+.port-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.port-field{display:flex;flex-direction:column;gap:4px}
+.port-field label{font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:#8b949e}
+.port-field input{background:#161b22;border:1px solid #30363d;border-radius:6px;color:#e6edf3;
+  font-size:.82rem;padding:7px 10px;outline:none;width:120px;transition:border-color .15s}
+.port-field input:focus{border-color:#58a6ff}
+.port-field input::placeholder{color:#484f58}
+.btn-port-query{background:#1f6feb;border:1px solid #388bfd;border-radius:6px;color:#e6edf3;
+  font-size:.78rem;padding:7px 18px;cursor:pointer;transition:background .15s;white-space:nowrap;align-self:flex-end}
+.btn-port-query:hover{background:#388bfd}
+.port-hint{font-size:.68rem;color:#484f58;margin-bottom:8px}
+.port-result-table{background:#161b22;border:1px solid #21262d;border-radius:8px;overflow:hidden;width:100%}
+.port-result-table th,.port-result-table td{padding:7px 14px;font-size:.75rem;text-align:left}
+.port-result-table th{background:#1c2128;color:#8b949e;font-weight:500;font-size:.66rem;
+  text-transform:uppercase;letter-spacing:.06em}
+.port-result-table tr:not(:last-child) td{border-bottom:1px solid #21262d}
+.port-state{display:inline-block;font-size:.62rem;padding:1px 7px;border-radius:8px;font-weight:600}
+.port-state-listen{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.port-state-estab{background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.port-state-other{background:rgba(139,148,158,.1);color:#8b949e;border:1px solid #30363d}
+
 /* ── 趋势图 ── */
 .chart-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
 .chart-label{font-size:.68rem;color:#8b949e;margin-bottom:6px}
@@ -230,6 +253,23 @@ canvas{display:block;width:100%}
       <code class="kill-cmd-text" id="kill-cmd-text"></code>
       <button class="btn-search-clear" id="btn-copy-kill" disabled>复制命令</button>
     </div>
+  </div>
+
+  <!-- 端口查询 -->
+  <div id="port-section">
+    <div class="section-hd"><h2>端口占用查询</h2></div>
+    <div class="port-bar">
+      <div class="port-field">
+        <label>端口号</label>
+        <input id="q-port" type="number" min="1" max="65535" placeholder="如 8881">
+      </div>
+      <button class="btn-port-query" id="btn-port-query">查询</button>
+    </div>
+    <div class="port-hint" id="port-hint">输入端口号后点击查询</div>
+    <table class="port-result-table" id="port-table" style="display:none">
+      <thead><tr><th>PID</th><th>进程名</th><th>用户</th><th>状态</th></tr></thead>
+      <tbody id="port-body"></tbody>
+    </table>
   </div>
 
   <!-- 每核 CPU 面板 -->
@@ -701,6 +741,51 @@ document.getElementById('btn-pause').addEventListener('click', function(){
 document.getElementById('chk-all').addEventListener('change', function(){
   document.querySelectorAll('#search-body .kill-chk').forEach(c=>{ c.checked=this.checked; });
   updateKillBar();
+});
+
+/* ── 端口查询 ── */
+async function queryPort(){
+  var portVal = parseInt(document.getElementById('q-port').value, 10);
+  var hint    = document.getElementById('port-hint');
+  var table   = document.getElementById('port-table');
+  var tbody   = document.getElementById('port-body');
+  if(!portVal || portVal < 1 || portVal > 65535){
+    hint.textContent = '请输入有效端口号（1–65535）';
+    table.style.display = 'none';
+    return;
+  }
+  hint.textContent = '查询中…';
+  table.style.display = 'none';
+  try {
+    var resp = await fetch('/api/port?port='+portVal);
+    var data = await resp.json();
+    if(data.error){ hint.textContent = '查询失败: '+data.error; return; }
+    var procs = data.procs || [];
+    if(!procs.length){
+      hint.textContent = '端口 '+portVal+' 未被任何进程占用';
+      return;
+    }
+    hint.textContent = '端口 '+portVal+' 被以下进程占用（共 '+procs.length+' 个）：';
+    tbody.innerHTML = procs.map(function(p){
+      var stateClass = p.state === 'LISTEN' ? 'port-state-listen'
+                     : p.state === 'ESTABLISHED' ? 'port-state-estab'
+                     : 'port-state-other';
+      return '<tr>'+
+        '<td style="font-family:monospace;color:#8b949e;font-size:.7rem">'+p.pid+'</td>'+
+        '<td><span class="pname">'+esc(p.name)+'</span></td>'+
+        '<td><span class="uname" style="color:#8b949e">'+esc(p.user)+'</span></td>'+
+        '<td><span class="port-state '+stateClass+'">'+esc(p.state)+'</span></td>'+
+        '</tr>';
+    }).join('');
+    table.style.display = '';
+  } catch(e) {
+    hint.textContent = '请求失败: '+e.message;
+  }
+}
+
+document.getElementById('btn-port-query').addEventListener('click', queryPort);
+document.getElementById('q-port').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') queryPort();
 });
 
 /* ── 轮询 ── */

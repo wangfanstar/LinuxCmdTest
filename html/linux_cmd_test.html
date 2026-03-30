@@ -73,11 +73,20 @@ aside {
 }
 .sidebar-body {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: hidden;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+}
+/* 命令集合区块填满剩余空间，避免底部留白 */
+.sidebar-body > .form-section:last-child {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── 表单区块 ── */
@@ -107,7 +116,7 @@ aside {
 .field-row { display: grid; grid-template-columns: 1fr 72px; gap: 8px; }
 
 /* ── 命令列表 ── */
-#cmd-list { display: flex; flex-direction: column; gap: 6px; }
+#cmd-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
 .cmd-item {
   display: flex;
   align-items: center;

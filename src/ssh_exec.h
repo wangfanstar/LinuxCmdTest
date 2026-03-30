@@ -53,13 +53,16 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
                                  void *ud);
 
 /* idle_timeout_sec：同上，传 0 使用默认值（300s）。
- * out_timed_out：非 NULL 时，超时中断置 1，正常/连接失败置 0。 */
+ * out_timed_out：非 NULL 时，超时中断置 1，正常/连接失败置 0。
+ * out_partial_buf/out_partial_sz：非 NULL 时，超时中断后填入被中断命令
+ *   的已采集输出（不完整），正常结束置为空字符串。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
                               ssh_stream_cb_t cb, void *ud,
                               char *error_buf, size_t error_buf_sz,
                               int idle_timeout_sec,
-                              int *out_timed_out);
+                              int *out_timed_out,
+                              char *out_partial_buf, size_t out_partial_sz);
 
 #endif /* SSH_EXEC_H */

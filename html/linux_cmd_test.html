@@ -1357,11 +1357,12 @@ async function doExec() {
           return;
 
         } else if (ev.type === 'timeout') {
-          const completed = ev.completed ?? 0;
-          streamTimeout = { completed, total: ev.total ?? commands.length, partial: ev.partial ?? null };
-          /* 超时命令：显示截断输出 */
+          const completed  = ev.completed ?? 0;
+          const timeoutSec = ev.timeout_sec ?? parseInt(document.getElementById('f-timeout').value) || 300;
+          streamTimeout = { completed, total: ev.total ?? commands.length, partial: ev.partial ?? null, timeoutSec };
+          /* 超时命令：显示截断输出 + 超时时长 */
           if (completed < commands.length) {
-            markBlockTimeout(completed, streamTimeout.partial);
+            markBlockTimeout(completed, streamTimeout.partial, timeoutSec);
             if (window.rtMarkSkipped) rtMarkSkipped(completed);
           }
           /* 后续命令：标跳过 */
@@ -1377,7 +1378,7 @@ async function doExec() {
             summaryEl.innerHTML =
               (okN > 0 ? `<span class="badge-ok">✓ ${okN} 成功</span> ` : '') +
               (doneN - okN > 0 ? `<span class="badge-err">✗ ${doneN - okN} 失败</span> ` : '') +
-              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${completed + 1}/${commands.length} 条）</span>`;
+              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${completed + 1}/${commands.length} 条，空闲 ${timeoutSec}s）</span>`;
           }
 
         } else if (ev.type === 'done') {
@@ -1409,7 +1410,7 @@ async function doExec() {
   if (streamTimeout) {
     execStatus.style.color = 'var(--yellow)';
     execStatus.textContent =
-      `执行超时中断 · 已完成 ${streamTimeout.completed}/${commands.length} 条` +
+      `执行超时中断（空闲 ${streamTimeout.timeoutSec}s）· 已完成 ${streamTimeout.completed}/${commands.length} 条` +
       (ok > 0 ? `（其中 ${ok} 条成功）` : '');
   } else {
     execStatus.style.color = ok === total && total > 0 ? 'var(--green)' : 'var(--yellow)';
@@ -1554,27 +1555,24 @@ function markBlockSkipped(idx) {
   if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '跳过'; }
 }
 
-function markBlockTimeout(idx, partialOutput) {
+function markBlockTimeout(idx, partialOutput, timeoutSec) {
   const block = document.getElementById('cb-' + idx);
   if (!block) return;
   block.classList.remove('pending', 'running');
   block.classList.add('timedout');
   const exitEl = document.getElementById('exit-' + idx);
-  if (exitEl) { exitEl.className = 'exit-timeout'; exitEl.textContent = '⏱ 超时'; }
+  const secStr = timeoutSec ? `${timeoutSec}s` : '--';
+  if (exitEl) { exitEl.className = 'exit-timeout'; exitEl.textContent = `⏱ 超时 ${secStr}`; }
   const elEl = document.getElementById('el-' + idx);
-  if (elEl) elEl.textContent = '--';
-  if (partialOutput !== undefined && partialOutput !== null) {
-    const out = document.getElementById('out-' + idx);
-    if (out) {
-      out.innerHTML = (partialOutput ? ansiToHtml(partialOutput) : '') +
-        '<span style="display:block;margin-top:6px;color:#d29922;font-style:italic">' +
-        '[执行超时，SSH 会话已终止，输出不完整]</span>';
-    }
+  if (elEl) elEl.textContent = secStr;
+  const out = document.getElementById('out-' + idx);
+  if (!out) return;
+  const notice = `<span style="display:block;margin-top:6px;color:#d29922;font-style:italic">` +
+    `[空闲超时 ${secStr}，SSH 会话已终止${partialOutput ? '，以下为截断输出' : '，命令无任何输出'}]</span>`;
+  if (partialOutput) {
+    out.innerHTML = ansiToHtml(partialOutput) + notice;
   } else {
-    const out = document.getElementById('out-' + idx);
-    if (out && !out.textContent.trim()) {
-      out.innerHTML = '<span style="color:#d29922;font-style:italic">[命令执行中超时，无输出]</span>';
-    }
+    out.innerHTML = notice;
   }
 }
 

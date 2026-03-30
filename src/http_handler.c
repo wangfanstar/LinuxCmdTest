@@ -456,27 +456,29 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
 
     /* 流式执行 */
     stream_ctx_t ctx = { client_fd, cmd_bufs, 0 };
-    char error_buf[512] = {0};
-    int  timed_out = 0;
+    char  error_buf[512] = {0};
+    int   timed_out = 0;
+#define PARTIAL_BUF_MAX (64 * 1024)
+    char *partial_buf = calloc(1, PARTIAL_BUF_MAX);
     ssh_session_exec_stream(host, port, user, pass,
                             cmd_ptrs, cmd_count,
                             on_stream_result, &ctx,
                             error_buf, sizeof(error_buf), timeout,
-                            &timed_out);
+                            &timed_out,
+                            partial_buf, partial_buf ? PARTIAL_BUF_MAX : 0);
 
     /* 结束事件 */
+    int timeout_sec = (timeout > 0) ? timeout : 300;   /* 实际使用的超时秒数 */
     strbuf_t sb = {0};
     if (timed_out) {
-        /* 超时中断：告知客户端已完成数量，若第一条命令未完成则附带部分输出 */
-        if (ctx.completed == 0 && error_buf[0]) {
-            SB_LIT(&sb, "{\"type\":\"timeout\",\"completed\":0,\"total\":");
-            sb_appendf(&sb, "%d,\"partial\":", cmd_count);
-            sb_json_str(&sb, error_buf);
-            SB_LIT(&sb, "}");
-        } else {
-            sb_appendf(&sb, "{\"type\":\"timeout\",\"completed\":%d,\"total\":%d}",
-                       ctx.completed, cmd_count);
+        /* 超时中断：发送已完成数量、实际超时秒数、以及被中断命令的部分输出 */
+        sb_appendf(&sb, "{\"type\":\"timeout\",\"completed\":%d,\"total\":%d,\"timeout_sec\":%d",
+                   ctx.completed, cmd_count, timeout_sec);
+        if (partial_buf && partial_buf[0]) {
+            SB_LIT(&sb, ",\"partial\":");
+            sb_json_str(&sb, partial_buf);
         }
+        SB_LIT(&sb, "}");
     } else if (error_buf[0]) {
         SB_LIT(&sb, "{\"type\":\"error\",\"message\":");
         sb_json_str(&sb, error_buf);
@@ -485,6 +487,7 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
         sb_appendf(&sb, "{\"type\":\"done\",\"total\":%d}", cmd_count);
     }
     if (sb.data) { sse_write_json(client_fd, sb.data); free(sb.data); }
+    free(partial_buf);
 }
 
 /* ================================================================

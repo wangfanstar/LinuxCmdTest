@@ -647,10 +647,12 @@ void ssh_session_exec_stream(const char *host, int port,
                               ssh_stream_cb_t cb, void *ud,
                               char *error_buf, size_t error_buf_sz,
                               int idle_timeout_sec,
-                              int *out_timed_out)
+                              int *out_timed_out,
+                              char *out_partial_buf, size_t out_partial_sz)
 {
     error_buf[0] = '\0';
-    if (out_timed_out) *out_timed_out = 0;
+    if (out_timed_out)    *out_timed_out = 0;
+    if (out_partial_buf && out_partial_sz > 0) out_partial_buf[0] = '\0';
     int timed_out = 0;
 
     /* 输入校验 */
@@ -823,6 +825,17 @@ void ssh_session_exec_stream(const char *host, int port,
         if (sel == 0) {
             LOG_INFO("ssh_session_exec_stream: idle timeout (%ds), killing pid=%d",
                      idle_timeout_sec, (int)pid);
+            /* 保存被中断命令已采集到的部分输出 */
+            if (out_partial_buf && out_partial_sz > 0 && accum_len > 0) {
+                size_t cpy = accum_len < out_partial_sz - 1 ? accum_len : out_partial_sz - 1;
+                memcpy(out_partial_buf, accum, cpy);
+                out_partial_buf[cpy] = '\0';
+                /* 去末尾空白 */
+                while (cpy > 0 &&
+                       (out_partial_buf[cpy-1] == '\n' || out_partial_buf[cpy-1] == '\r' ||
+                        out_partial_buf[cpy-1] == ' '))
+                    out_partial_buf[--cpy] = '\0';
+            }
             kill(pid, SIGKILL);
             timed_out = 1;
             break;
@@ -898,8 +911,9 @@ void ssh_session_exec_stream(const char *host, int port,
         }
     }
 
-    /* 未找到任何边界 → SSH 连接/认证失败，读取剩余输出作为错误信息 */
-    if (cmd_idx == 0) {
+    /* 未找到任何边界 → SSH 连接/认证失败，读取剩余输出作为错误信息
+     * 超时中断时跳过（已在上方保存部分输出，且进程已被杀死无需再读） */
+    if (cmd_idx == 0 && !timed_out) {
         /* 排空管道（最多等 2 秒）以获取完整错误信息 */
         {
             char tmp2[4096];

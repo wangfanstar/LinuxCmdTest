@@ -993,6 +993,22 @@ hostname
 
 <script>
 /* ================================================================
+   通用工具
+   ================================================================ */
+/* 触发文件下载（兼容 Chrome / Firefox）：必须将 <a> 挂入 DOM 才能触发 */
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/* ================================================================
    命令列表管理
    ================================================================ */
 const cmdList = document.getElementById('cmd-list');
@@ -1181,11 +1197,7 @@ document.getElementById('btn-export-cmds').addEventListener('click', () => {
   const content = lines.join('\n') + '\n';
   const filename = `ssh-cmds-${host}-${Date.now()}.txt`;
   const blob     = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const a        = document.createElement('a');
-  a.href         = URL.createObjectURL(blob);
-  a.download     = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  triggerDownload(blob, filename);
   execStatus.textContent = `命令已导出: ${filename}（${items.length} 条）`;
   execStatus.style.color = 'var(--green)';
 });
@@ -1759,11 +1771,7 @@ function downloadReport() {
   if (!report.innerHTML) return;
   const filename = `cmd-report-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.html`;
   const blob = new Blob([buildReportHTML()], { type: 'text/html;charset=utf-8' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  triggerDownload(blob, filename);
 }
 
 /* ================================================================
@@ -1811,11 +1819,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
   const json     = JSON.stringify(cfg, null, 2);
   const filename = `ssh-config-${cfg.host || 'unnamed'}-${Date.now()}.json`;
   const blob     = new Blob([json], { type: 'application/json;charset=utf-8' });
-  const a        = document.createElement('a');
-  a.href         = URL.createObjectURL(blob);
-  a.download     = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  triggerDownload(blob, filename);
   execStatus.textContent = `配置已导出: ${filename}`;
   execStatus.style.color = 'var(--green)';
 });
@@ -1823,7 +1827,6 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
 /* 导入：读取 JSON 文件，填充表单并替换命令列表 */
 document.getElementById('cfg-import-input').addEventListener('change', function () {
   const file = this.files[0];
-  this.value = '';   // 立即重置，允许重复选同一文件
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
@@ -1858,6 +1861,7 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
     execStatus.style.color = 'var(--red)';
   };
   reader.readAsText(file, 'utf-8');
+  this.value = '';   // 重置输入，允许重复选同一文件（readAsText 已开始异步读取，此时清空输入安全）
 });
 
 /* ================================================================
@@ -1961,11 +1965,7 @@ function exportExpected() {
   const json     = JSON.stringify(payload, null, 2);
   const filename = `ssh-expected-${host}-${Date.now()}.json`;
   const blob     = new Blob([json], { type: 'application/json;charset=utf-8' });
-  const a        = document.createElement('a');
-  a.href         = URL.createObjectURL(blob);
-  a.download     = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  triggerDownload(blob, filename);
   execStatus.textContent = `预期结果已导出: ${filename}`;
   execStatus.style.color = 'var(--green)';
 }

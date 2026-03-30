@@ -150,6 +150,17 @@ aside {
   padding: 0;
 }
 .cmd-item .btn-del:hover { background: #3d0a0a; color: var(--red); }
+.btn-mode {
+  flex-shrink: 0;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 5px; border-radius: 3px;
+  cursor: pointer; font-family: monospace; border: 1px solid;
+  line-height: 1.6; transition: background .15s;
+}
+.btn-mode.net { background: #0d2644; color: #58a6ff; border-color: #58a6ff50; }
+.btn-mode.net:hover { background: #1a3a6e; }
+.btn-mode.sh  { background: #0d2a18; color: #3fb950; border-color: #3fb95050; }
+.btn-mode.sh:hover  { background: #1a4a28; }
 .btn-marker {
   flex-shrink: 0;
   width: 22px; height: 20px;
@@ -815,7 +826,7 @@ body.edit-mode .cmd-notes {
           <input id="f-pass" type="password" placeholder="••••••••">
         </div>
         <label class="toggle-wrap" title="适用于 Huawei VRP 等网络设备 CLI，使用交互式提示符检测替代 bash 脚本模式">
-          <input type="checkbox" id="f-net-device">
+          <input type="checkbox" id="f-net-device" checked>
           <span class="toggle-track"></span>
           网络设备模式
         </label>
@@ -1046,10 +1057,20 @@ function addCmd(value = '', marker = '', afterItem = null) {
   item.dataset.marker = marker;
   item.innerHTML =
     `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
+    `<button class="btn-mode net" title="网络设备模式 — 点击切换执行模式（影响全部命令）">NET</button>` +
     `<button class="btn-marker" title="点击切换匹配模式"></button>` +
     `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
     `<button class="btn-insert" title="在此处下方插入命令">+</button>` +
     `<button class="btn-del" title="删除">×</button>`;
+
+  /* 模式徽标：点击后切换全局执行模式并同步所有按钮 */
+  const modeBtn = item.querySelector('.btn-mode');
+  modeBtn.addEventListener('click', () => {
+    const chk = document.getElementById('f-net-device');
+    chk.checked = !chk.checked;
+    applyAllModeBtns();
+  });
+  applyModeBtnState(modeBtn);   /* 与当前全局状态同步 */
 
   const markerBtn = item.querySelector('.btn-marker');
   applyMarker(item, markerBtn, marker);
@@ -1126,6 +1147,23 @@ function addCmd(value = '', marker = '', afterItem = null) {
   });
 
   return item;
+}
+
+/* 同步单个模式按钮到当前全局设置 */
+function applyModeBtnState(btn) {
+  const isNet = document.getElementById('f-net-device').checked;
+  if (isNet) {
+    btn.textContent = 'NET'; btn.className = 'btn-mode net';
+    btn.title = '网络设备模式 — 点击切换为 Linux/bash 模式（影响全部命令）';
+  } else {
+    btn.textContent = 'SH';  btn.className = 'btn-mode sh';
+    btn.title = 'Linux/bash 模式 — 点击切换为网络设备模式（影响全部命令）';
+  }
+}
+
+/* 同步所有命令行的模式按钮 */
+function applyAllModeBtns() {
+  document.querySelectorAll('#cmd-list .btn-mode').forEach(applyModeBtnState);
 }
 
 function applyMarker(item, btn, marker) {
@@ -2213,6 +2251,9 @@ function flash(el, msg) {
     panel    = document.getElementById('rt-panel');
     rtBody   = document.getElementById('rt-body');
     rtTogBtn = document.getElementById('btn-rt-panel');
+
+    /* 网络设备模式切换 → 同步所有命令行徽标 */
+    document.getElementById('f-net-device').addEventListener('change', applyAllModeBtns);
 
     /* 默认展开实时面板 */
     panel.classList.remove('rt-hidden');

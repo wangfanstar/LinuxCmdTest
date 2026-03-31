@@ -759,11 +759,13 @@ void ssh_session_exec_stream(const char *host, int port,
                               char *error_buf, size_t error_buf_sz,
                               int idle_timeout_sec,
                               int *out_timed_out,
+                              int *out_timeout_cmd_idx,
                               char *out_partial_buf, size_t out_partial_sz,
                               int net_device_mode)
 {
     error_buf[0] = '\0';
     if (out_timed_out)    *out_timed_out = 0;
+    if (out_timeout_cmd_idx) *out_timeout_cmd_idx = -1;
     if (out_partial_buf && out_partial_sz > 0) out_partial_buf[0] = '\0';
     int timed_out = 0;
 
@@ -1042,7 +1044,11 @@ void ssh_session_exec_stream(const char *host, int port,
                 if (sel > 0) {
                     ssize_t nr = read(out_pipe[0], accum + cmd_len,
                                       SSH_OUTPUT_MAX - 1 - cmd_len);
-                    if (nr <= 0) { timed_out = 1; break; }   /* EOF */
+                    if (nr <= 0) {
+                        timed_out = 1;
+                        if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                        break;
+                    }   /* EOF */
                     cmd_len += (size_t)nr;
                     t_last = time(NULL);
                 } else {
@@ -1111,6 +1117,7 @@ net_done:
             }
             kill(pid, SIGKILL);
             timed_out = 1;
+            if (out_timeout_cmd_idx) *out_timeout_cmd_idx = cmd_idx;
             break;
         }
         if (sel < 0) break;

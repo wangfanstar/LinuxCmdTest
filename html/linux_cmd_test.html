@@ -1621,7 +1621,7 @@ async function doExec() {
   let   sseBuf  = '';
 
   try {
-    while (true) {
+    sseRead: while (true) {
       await waitWhilePaused();
       const { done, value } = await reader.read();
       if (done) break;
@@ -1666,18 +1666,23 @@ async function doExec() {
           return;
 
         } else if (ev.type === 'timeout') {
-          const completedIdx = ev.completed != null ? ev.completed : 0;
+          const nResults = ev.completed != null ? ev.completed : 0;
           const timeoutSec = ev.timeout_sec != null ? ev.timeout_sec
             : (parseInt(document.getElementById('f-timeout').value) || 300);
-          streamTimeout = { completed: completedIdx, total: commands.length,
+          /* 服务端 i：被中断命令的 0-based 下标；completed 为已推送的 result 条数 */
+          let timeoutIdx = (ev.i !== undefined && ev.i !== null) ? ev.i : -1;
+          if (timeoutIdx < 0 || timeoutIdx >= commands.length) {
+            timeoutIdx = Math.min(commands.length - 1, Math.max(0, nResults));
+          }
+          streamTimeout = { completed: nResults, total: commands.length,
             partial: ev.partial != null ? ev.partial : null, timeoutSec };
           /* 超时命令：显示截断输出 + 超时时长 */
-          if (completedIdx < commands.length) {
-            markBlockTimeout(completedIdx, streamTimeout.partial, timeoutSec);
-            if (window.rtMarkSkipped) rtMarkSkipped(completedIdx);
+          if (timeoutIdx < commands.length) {
+            markBlockTimeout(timeoutIdx, streamTimeout.partial, timeoutSec);
+            if (window.rtMarkSkipped) rtMarkSkipped(timeoutIdx);
           }
           /* 后续命令：标跳过 */
-          for (let j = completedIdx + 1; j < commands.length; j++) {
+          for (let j = timeoutIdx + 1; j < commands.length; j++) {
             markBlockSkipped(j);
             if (window.rtMarkSkipped) rtMarkSkipped(j);
           }
@@ -1689,9 +1694,9 @@ async function doExec() {
             summaryEl.innerHTML =
               (okN > 0 ? `<span class="badge-ok">✓ ${okN} 成功</span> ` : '') +
               (doneN - okN > 0 ? `<span class="badge-err">✗ ${doneN - okN} 失败</span> ` : '') +
-              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${completedIdx + 1}/${commands.length} 条，空闲 ${timeoutSec}s）</span>`;
+              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${timeoutIdx + 1}/${commands.length} 条，空闲 ${timeoutSec}s）</span>`;
           }
-          break;  /* 超时后退出读取循环 */
+          break sseRead;  /* 跳出外层 read，立即结束「执行中」勿等连接关闭 */
 
         } else if (ev.type === 'done') {
           /* 补全未收到结果的命令块（容错） */

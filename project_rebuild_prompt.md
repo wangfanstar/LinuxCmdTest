@@ -406,7 +406,11 @@ void ssh_session_exec_stream(const char *host, int port,
                              char **commands, int cmd_count,
                              ssh_stream_cb_t cb, void *ud,
                              char *error_buf, size_t error_buf_sz,
-                             int idle_timeout_sec);
+                             int idle_timeout_sec,
+                             int *out_timed_out,
+                             int *out_timeout_cmd_idx,
+                             char *out_partial_buf, size_t out_partial_sz,
+                             int net_device_mode);
 
 /* 取消当前正在执行的 SSH 会话（发送 SIGKILL） */
 void ssh_cancel_current(void);
@@ -725,6 +729,12 @@ data: {"type":"result","i":<idx>,"cmd":"...","exit_code":<n>,"output":"..."}\n\n
 ```
 data: {"type":"done","total":<n>}\n\n
 ```
+空闲超时中断（含 PTY/网络设备逐条模式）：
+```
+data: {"type":"timeout","completed":<已推送 result 条数>,"total":<n>,"timeout_sec":<秒>,"i":<被中断命令 0-based 下标>,"partial":"..."}\n\n
+```
+（`partial` 可选；`i` 由 `ssh_session_exec_stream` 的 `out_timeout_cmd_idx` 填入。）
+
 若出错：
 ```
 data: {"type":"error","msg":"..."}\n\n
@@ -982,6 +992,7 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.5 | linux_cmd_test.html：执行区增加暂停/恢复（SSE 消费门闩）；帮助文案同步 |
 | 2026-03-30 | v1.6 | linux_cmd_test「存档」：默认文件名用 /api/client-info 客户端 IP；预览与成功链接用 location.host（服务器） |
 | 2026-03-30 | v1.7 | reports.html + GET /api/reports 浏览存档；index 与 linux_cmd_test 入口 |
+| 2026-03-30 | v1.8 | PTY 流式空闲超时：`ssh_session_exec_stream` 增加 `out_timeout_cmd_idx`，SSE `timeout` 事件带 `i`；`linux_cmd_test.html` 收到 `timeout` 时用标签跳出 SSE 读循环，立即取消「执行中」 |
 
 ---
 

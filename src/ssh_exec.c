@@ -12,8 +12,6 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <pthread.h>
-#include <sys/ioctl.h>
-
 /* ------------------------------------------------------------------ */
 /*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
 /* ------------------------------------------------------------------ */
@@ -789,7 +787,6 @@ void ssh_session_exec_stream(const char *host, int port,
     char  *script = NULL;
     char   userhost[320] = {0}, port_str[8] = {0};
     int    out_pipe[2] = {-1,-1}, in_pipe[2] = {-1,-1};
-    int    pty_master = -1, pty_slave = -1;   /* PTY 模式专用 */
     pid_t  pid = (pid_t)-1;
     char   boundary[24] = {0};
     size_t blen = 0;
@@ -843,25 +840,6 @@ void ssh_session_exec_stream(const char *host, int port,
         goto cleanup;
     }
 
-    /* PTY 模式：创建客户端伪终端对，让 ssh -t 看到真实本地 tty，
-     * 从而正确向服务器请求 PTY 分配（否则 setsid 后无控制终端，
-     * ssh -t 会静默降级，导致服务端 bash 仍无 tty 警告）。 */
-    if (net_device_mode == 2) {
-        pty_master = posix_openpt(O_RDWR | O_NOCTTY);
-        if (pty_master >= 0) {
-            if (grantpt(pty_master) < 0 || unlockpt(pty_master) < 0) {
-                close(pty_master);
-                pty_master = -1;
-            } else {
-                char *sname = ptsname(pty_master);
-                if (sname) pty_slave = open(sname, O_RDWR | O_NOCTTY);
-                if (pty_slave < 0) { close(pty_master); pty_master = -1; }
-            }
-        }
-        if (pty_master < 0)
-            LOG_INFO("ssh_session_exec_stream: PTY pair creation failed, falling back to pipe");
-    }
-
     pid = fork();
     if (pid < 0) {
         snprintf(error_buf, error_buf_sz, "fork() 失败: %s", strerror(errno));
@@ -878,20 +856,10 @@ void ssh_session_exec_stream(const char *host, int port,
         dup2(out_pipe[1], STDERR_FILENO);
         close(out_pipe[1]);
 
-        if (net_device_mode == 2 && pty_slave >= 0) {
-            /* PTY 模式：使用 PTY slave 作为 stdin，使 ssh -t 看到真实终端 */
-            close(in_pipe[0]); close(in_pipe[1]);
-            dup2(pty_slave, STDIN_FILENO);
-            close(pty_slave);
-            if (pty_master >= 0) close(pty_master);
-            setsid();
-            ioctl(STDIN_FILENO, TIOCSCTTY, 0);   /* 设为进程的控制终端 */
-        } else {
-            close(in_pipe[1]);
-            dup2(in_pipe[0], STDIN_FILENO);
-            close(in_pipe[0]);
-            setsid();
-        }
+        close(in_pipe[1]);
+        dup2(in_pipe[0], STDIN_FILENO);
+        close(in_pipe[0]);
+        setsid();
 
         char env_askpass[300], env_display[32], env_require[32], env_home[256];
         snprintf(env_askpass, sizeof(env_askpass), "SSH_ASKPASS=%s", askpass_file);
@@ -900,9 +868,16 @@ void ssh_session_exec_stream(const char *host, int port,
         const char *home = getenv("HOME");
         snprintf(env_home, sizeof(env_home), "HOME=%s", home ? home : "/tmp");
 
-        char *envp[] = { env_askpass, env_display, env_require, env_home,
+        /* askpass 环境：用于 Linux/NET 模式的 SSH 密码认证 */
+        char *envp_askpass[] = { env_askpass, env_display, env_require, env_home,
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             NULL };
+        /* PTY 模式不使用 askpass（sshpass 直接处理密码），去掉 SSH_ASKPASS_REQUIRE=force
+         * 以免 SSH 跳过 sshpass 的 PTY 密码拦截流程 */
+        char *envp_pty[] = { env_home,
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            NULL };
+
         /* 网络设备模式：不指定远端命令，直接打开交互式 shell；
          * Linux 模式：指定 "bash -s"，通过 stdin 管道输入脚本。   */
         char *argv_linux[] = {
@@ -943,9 +918,12 @@ void ssh_session_exec_stream(const char *host, int port,
             userhost,
             NULL
         };
-        /* PTY 模式（分配伪终端）：适用于 Linux 命令执行后进入自定义交互式 CLI 的场景
-         * （如执行某脚本后进入 <GT> 视图），需要 TTY 才能正常运行。 */
+        /* PTY 模式：通过 sshpass 提供密码，ssh -t 请求服务端 PTY。
+         * sshpass 内部为 SSH 创建 PTY 对，使 SSH 客户端看到真实 tty，
+         * 从而能正确向服务器申请 PTY 分配。密码直接从临时文件读取，
+         * 无需 SSH_ASKPASS 机制。stdin 管道用于后续逐条发命令。 */
         char *argv_netdev_pty[] = {
+            "sshpass", "-f", pass_file,
             "ssh",
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout=15",
@@ -958,30 +936,23 @@ void ssh_session_exec_stream(const char *host, int port,
             "-o", "LogLevel=ERROR",
             "-o", "ServerAliveInterval=10",
             "-o", "ServerAliveCountMax=6",
-            "-t",          /* 请求服务端 PTY（客户端已有本地 PTY slave 作为 stdin） */
+            "-t",          /* 请求服务端 PTY；sshpass 为 SSH 提供真实本地 tty */
             "-p", port_str,
             userhost,
             NULL
         };
-        char **argv_sel = (net_device_mode == 2) ? argv_netdev_pty :
-                          (net_device_mode == 1) ? argv_netdev :
-                          argv_linux;
-        execvpe("ssh", argv_sel, envp);
+        if (net_device_mode == 2) {
+            execvpe("sshpass", argv_netdev_pty, envp_pty);
+        } else {
+            char **argv_sel = (net_device_mode == 1) ? argv_netdev : argv_linux;
+            execvpe("ssh", argv_sel, envp_askpass);
+        }
         _exit(127);
     }
 
     /* ── 父进程 ── */
     close(out_pipe[1]);
-    if (net_device_mode == 2 && pty_master >= 0) {
-        /* PTY 模式：用 PTY master 写命令；关闭已转给子进程的 slave 和原始管道 */
-        close(in_pipe[0]); close(in_pipe[1]);
-        if (pty_slave >= 0) { close(pty_slave); pty_slave = -1; }
-        in_pipe[0] = -1;
-        in_pipe[1] = pty_master;   /* 复用 in_pipe[1] 变量，统一写命令接口 */
-        pty_master = -1;
-    } else {
-        close(in_pipe[0]);
-    }
+    close(in_pipe[0]);
     session_pid_set(pid);
 
     if (!net_device_mode) {
@@ -1272,8 +1243,6 @@ stream_drain:
 
 cleanup:
     free(script);
-    if (pty_master >= 0) { close(pty_master); pty_master = -1; }
-    if (pty_slave  >= 0) { close(pty_slave);  pty_slave  = -1; }
     if (has_pass_file)  unlink(pass_file);
     if (has_askpass)    unlink(askpass_file);
 }

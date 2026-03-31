@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>已存档报告</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;padding:24px 20px 40px}
+header{max-width:960px;margin:0 auto 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:1.1rem;font-weight:600;color:#f0f6fc}
+.back-link{font-size:.75rem;color:#8b949e;text-decoration:none;border:1px solid #30363d;border-radius:6px;padding:5px 12px}
+.back-link:hover{color:#58a6ff;border-color:#58a6ff}
+#status{font-size:.72rem;color:#8b949e;margin-left:auto}
+#status.err{color:#f85149}
+#status.ok{color:#3fb950}
+main{max-width:960px;margin:0 auto}
+.btn-refresh{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:.75rem;padding:5px 12px;cursor:pointer;margin-left:8px}
+.btn-refresh:hover{border-color:#58a6ff;color:#58a6ff}
+.month-block{background:#161b22;border:1px solid #21262d;border-radius:10px;margin-bottom:16px;overflow:hidden}
+.month-hd{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:#58a6ff;font-weight:600;padding:12px 16px;background:#1c2128;border-bottom:1px solid #21262d}
+.file-list{list-style:none}
+.file-list li{border-bottom:1px solid #21262d}
+.file-list li:last-child{border-bottom:none}
+.file-list a{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;color:#c9d1d9;font-size:.82rem;transition:background .12s}
+.file-list a:hover{background:#21262d;color:#58a6ff}
+.fname{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;word-break:break-all}
+.fmeta{font-size:.68rem;color:#8b949e;white-space:nowrap;flex-shrink:0}
+.empty{padding:40px 20px;text-align:center;color:#8b949e;font-size:.88rem}
+.empty code{color:#58a6ff;font-size:.75rem}
+</style>
+</head>
+<body>
+<header>
+  <a class="back-link" href="/index.html">← 返回首页</a>
+  <h1>已存档 HTML 报告</h1>
+  <button type="button" class="btn-refresh" id="btn-refresh" title="重新加载列表">↻ 刷新</button>
+  <span id="status"></span>
+</header>
+<main id="main">
+  <div class="empty" id="loading">正在加载…</div>
+</main>
+<script>
+function fmtSize(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString('zh-CN', { hour12: false });
+}
+function esc(s) {
+  const t = document.createElement('div');
+  t.textContent = s;
+  return t.innerHTML;
+}
+async function loadReports() {
+  const main = document.getElementById('main');
+  const st = document.getElementById('status');
+  st.textContent = '';
+  st.className = '';
+  main.innerHTML = '<div class="empty" id="loading">正在加载…</div>';
+  try {
+    const resp = await fetch('/api/reports');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const months = data.months || [];
+    if (!months.length) {
+      main.innerHTML = '<div class="empty">暂无存档报告。<br><br>在 <a href="/linux_cmd_test.html" style="color:#58a6ff">Linux 命令行测试</a> 执行后使用「💾 存档」保存到 <code>html/report/年月/</code></div>';
+      st.textContent = '0 个月份';
+      st.className = 'ok';
+      return;
+    }
+    let n = 0;
+    let html = '';
+    for (const m of months) {
+      const ym = m.ym || '';
+      const files = m.files || [];
+      if (!files.length) continue;
+      n += files.length;
+      html += '<section class="month-block"><div class="month-hd">' + esc(ym) + ' · ' + files.length + ' 个文件</div><ul class="file-list">';
+      for (const f of files) {
+        const name = f.name || '';
+        const href = '/report/' + encodeURIComponent(ym) + '/' + encodeURIComponent(name);
+        html += '<li><a target="_blank" rel="noopener" href="' + href + '">' +
+          '<span class="fname">' + esc(name) + '</span>' +
+          '<span class="fmeta">' + fmtSize(f.size || 0) + ' · ' + fmtTime(f.mtime) + '</span></a></li>';
+      }
+      html += '</ul></section>';
+    }
+    if (!html) {
+      main.innerHTML = '<div class="empty">暂无 .html 报告文件。</div>';
+    } else {
+      main.innerHTML = html;
+    }
+    st.textContent = months.length + ' 个目录 · ' + n + ' 个报告';
+    st.className = 'ok';
+  } catch (e) {
+    main.innerHTML = '<div class="empty err">加载失败：' + esc(e.message || String(e)) + '</div>';
+    st.textContent = '加载失败';
+    st.className = 'err';
+  }
+}
+document.getElementById('btn-refresh').addEventListener('click', loadReports);
+loadReports();
+</script>
+</body>
+</html>

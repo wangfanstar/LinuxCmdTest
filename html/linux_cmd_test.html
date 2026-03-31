@@ -341,16 +341,37 @@ main {
   flex-direction: column;
 }
 .report-toolbar {
-  height: 44px;
+  min-height: 44px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
   gap: 8px;
   flex-shrink: 0;
 }
-.report-toolbar-title { font-size: 13px; color: var(--dim); flex: 1; }
+.report-toolbar-title { font-size: 13px; color: var(--dim); flex: 1; min-width: 120px; }
+#btn-archive { white-space: nowrap; }
+.report-toolbar a.btn-reports-hub {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--dim);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.report-toolbar a.btn-reports-hub:hover {
+  border-color: #bc8cff;
+  color: #bc8cff;
+  background: #2d1f6e22;
+}
 #btn-edit.active { background: #1f3a6e; border-color: var(--accent); color: var(--accent); }
 
 .report-body {
@@ -727,6 +748,135 @@ body.edit-mode .cmd-output { cursor: text; }
   margin: 10px 0;
 }
 
+/* ── 存档确认弹窗 ── */
+#archive-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 210;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#archive-overlay.show { display: flex; }
+#archive-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: min(520px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.archive-dlg-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.archive-dlg-header h3 { font-size: 15px; color: #f0f6fc; flex: 1; font-weight: 600; }
+.archive-dlg-body { padding: 18px 20px 20px; overflow-y: auto; }
+.archive-dlg-body label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+#archive-modal-filename {
+  width: 100%;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 12px;
+}
+#archive-modal-filename:focus { outline: none; border-color: var(--accent); }
+.archive-dlg-hint {
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.archive-dlg-hint code { font-size: 11px; color: var(--accent); }
+.archive-url-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+.archive-url-label {
+  font-size: 11px;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+#archive-url-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+#archive-url-link:hover { text-decoration: underline; }
+.archive-url-note {
+  font-size: 11px;
+  color: #6e7681;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+#archive-error {
+  display: none;
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #3d0a0a22;
+  border-radius: 6px;
+  border: 1px solid #f8514940;
+}
+#archive-error.show { display: block; }
+.archive-dlg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.archive-dlg-actions button {
+  padding: 7px 16px;
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+.archive-dlg-actions button:hover { border-color: var(--accent); color: var(--accent); }
+#archive-confirm {
+  background: #1a5e2e;
+  border-color: #2ea043;
+  color: #fff;
+}
+#archive-confirm:hover:not(:disabled) { background: #236c36; color: #fff; border-color: #3fb950; }
+#archive-confirm:disabled { opacity: .5; cursor: not-allowed; }
+#archive-result { text-align: left; }
+#archive-result .archive-ok { font-size: 14px; color: var(--green); margin-bottom: 10px; font-weight: 600; }
+#archive-result-link {
+  display: block;
+  font-size: 12px;
+  color: var(--accent);
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+#archive-done { margin-top: 4px; }
+
 /* ── 实时面板 ── */
 #rt-panel {
   background: #161b22; border-top: 2px solid #30363d;
@@ -915,6 +1065,9 @@ body.edit-mode .cmd-output { cursor: text; }
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
       <button id="btn-preview" title="预览 HTML 报告">👁 预览</button>
       <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
+      <a class="btn-reports-hub" href="/reports.html" target="_blank" rel="noopener"
+        title="打开已存档报告列表（html/report/年月/）">📂 报告库</a>
+      <button id="btn-archive" title="弹出确认框并保存到服务器 html/report/当前年月/">💾 存档</button>
     </div>
     <div id="expected-bar">
       <span>⚑ 预期结果已加载</span>
@@ -968,7 +1121,8 @@ body.edit-mode .cmd-output { cursor: text; }
         <li>点击 <strong>▶ 执行</strong> 后命令逐条流式执行；可用 <strong>暂停 / 恢复</strong> 控制是否继续接收结果（不中断远端已发起的命令）</li>
         <li>右侧报告区展示每条命令的输出和退出码，可折叠查看</li>
         <li>每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
-        <li>点击「<strong>↓ 下载</strong>」将报告保存为独立 HTML 文件</li>
+        <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名中的 IP 为 <code>/api/client-info</code> 的<strong>客户端 IP</strong>；预览与存档成功后的<strong>访问链接</strong>为地址栏中的<strong>Web 服务器</strong>（如 <code>服务器IP:8881/report/…</code>）；与 SSH 目标无关；确认后写入 <code>html/report/年月/</code></li>
+        <li>「<strong>📂 报告库</strong>」打开 <code>reports.html</code>，按月份浏览已存档的 HTML 报告</li>
       </ol>
 
       <h3>命令匹配标记</h3>
@@ -1034,6 +1188,41 @@ hostname
         <li>输出内容上限为 512 KB / 条，超出部分截断</li>
       </ul>
 
+    </div>
+  </div>
+</div>
+
+<!-- 存档确认 -->
+<div id="archive-overlay">
+  <div id="archive-dialog">
+    <div class="archive-dlg-header">
+      <h3>确认存档报告</h3>
+      <button type="button" class="btn-close" id="archive-close-x" title="关闭">×</button>
+    </div>
+    <div class="archive-dlg-body">
+      <div id="archive-form">
+        <p id="archive-error"></p>
+        <label for="archive-modal-filename">文件名</label>
+        <input type="text" id="archive-modal-filename" autocomplete="off" spellcheck="false">
+        <p class="archive-dlg-hint">将保存到服务器目录 <code>html/report/<span id="archive-ym-hint">—</span>/</code>（月文件夹以<strong>服务器</strong>本地时间为准；下方链接中的年月按<strong>浏览器本机日历</strong>预览，跨天/时区时可能与实际目录差一月）。</p>
+        <p class="archive-dlg-hint" style="margin-top:8px">默认文件名中的 IP/主机段来自<strong>您的客户端</strong> <code id="archive-client-ip-hint">—</code>（<code>GET /api/client-info</code>，TCP 对端）。</p>
+        <div class="archive-url-label">预览与存档成功后的<strong>访问链接</strong>使用 <strong>Web 服务器</strong>（与地址栏一致）<code id="archive-origin-hint"></code>：</div>
+        <div class="archive-url-block">
+          <a id="archive-url-link" href="#" target="_blank" rel="noopener"></a>
+        </div>
+        <p class="archive-url-note">示例：<code>http://10.150.72.102:8881/report/202603/文件名.html</code> — 主机与端口随当前页 URL。</p>
+        <div class="archive-dlg-actions">
+          <button type="button" id="archive-cancel">取消</button>
+          <button type="button" id="archive-confirm">确认存档</button>
+        </div>
+      </div>
+      <div id="archive-result" style="display:none">
+        <p class="archive-ok">存档成功</p>
+        <a id="archive-result-link" href="#" target="_blank" rel="noopener"></a>
+        <div class="archive-dlg-actions">
+          <button type="button" id="archive-done">关闭</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1820,6 +2009,155 @@ function copyOutput(idx) {
 }
 
 document.getElementById('btn-download').addEventListener('click', downloadReport);
+
+function archiveReportTimestamp() {
+  const d = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}` +
+    `${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+}
+
+/* 服务端 GET /api/client-info 返回的 TCP 对端 IPv4（浏览器所在机），避免地址栏为 Web 服务器 IP 时误用 */
+let _archivePeerIp = null;
+
+async function refreshArchivePeerIp() {
+  try {
+    const r = await fetch('/api/client-info');
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && typeof j.ip === 'string' && j.ip.length)
+      _archivePeerIp = j.ip;
+  } catch (_) { /* ignore */ }
+}
+
+function archivePeerHostForFilename() {
+  const h = (_archivePeerIp || location.hostname || '').trim();
+  return h || 'unknown';
+}
+
+function defaultArchiveFilename() {
+  const ts = archiveReportTimestamp();
+  const host = archivePeerHostForFilename();
+  const safe = s => String(s).replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_');
+  const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+  const ipSeg = ipv4 ? host.replace(/\./g, '_') : 'na';
+  const hostSeg = ipv4 ? 'page' : safe(host.split('.')[0] || host);
+  return `${ts}_${ipSeg}_${hostSeg}.html`;
+}
+
+/* 预览 / 成功链接：始终用地址栏中的 Web 服务器（如 10.150.72.102:8881），不用客户端 IP */
+function reportOriginBase() {
+  return `${location.protocol}//${location.host}`;
+}
+
+function archiveYmClient() {
+  const d = new Date();
+  return String(d.getFullYear()) + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function normalizeArchiveFilename(raw) {
+  let fn = (raw || '').trim();
+  if (!fn) fn = defaultArchiveFilename();
+  if (!/\.html?$/i.test(fn)) fn += '.html';
+  return fn;
+}
+
+function predictedArchiveUrl(fn) {
+  const ym = archiveYmClient();
+  return `${reportOriginBase()}/report/${ym}/${encodeURIComponent(fn)}`;
+}
+
+function updateArchiveUrlPreview() {
+  const fn = normalizeArchiveFilename(document.getElementById('archive-modal-filename').value);
+  const url = predictedArchiveUrl(fn);
+  const a = document.getElementById('archive-url-link');
+  a.href = url;
+  a.textContent = url;
+}
+
+async function openArchiveModal() {
+  const btn = document.getElementById('btn-archive');
+  if (!report.innerHTML) {
+    flash(btn, '无报告内容');
+    return;
+  }
+  await refreshArchivePeerIp();
+  const ov = document.getElementById('archive-overlay');
+  const form = document.getElementById('archive-form');
+  const res = document.getElementById('archive-result');
+  const err = document.getElementById('archive-error');
+  const inp = document.getElementById('archive-modal-filename');
+  err.textContent = '';
+  err.classList.remove('show');
+  form.style.display = '';
+  res.style.display = 'none';
+  inp.value = defaultArchiveFilename();
+  document.getElementById('archive-ym-hint').textContent = archiveYmClient();
+  document.getElementById('archive-client-ip-hint').textContent =
+    _archivePeerIp || (location.hostname + '（未取到对端，文件名已回退）');
+  document.getElementById('archive-origin-hint').textContent = location.host;
+  updateArchiveUrlPreview();
+  ov.classList.add('show');
+  inp.focus();
+  inp.select();
+}
+
+function closeArchiveModal() {
+  document.getElementById('archive-overlay').classList.remove('show');
+}
+
+document.getElementById('btn-archive').addEventListener('click', () => { openArchiveModal(); });
+refreshArchivePeerIp();
+document.getElementById('archive-modal-filename').addEventListener('input', updateArchiveUrlPreview);
+document.getElementById('archive-cancel').addEventListener('click', closeArchiveModal);
+document.getElementById('archive-close-x').addEventListener('click', closeArchiveModal);
+document.getElementById('archive-done').addEventListener('click', closeArchiveModal);
+document.getElementById('archive-overlay').addEventListener('click', e => {
+  if (e.target.id === 'archive-overlay') closeArchiveModal();
+});
+
+document.getElementById('archive-confirm').addEventListener('click', async () => {
+  const inp = document.getElementById('archive-modal-filename');
+  const fn = normalizeArchiveFilename(inp.value);
+  inp.value = fn;
+  const errEl = document.getElementById('archive-error');
+  errEl.textContent = '';
+  errEl.classList.remove('show');
+
+  const encFn = encodeURIComponent(fn);
+  const html = buildReportHTML();
+  const btn = document.getElementById('archive-confirm');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/save-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Report-Filename': encFn
+      },
+      body: html
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (_) { /* ignore */ }
+    if (resp.ok && data && data.ok) {
+      document.getElementById('archive-form').style.display = 'none';
+      document.getElementById('archive-result').style.display = 'block';
+      const rel = (data.path || `report/${archiveYmClient()}/${fn}`).replace(/^\/+/, '');
+      const full = `${reportOriginBase()}/${rel}`;
+      const rl = document.getElementById('archive-result-link');
+      rl.href = full;
+      rl.textContent = full;
+    } else {
+      const msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+      errEl.textContent = '存档失败：' + msg;
+      errEl.classList.add('show');
+    }
+  } catch (e) {
+    errEl.textContent = '存档失败：' + (e.message || String(e));
+    errEl.classList.add('show');
+  }
+  btn.disabled = false;
+});
 
 function buildCmdsTxt() {
   return getCommandsWithMarkers()

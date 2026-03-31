@@ -78,6 +78,8 @@ header h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;color:#58a6ff}
 .search-result-table tr:not(:last-child) td{border-bottom:1px solid #21262d}
 .search-result-table td.td-core{color:#58a6ff;font-weight:600;width:60px}
 .search-result-table td.td-pct{text-align:right;font-weight:700;width:80px}
+.search-result-table td.td-ports{font-family:monospace;font-size:.68rem;color:#d29922;max-width:140px;
+  word-break:break-all;vertical-align:middle}
 .search-empty{text-align:center;color:#8b949e;padding:16px 0;font-size:.78rem}
 .search-hit td{background:rgba(88,166,255,.04)}
 .toggle-wrap{display:flex;align-items:center;gap:6px;font-size:.68rem;color:#8b949e;cursor:pointer;white-space:nowrap;user-select:none}
@@ -255,9 +257,9 @@ canvas{display:block;width:100%}
     <table class="search-result-table" id="search-table">
       <thead><tr>
         <th style="width:32px;text-align:center"><input type="checkbox" id="chk-all" class="kill-chk"></th>
-        <th>PID</th><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th><th>TCP 状态</th><th>操作</th>
+        <th>PID</th><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th><th>占用端口</th><th>TCP 状态</th><th>操作</th>
       </tr></thead>
-      <tbody id="search-body"><tr><td colspan="8" class="search-empty">等待数据...</td></tr></tbody>
+      <tbody id="search-body"><tr><td colspan="9" class="search-empty">等待数据...</td></tr></tbody>
     </table>
     <div class="kill-bar" id="kill-bar">
       <span class="kill-bar-info" id="kill-sel-info">已选 0 个进程</span>
@@ -514,6 +516,12 @@ function fmtTcpStateCell(st){
   return '<span class="'+cls+'">'+esc(st)+'</span>';
 }
 
+function fmtPortsCell(ports){
+  if(ports == null || String(ports).trim() === '')
+    return '<span style="color:#484f58">—</span>';
+  return '<span title="'+esc(String(ports))+'">'+esc(String(ports))+'</span>';
+}
+
 function runSearch(){
   const qName = document.getElementById('q-name').value.trim();
   const qUser = document.getElementById('q-user').value.trim();
@@ -529,18 +537,18 @@ function runSearch(){
     _searchTimer = setTimeout(async ()=>{
       if(!portVal || portVal < 1 || portVal > 65535){
         hint.textContent = '已开启「按端口过滤」：请在「端口筛选」中填写有效端口号（1–65535）';
-        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请输入端口号</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="search-empty">请输入端口号</td></tr>';
         updateKillBar();
         return;
       }
       hint.textContent = '正在查询端口 '+portVal+'…';
-      tbody.innerHTML = '<tr><td colspan="8" class="search-empty">查询中…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="search-empty">查询中…</td></tr>';
       try {
         const resp = await fetch('/api/port?port='+portVal);
         const data = await resp.json();
         if(data.error){
           hint.textContent = '端口查询失败: '+data.error;
-          tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" class="search-empty">请求失败</td></tr>';
           updateKillBar();
           return;
         }
@@ -551,7 +559,8 @@ function runSearch(){
           user: p.user || '',
           pct:  typeof p.p === 'number' ? p.p : 0,
           pid:  p.pid,
-          state: p.state || ''
+          state: p.state || '',
+          ports: (p.ports != null && p.ports !== '') ? String(p.ports) : String(portVal)
         }));
         if(!inclZero) rows = rows.filter(r=>r.pct >= 0.05);
         if(qName){
@@ -574,7 +583,7 @@ function runSearch(){
         renderSearchRows(rows, tbody);
       } catch(e){
         hint.textContent = '端口查询失败: '+e.message;
-        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="search-empty">请求失败</td></tr>';
         updateKillBar();
       }
     }, 300);
@@ -588,13 +597,14 @@ function runSearch(){
     _searchTimer = setTimeout(async ()=>{
       const q = encodeURIComponent(qName || qUser);
       hint.textContent = '搜索中…';
-      tbody.innerHTML = '<tr><td colspan="8" class="search-empty">搜索中…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="search-empty">搜索中…</td></tr>';
       try {
-        const resp = await fetch('/api/procs?q='+q);
+        const resp = await fetch('/api/procs?q='+q+'&ports=1');
         const data = await resp.json();
         const inclZero = document.getElementById('chk-zero-cpu').checked;
         let rows = (data.procs||[]).map(p=>({
-          core: p.c, name: p.n, user: p.u, pct: p.p, pid: p.i
+          core: p.c, name: p.n, user: p.u, pct: p.p, pid: p.i,
+          ports: (p.ports && String(p.ports).trim()) ? String(p.ports) : ''
         }));
         /* 默认过滤掉 0% CPU 进程 */
         if(!inclZero) rows = rows.filter(r=>r.pct >= 0.05);
@@ -616,7 +626,7 @@ function runSearch(){
         renderSearchRows(rows, tbody);
       } catch(e){
         hint.textContent = '搜索失败: '+e.message;
-        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="search-empty">请求失败</td></tr>';
       }
     }, 300);
     return;
@@ -639,7 +649,7 @@ function runSearch(){
 
 function renderSearchRows(rows, tbody){
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="8" class="search-empty">无匹配结果</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" class="search-empty">无匹配结果</td></tr>';
     updateKillBar();
     return;
   }
@@ -651,6 +661,7 @@ function renderSearchRows(rows, tbody){
       <td><span class="pname">${esc(r.name)}</span></td>
       <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
       <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>
+      <td class="td-ports">${fmtPortsCell(r.ports)}</td>
       <td class="td-tcp" style="text-align:center;white-space:nowrap;font-size:.68rem">${fmtTcpStateCell(r.state)}</td>
       <td style="white-space:nowrap;display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
         <button class="btn-kill-copy" data-pid="${r.pid||''}" onclick="copySingleKill(this)">复制</button>

@@ -38,6 +38,8 @@ wfwebserver/
 ├── html/
 │   ├── index.html
 │   ├── linux_cmd_test.html
+│   ├── reports.html     （列表浏览 report/ 下已存档 HTML，依赖 GET /api/reports）
+│   ├── report/          （可选；存档报告写入此目录下按年月子目录）
 │   ├── logviewer.html
 │   ├── monitor.html
 │   ├── extract.html
@@ -732,6 +734,21 @@ data: {"type":"error","msg":"..."}\n\n
 
 调用 `ssh_cancel_current()`，返回 `{"ok":true}`
 
+**`POST /api/save-report`**
+
+- 请求头：`Content-Type: text/html; charset=utf-8`，`X-Report-Filename` 为 URL 编码的文件名（仅 basename，服务端再净化）
+- 正文：完整 HTML 字符串；正文上限 `SAVE_REPORT_MAX_BODY`（5 MB），与普通 POST `MAX_BODY_SIZE`（64 KB）分离
+- 行为：在 `WEB_ROOT/report/YYYYMM/` 下创建子目录（`YYYYMM` 为服务端本地时间），写入文件；返回 `{"ok":true,"path":"report/YYYYMM/文件名.html"}` 或 `{"ok":false,"error":"..."}`
+
+**`GET /api/client-info`**
+
+- 返回 JSON：`{"ip":"a.b.c.d"}`，`ip` 为当前 HTTP 连接的 TCP 对端 IPv4；`linux_cmd_test` 存档弹窗用其生成<strong>默认文件名</strong>中的客户端 IP 段（预览与成功后的访问链接使用 `location.host`，即 Web 服务器）
+
+**`GET /api/reports`**
+
+- 扫描 `WEB_ROOT/report/` 下名为 6 位数字 `YYYYMM` 的子目录，列出其中 `.html` 常规文件
+- 返回 JSON：`{"months":[{"ym":"202603","files":[{"name":"…","mtime":unix,"size":bytes}]}]}`（月份目录降序，文件按 mtime 降序；单项数量有上限）
+
 **`handle_api_monitor(int client_fd)`**
 
 刷新 CPU/内存/进程快照，返回 JSON：
@@ -870,6 +887,7 @@ static int recommend_threads(void) {
 
 导航首页，提供以下页面的链接入口：
 - `linux_cmd_test.html` — SSH 批量命令测试
+- `reports.html` — 已存档 HTML 报告列表（`GET /api/reports`）
 - `monitor.html` — 系统实时监控
 - `logviewer.html` — 日志查看
 - `extract.html` — 结果提取
@@ -887,6 +905,8 @@ static int recommend_threads(void) {
 7. 通过 SSE（`fetch` + `ReadableStream`）接收 `/api/ssh-exec-stream` 的实时结果
 8. 支持多主机（行格式 `host:port:user:pass`），逐主机执行相同命令集
 9. 结果对比面板（多主机结果并排显示）
+10. 工具栏「📂 报告库」跳转 `reports.html`；与「💾 存档」配套
+11. 「💾 存档」打开弹窗：请求 `GET /api/client-info` 取 TCP 对端 IP 写入<strong>默认文件名</strong>；预览与成功后的<strong>访问链接</strong>使用 `location.host`（Web 服务器，如 `IP:8881`）；非 SSH 目标
 
 **实现细节：**
 - 使用原生 JavaScript（无框架）
@@ -960,6 +980,8 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.3 | 超时中断保留已有结果：ssh_exec 新增 out_timed_out 参数，服务端发 type:timeout 事件，前端新增 markBlockTimeout 和超时状态展示 |
 | 2026-03-30 | v1.4 | 降低 CPU 占用：UID→用户名缓存（64 条）、scan_proc_top 并发 trylock+同秒不重扫、/api/monitor 响应缓存 2 秒 |
 | 2026-03-30 | v1.5 | linux_cmd_test.html：执行区增加暂停/恢复（SSE 消费门闩）；帮助文案同步 |
+| 2026-03-30 | v1.6 | linux_cmd_test「存档」：默认文件名用 /api/client-info 客户端 IP；预览与成功链接用 location.host（服务器） |
+| 2026-03-30 | v1.7 | reports.html + GET /api/reports 浏览存档；index 与 linux_cmd_test 入口 |
 
 ---
 

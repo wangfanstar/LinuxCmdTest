@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <pwd.h>
 #include <ctype.h>
+#include <stdint.h>
 
 /* ------------------------------------------------------------------ */
 /*  MIME 类型映射                                                       */
@@ -272,10 +273,362 @@ static int send_file(int fd, const char *filepath)
 }
 
 /* ------------------------------------------------------------------ */
+/*  POST /api/save-report — 将 HTML 报告写入 WEB_ROOT/report/YYYYMM/   */
+/* ------------------------------------------------------------------ */
+
+static int http_header_value(const char *headers, const char *name,
+                             char *out, size_t cap)
+{
+    size_t nlen = strlen(name);
+    const char *p = headers;
+
+    for (;;) {
+        const char *line_end = strstr(p, "\r\n");
+        if (!line_end || line_end == p)
+            return -1;
+        if ((size_t)(line_end - p) >= nlen + 1 &&
+            strncasecmp(p, name, nlen) == 0 && p[nlen] == ':') {
+            const char *v = p + nlen + 1;
+            while (*v == ' ' || *v == '\t')
+                v++;
+            size_t vl = (size_t)(line_end - v);
+            if (vl >= cap)
+                vl = cap - 1;
+            memcpy(out, v, vl);
+            out[vl] = '\0';
+            while (vl > 0 && (out[vl - 1] == ' ' || out[vl - 1] == '\t'))
+                out[--vl] = '\0';
+            return 0;
+        }
+        p = line_end + 2;
+    }
+}
+
+static void url_decode_report_fn(char *s)
+{
+    char *r = s, *w = s;
+
+    while (*r) {
+        if (*r == '%' && isxdigit((unsigned char)r[1]) &&
+            isxdigit((unsigned char)r[2])) {
+            char hx[3] = { r[1], r[2], '\0' };
+            *w++ = (char)strtol(hx, NULL, 16);
+            r += 3;
+        } else if (*r == '+') {
+            *w++ = ' ';
+            r++;
+        } else {
+            *w++ = *r++;
+        }
+    }
+    *w = '\0';
+}
+
+static void sanitize_report_basename(char *name)
+{
+    char *slash = strrchr(name, '/');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+    slash = strrchr(name, '\\');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+
+    for (char *p = name; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == '"' || *p < 0x20)
+            *p = '_';
+    }
+
+    while (name[0] == '.')
+        memmove(name, name + 1, strlen(name));
+
+    if (name[0] == '\0') {
+        strncpy(name, "report.html", 256);
+        name[255] = '\0';
+        return;
+    }
+
+    size_t len = strlen(name);
+    if (len > 200) {
+        name[200] = '\0';
+        len = 200;
+    }
+    if (len < 5 || strcasecmp(name + len - 5, ".html") != 0) {
+        if (len + 5 < 256)
+            memcpy(name + len, ".html", 6);
+    }
+}
+
+static void handle_api_save_report(int client_fd, const char *req_headers,
+                                   const char *body, size_t body_len)
+{
+    char filename[256];
+
+    if (http_header_value(req_headers, "X-Report-Filename", filename,
+                          sizeof(filename)) != 0 || filename[0] == '\0') {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing X-Report-Filename\"}", 45);
+        return;
+    }
+
+    url_decode_report_fn(filename);
+    sanitize_report_basename(filename);
+
+    time_t     now = time(NULL);
+    struct tm  tm_local;
+    if (localtime_r(&now, &tm_local) == NULL) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"time\"}", 28);
+        return;
+    }
+
+    char yyyymm[16];
+    if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"strftime\"}", 32);
+        return;
+    }
+
+    char dirpath[384];
+    snprintf(dirpath, sizeof(dirpath), "%s/report", WEB_ROOT);
+    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"mkdir report\"}", 36);
+        return;
+    }
+
+    snprintf(dirpath, sizeof(dirpath), "%s/report/%s", WEB_ROOT, yyyymm);
+    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"mkdir yyyymm\"}", 36);
+        return;
+    }
+
+    char filepath[512];
+    int  fn = snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, filename);
+    if (fn < 0 || (size_t)fn >= sizeof(filepath)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"path too long\"}", 38);
+        return;
+    }
+
+    char prefix[64];
+    snprintf(prefix, sizeof(prefix), "%s/report/", WEB_ROOT);
+    if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"bad path\"}", 33);
+        return;
+    }
+
+    FILE *fp = fopen(filepath, "wb");
+    if (!fp) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"open file\"}", 35);
+        return;
+    }
+
+    if (body_len > 0 &&
+        fwrite(body, 1, body_len, fp) != body_len) {
+        fclose(fp);
+        unlink(filepath);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write\"}", 30);
+        return;
+    }
+
+    fclose(fp);
+
+    char resp[640];
+    int  rl = snprintf(resp, sizeof(resp),
+                       "{\"ok\":true,\"path\":\"report/%s/%s\"}",
+                       yyyymm, filename);
+    if (rl < 0 || (size_t)rl >= sizeof(resp)) {
+        send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    } else {
+        send_json(client_fd, 200, "OK", resp, (size_t)rl);
+    }
+
+    LOG_INFO("save_report  %s  (%zu bytes)", filepath, body_len);
+}
+
+/* ------------------------------------------------------------------ */
+/*  GET /api/reports — 列出 WEB_ROOT/report/YYYYMM/*.html               */
+/* ------------------------------------------------------------------ */
+
+#define REPORTS_MAX_MONTHS 200
+#define REPORTS_MAX_FILES  500
+
+typedef struct {
+    char      name[256];
+    long long mtime;
+    long long size;
+} report_one_t;
+
+static int dir_name_is_yyyymm(const char *name)
+{
+    size_t i, n = strlen(name);
+    if (n != 6)
+        return 0;
+    for (i = 0; i < n; i++)
+        if (!isdigit((unsigned char)name[i]))
+            return 0;
+    return 1;
+}
+
+static int report_html_basename_ok(const char *name)
+{
+    size_t i, n;
+    if (!name || !*name)
+        return 0;
+    n = strlen(name);
+    if (n < 6 || strcasecmp(name + n - 5, ".html") != 0)
+        return 0;
+    if (strstr(name, "..") != NULL)
+        return 0;
+    for (i = 0; name[i]; i++) {
+        unsigned char c = (unsigned char)name[i];
+        if (c < 0x20 || c == '/' || c == '\\')
+            return 0;
+    }
+    return 1;
+}
+
+static int cmp_report_one_desc(const void *a, const void *b)
+{
+    const report_one_t *x = (const report_one_t *)a;
+    const report_one_t *y = (const report_one_t *)b;
+    if (y->mtime > x->mtime)
+        return 1;
+    if (y->mtime < x->mtime)
+        return -1;
+    return strcmp(x->name, y->name);
+}
+
+static int cmp_ym_desc(const void *a, const void *b)
+{
+    return strcmp((const char *)b, (const char *)a);
+}
+
+static void handle_api_reports(int client_fd)
+{
+    char     base[384];
+    char     months[REPORTS_MAX_MONTHS][8];
+    int      nmonths = 0;
+    DIR     *d;
+    strbuf_t sb = {0};
+
+    snprintf(base, sizeof(base), "%s/report", WEB_ROOT);
+    d = opendir(base);
+    if (!d) {
+        send_json(client_fd, 200, "OK", "{\"months\":[]}", 13);
+        return;
+    }
+
+    while (nmonths < REPORTS_MAX_MONTHS) {
+        struct dirent *de = readdir(d);
+        if (!de)
+            break;
+        if (de->d_name[0] == '.')
+            continue;
+        if (!dir_name_is_yyyymm(de->d_name))
+            continue;
+        strncpy(months[nmonths], de->d_name, 7);
+        months[nmonths][7] = '\0';
+        nmonths++;
+    }
+    closedir(d);
+
+    qsort(months, (size_t)nmonths, sizeof(months[0]), cmp_ym_desc);
+
+    SB_LIT(&sb, "{\"months\":[");
+    {
+        int first_m = 1;
+        int mi;
+        for (mi = 0; mi < nmonths; mi++) {
+            const char *ym = months[mi];
+            char        sub[512];
+            DIR        *sd;
+            report_one_t files[REPORTS_MAX_FILES];
+            int          nf = 0;
+            int          fi;
+
+            snprintf(sub, sizeof(sub), "%s/%s", base, ym);
+            sd = opendir(sub);
+            if (!sd)
+                continue;
+
+            while (nf < REPORTS_MAX_FILES) {
+                struct dirent *de = readdir(sd);
+                if (!de)
+                    break;
+                if (!report_html_basename_ok(de->d_name))
+                    continue;
+                {
+                    char        fp[768];
+                    struct stat st;
+                    snprintf(fp, sizeof(fp), "%s/%s", sub, de->d_name);
+                    if (stat(fp, &st) != 0 || !S_ISREG(st.st_mode))
+                        continue;
+                    strncpy(files[nf].name, de->d_name,
+                            sizeof(files[nf].name) - 1);
+                    files[nf].name[sizeof(files[nf].name) - 1] = '\0';
+                    files[nf].mtime = (long long)st.st_mtime;
+                    files[nf].size  = (long long)st.st_size;
+                    nf++;
+                }
+            }
+            closedir(sd);
+
+            if (nf == 0)
+                continue;
+
+            qsort(files, (size_t)nf, sizeof(files[0]), cmp_report_one_desc);
+
+            if (!first_m)
+                SB_LIT(&sb, ",");
+            first_m = 0;
+            SB_LIT(&sb, "{\"ym\":\"");
+            sb_append(&sb, ym, strlen(ym));
+            SB_LIT(&sb, "\",\"files\":[");
+
+            for (fi = 0; fi < nf; fi++) {
+                if (fi)
+                    SB_LIT(&sb, ",");
+                SB_LIT(&sb, "{\"name\":");
+                sb_json_str(&sb, files[fi].name);
+                sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
+                           (long long)files[fi].mtime,
+                           (long long)files[fi].size);
+            }
+            SB_LIT(&sb, "]}");
+        }
+    }
+    SB_LIT(&sb, "]}");
+
+    if (sb.data) {
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+        free(sb.data);
+    } else {
+        send_json(client_fd, 200, "OK", "{\"months\":[]}", 13);
+    }
+}
+
+/* GET /api/client-info — TCP 对端 IPv4（浏览器所在机器），供存档默认名与链接预览 */
+static void handle_api_client_info(int client_fd, const char *client_ip)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ip\":");
+    sb_json_str(&sb, client_ip ? client_ip : "");
+    SB_LIT(&sb, "}");
+    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    free(sb.data);
+}
+
+/* ------------------------------------------------------------------ */
 /*  POST /api/ssh-exec-one  (单条命令，实时响应)                       */
 /* ------------------------------------------------------------------ */
 
-#define MAX_BODY_SIZE  (64 * 1024)
+#define MAX_BODY_SIZE        (64 * 1024)
+#define SAVE_REPORT_MAX_BODY (5 * 1024 * 1024) /* POST /api/save-report 正文上限 */
 #define MAX_CMD_COUNT  SSH_MAX_CMDS
 #define CMD_BUF_SIZE   2048
 
@@ -935,6 +1288,114 @@ static int count_online(void)
     return cnt;
 }
 
+/* ── /proc/net/tcp[6] inode → 本地端口（供 /api/procs?ports=1） ── */
+#define TCP_INODE_MAP_MAX 4096
+typedef struct { unsigned long ino; int port; } tcp_ino_port_t;
+
+static int cmp_tcp_ino(const void *a, const void *b)
+{
+    unsigned long x = ((const tcp_ino_port_t *)a)->ino;
+    unsigned long y = ((const tcp_ino_port_t *)b)->ino;
+    return (x > y) - (x < y);
+}
+
+/* 读取 tcp/tcp6 全部行，返回条数（可能达 max_n） */
+static int load_tcp_ino_port_map(tcp_ino_port_t *out, int max_n)
+{
+    int n = 0;
+    const char *paths[] = { "/proc/net/tcp", "/proc/net/tcp6" };
+    for (int pi = 0; pi < 2; pi++) {
+        FILE *f = fopen(paths[pi], "r");
+        if (!f) continue;
+        char line[512];
+        fgets(line, sizeof(line), f);
+        while (fgets(line, sizeof(line), f)) {
+            if (n >= max_n) { fclose(f); return n; }
+            char local_addr[72];
+            unsigned int st = 0;
+            unsigned long ino = 0;
+            if (sscanf(line, " %*d: %71s %*s %x %*s %*s %*s %*d %*d %lu",
+                       local_addr, &st, &ino) < 3)
+                continue;
+            char *col = strchr(local_addr, ':');
+            if (!col) continue;
+            unsigned int ph = 0;
+            if (sscanf(col + 1, "%x", &ph) != 1) continue;
+            out[n].ino  = ino;
+            out[n].port = (int)ph;
+            n++;
+        }
+        fclose(f);
+    }
+    return n;
+}
+
+static const tcp_ino_port_t *lookup_ino(const tcp_ino_port_t *sorted, int n, unsigned long ino)
+{
+    int lo = 0, hi = n - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (sorted[mid].ino < ino) lo = mid + 1;
+        else if (sorted[mid].ino > ino) hi = mid - 1;
+        else return &sorted[mid];
+    }
+    return NULL;
+}
+
+/* 将 pid 打开的 TCP socket 对应本地端口去重、排序后写入 out（逗号分隔） */
+static void pid_format_tcp_ports(pid_t pid, tcp_ino_port_t *map, int map_n,
+                                 char *out, size_t outsz)
+{
+    out[0] = '\0';
+    if (map_n <= 0 || outsz < 8) return;
+
+    uint16_t uports[96];
+    int      nu = 0;
+
+    char fd_dir[64];
+    snprintf(fd_dir, sizeof(fd_dir), "/proc/%d/fd", (int)pid);
+    DIR *fd_d = opendir(fd_dir);
+    if (!fd_d) return;
+
+    struct dirent *fde;
+    while ((fde = readdir(fd_d)) != NULL && nu < 95) {
+        if (fde->d_name[0] == '.') continue;
+        char fp[128];
+        snprintf(fp, sizeof(fp), "/proc/%d/fd/%s", (int)pid, fde->d_name);
+        char lk[128];
+        ssize_t lr = readlink(fp, lk, sizeof(lk) - 1);
+        if (lr < 10) continue;
+        lk[lr] = '\0';
+        if (strncmp(lk, "socket:[", 8) != 0) continue;
+        unsigned long ino = strtoul(lk + 8, NULL, 10);
+        const tcp_ino_port_t *hit = lookup_ino(map, map_n, ino);
+        if (!hit || hit->port <= 0 || hit->port > 65535) continue;
+        uint16_t p = (uint16_t)hit->port;
+        int dup = 0;
+        for (int i = 0; i < nu; i++)
+            if (uports[i] == p) { dup = 1; break; }
+        if (!dup) uports[nu++] = p;
+    }
+    closedir(fd_d);
+
+    if (nu == 0) return;
+    for (int i = 1; i < nu; i++) {
+        uint16_t k = uports[i];
+        int j = i;
+        while (j > 0 && uports[j - 1] > k) {
+            uports[j] = uports[j - 1];
+            j--;
+        }
+        uports[j] = k;
+    }
+    size_t pos = 0;
+    for (int i = 0; i < nu && pos + 8 < outsz; i++) {
+        int nw = snprintf(out + pos, outsz - pos, i ? ",%u" : "%u", (unsigned)uports[i]);
+        if (nw <= 0 || (size_t)nw >= outsz - pos) break;
+        pos += (size_t)nw;
+    }
+}
+
 /* GET /api/port?port=<number>
  * 通过 /proc/net/tcp[6] 查找占用指定端口的进程。
  * 返回 JSON: {"port":8881,"procs":[{"pid":123,"name":"...","user":"...","state":"LISTEN",
@@ -1075,11 +1536,12 @@ static void handle_api_port(int client_fd, int query_port)
         float pct = (scale > 0 && ticks > prev_ticks)
                     ? (float)((double)(ticks - prev_ticks) * scale) : 0.0f;
 
-        char entry[384];
+        char entry[420];
         int en = snprintf(entry, sizeof(entry),
                           "%s{\"pid\":%d,\"name\":\"%s\",\"user\":\"%s\",\"state\":\"%s\","
-                          "\"p\":%.1f,\"c\":%d}",
-                          i ? "," : "", (int)pid, name, user, state_str, pct, cpu_idx);
+                          "\"p\":%.1f,\"c\":%d,\"ports\":\"%d\"}",
+                          i ? "," : "", (int)pid, name, user, state_str, pct, cpu_idx,
+                          query_port);
         sb_append(&sb, entry, (size_t)en);
     }
 
@@ -1089,11 +1551,12 @@ static void handle_api_port(int client_fd, int query_port)
     free(sb.data);
 }
 
-/* GET /api/procs?q=<query>
+/* GET /api/procs?q=<query>&ports=1
  * 实时扫描 /proc，按进程名或用户名做大小写不敏感子串过滤，返回 JSON 数组。
  * CPU% 用上次快照 ticks 与当前 ticks 差值估算，dt 取上次 scan_proc_top 的采样间隔。
+ * include_ports 非 0 时增加 "ports":"80,443"（本机 TCP 本地端口，去重排序；开销较大）。
  */
-static void handle_api_procs(int client_fd, const char *query)
+static void handle_api_procs(int client_fd, const char *query, int include_ports)
 {
     /* 复制上次快照 */
     static proc_snap_t prev_snap[MAX_PROCS];
@@ -1108,6 +1571,16 @@ static void handle_api_procs(int client_fd, const char *query)
     long clk = sysconf(_SC_CLK_TCK);
     if (clk <= 0) clk = 100;
     double scale = (last_dt > 0.1) ? 100.0 / ((double)clk * last_dt) : 0.0;
+
+    tcp_ino_port_t *tcp_map = NULL;
+    int               tcp_n   = 0;
+    if (include_ports) {
+        tcp_map = malloc(sizeof(tcp_ino_port_t) * (size_t)TCP_INODE_MAP_MAX);
+        if (tcp_map) {
+            tcp_n = load_tcp_ino_port_map(tcp_map, TCP_INODE_MAP_MAX);
+            qsort(tcp_map, (size_t)tcp_n, sizeof(tcp_ino_port_t), cmp_tcp_ino);
+        }
+    }
 
     /* 小写化 query，用于大小写不敏感匹配 */
     char qlo[128] = "";
@@ -1159,8 +1632,18 @@ static void handle_api_procs(int client_fd, const char *query)
             float pct = (scale > 0 && ticks > prev_ticks)
                         ? (float)((double)(ticks - prev_ticks) * scale) : 0.0f;
 
-            char entry[200];
-            int en = snprintf(entry, sizeof(entry),
+            char ports_buf[192] = "";
+            if (include_ports && tcp_map && tcp_n > 0)
+                pid_format_tcp_ports(pid, tcp_map, tcp_n, ports_buf, sizeof(ports_buf));
+
+            char entry[512];
+            int en;
+            if (include_ports)
+                en = snprintf(entry, sizeof(entry),
+                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d,\"ports\":\"%s\"}",
+                              first ? "" : ",", name, user, pct, (int)pid, last_cpu, ports_buf);
+            else
+                en = snprintf(entry, sizeof(entry),
                               "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d}",
                               first ? "" : ",", name, user, pct, (int)pid, last_cpu);
             sb_append(&sb, entry, (size_t)en);
@@ -1171,6 +1654,7 @@ static void handle_api_procs(int client_fd, const char *query)
     SB_LIT(&sb, "]}");
     send_json(client_fd, 200, "OK", sb.data ? sb.data : "{\"procs\":[]}", sb.len);
     free(sb.data);
+    free(tcp_map);
 }
 
 /* GET /api/monitor */
@@ -1338,7 +1822,8 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     /* 高频轮询接口不写日志，避免无谓 I/O */
     int is_poll_api = (strncmp(path, "/api/monitor", 12) == 0 ||
-                       strncmp(path, "/api/procs",   10) == 0);
+                       strncmp(path, "/api/procs",   10) == 0 ||
+                       strcmp(path, "/api/client-info") == 0);
     if (!is_poll_api)
         LOG_INFO("request  %s:%d \"%s %s %s\"",
                  client_ip, client_port, method, path, version);
@@ -1353,8 +1838,12 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
             content_length = atol(cl);
         }
 
+        long max_body_allowed = MAX_BODY_SIZE;
+        if (strcmp(path, "/api/save-report") == 0)
+            max_body_allowed = SAVE_REPORT_MAX_BODY;
+
         char *body = NULL;
-        if (content_length > 0 && content_length <= MAX_BODY_SIZE) {
+        if (content_length > 0 && content_length <= max_body_allowed) {
             body = calloc((size_t)content_length + 1, 1);
             if (body) {
                 const char *hdr_end = strstr(req_buf, "\r\n\r\n");
@@ -1415,6 +1904,17 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 send_json(client_fd, 400, "Bad Request",
                           "{\"error\":\"empty body\"}", 21);
             }
+        } else if (strcmp(path, "/api/save-report") == 0) {
+            if (body)
+                handle_api_save_report(client_fd, req_buf, body,
+                                       (size_t)content_length);
+            else if (content_length > SAVE_REPORT_MAX_BODY) {
+                send_json(client_fd, 413, "Payload Too Large",
+                          "{\"ok\":false,\"error\":\"body too large\"}", 38);
+            } else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
+            }
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -1441,12 +1941,24 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    if (strcmp(path, "/api/reports") == 0) {
+        handle_api_reports(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/client-info") == 0) {
+        handle_api_client_info(client_fd, client_ip);
+        goto done;
+    }
+
     if (strncmp(path, "/api/procs", 10) == 0 &&
         (path[10] == '\0' || path[10] == '?')) {
         /* 解析 ?q= 参数 */
         const char *q = "";
         const char *qs = strchr(path, '?');
         char query_buf[128] = "";
+        int include_ports = 0;
+        if (qs && strstr(qs, "ports=1")) include_ports = 1;
         if (qs) {
             const char *qp = strstr(qs, "q=");
             if (qp) {
@@ -1467,7 +1979,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 q = query_buf;
             }
         }
-        handle_api_procs(client_fd, q);
+        handle_api_procs(client_fd, q, include_ports);
         goto done;
     }
 

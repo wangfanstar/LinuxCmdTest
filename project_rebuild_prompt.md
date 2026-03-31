@@ -520,6 +520,8 @@ ssh
 - 然后从 buffer 中移除已处理部分，继续读取
 - 若所有读取完毕后 buffer 无任何 boundary → SSH 连接失败，写入 `error_buf`
 - `build_session_script` 与 **网络设备 / PTY 逐条写命令** 前，对每条 `commands[i]` 调用 `skip_shell_marker_prefix()`：去掉行首 `~ `、`! `（与前端导入一致），避免 PTY 下 bash 将 `~` 当作波浪线展开
+- **网络设备 / PTY 逐条**：除「无新数据满 `idle_timeout_sec`」外，每条命令从发起到现在若墙上时钟 ≥ 同秒数也杀 SSH（防止设备持续慢速吐字永不回到提示符）；等待首提示符阶段同样限制总等待时长；墙上时钟与首屏等待用 `CLOCK_MONOTONIC` 计算
+- **`is_prompt`**：`%` 仅当末行不含 `%%` 且长度 ≤56 时视为提示符，避免 `%% Invalid…` 等报错后误判已回到提示符而提前下发下一条命令
 
 ### ssh_cancel_current
 
@@ -924,6 +926,7 @@ static int recommend_threads(void) {
 - 流式模式使用 `fetch()` + `ReadableStream` 或 `EventSource` 消费 SSE
 - 命令和结果支持导出（复制到剪贴板 / 下载 JSON）
 - 加载状态指示（按钮禁用、进度文字）
+- **比对规则**：`=` / `~` / `!` 仅出现在**预期结果 JSON** 的 `commands[].marker`（及对比视图旁按钮）；命令列表与 SSH 配置 JSON 中仅为纯命令，`marker` 仅用于 `ctrlc`（^C 行）
 
 ### html/monitor.html — 实时监控
 
@@ -996,6 +999,9 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.7 | reports.html + GET /api/reports 浏览存档；index 与 linux_cmd_test 入口 |
 | 2026-03-30 | v1.8 | PTY 流式空闲超时：`ssh_session_exec_stream` 增加 `out_timeout_cmd_idx`，SSE `timeout` 事件带 `i`；`linux_cmd_test.html` 收到 `timeout` 时用标签跳出 SSE 读循环，立即取消「执行中」 |
 | 2026-03-30 | v1.10 | PTY/流式：命令去掉行首 `~ ` / `! ` 再执行（`skip_shell_marker_prefix`，linux_cmd_test `cmdTextForRemoteExec`）；PTY 空闲超时补写 `out_timeout_cmd_idx` |
+| 2026-03-30 | v1.11 | PTY 逐条模式：`idle_timeout_sec` 兼作单条命令**墙上时钟**上限（与空闲超时并存），避免 `show` 类细水长流永不回提示符；初始登录阶段同样限总时长 |
+| 2026-03-30 | v1.12 | PTY：`is_prompt` 收紧 `%`（防 `%%` 报错误判）；墙钟/首屏等待改用 `CLOCK_MONOTONIC`；linux_cmd_test 配置导入与状态恢复对 `~ `/`! ` 做 `normalizeCmdForList` |
+| 2026-03-30 | v1.13 | linux_cmd_test：`= / ~ / !` 从命令列表移除，仅预期 JSON + 对比视图侧按钮；命令/txt/ssh 配置不再含 fuzzy/ignore |
 
 ---
 

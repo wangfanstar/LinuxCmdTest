@@ -12,6 +12,7 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <pthread.h>
+#include <time.h>
 /* ------------------------------------------------------------------ */
 /*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
 /* ------------------------------------------------------------------ */
@@ -75,10 +76,21 @@ static size_t strip_ansi(const char *src, size_t len, char *dst, size_t dst_sz)
     return di;
 }
 
+/* 单调时钟秒数（用于 PTY 墙钟超时，不受系统对时影响） */
+static double monotonic_sec(void)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+        return (double)time(NULL);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
 /* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
  * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
  * Linux 提示符示例：root@host:~#   user@host:~$
- * PTY 模式下 bash 彩色提示符含 ANSI 转义码，先剥离再判断。 */
+ * PTY 模式下 bash 彩色提示符含 ANSI 转义码，先剥离再判断。
+ * 注意：许多交换机用 "%% ..." 报错，末行若以单个 % 结尾易误判（如进度 100%），
+ * 故仅当末行较短且不含 "%%" 时才把 % 当作提示符。 */
 static int is_prompt(const char *buf, size_t len)
 {
     if (!len) return 0;
@@ -108,8 +120,20 @@ static int is_prompt(const char *buf, size_t len)
         }
     }
     if (!last_real) return 0;
-    return last_real == '>' || last_real == '#' || last_real == '$' ||
-           last_real == ']' || last_real == '%';
+    if (last_real == '>' || last_real == '#' || last_real == '$' ||
+        last_real == ']')
+        return 1;
+    if (last_real != '%')
+        return 0;
+    /* 末行含 %% → 多为设备报错/说明，勿当提示符（否则会提前发下一条命令导致会话错乱） */
+    for (size_t j = 0; j + 1 < ll; j++) {
+        if (last[j] == '%' && last[j + 1] == '%')
+            return 0;
+    }
+    /* 过长末行以 % 结尾多为百分比等，非 hostname% 类提示符 */
+    if (ll > 56)
+        return 0;
+    return 1;
 }
 
 /* 清理命令输出：去掉首行回显和末尾提示符行，返回堆分配字符串（调用方 free）。 */
@@ -999,28 +1023,28 @@ void ssh_session_exec_stream(const char *host, int port,
          * 适用于 PTY 模式下脚本启动后需要较长时间才进入自定义视图的场景。 */
         size_t init_len = 0;
         {
-            /* t_init_start：墙上时钟上限，防止登录/欢迎信息细水长流永不出现提示符 */
-            time_t t_init_start = time(NULL);
-            time_t t_data       = time(NULL);
+            /* 单调时钟：墙上 / 空闲上限，防止对时或 trickle 输出绕过 */
+            double t_init_start = monotonic_sec();
+            double t_data       = t_init_start;
             for (;;) {
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
                 if (select(out_pipe[0]+1, &rset, NULL, NULL, &tv) > 0) {
                     ssize_t nr = read(out_pipe[0], accum + init_len,
                                       SSH_OUTPUT_MAX - 1 - init_len);
-                    if (nr > 0) { init_len += (size_t)nr; t_data = time(NULL); }
+                    if (nr > 0) { init_len += (size_t)nr; t_data = monotonic_sec(); }
                     else break;   /* EOF：SSH 已断开 */
-                    if (difftime(time(NULL), t_init_start) >= (double)idle_timeout_sec)
+                    if (monotonic_sec() - t_init_start >= (double)idle_timeout_sec)
                         break;
                 } else {
                     /* 200ms 无新数据：检查是否已出现提示符 */
                     if (init_len > 0 && is_prompt(accum, init_len)) break;
                     {
-                        time_t now = time(NULL);
-                        if (difftime(now, t_init_start) >= (double)idle_timeout_sec)
+                        double now = monotonic_sec();
+                        if (now - t_init_start >= (double)idle_timeout_sec)
                             break;
                         /* 空闲超时（与每条命令超时一致） */
-                        if (difftime(now, t_data) >= (double)idle_timeout_sec) break;
+                        if (now - t_data >= (double)idle_timeout_sec) break;
                     }
                 }
             }
@@ -1059,12 +1083,12 @@ void ssh_session_exec_stream(const char *host, int port,
              * 无论 select 返回 0（无数据）还是 >0（有数据）都不会被绕过。
              * 这样即使 PTY 持续产生 ANSI 码/echo 导致 select 一直有数据，
              * 到时也能可靠触发，不会像分支内检查那样被跳过。 */
-            size_t cmd_len    = 0;
-            time_t t_cmd_start = time(NULL);
+            size_t cmd_len       = 0;
+            double t_cmd_start   = monotonic_sec();
 
             for (;;) {
                 /* ── 墙上时钟（绝对超时）：循环顶优先检查 ── */
-                if (difftime(time(NULL), t_cmd_start) >= (double)idle_timeout_sec) {
+                if (monotonic_sec() - t_cmd_start >= (double)idle_timeout_sec) {
                     LOG_INFO("ssh_session_exec_stream(net): wall-clock timeout (%ds) on cmd[%d]",
                              idle_timeout_sec, i);
                     if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {

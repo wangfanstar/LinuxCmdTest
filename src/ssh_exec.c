@@ -12,6 +12,7 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
 
 /* ------------------------------------------------------------------ */
 /*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
@@ -41,9 +42,45 @@ void ssh_cancel_current(void)
 /*  网络设备模式辅助函数                                               */
 /* ------------------------------------------------------------------ */
 
+/* 去掉 ANSI/VT100 转义序列（PTY 模式下 bash 彩色提示符含转义码）。
+ * 仅在栈上临时使用；dst 须足够大（len+1 即可）。返回新长度。 */
+static size_t strip_ansi(const char *src, size_t len, char *dst, size_t dst_sz)
+{
+    size_t di = 0;
+    for (size_t i = 0; i < len; ) {
+        if (src[i] == '\033' && i + 1 < len) {
+            if (src[i+1] == '[') {
+                /* CSI 序列：ESC [ <参数字节> <终止字节 0x40-0x7E> */
+                i += 2;
+                while (i < len) {
+                    unsigned char c = (unsigned char)src[i++];
+                    if (c >= 0x40 && c <= 0x7e) break;
+                }
+            } else if (src[i+1] == ']') {
+                /* OSC 序列：ESC ] ... BEL 或 ST */
+                i += 2;
+                while (i < len &&
+                       !(src[i] == '\007') &&
+                       !(src[i] == '\033' && i+1 < len && src[i+1] == '\\'))
+                    i++;
+                if (i < len) i++;
+            } else {
+                /* 其他双字节 ESC 序列 */
+                i += 2;
+            }
+        } else {
+            if (di + 1 < dst_sz) dst[di++] = src[i];
+            i++;
+        }
+    }
+    if (dst_sz > 0) dst[di < dst_sz ? di : dst_sz - 1] = '\0';
+    return di;
+}
+
 /* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
  * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
- * Linux 提示符示例：root@host:~#   user@host:~$ */
+ * Linux 提示符示例：root@host:~#   user@host:~$
+ * PTY 模式下 bash 彩色提示符含 ANSI 转义码，先剥离再判断。 */
 static int is_prompt(const char *buf, size_t len)
 {
     if (!len) return 0;
@@ -55,11 +92,26 @@ static int is_prompt(const char *buf, size_t len)
     while (i > 0 && buf[i-1] != '\n') i--;
     const char *last = buf + i;
     size_t ll = len - i;
-    /* 去掉行末空格和 \r */
-    while (ll > 0 && (last[ll-1] == ' ' || last[ll-1] == '\r')) ll--;
-    if (!ll) return 0;
-    char c = last[ll - 1];
-    return c == '>' || c == '#' || c == '$' || c == ']' || c == '%';
+    /* 在最后一行中逐字符扫描（跳过 ANSI 序列），找最后一个非空实际字符 */
+    char last_real = 0;
+    for (size_t j = 0; j < ll; ) {
+        if (last[j] == '\033' && j + 1 < ll) {
+            if (last[j+1] == '[') {
+                j += 2;
+                while (j < ll) {
+                    unsigned char c = (unsigned char)last[j++];
+                    if (c >= 0x40 && c <= 0x7e) break;
+                }
+            } else { j += 2; }
+        } else {
+            char c = last[j];
+            if (c != ' ' && c != '\r') last_real = c;
+            j++;
+        }
+    }
+    if (!last_real) return 0;
+    return last_real == '>' || last_real == '#' || last_real == '$' ||
+           last_real == ']' || last_real == '%';
 }
 
 /* 清理命令输出：去掉首行回显和末尾提示符行，返回堆分配字符串（调用方 free）。 */
@@ -90,10 +142,15 @@ static char *strip_cmd_output(const char *buf, size_t len)
         end--;
 
     size_t rlen = (end > start) ? (end - start) : 0;
+    /* 去掉 ANSI 转义序列（PTY 模式下 bash/自定义 CLI 可能含彩色码）*/
     char *result = malloc(rlen + 1);
     if (!result) return NULL;
-    if (rlen) memcpy(result, buf + start, rlen);
-    result[rlen] = '\0';
+    if (rlen) {
+        size_t clean_len = strip_ansi(buf + start, rlen, result, rlen + 1);
+        result[clean_len] = '\0';
+    } else {
+        result[0] = '\0';
+    }
     return result;
 }
 
@@ -732,6 +789,7 @@ void ssh_session_exec_stream(const char *host, int port,
     char  *script = NULL;
     char   userhost[320] = {0}, port_str[8] = {0};
     int    out_pipe[2] = {-1,-1}, in_pipe[2] = {-1,-1};
+    int    pty_master = -1, pty_slave = -1;   /* PTY 模式专用 */
     pid_t  pid = (pid_t)-1;
     char   boundary[24] = {0};
     size_t blen = 0;
@@ -785,6 +843,25 @@ void ssh_session_exec_stream(const char *host, int port,
         goto cleanup;
     }
 
+    /* PTY 模式：创建客户端伪终端对，让 ssh -t 看到真实本地 tty，
+     * 从而正确向服务器请求 PTY 分配（否则 setsid 后无控制终端，
+     * ssh -t 会静默降级，导致服务端 bash 仍无 tty 警告）。 */
+    if (net_device_mode == 2) {
+        pty_master = posix_openpt(O_RDWR | O_NOCTTY);
+        if (pty_master >= 0) {
+            if (grantpt(pty_master) < 0 || unlockpt(pty_master) < 0) {
+                close(pty_master);
+                pty_master = -1;
+            } else {
+                char *sname = ptsname(pty_master);
+                if (sname) pty_slave = open(sname, O_RDWR | O_NOCTTY);
+                if (pty_slave < 0) { close(pty_master); pty_master = -1; }
+            }
+        }
+        if (pty_master < 0)
+            LOG_INFO("ssh_session_exec_stream: PTY pair creation failed, falling back to pipe");
+    }
+
     pid = fork();
     if (pid < 0) {
         snprintf(error_buf, error_buf_sz, "fork() 失败: %s", strerror(errno));
@@ -795,15 +872,26 @@ void ssh_session_exec_stream(const char *host, int port,
     }
 
     if (pid == 0) {
-        /* ── 子进程（与 run_ssh_session 完全相同） ── */
+        /* ── 子进程 ── */
         close(out_pipe[0]);
-        close(in_pipe[1]);
         dup2(out_pipe[1], STDOUT_FILENO);
         dup2(out_pipe[1], STDERR_FILENO);
         close(out_pipe[1]);
-        dup2(in_pipe[0], STDIN_FILENO);
-        close(in_pipe[0]);
-        setsid();
+
+        if (net_device_mode == 2 && pty_slave >= 0) {
+            /* PTY 模式：使用 PTY slave 作为 stdin，使 ssh -t 看到真实终端 */
+            close(in_pipe[0]); close(in_pipe[1]);
+            dup2(pty_slave, STDIN_FILENO);
+            close(pty_slave);
+            if (pty_master >= 0) close(pty_master);
+            setsid();
+            ioctl(STDIN_FILENO, TIOCSCTTY, 0);   /* 设为进程的控制终端 */
+        } else {
+            close(in_pipe[1]);
+            dup2(in_pipe[0], STDIN_FILENO);
+            close(in_pipe[0]);
+            setsid();
+        }
 
         char env_askpass[300], env_display[32], env_require[32], env_home[256];
         snprintf(env_askpass, sizeof(env_askpass), "SSH_ASKPASS=%s", askpass_file);
@@ -836,6 +924,7 @@ void ssh_session_exec_stream(const char *host, int port,
             "bash -s",
             NULL
         };
+        /* 网络设备模式（不分配 PTY）：适用于 Huawei VRP 等网络设备 CLI */
         char *argv_netdev[] = {
             "ssh",
             "-o", "StrictHostKeyChecking=no",
@@ -854,13 +943,45 @@ void ssh_session_exec_stream(const char *host, int port,
             userhost,
             NULL
         };
-        execvpe("ssh", net_device_mode ? argv_netdev : argv_linux, envp);
+        /* PTY 模式（分配伪终端）：适用于 Linux 命令执行后进入自定义交互式 CLI 的场景
+         * （如执行某脚本后进入 <GT> 视图），需要 TTY 才能正常运行。 */
+        char *argv_netdev_pty[] = {
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            "-o", "BatchMode=no",
+            "-o", "PasswordAuthentication=yes",
+            "-o", "PubkeyAuthentication=no",
+            "-o", "GSSAPIAuthentication=no",
+            "-o", "PreferredAuthentications=password",
+            "-o", "NumberOfPasswordPrompts=1",
+            "-o", "LogLevel=ERROR",
+            "-o", "ServerAliveInterval=10",
+            "-o", "ServerAliveCountMax=6",
+            "-t",          /* 请求服务端 PTY（客户端已有本地 PTY slave 作为 stdin） */
+            "-p", port_str,
+            userhost,
+            NULL
+        };
+        char **argv_sel = (net_device_mode == 2) ? argv_netdev_pty :
+                          (net_device_mode == 1) ? argv_netdev :
+                          argv_linux;
+        execvpe("ssh", argv_sel, envp);
         _exit(127);
     }
 
     /* ── 父进程 ── */
     close(out_pipe[1]);
-    close(in_pipe[0]);
+    if (net_device_mode == 2 && pty_master >= 0) {
+        /* PTY 模式：用 PTY master 写命令；关闭已转给子进程的 slave 和原始管道 */
+        close(in_pipe[0]); close(in_pipe[1]);
+        if (pty_slave >= 0) { close(pty_slave); pty_slave = -1; }
+        in_pipe[0] = -1;
+        in_pipe[1] = pty_master;   /* 复用 in_pipe[1] 变量，统一写命令接口 */
+        pty_master = -1;
+    } else {
+        close(in_pipe[0]);
+    }
     session_pid_set(pid);
 
     if (!net_device_mode) {
@@ -891,10 +1012,13 @@ void ssh_session_exec_stream(const char *host, int port,
      * 网络设备模式：交互式提示符检测，逐条发命令
      * ================================================================ */
     if (net_device_mode) {
-        /* Step 1: 读取初始提示符（最多等 5 秒） */
+        /* Step 1: 读取初始提示符。
+         * 等待逻辑与每条命令完全相同：有数据到来就重置空闲计时器，
+         * 空闲超过 idle_timeout_sec 秒才放弃。
+         * 适用于 PTY 模式下脚本启动后需要较长时间才进入自定义视图的场景。 */
         size_t init_len = 0;
         {
-            time_t t0 = time(NULL), t_data = time(NULL);
+            time_t t_data = time(NULL);
             for (;;) {
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
@@ -902,10 +1026,12 @@ void ssh_session_exec_stream(const char *host, int port,
                     ssize_t nr = read(out_pipe[0], accum + init_len,
                                       SSH_OUTPUT_MAX - 1 - init_len);
                     if (nr > 0) { init_len += (size_t)nr; t_data = time(NULL); }
-                    else break;
+                    else break;   /* EOF：SSH 已断开 */
                 } else {
+                    /* 200ms 无新数据：检查是否已出现提示符 */
                     if (init_len > 0 && is_prompt(accum, init_len)) break;
-                    if (difftime(time(NULL), t0) >= 5.0) break;
+                    /* 空闲超时（与每条命令超时一致） */
+                    if (difftime(time(NULL), t_data) >= (double)idle_timeout_sec) break;
                 }
             }
         }
@@ -1146,6 +1272,8 @@ stream_drain:
 
 cleanup:
     free(script);
+    if (pty_master >= 0) { close(pty_master); pty_master = -1; }
+    if (pty_slave  >= 0) { close(pty_slave);  pty_slave  = -1; }
     if (has_pass_file)  unlink(pass_file);
     if (has_askpass)    unlink(askpass_file);
 }

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -15,14 +16,23 @@
 #include <time.h>
 /* ------------------------------------------------------------------ */
 /*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
+/*  全局 stdin fd 追踪（供 ssh_inject_stdin 实时注入使用）            */
 /* ------------------------------------------------------------------ */
-static volatile pid_t  g_session_pid   = (pid_t)-1;
-static pthread_mutex_t g_session_mutex = PTHREAD_MUTEX_INITIALIZER;
+static volatile pid_t  g_session_pid      = (pid_t)-1;
+static volatile int    g_session_stdin_fd = -1;
+static pthread_mutex_t g_session_mutex    = PTHREAD_MUTEX_INITIALIZER;
 
 static void session_pid_set(pid_t pid)
 {
     pthread_mutex_lock(&g_session_mutex);
     g_session_pid = pid;
+    pthread_mutex_unlock(&g_session_mutex);
+}
+
+static void session_stdin_set(int fd)
+{
+    pthread_mutex_lock(&g_session_mutex);
+    g_session_stdin_fd = fd;
     pthread_mutex_unlock(&g_session_mutex);
 }
 
@@ -35,6 +45,30 @@ void ssh_cancel_current(void)
         killpg(pid, SIGKILL);
         LOG_INFO("ssh_cancel_current: SIGKILL -> pgid=%d", (int)pid);
     }
+}
+
+/*
+ * 向当前运行中的 PTY 会话 stdin 实时注入一条命令（线程安全）。
+ * cmd 为 NULL/空 时静默忽略。is_ctrlc 非 0 时发送 \x03 字节（不加换行）。
+ * 返回 0 成功，-1 无活跃会话或写失败。
+ */
+int ssh_inject_stdin(const char *cmd, int is_ctrlc)
+{
+    if (!cmd && !is_ctrlc) return -1;
+    pthread_mutex_lock(&g_session_mutex);
+    int fd = g_session_stdin_fd;
+    pthread_mutex_unlock(&g_session_mutex);
+    if (fd < 0) return -1;
+
+    if (is_ctrlc) {
+        char c = '\x03';
+        return (write(fd, &c, 1) == 1) ? 0 : -1;
+    }
+    size_t len = strlen(cmd);
+    if (len == 0) return -1;
+    ssize_t w1 = write(fd, cmd, len);
+    ssize_t w2 = write(fd, "\n", 1);
+    return (w1 == (ssize_t)len && w2 == 1) ? 0 : -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -83,6 +117,87 @@ static double monotonic_sec(void)
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
         return (double)time(NULL);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+/* 等 fd 可写或超过 deadline（单调时钟秒）。0 成功，-1 超时。 */
+static int wait_fd_writable_until(int fd, double deadline_monotonic)
+{
+    for (;;) {
+        double now = monotonic_sec();
+        if (now >= deadline_monotonic)
+            return -1;
+        double rem = deadline_monotonic - now;
+        struct timeval tv;
+        if (rem >= 1.0) {
+            tv.tv_sec  = 1;
+            tv.tv_usec = 0;
+        } else {
+            tv.tv_sec  = 0;
+            tv.tv_usec = (suseconds_t)(rem * 1e6);
+            if (tv.tv_usec < 2000)
+                tv.tv_usec = 2000;
+        }
+        fd_set wfds;
+        FD_ZERO(&wfds);
+        FD_SET(fd, &wfds);
+        int r = select(fd + 1, NULL, &wfds, NULL, &tv);
+        if (r > 0)
+            return 0;
+        if (r < 0 && errno != EINTR)
+            return -1;
+    }
+}
+
+static int net_write_all_until(int fd, const void *buf, size_t len,
+                               double deadline_monotonic)
+{
+    const char *p = (const char *)buf;
+    size_t      rem = len;
+    while (rem > 0) {
+        if (wait_fd_writable_until(fd, deadline_monotonic) < 0)
+            return -1;
+        ssize_t n = write(fd, p, rem);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+        if (n == 0)
+            return -1;
+        p += n;
+        rem -= (size_t)n;
+    }
+    return 0;
+}
+
+/* 末尾区域是否出现常见分页提示（设备停住等空格/回车） */
+static int net_pty_tail_requests_pager(const char *a, size_t len)
+{
+    if (len < 6)
+        return 0;
+    size_t n = len > 512 ? 512 : len;
+    const char *t = a + len - n;
+    static const struct { const char *s; size_t L; } needles[] = {
+        { "--More--", 8 },
+        { "--more--", 8 },
+        { "---- More ----", 14 },
+        { "<--- More --->", 14 },
+        { "-- MORE --", 10 },
+        { "-- More --", 10 },
+        { "(END)", 5 },
+        { "Press any key to continue", 25 },
+        { "press space", 11 },
+        /* 常见中文分页（UTF-8） */
+        { "\xe7\xa9\xba\xe6\xa0\xbc", 6 }, /* 空格 */
+        { "\xe7\xbf\xbb\xe9\xa1\xb5", 6 }, /* 翻页 */
+    };
+    for (size_t k = 0; k < sizeof(needles) / sizeof(needles[0]); k++) {
+        if (n < needles[k].L)
+            continue;
+        if (memmem(t, n, needles[k].s, needles[k].L) != NULL)
+            return 1;
+    }
+    return 0;
 }
 
 /* 在一段字节流中正向扫描，跳过 CSI/OSC/其他 ANSI 转义序列及控制字符，
@@ -227,6 +342,67 @@ static char *strip_cmd_output(const char *buf, size_t len)
         result[0] = '\0';
     }
     return result;
+}
+
+/* PTY 诊断：尾部可打印片段写入日志（不含整段业务输出，避免刷屏泄密） */
+static void pty_sanitize_tail(const char *src, size_t srclen, char *dst, size_t dstsz)
+{
+    if (!dst || dstsz == 0)
+        return;
+    dst[0] = '\0';
+    if (!src || srclen == 0)
+        return;
+    size_t n = srclen > 140 ? 140 : srclen;
+    const char *p = src + srclen - n;
+    size_t di = 0;
+    for (size_t i = 0; i < n && di + 1 < dstsz; i++) {
+        unsigned char c = (unsigned char)p[i];
+        if (c == '\n') {
+            if (di + 2 < dstsz) {
+                dst[di++] = '\\';
+                dst[di++] = 'n';
+            }
+        } else if (c == '\r') {
+            if (di + 2 < dstsz) {
+                dst[di++] = '\\';
+                dst[di++] = 'r';
+            }
+        } else if (c >= 32 && c < 127)
+            dst[di++] = (char)c;
+        else
+            dst[di++] = '.';
+    }
+    dst[di] = '\0';
+}
+
+static void pty_diag_tick(int dbg, int cmd_i, size_t cmd_len, int sel,
+                          double cmd_deadline, const char *accum,
+                          ssh_stream_cb_t cb, void *ud)
+{
+    if (!dbg)
+        return;
+    double now   = monotonic_sec();
+    double t_rem = cmd_deadline - now;
+    int    ipr   = (cmd_len > 0 && accum && is_prompt(accum, cmd_len)) ? 1 : 0;
+    int    pgr   = (cmd_len > 0 && accum && net_pty_tail_requests_pager(accum, cmd_len))
+                       ? 1
+                       : 0;
+    char   tail[192];
+    if (accum && cmd_len > 0)
+        pty_sanitize_tail(accum, cmd_len, tail, sizeof(tail));
+    else
+        tail[0] = '\0';
+    LOG_INFO("ssh_pty_diag cmd[%d] len=%zu sel=%d prompt=%d pager=%d t_rem=%.1fs "
+             "buf_max=%d tail=\"%s\"",
+             cmd_i, cmd_len, sel, ipr, pgr, t_rem, SSH_OUTPUT_MAX, tail);
+    /* idx=-2 约定：诊断事件，cmd=info串，output=tail，exit_code=0 */
+    if (cb) {
+        char info[256];
+        snprintf(info, sizeof(info),
+                 "cmd=%d len=%zu sel=%d prompt=%d pager=%d t_rem=%.1fs buf_max=%d",
+                 cmd_i, cmd_len, sel, ipr, pgr, t_rem, SSH_OUTPUT_MAX);
+        cb(-2, info, tail, 0, "", ud);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -849,13 +1025,20 @@ void ssh_session_exec_stream(const char *host, int port,
                               int *out_timed_out,
                               int *out_timeout_cmd_idx,
                               char *out_partial_buf, size_t out_partial_sz,
-                              int net_device_mode)
+                              int net_device_mode,
+                              int pty_debug)
 {
     error_buf[0] = '\0';
     if (out_timed_out)    *out_timed_out = 0;
     if (out_timeout_cmd_idx) *out_timeout_cmd_idx = -1;
     if (out_partial_buf && out_partial_sz > 0) out_partial_buf[0] = '\0';
     int timed_out = 0;
+
+    {
+        const char *ev = getenv("WF_SSH_PTY_DEBUG");
+        if (ev && ev[0] && strcmp(ev, "0") != 0)
+            pty_debug = 1;
+    }
 
     /* 输入校验 */
     if (!validate_safe(host)) {
@@ -882,6 +1065,10 @@ void ssh_session_exec_stream(const char *host, int port,
     size_t blen = 0;
 
     if (idle_timeout_sec <= 0) idle_timeout_sec = SESSION_IDLE_TIMEOUT_DEFAULT;
+
+    if (pty_debug)
+        LOG_INFO("ssh_session_exec_stream: pty_debug=1 idle_timeout_sec=%d output_cap=%d",
+                 idle_timeout_sec, SSH_OUTPUT_MAX);
 
     if (create_pass_file(pass, pass_file, sizeof(pass_file)) < 0) {
         snprintf(error_buf, error_buf_sz,
@@ -1041,9 +1228,11 @@ void ssh_session_exec_stream(const char *host, int port,
     close(out_pipe[1]);
     close(in_pipe[0]);
     session_pid_set(pid);
+    session_stdin_set(in_pipe[1]);   /* 注册 stdin fd，供实时注入使用 */
 
     if (!net_device_mode) {
     /* ── Linux 模式：一次性写入脚本 ── */
+        session_stdin_set(-1);       /* Linux 模式脚本一次性写完，不开放注入 */
         const char *p   = script;
         size_t      rem = strlen(script);
         while (rem > 0) {
@@ -1133,26 +1322,50 @@ void ssh_session_exec_stream(const char *host, int port,
                 cb(-1, "", "", 0, iprompt, ud);
         }
 
+        /* 命令阶段使用非阻塞读：避免少数 PTY 上 select 与 read 语义不一致导致 read 永久阻塞，
+         * 从而墙钟超时永远无法轮询。init 阶段仍用阻塞读。 */
+        {
+            int fln = fcntl(out_pipe[0], F_GETFL, 0);
+            if (fln >= 0)
+                (void)fcntl(out_pipe[0], F_SETFL, fln | O_NONBLOCK);
+        }
+
         /* Step 2: 逐条发送命令，等待提示符返回 */
         for (int i = 0; i < cmd_count; i++) {
             const char *cmd  = skip_shell_marker_prefix(commands[i]);
             size_t      clen = strlen(cmd);
 
-            /* 发送命令 + 换行 */
-            write(in_pipe[1], cmd, clen);
-            write(in_pipe[1], "\n", 1);
-
-            /* 读取命令输出，直到提示符出现或超时。
-             * wall-clock 检查放在循环顶部，每 200ms 必然执行一次，
-             * 无论 select 返回 0（无数据）还是 >0（有数据）都不会被绕过。
-             * 这样即使 PTY 持续产生 ANSI 码/echo 导致 select 一直有数据，
-             * 到时也能可靠触发，不会像分支内检查那样被跳过。 */
+            /* 发送命令 + 换行：先等 stdin 可写。若 ssh 子进程因对端阻塞长期不读 pipe，
+             * 裸 write 会卡死，墙钟超时永远不会执行。
+             * 特例：命令为单个 \x03 字节（Ctrl+C）时，仅发该字节，不加换行。 */
             size_t cmd_len       = 0;
-            double t_cmd_start   = monotonic_sec();
+            double cmd_deadline = monotonic_sec() + (double)idle_timeout_sec;
+            int    write_ok;
+            if (clen == 1 && (unsigned char)cmd[0] == 0x03) {
+                /* Ctrl+C：向 PTY stdin 发送中断字符，不带换行 */
+                write_ok = (net_write_all_until(in_pipe[1], cmd, 1, cmd_deadline) == 0);
+            } else {
+                write_ok = (net_write_all_until(in_pipe[1], cmd, clen, cmd_deadline) == 0 &&
+                            net_write_all_until(in_pipe[1], "\n", 1, cmd_deadline) == 0);
+            }
+            if (!write_ok) {
+                LOG_INFO("ssh_session_exec_stream(net): stdin write timeout/fail on cmd[%d]",
+                         i);
+                if (out_partial_buf && out_partial_sz > 0)
+                    out_partial_buf[0] = '\0';
+                timed_out = 1;
+                if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                killpg(pid, SIGKILL);
+                break;
+            }
 
+            /* 读取直到提示符或 cmd_deadline。顶循环检查截止时刻，避免仅靠「距起算秒数」
+             * 与写命令阶段耗时不同步。分页（--More--）在无新数据时自动发空格。 */
+            double last_pager_try = 0.0;
+            /* 须初始化为「当前单调时钟」，勿用 0：否则 nd-0 恒 >=2s，每条命令首圈就会在 read 前误打 len=0 */
+            double last_pty_diag  = monotonic_sec();
             for (;;) {
-                /* ── 墙上时钟（绝对超时）：循环顶优先检查 ── */
-                if (monotonic_sec() - t_cmd_start >= (double)idle_timeout_sec) {
+                if (monotonic_sec() >= cmd_deadline) {
                     LOG_INFO("ssh_session_exec_stream(net): wall-clock timeout (%ds) on cmd[%d]",
                              idle_timeout_sec, i);
                     if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
@@ -1169,6 +1382,13 @@ void ssh_session_exec_stream(const char *host, int port,
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
                 int sel = select(out_pipe[0]+1, &rset, NULL, NULL, &tv);
+                {
+                    double nd = monotonic_sec();
+                    if (pty_debug && nd - last_pty_diag >= 2.0) {
+                        last_pty_diag = nd;
+                        pty_diag_tick(pty_debug, i, cmd_len, sel, cmd_deadline, accum, cb, ud);
+                    }
+                }
                 if (sel > 0) {
                     size_t space = (cmd_len < SSH_OUTPUT_MAX - 1)
                                        ? (SSH_OUTPUT_MAX - 1 - cmd_len)
@@ -1190,18 +1410,51 @@ void ssh_session_exec_stream(const char *host, int port,
                         break;
                     }
                     ssize_t nr = read(out_pipe[0], accum + cmd_len, space);
-                    if (nr <= 0) {
+                    if (nr < 0) {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                            usleep(5000); /* 5ms，避免 select/read 竞态时空转占满 CPU */
+                            continue;
+                        }
+                        if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
+                            size_t cp = cmd_len < out_partial_sz-1 ? cmd_len : out_partial_sz-1;
+                            memcpy(out_partial_buf, accum, cp);
+                            out_partial_buf[cp] = '\0';
+                        }
                         timed_out = 1;
                         if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                        killpg(pid, SIGKILL);
                         break;
-                    }   /* EOF */
+                    }
+                    if (nr == 0) {
+                        /* EOF：SSH 进程已退出（设备主动关闭会话，如执行 exit/y 后）。
+                         * 已有输出 → 命令正常结束（无提示符），打断外层循环但不标记超时；
+                         * 无任何输出 → 意外断开，走超时路径。 */
+                        if (cmd_len > 0) {
+                            timed_out = 2;   /* 2 = session_ended（区别于 1 = real timeout） */
+                        } else {
+                            timed_out = 1;
+                            if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                            killpg(pid, SIGKILL);
+                        }
+                        break;
+                    }
                     cmd_len += (size_t)nr;
-                    /* 每次读到数据后也检测提示符，避免持续有数据（OSC 序列等）时
-                     * 提示符识别被推迟到 200ms 无数据才触发 */
+                    if (net_pty_tail_requests_pager(accum, cmd_len)) {
+                        if (wait_fd_writable_until(in_pipe[1], cmd_deadline) == 0)
+                            (void)write(in_pipe[1], " ", 1);
+                        last_pager_try = monotonic_sec();
+                    }
                     if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;
                 } else {
-                    /* 200ms 无新数据：检测提示符，超时由循环顶处理 */
                     if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;
+                    if (cmd_len > 0 && net_pty_tail_requests_pager(accum, cmd_len)) {
+                        double now = monotonic_sec();
+                        if (now - last_pager_try >= 0.35) {
+                            last_pager_try = now;
+                            if (wait_fd_writable_until(in_pipe[1], cmd_deadline) == 0)
+                                (void)write(in_pipe[1], " ", 1);
+                        }
+                    }
                 }
             }
 
@@ -1213,7 +1466,14 @@ void ssh_session_exec_stream(const char *host, int port,
                 cb(i, cmd, clean ? clean : "", 0, prompt_line, ud);
             free(clean);
 
-            if (timed_out) break;
+            if (timed_out == 1) break;          /* 真超时/写失败：中断 */
+            if (timed_out == 2) { timed_out = 0; break; }  /* 会话正常结束（exit/y）：不算超时 */
+        }
+
+        {
+            int fln = fcntl(out_pipe[0], F_GETFL, 0);
+            if (fln >= 0)
+                (void)fcntl(out_pipe[0], F_SETFL, fln & ~O_NONBLOCK);
         }
 
 net_done:

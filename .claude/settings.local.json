@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -type f -name *.c -o -name *.h -o -name Makefile -o -name *.html -o -name *.js -o -name *.css -o -name *.json -o -name *.txt -o -name *.md)",
+      "Bash(grep -r \"api/\" html/*.html)",
+      "Bash(xargs wc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(make:*)",
+      "Bash(ls /mnt/)",
+      "Read(//mnt/**)",
+      "Bash(grep -Pn ?? E:/MCP_PROJECT/wfserver/wfwebserver/html/linux_cmd_test.html)",
+      "Bash(grep -n ?? E:/MCP_PROJECT/wfserver/wfwebserver/html/linux_cmd_test.html)",
+      "Bash(export PATH=\"$PATH:/usr/bin:/usr/local/bin\")",
+      "Bash(git push:*)",
+      "Bash(wsl:*)",
+      "Bash(gcc --version)"
+    ]
+  }
+}

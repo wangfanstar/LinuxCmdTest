@@ -1081,6 +1081,22 @@ body.edit-mode .cmd-output { cursor: text; }
 /* 面板开关按钮激活态 */
 #btn-rt-panel.rt-on { border-color: #58a6ff; color: #58a6ff; background: #1f3a6e40; }
 
+/* 实时面板 Tab 栏 */
+#rt-tabs { display:flex; background:#1c2128; border-bottom:1px solid #30363d; flex-shrink:0; }
+.rt-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: #8b949e; font-size: .72rem; padding: 5px 14px;
+  cursor: pointer; white-space: nowrap; transition: color .15s;
+}
+.rt-tab:hover { color: #c9d1d9; background: none; }
+.rt-tab.rt-tab-active { color: #58a6ff; border-bottom-color: #58a6ff; }
+#rt-log-body {
+  display: none; overflow-y: auto; flex: 1; min-height: 0;
+  padding: 4px 10px;
+  font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: #c9d1d9;
+}
+#rt-log-body.rt-log-active { display: flex; flex-direction: column; }
+
 /* 网络设备模式 toggle */
 .toggle-wrap { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim);
   cursor:pointer; user-select:none; margin-top:4px; }
@@ -1135,6 +1151,18 @@ body.edit-mode .cmd-output { cursor: text; }
             <input id="f-timeout" type="number" value="300" min="10" max="3600">
           </div>
         </div>
+        <div class="field-row" style="align-items:center;margin-top:2px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:#8b949e;cursor:pointer;user-select:none">
+            <input type="checkbox" id="f-auto-exit" checked title="执行完所有命令后自动附加两条退出命令：&#10;① ^C（发送 Ctrl+C 中断字符，退出当前视图）&#10;② y（确认退出）&#10;适用于执行完毕后需要交互式确认退出的网络设备。两条命令计入统计。">
+            <span>执行完成后自动退出（^C + y）</span>
+          </label>
+        </div>
+        <div class="field-row" style="align-items:center;margin-top:2px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:#8b949e;cursor:pointer;user-select:none">
+            <input type="checkbox" id="f-pty-debug" title="勾选后：右下角浮窗每 2 秒显示一条诊断（len/prompt/pager/距超时秒数/尾部片段），绿色=已检测到提示符，黄色=分页等待，红色=即将超时。同时写入服务端 log（ssh_pty_diag）。也可不勾选，启动前 export WF_SSH_PTY_DEBUG=1">
+            <span>PTY 诊断日志（区分缓存满 / 等提示符 / 读阻塞）</span>
+          </label>
+        </div>
         <div class="field">
           <label>用户名</label>
           <input id="f-user" type="text" placeholder="root">
@@ -1147,7 +1175,10 @@ body.edit-mode .cmd-output { cursor: text; }
 
       <!-- 命令集合 -->
       <div class="form-section">
-        <div class="section-label" title="每条命令前的数字为显示序号；点击可切换为「不计序号」（不占位递增，仅展示用，不影响执行顺序）">命令集合</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:4px">
+          <span class="section-label" style="border-bottom:none;padding-bottom:0" title="每条命令前的数字为显示序号；点击可切换为「不计序号」（不占位递增，仅展示用，不影响执行顺序）">命令集合</span>
+          <span id="cmd-count-badge" style="font-size:11px;font-weight:600;color:var(--dim)"></span>
+        </div>
         <div id="cmd-list"></div>
         <div class="cmd-toolbar">
           <button id="btn-add-cmd">＋ 添加</button>
@@ -1254,7 +1285,12 @@ body.edit-mode .cmd-output { cursor: text; }
         <button class="rt-ctrl" id="rt-minimize" title="最小化">─</button>
         <button class="rt-ctrl" id="rt-close"    title="关闭">×</button>
       </div>
+      <div id="rt-tabs">
+        <button id="rt-tab-panel" class="rt-tab rt-tab-active" onclick="window.rtSwitchTab('panel')">实时面板</button>
+        <button id="rt-tab-log"   class="rt-tab"               onclick="window.rtSwitchTab('log')">实时日志 <span id="rt-log-badge" style="display:none;font-size:.65rem;background:#1f3a6e;color:#58a6ff;border-radius:8px;padding:0 5px;margin-left:2px">0</span></button>
+      </div>
       <div id="rt-body"></div>
+      <div id="rt-log-body"></div>
     </div>
   </main>
 
@@ -1743,6 +1779,7 @@ async function doExec() {
   const pass    = document.getElementById('f-pass').value;
   const cmdItems = getCommandListItems();
   const commands = cmdItems.map(o => o.cmd);
+  const autoExit = !!(document.getElementById('f-auto-exit')?.checked);
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
@@ -1753,8 +1790,20 @@ async function doExec() {
       return;
     }
   }
+  /* 注入自动退出命令（^C + y），注入后再做总量上限校验 */
+  const userCmdCount = commands.length;
+  if (autoExit) { commands.push('\x03'); commands.push('y'); }
+  if (commands.length > 256) {
+    execStatus.textContent = `命令总数 ${commands.length} 超过上限 256${autoExit ? '（含自动退出 2 条）' : ''}，请减少命令数量`;
+    execStatus.style.color = 'var(--red)';
+    return;
+  }
 
   resumeStreamConsume();
+  /* 清空实时日志（新一轮执行开始），切回面板 Tab */
+  { const lb = document.getElementById('rt-log-body'); if (lb) lb.innerHTML = ''; }
+  { const bg = document.getElementById('rt-log-badge'); if (bg) { bg.style.display = 'none'; bg.textContent = '0'; } }
+  if (window.rtSwitchTab) window.rtSwitchTab('panel');
   setLoading(true);
   const btnReset = document.getElementById('btn-reset');
   btnReset.classList.add('active');
@@ -1763,6 +1812,10 @@ async function doExec() {
 
   refreshCmdSeqNumbers();
   const cmdSeqLabels = getReportCmdSeqLabels();
+  if (autoExit && commands.length > userCmdCount) {
+    cmdSeqLabels.push('^C');
+    cmdSeqLabels.push('y');
+  }
 
   window._streamCommands = commands.slice();
   window._rptOutputs     = new Array(commands.length).fill('');
@@ -1777,7 +1830,7 @@ async function doExec() {
   if (window.rtInit) { rtInit(commands, host, user, cmdSeqLabels); rtMarkRunning(0); }
 
   execStatus.style.color = 'var(--dim)';
-  execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
+  execStatus.textContent = `共 ${userCmdCount} 条命令${autoExit ? ' + 自动退出' : ''}，连接 ${user}@${host}:${port}…`;
 
   _execAbortCtrl = new AbortController();
 
@@ -1792,7 +1845,10 @@ async function doExec() {
     resp = await fetch('/api/ssh-exec-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, pass, timeout, commands, net_device: 2 }),
+      body: JSON.stringify({
+        host, port, user, pass, timeout, commands, net_device: 2,
+        pty_debug: (document.getElementById('f-pty-debug') && document.getElementById('f-pty-debug').checked) ? 1 : 0
+      }),
       signal: _execAbortCtrl.signal
     });
   } catch (e) {
@@ -1836,6 +1892,30 @@ async function doExec() {
         if (ev.type === 'session_prompt') {
           window._rptSessionInitialPrompt = ev.prompt != null ? String(ev.prompt) : '';
           refreshReportCmdHeaderLines(0);
+        } else if (ev.type === 'debug') {
+          console.warn('[ssh stream debug]', ev);
+        } else if (ev.type === 'diag') {
+          /* PTY 诊断事件：追加到实时日志 Tab */
+          const logBdy = document.getElementById('rt-log-body');
+          const badge  = document.getElementById('rt-log-badge');
+          if (logBdy) {
+            const line = document.createElement('div');
+            line.style.cssText = 'padding:1px 0;border-bottom:1px solid #21262d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+            const tail = ev.tail ? `  tail="${ev.tail}"` : '';
+            line.textContent = (ev.info || '') + tail;
+            /* 颜色：绿=提示符已检测，黄=分页等待，红=即将超时 */
+            if (ev.info && ev.info.includes('prompt=1')) line.style.color = '#3fb950';
+            else if (ev.info && ev.info.includes('pager=1')) line.style.color = '#d29922';
+            else if (ev.info && (ev.info.includes('t_rem=-') || parseFloat((ev.info.match(/t_rem=([-\d.]+)/)||[])[1]) < 5)) line.style.color = '#f85149';
+            logBdy.appendChild(line);
+            while (logBdy.children.length > 200) logBdy.removeChild(logBdy.firstChild);
+            /* 仅在日志 tab 激活时自动滚动到底部 */
+            if (logBdy.classList.contains('rt-log-active')) logBdy.scrollTop = logBdy.scrollHeight;
+            /* 徽标计数 */
+            if (badge) { badge.style.display = ''; badge.textContent = logBdy.children.length; }
+            /* 若实时面板未显示则不强制打开，但确保面板可见时内容在 */
+          }
+          console.info('[ssh pty diag]', ev.info, ev.tail ? `tail="${ev.tail}"` : '');
         } else if (ev.type === 'result') {
           streamResults[ev.i] = ev;
           updateReportBlock(ev.i, ev.output, ev.exit_code, '',
@@ -1924,14 +2004,21 @@ async function doExec() {
 
   const ok    = streamResults.filter(r => r && r.exit_code === 0).length;
   const total = streamResults.filter(Boolean).length;
+  /* 区分用户命令与自动退出命令的统计 */
+  const userOk    = streamResults.slice(0, userCmdCount).filter(r => r && r.exit_code === 0).length;
+  const userTotal = streamResults.slice(0, userCmdCount).filter(Boolean).length;
+  const autoTotal = total - userTotal;
+  const autoOk    = ok - userOk;
   if (streamTimeout) {
     execStatus.style.color = 'var(--yellow)';
     execStatus.textContent =
       `执行超时中断（限时 ${streamTimeout.timeoutSec}s）· 已完成 ${streamTimeout.completed}/${commands.length} 条` +
       (ok > 0 ? `（其中 ${ok} 条成功）` : '');
   } else {
-    execStatus.style.color = ok === total && total > 0 ? 'var(--green)' : 'var(--yellow)';
-    execStatus.textContent = `完成 ${ok}/${total} 成功`;
+    execStatus.style.color = userOk === userTotal && userTotal > 0 ? 'var(--green)' : 'var(--yellow)';
+    let statusText = `用户命令 ${userOk}/${userTotal} 成功`;
+    if (autoTotal > 0) statusText += `，自动退出 ${autoOk}/${autoTotal} 成功（^C+y）`;
+    execStatus.textContent = statusText;
   }
 
   if (expectedData) refreshComparison();
@@ -2669,6 +2756,8 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     host:     document.getElementById('f-host').value.trim(),
     port:     parseInt(document.getElementById('f-port').value) || 22,
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
+    pty_debug:  !!(document.getElementById('f-pty-debug')  && document.getElementById('f-pty-debug').checked),
+    auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
     commands: getCommandListItems().map(o => {
@@ -2698,6 +2787,14 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
       if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
+      if (cfg.pty_debug !== undefined) {
+        const pd = document.getElementById('f-pty-debug');
+        if (pd) pd.checked = !!cfg.pty_debug;
+      }
+      if (cfg.auto_exit !== undefined) {
+        const ae = document.getElementById('f-auto-exit');
+        if (ae) ae.checked = !!cfg.auto_exit;
+      }
       /* 替换命令列表（先清空再填入，避免与现有命令合并） */
       cmdList.innerHTML = '';
       if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
@@ -3178,6 +3275,25 @@ function flash(el, msg) {
     rtRender();
   };
 
+  /* Tab 切换：'panel' | 'log' */
+  window.rtSwitchTab = function(tab) {
+    const body   = document.getElementById('rt-body');
+    const logBdy = document.getElementById('rt-log-body');
+    const tabP   = document.getElementById('rt-tab-panel');
+    const tabL   = document.getElementById('rt-tab-log');
+    if (tab === 'log') {
+      if (body)   body.style.display = 'none';
+      if (logBdy) { logBdy.classList.add('rt-log-active'); logBdy.scrollTop = logBdy.scrollHeight; }
+      if (tabP)   tabP.classList.remove('rt-tab-active');
+      if (tabL)   tabL.classList.add('rt-tab-active');
+    } else {
+      if (body)   body.style.display = '';
+      if (logBdy) logBdy.classList.remove('rt-log-active');
+      if (tabP)   tabP.classList.add('rt-tab-active');
+      if (tabL)   tabL.classList.remove('rt-tab-active');
+    }
+  };
+
   /* 定时刷新（更新 running 行的秒数） */
   function rtStartTicker(){ rtStopTicker(); rtTicker = setInterval(rtRender, 300); }
   function rtStopTicker() { if (rtTicker){ clearInterval(rtTicker); rtTicker = null; } }
@@ -3268,6 +3384,8 @@ function flash(el, msg) {
         user:    document.getElementById('f-user').value,
         pass:    document.getElementById('f-pass').value,
         timeout: document.getElementById('f-timeout').value,
+        pty_debug:  !!(document.getElementById('f-pty-debug')  && document.getElementById('f-pty-debug').checked),
+        auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
       },
       cmds:       getCommandListItems().map(o => {
         const row = { cmd: o.cmd };
@@ -3294,10 +3412,34 @@ function flash(el, msg) {
   ['f-host','f-port','f-user','f-pass','f-timeout'].forEach(id => {
     document.getElementById(id).addEventListener('input', window._saveState);
   });
+  const _ptyDbg  = document.getElementById('f-pty-debug');
+  if (_ptyDbg)  _ptyDbg.addEventListener('change', window._saveState);
+  const _autoExit = document.getElementById('f-auto-exit');
+  if (_autoExit) _autoExit.addEventListener('change', window._saveState);
 
   /* ── 监听命令列表（结构变动 + 输入） ── */
   new MutationObserver(window._saveState).observe(cmdList, { childList: true });
   cmdList.addEventListener('input', window._saveState);
+
+  /* ── 命令数量徽标（超 256 变红警告） ── */
+  function refreshCmdCountBadge() {
+    const badge = document.getElementById('cmd-count-badge');
+    if (!badge) return;
+    const n = cmdList.children.length;
+    badge.textContent = n > 0 ? `${n} / 256` : '';
+    if (n > 256) {
+      badge.style.color = 'var(--red)';
+      badge.title = `命令数量 ${n} 已超过上限 256，执行时将被拒绝，请拆分后分批执行`;
+    } else if (n > 200) {
+      badge.style.color = 'var(--yellow)';
+      badge.title = `命令数量 ${n}，接近上限 256`;
+    } else {
+      badge.style.color = 'var(--dim)';
+      badge.title = '';
+    }
+  }
+  new MutationObserver(refreshCmdCountBadge).observe(cmdList, { childList: true });
+  refreshCmdCountBadge();
 
   /* ── 监听报告区（执行更新 + 编辑备注） ── */
   new MutationObserver(window._saveState).observe(report, { childList: true, subtree: true });
@@ -3322,6 +3464,14 @@ function flash(el, msg) {
       if (c.user    != null) document.getElementById('f-user').value    = c.user;
       if (c.pass    != null) document.getElementById('f-pass').value    = c.pass;
       if (c.timeout != null) document.getElementById('f-timeout').value = c.timeout;
+      if (c.pty_debug != null) {
+        const pd = document.getElementById('f-pty-debug');
+        if (pd) pd.checked = !!c.pty_debug;
+      }
+      if (c.auto_exit != null) {
+        const ae = document.getElementById('f-auto-exit');
+        if (ae) ae.checked = !!c.auto_exit;
+      }
 
       /* 命令列表 */
       if (Array.isArray(state.cmds) && state.cmds.length > 0) {
@@ -3385,6 +3535,7 @@ function flash(el, msg) {
   }
 })();
 </script>
+
 
 </body>
 </html>

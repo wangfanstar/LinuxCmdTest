@@ -762,7 +762,17 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
     int           fd  = ctx->fd;
     strbuf_t      sb  = {0};
 
-    if (idx < 0) {
+    if (idx == -2) {
+        /* PTY 诊断事件：cmd=info串，output=tail片段 */
+        sb_appendf(&sb, "{\"type\":\"diag\",\"info\":");
+        sb_json_str(&sb, cmd ? cmd : "");
+        sb_appendf(&sb, ",\"tail\":");
+        sb_json_str(&sb, output ? output : "");
+        SB_LIT(&sb, "}");
+        if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+        return;
+    }
+    if (idx == -1) {
         SB_LIT(&sb, "{\"type\":\"session_prompt\",\"prompt\":");
         sb_json_str(&sb, prompt_after ? prompt_after : "");
         SB_LIT(&sb, "}");
@@ -801,6 +811,7 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     port             = json_get_int(body, "port",       22);
     int timeout      = json_get_int(body, "timeout",    0);
     int net_device   = json_get_int(body, "net_device", 0);
+    int pty_debug    = json_get_int(body, "pty_debug",  0);
     if (!user[0]) strcpy(user, "root");
 
     char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
@@ -813,8 +824,8 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                   "{\"error\":\"no commands\"}", 22); return;
     }
 
-    LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d timeout=%d",
-             user, host, port, cmd_count, timeout);
+    LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d timeout_req=%d pty_debug=%d",
+             user, host, port, cmd_count, timeout, pty_debug);
 
     /* SSE 响应头（无 Content-Length，流式） */
     const char *sse_hdr =
@@ -825,6 +836,20 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
         "Connection: close\r\n"
         "\r\n";
     write(client_fd, sse_hdr, strlen(sse_hdr));
+
+    if (pty_debug) {
+        int eff_to = (timeout > 0) ? timeout : 300;
+        strbuf_t ds = {0};
+        sb_appendf(&ds,
+                   "{\"type\":\"debug\",\"pty_debug\":1,\"timeout_req\":%d,"
+                   "\"effective_timeout_sec\":%d,"
+                   "\"log\":\"server file logs: ssh_pty_diag / ssh_session_exec_stream\"}",
+                   timeout, eff_to);
+        if (ds.data) {
+            sse_write_json(client_fd, ds.data);
+            free(ds.data);
+        }
+    }
 
     /* 流式执行 */
     stream_ctx_t ctx = { client_fd, cmd_bufs, 0 };
@@ -840,7 +865,8 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                             &timed_out,
                             &timeout_cmd_idx,
                             partial_buf, partial_buf ? PARTIAL_BUF_MAX : 0,
-                            net_device);
+                            net_device,
+                            pty_debug);
 
     /* 结束事件 */
     int timeout_sec = (timeout > 0) ? timeout : 300;   /* 实际使用的超时秒数 */

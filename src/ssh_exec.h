@@ -3,8 +3,8 @@
 
 #include <stddef.h>  /* size_t */
 
-#define SSH_MAX_CMDS     64
-#define SSH_OUTPUT_MAX   (512 * 1024)   /* 单条命令输出上限 512KB */
+#define SSH_MAX_CMDS     256
+#define SSH_OUTPUT_MAX   (2 * 1024 * 1024)   /* 单条命令输出上限 2MB（大段 show 配置） */
 
 typedef struct {
     char *cmd;        /* 命令字符串（heap） */
@@ -64,7 +64,9 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
  * out_partial_buf/out_partial_sz：非 NULL 时，超时中断后填入被中断命令
  *   的已采集输出（不完整），正常结束置为空字符串。
  * net_device_mode：非 0 时使用交互式提示符检测模式，逐条发命令并等待提示符；
- *   为 0 时使用 bash -s 脚本模式（适用于 Linux/Unix 服务器）。 */
+ *   为 0 时使用 bash -s 脚本模式（适用于 Linux/Unix 服务器）。
+ * pty_debug：非 0 或环境变量 WF_SSH_PTY_DEBUG 非 0 时，向日志输出 PTY 读循环诊断
+ *（缓冲长度、是否判为提示符、分页检测、距超时剩余时间、尾部可打印片段），便于区分「缓存满 / 等提示符 / read 阻塞」等。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
@@ -74,6 +76,7 @@ void ssh_session_exec_stream(const char *host, int port,
                               int *out_timed_out,
                               int *out_timeout_cmd_idx,
                               char *out_partial_buf, size_t out_partial_sz,
-                              int net_device_mode);
+                              int net_device_mode,
+                              int pty_debug);
 
 #endif /* SSH_EXEC_H */

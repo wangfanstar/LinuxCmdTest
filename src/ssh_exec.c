@@ -946,6 +946,7 @@ void ssh_session_exec_stream(const char *host, int port,
             "-o", "ServerAliveInterval=10",
             "-o", "ServerAliveCountMax=6",
             "-t", "-t",    /* 强制申请服务端 PTY，即使客户端无本地 tty */
+            "-e", "none",  /* 禁用 SSH 转义字符，防止命令中 ~ 被拦截卡住 */
             "-p", port_str,
             userhost,
             NULL

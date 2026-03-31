@@ -297,6 +297,32 @@ button:hover { background: var(--surface2); border-color: var(--accent); }
 }
 #btn-exec:hover:not(:disabled) { background: #236c36; }
 #btn-exec:disabled { opacity: .5; cursor: not-allowed; }
+.exec-pause-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.exec-pause-row button {
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--dim);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.exec-pause-row button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.exec-pause-row button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+#btn-pause-exec:not(:disabled) { color: #d29922; border-color: #d2992240; }
+#btn-resume-exec:not(:disabled) { color: #3fb950; border-color: #2ea04340; }
 .spinner {
   display: none;
   width: 14px; height: 14px;
@@ -436,15 +462,13 @@ main {
   background: var(--surface2);
   outline: none;
   min-height: 28px;
+  cursor: text;   /* 执行过程中也可点入添加备注 */
 }
 .cmd-notes:empty::before { content: "点击添加备注…"; color: #4a5568; }
 .cmd-notes[contenteditable="true"] { color: var(--text); }
 
-/* edit mode indicator */
-body.edit-mode .cmd-output,
-body.edit-mode .cmd-notes {
-  cursor: text;
-}
+/* edit mode indicator（备注区始终可编辑，仅输出区依赖 edit-mode） */
+body.edit-mode .cmd-output { cursor: text; }
 
 /* ── 测试连接按钮 ── */
 #btn-test {
@@ -869,6 +893,12 @@ body.edit-mode .cmd-notes {
         <span class="spinner" id="spinner"></span>
         <span id="exec-label">▶ 执行</span>
       </button>
+      <div class="exec-pause-row">
+        <button type="button" id="btn-pause-exec" disabled
+          title="暂停接收后续结果（远端 SSH 内当前命令可能仍在跑，直至空闲超时）">⏸ 暂停</button>
+        <button type="button" id="btn-resume-exec" disabled
+          title="继续接收流式结果">▶ 恢复</button>
+      </div>
       <button id="btn-reset" title="强制终止当前执行并重置视图">↺ 复位</button>
     </div>
   </aside>
@@ -935,9 +965,9 @@ body.edit-mode .cmd-notes {
         <li>在左侧填写 SSH <strong>主机 / IP</strong>、<strong>端口</strong>、<strong>用户名</strong>、<strong>密码</strong></li>
         <li>在「命令集合」中添加要远程执行的命令（支持预设模板、文件导入）</li>
         <li>点击 <strong>⚡ 测试连接</strong> 验证 SSH 连接是否正常</li>
-        <li>点击 <strong>▶ 执行</strong> 按钮，等待命令逐一执行</li>
+        <li>点击 <strong>▶ 执行</strong> 后命令逐条流式执行；可用 <strong>暂停 / 恢复</strong> 控制是否继续接收结果（不中断远端已发起的命令）</li>
         <li>右侧报告区展示每条命令的输出和退出码，可折叠查看</li>
-        <li>点击「<strong>编辑报告</strong>」可修改输出内容或添加备注</li>
+        <li>每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
         <li>点击「<strong>↓ 下载</strong>」将报告保存为独立 HTML 文件</li>
       </ol>
 
@@ -1250,6 +1280,55 @@ const execStatus = document.getElementById('exec-status');
 
 let _execAbortCtrl = null;   /* 当前执行的 AbortController */
 
+/* 暂停：阻塞前端对 SSE 的消费；恢复后继续 reader.read。不复位 SSH。 */
+let _execPausePromise = null;
+let _execResumeResolve = null;
+
+function resumeStreamConsume() {
+  if (_execResumeResolve) {
+    _execResumeResolve();
+    _execResumeResolve = null;
+  }
+  _execPausePromise = null;
+  syncPauseButtons();
+}
+
+function pauseStreamConsume() {
+  if (_execPausePromise) return;
+  _execPausePromise = new Promise(r => { _execResumeResolve = r; });
+  syncPauseButtons();
+  if (execStatus && !execStatus.textContent.includes('已暂停')) {
+    const prev = execStatus.textContent;
+    execStatus.textContent = prev + '（已暂停接收）';
+    execStatus.style.color = 'var(--yellow)';
+  }
+}
+
+async function waitWhilePaused() {
+  while (_execPausePromise) {
+    const p = _execPausePromise;
+    await p;
+  }
+}
+
+function syncPauseButtons() {
+  const running = btnExec.disabled;
+  const paused = !!_execPausePromise;
+  const bp = document.getElementById('btn-pause-exec');
+  const br = document.getElementById('btn-resume-exec');
+  if (bp) bp.disabled = !running || paused;
+  if (br) br.disabled = !running || !paused;
+}
+
+document.getElementById('btn-pause-exec').addEventListener('click', () => pauseStreamConsume());
+document.getElementById('btn-resume-exec').addEventListener('click', () => {
+  resumeStreamConsume();
+  if (execStatus && execStatus.textContent.includes('（已暂停接收）')) {
+    execStatus.textContent = execStatus.textContent.replace('（已暂停接收）', '');
+    execStatus.style.color = 'var(--dim)';
+  }
+});
+
 btnExec.addEventListener('click', () => { doExec(); });
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
@@ -1263,7 +1342,8 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
       signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
   } catch (_) { /* 超时或网络错误忽略 */ }
 
-  /* 2. 中断正在进行的 fetch */
+  /* 2. 先解除暂停，避免 await 卡住；再中断 fetch */
+  resumeStreamConsume();
   if (_execAbortCtrl) {
     _execAbortCtrl.abort();
     _execAbortCtrl = null;
@@ -1298,6 +1378,7 @@ async function doExec() {
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
 
+  resumeStreamConsume();
   setLoading(true);
   const btnReset = document.getElementById('btn-reset');
   btnReset.classList.add('active');
@@ -1340,6 +1421,7 @@ async function doExec() {
     }
     setLoading(false);
     btnReset.classList.remove('active');
+    resumeStreamConsume();
     _execAbortCtrl = null;
     return;
   }
@@ -1351,6 +1433,7 @@ async function doExec() {
 
   try {
     while (true) {
+      await waitWhilePaused();
       const { done, value } = await reader.read();
       if (done) break;
       sseBuf += decoder.decode(value, { stream: true });
@@ -1360,6 +1443,7 @@ async function doExec() {
       sseBuf = parts.pop();  /* 保留不完整的最后一段 */
 
       for (const part of parts) {
+        await waitWhilePaused();
         const m = part.match(/^data:\s*(.+)$/m);
         if (!m) continue;
         let ev;
@@ -1387,6 +1471,7 @@ async function doExec() {
           execStatus.textContent = '错误: ' + ev.message;
           setLoading(false);
           btnReset.classList.remove('active');
+          resumeStreamConsume();
           _execAbortCtrl = null;
           if (expectedData) refreshComparison();
           return;
@@ -1438,6 +1523,7 @@ async function doExec() {
   }
 
   _execAbortCtrl = null;
+  resumeStreamConsume();
   if (window.rtFinish) rtFinish();
   finalizeReportHeader(streamResults.filter(Boolean));
   setLoading(false);
@@ -1463,6 +1549,8 @@ function setLoading(on) {
   btnExec.disabled = on;
   spinner.style.display = on ? 'block' : 'none';
   execLabel.textContent = on ? '执行中…' : '▶ 执行';
+  if (!on) resumeStreamConsume();
+  syncPauseButtons();
 }
 
 /* ================================================================
@@ -1529,13 +1617,14 @@ function renderReportSkeleton({ host, port, user, commands, markers }) {
         <div class="cmd-block-body">
           <pre class="cmd-output" id="out-${idx}" contenteditable="false"></pre>
           <div class="cmd-prompt" id="wd-${idx}"></div>
-          <div class="cmd-notes" contenteditable="false"></div>
+          <div class="cmd-notes" contenteditable="true"></div>
         </div>
       </div>`;
   });
 
   report.innerHTML = html;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
+  setReportNotesAlwaysEditable();
 }
 
 function markBlockRunning(idx) {
@@ -1664,16 +1753,24 @@ function renderReport({ host, port, user, results, markers = [] }) {
         <div class="cmd-block-body">
           <pre class="cmd-output" id="out-${idx}" contenteditable="false">${ansiToHtml(r.output)}</pre>
           ${r.workdir ? `<div class="cmd-prompt show" id="wd-${idx}" title="${esc(r.workdir)}">${buildPromptHtml(user, host, r.workdir)}</div>` : ''}
-          <div class="cmd-notes" contenteditable="false" placeholder="点击添加备注…"></div>
+          <div class="cmd-notes" contenteditable="true" placeholder="点击添加备注…"></div>
         </div>
       </div>`;
   });
 
   report.innerHTML = html;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
+  setReportNotesAlwaysEditable();
 
   /* 若已加载预期结果，自动进行比对 */
   if (expectedData) refreshComparison();
+}
+
+/* 备注区始终可编辑（执行中、比对视图下均可）；与「编辑报告」控制的输出区分离 */
+function setReportNotesAlwaysEditable() {
+  report.querySelectorAll('.cmd-notes').forEach(function (el) {
+    el.setAttribute('contenteditable', 'true');
+  });
 }
 
 function toggleBlock(idx) {
@@ -1693,7 +1790,8 @@ btnEdit.addEventListener('click', () => {
   document.body.classList.toggle('edit-mode', editMode);
 
   const ce = editMode ? 'true' : 'false';
-  report.querySelectorAll('.cmd-notes').forEach(el => el.setAttribute('contenteditable', ce));
+  /* 备注始终可编辑，不随编辑报告开关变化 */
+  setReportNotesAlwaysEditable();
   /* 单结果视图：编辑原始输出（比对模式下原始输出被隐藏，不可见即不可编辑） */
   report.querySelectorAll('.cmd-block-body > .cmd-output')
         .forEach(el => { if (el.style.display !== 'none') el.setAttribute('contenteditable', ce); });
@@ -2128,6 +2226,7 @@ function refreshComparison() {
     }
     hdr.querySelector('.btn-copy-cmd').before(badge);
   });
+  setReportNotesAlwaysEditable();
 }
 
 /* ================================================================
@@ -2456,6 +2555,7 @@ function flash(el, msg) {
           const exitEl = blk.querySelector('[id^="exit-"]');
           if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '中断'; }
         });
+        setReportNotesAlwaysEditable();
       }
 
       /* 匹配模式 */

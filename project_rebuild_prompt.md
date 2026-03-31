@@ -883,9 +883,10 @@ static int recommend_threads(void) {
 3. 执行模式选择：批量模式（ssh-exec-one 逐条）/ 会话模式（ssh-exec）/ 流式模式（ssh-exec-stream）
 4. 实时结果展示区：每条命令的输出和退出码
 5. 取消按钮：调用 `/api/cancel`
-6. 通过 SSE（EventSource）接收 `/api/ssh-exec-stream` 的实时结果
-7. 支持多主机（行格式 `host:port:user:pass`），逐主机执行相同命令集
-8. 结果对比面板（多主机结果并排显示）
+6. 执行按钮下方 **暂停 / 恢复**：用 Promise 门闩阻塞 `fetch` SSE 的 `reader.read()` 与逐事件处理；仅暂停前端消费，不中断远端 SSH（复位时先 `resume` 再 `abort`，避免卡在 `await`）
+7. 通过 SSE（`fetch` + `ReadableStream`）接收 `/api/ssh-exec-stream` 的实时结果
+8. 支持多主机（行格式 `host:port:user:pass`），逐主机执行相同命令集
+9. 结果对比面板（多主机结果并排显示）
 
 **实现细节：**
 - 使用原生 JavaScript（无框架）
@@ -958,6 +959,7 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.2 | monitor.html 进程查询结果新增 Kill 按钮（两步确认）；后端新增 POST /api/kill 端点 |
 | 2026-03-30 | v1.3 | 超时中断保留已有结果：ssh_exec 新增 out_timed_out 参数，服务端发 type:timeout 事件，前端新增 markBlockTimeout 和超时状态展示 |
 | 2026-03-30 | v1.4 | 降低 CPU 占用：UID→用户名缓存（64 条）、scan_proc_top 并发 trylock+同秒不重扫、/api/monitor 响应缓存 2 秒 |
+| 2026-03-30 | v1.5 | linux_cmd_test.html：执行区增加暂停/恢复（SSE 消费门闩）；帮助文案同步 |
 
 ---
 

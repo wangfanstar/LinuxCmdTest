@@ -85,10 +85,48 @@ static double monotonic_sec(void)
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
+/* 在一段字节流中正向扫描，跳过 CSI/OSC/其他 ANSI 转义序列及控制字符，
+ * 返回最后一个可打印的非空格字符（用于提示符判断和末行检测）。*/
+static char effective_last_printable(const char *s, size_t len)
+{
+    char last_real = 0;
+    for (size_t j = 0; j < len; ) {
+        unsigned char c = (unsigned char)s[j];
+        if (c == '\033' && j + 1 < len) {
+            if (s[j+1] == '[') {
+                /* CSI 序列：ESC [ <参数> <终止字节 0x40-0x7E> */
+                j += 2;
+                while (j < len) {
+                    unsigned char c2 = (unsigned char)s[j++];
+                    if (c2 >= 0x40 && c2 <= 0x7e) break;
+                }
+            } else if (s[j+1] == ']') {
+                /* OSC 序列：ESC ] ... BEL(\007) 或 ST(ESC \) */
+                j += 2;
+                while (j < len) {
+                    if ((unsigned char)s[j] == '\007') { j++; break; }
+                    if ((unsigned char)s[j] == '\033' && j+1 < len && s[j+1] == '\\')
+                        { j += 2; break; }
+                    j++;
+                }
+            } else {
+                j += 2;   /* 其他双字节转义 */
+            }
+        } else if (c > 0x20 && c != 0x7f) {
+            last_real = (char)c;   /* 可打印非空格字符 */
+            j++;
+        } else {
+            j++;   /* 控制字符或空格：跳过 */
+        }
+    }
+    return last_real;
+}
+
 /* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
  * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
  * Linux 提示符示例：root@host:~#   user@host:~$
- * PTY 模式下 bash 彩色提示符含 ANSI 转义码，先剥离再判断。
+ * PTY 模式下 bash 彩色提示符含 ANSI 转义码以及 OSC 终端标题序列（如
+ * Switch#\033]0;title\007），先用 effective_last_printable 剥离再判断。
  * 注意：许多交换机用 "%% ..." 报错，末行若以单个 % 结尾易误判（如进度 100%），
  * 故仅当末行较短且不含 "%%" 时才把 % 当作提示符。 */
 static int is_prompt(const char *buf, size_t len)
@@ -102,23 +140,8 @@ static int is_prompt(const char *buf, size_t len)
     while (i > 0 && buf[i-1] != '\n') i--;
     const char *last = buf + i;
     size_t ll = len - i;
-    /* 在最后一行中逐字符扫描（跳过 ANSI 序列），找最后一个非空实际字符 */
-    char last_real = 0;
-    for (size_t j = 0; j < ll; ) {
-        if (last[j] == '\033' && j + 1 < ll) {
-            if (last[j+1] == '[') {
-                j += 2;
-                while (j < ll) {
-                    unsigned char c = (unsigned char)last[j++];
-                    if (c >= 0x40 && c <= 0x7e) break;
-                }
-            } else { j += 2; }
-        } else {
-            char c = last[j];
-            if (c != ' ' && c != '\r') last_real = c;
-            j++;
-        }
-    }
+    /* 用 effective_last_printable 找最后一个可打印非空格字符 */
+    char last_real = effective_last_printable(last, ll);
     if (!last_real) return 0;
     if (last_real == '>' || last_real == '#' || last_real == '$' ||
         last_real == ']')
@@ -145,16 +168,15 @@ static char *strip_cmd_output(const char *buf, size_t len)
     while (start < end && buf[start] != '\n') start++;
     if (start < end) start++;   /* 跳过 \n 本身 */
 
-    /* 去末尾提示符行（以 > # $ ] % 结尾的行） */
+    /* 去末尾提示符行（以 > # $ ] % 结尾的行，忽略 ANSI/OSC 转义和控制字符） */
     while (end > start) {
-        /* 去末尾空白 */
-        while (end > start && (buf[end-1]=='\n'||buf[end-1]=='\r'||buf[end-1]==' '))
-            end--;
-        if (end <= start) break;
-        char c = buf[end-1];
-        if (c == '>' || c == '#' || c == '$' || c == ']' || c == '%') {
-            /* 找该行起始 */
-            while (end > start && buf[end-1] != '\n') end--;
+        /* 找本行起始 */
+        size_t line_start = end;
+        while (line_start > start && buf[line_start-1] != '\n') line_start--;
+        /* 用 effective_last_printable 取本行有效末字符 */
+        char lc = effective_last_printable(buf + line_start, end - line_start);
+        if (lc == '>' || lc == '#' || lc == '$' || lc == ']' || lc == '%') {
+            end = line_start;   /* 去掉本行 */
         } else {
             break;
         }
@@ -1114,6 +1136,9 @@ void ssh_session_exec_stream(const char *host, int port,
                         break;
                     }   /* EOF */
                     cmd_len += (size_t)nr;
+                    /* 每次读到数据后也检测提示符，避免持续有数据（OSC 序列等）时
+                     * 提示符识别被推迟到 200ms 无数据才触发 */
+                    if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;
                 } else {
                     /* 200ms 无新数据：检测提示符，超时由循环顶处理 */
                     if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;

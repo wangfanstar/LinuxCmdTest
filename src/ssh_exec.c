@@ -122,51 +122,11 @@ static char effective_last_printable(const char *s, size_t len)
     return last_real;
 }
 
-/* 末行形如 [DEBUG]、[ INFO]、[OK] 等固件调试/状态行：以 ] 结尾，易被误判为 VRP 提示符。
- * 必须用白名单识别：若用「无 / . : 即日志」会把合法视图名 [GT]、[HW-xx] 误判为非提示符，
- * 导致永远等不到「提示符」、下一条命令发不出去而卡死。 */
-static int line_is_bracket_log_tag(const char *s, size_t ll)
-{
-    while (ll > 0 && (s[0] == ' ' || s[0] == '\t')) {
-        s++;
-        ll--;
-    }
-    while (ll > 0 && (s[ll - 1] == ' ' || s[ll - 1] == '\t'))
-        ll--;
-    if (ll < 3 || s[0] != '[' || s[ll - 1] != ']')
-        return 0;
-    const char *inner = s + 1;
-    size_t      ilen  = ll - 2;
-    while (ilen > 0 && (inner[0] == ' ' || inner[0] == '\t')) {
-        inner++;
-        ilen--;
-    }
-    while (ilen > 0 && (inner[ilen - 1] == ' ' || inner[ilen - 1] == '\t'))
-        ilen--;
-    if (ilen == 0)
-        return 0;
-
-    if (ilen >= 5 && strncasecmp(inner, "DEBUG", 5) == 0)
-        return 1;
-    if (ilen >= 4 && strncasecmp(inner, "INFO", 4) == 0)
-        return 1;
-    if (ilen >= 4 && strncasecmp(inner, "WARN", 4) == 0)
-        return 1;
-    if (ilen >= 5 && strncasecmp(inner, "ERROR", 5) == 0)
-        return 1;
-    if (ilen == 2 && strncasecmp(inner, "OK", 2) == 0)
-        return 1;
-    if (ilen >= 6 && strncasecmp(inner, "NOTICE", 6) == 0)
-        return 1;
-    return 0;
-}
-
-/* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
- * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
- * Linux 提示符示例：root@host:~#   user@host:~$
- * PTY 模式下 bash 彩色提示符含 ANSI 转义码以及 OSC 终端标题序列（如
- * Switch#\033]0;title\007），先用 effective_last_printable 剥离再判断。
- * 注意：许多交换机用 "%% ..." 报错，末行若以单个 % 结尾易误判（如进度 100%），
+/* 判断 buf 末尾是否像交互式 SSH 里「可以继续敲命令」：仅看最后一行经 ANSI/OSC 剥离后
+ * 最后一个可打印非空白字符是否为 > # $ ] %，与手工 ssh 凭行尾形态判断一致；
+ * 不按方括号内视图名（GT、DEBUG 等）分支。
+ * 示例：<GT>、[GT]、[ DEBUG ]、root@h:~#
+ * 注意：许多交换机用 "%% ..." 报错；末行若以单个 % 结尾易误判进度 100%，
  * 故仅当末行较短且不含 "%%" 时才把 % 当作提示符。 */
 static int is_prompt(const char *buf, size_t len)
 {
@@ -182,13 +142,8 @@ static int is_prompt(const char *buf, size_t len)
     /* 用 effective_last_printable 找最后一个可打印非空格字符 */
     char last_real = effective_last_printable(last, ll);
     if (!last_real) return 0;
-    if (last_real == '>' || last_real == '#' || last_real == '$')
+    if (last_real == '>' || last_real == '#' || last_real == '$' || last_real == ']')
         return 1;
-    if (last_real == ']') {
-        if (line_is_bracket_log_tag(last, ll))
-            return 0;
-        return 1;
-    }
     if (last_real != '%')
         return 0;
     /* 末行含 %% → 多为设备报错/说明，勿当提示符（否则会提前发下一条命令导致会话错乱） */
@@ -244,19 +199,15 @@ static char *strip_cmd_output(const char *buf, size_t len)
     while (start < end && buf[start] != '\n') start++;
     if (start < end) start++;   /* 跳过 \n 本身 */
 
-    /* 去末尾提示符行（以 > # $ ] % 结尾的行，忽略 ANSI/OSC 转义和控制字符） */
+    /* 去末尾提示符行（与 is_prompt 一致：> # $ ] %，不因方括号内文字单独分支） */
     while (end > start) {
         /* 找本行起始 */
         size_t line_start = end;
         while (line_start > start && buf[line_start-1] != '\n') line_start--;
         /* 用 effective_last_printable 取本行有效末字符 */
         char lc = effective_last_printable(buf + line_start, end - line_start);
-        if (lc == '>' || lc == '#' || lc == '$' || lc == '%') {
-            end = line_start;   /* 去掉本行 */
-        } else if (lc == ']') {
-            if (line_is_bracket_log_tag(buf + line_start, end - line_start))
-                break;   /* [DEBUG] 等保留在输出中 */
-            end = line_start;
+        if (lc == '>' || lc == '#' || lc == '$' || lc == '%' || lc == ']') {
+            end = line_start;   /* 去掉本行（与交互终端里「提示符不算命令输出」一致） */
         } else {
             break;
         }

@@ -44,12 +44,15 @@ void ssh_cancel_current(void);
 
 /*
  * 流式执行：每条命令完成后立即回调，无需等待全部命令结束。
- * cb(idx, cmd, output, exit_code, ud) 在持有 output 期间同步调用，
+ * cb(idx, cmd, output, exit_code, prompt_after, ud) 在持有 output 期间同步调用，
  * 调用返回后 output 内存即释放，cb 内部如需保留须自行复制。
+ * prompt_after：PTY/网络设备模式下，本条输出结束后远端显示的提示符行（已去 ANSI）；
+ *   Linux 脚本模式通常为空串。idx == -1 时表示会话就绪后的首条提示符（仅 prompt_after 有效）。
  * error_buf 在连接失败时填写错误信息；正常结束时为空字符串。
  */
 typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
                                  const char *output, int exit_code,
+                                 const char *prompt_after,
                                  void *ud);
 
 /* idle_timeout_sec：单条命令的绝对超时秒数（wall-clock，从发出命令时起计）；

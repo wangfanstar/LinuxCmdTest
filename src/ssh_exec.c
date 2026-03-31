@@ -122,8 +122,9 @@ static char effective_last_printable(const char *s, size_t len)
     return last_real;
 }
 
-/* 末行形如 [DEBUG]、[ INFO]、[OK] 等调试/状态行：以 ] 结尾，易被误判为 VRP 提示符，
- * 若据此提前发下一条命令会导致会话错乱、长时间等不到真提示符（看似超时失效）。 */
+/* 末行形如 [DEBUG]、[ INFO]、[OK] 等固件调试/状态行：以 ] 结尾，易被误判为 VRP 提示符。
+ * 必须用白名单识别：若用「无 / . : 即日志」会把合法视图名 [GT]、[HW-xx] 误判为非提示符，
+ * 导致永远等不到「提示符」、下一条命令发不出去而卡死。 */
 static int line_is_bracket_log_tag(const char *s, size_t ll)
 {
     while (ll > 0 && (s[0] == ' ' || s[0] == '\t')) {
@@ -134,15 +135,30 @@ static int line_is_bracket_log_tag(const char *s, size_t ll)
         ll--;
     if (ll < 3 || s[0] != '[' || s[ll - 1] != ']')
         return 0;
-    /* 接口名/路径等多含 / . : ，与短日志标签区分 */
-    for (size_t k = 1; k + 1 < ll; k++) {
-        unsigned char c = (unsigned char)s[k];
-        if (c == '/' || c == '.' || c == ':')
-            return 0;
+    const char *inner = s + 1;
+    size_t      ilen  = ll - 2;
+    while (ilen > 0 && (inner[0] == ' ' || inner[0] == '\t')) {
+        inner++;
+        ilen--;
     }
-    if (ll > 56)
+    while (ilen > 0 && (inner[ilen - 1] == ' ' || inner[ilen - 1] == '\t'))
+        ilen--;
+    if (ilen == 0)
         return 0;
-    return 1;
+
+    if (ilen >= 5 && strncasecmp(inner, "DEBUG", 5) == 0)
+        return 1;
+    if (ilen >= 4 && strncasecmp(inner, "INFO", 4) == 0)
+        return 1;
+    if (ilen >= 4 && strncasecmp(inner, "WARN", 4) == 0)
+        return 1;
+    if (ilen >= 5 && strncasecmp(inner, "ERROR", 5) == 0)
+        return 1;
+    if (ilen == 2 && strncasecmp(inner, "OK", 2) == 0)
+        return 1;
+    if (ilen >= 6 && strncasecmp(inner, "NOTICE", 6) == 0)
+        return 1;
+    return 0;
 }
 
 /* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
@@ -184,6 +200,39 @@ static int is_prompt(const char *buf, size_t len)
     if (ll > 56)
         return 0;
     return 1;
+}
+
+/* 从 PTY 缓冲区取出当前提示符行（去 ANSI、trim）。仅在 is_prompt 已为真时调用。 */
+static void fill_prompt_after_line(const char *buf, size_t len,
+                                    char *out, size_t out_sz)
+{
+    if (!out || out_sz == 0)
+        return;
+    out[0] = '\0';
+    if (!len || !is_prompt(buf, len))
+        return;
+
+    size_t l = len;
+    while (l > 0 && (buf[l - 1] == '\n' || buf[l - 1] == '\r'))
+        l--;
+    if (!l)
+        return;
+    size_t i = l;
+    while (i > 0 && buf[i - 1] != '\n')
+        i--;
+    strip_ansi(buf + i, l - i, out, out_sz);
+
+    size_t ol = strlen(out);
+    while (ol > 0 && (out[ol - 1] == ' ' || out[ol - 1] == '\t' ||
+                      out[ol - 1] == '\r'))
+        out[--ol] = '\0';
+    size_t t = 0;
+    while (t < ol && (out[t] == ' ' || out[t] == '\t'))
+        t++;
+    if (t >= ol)
+        out[0] = '\0';
+    else if (t > 0)
+        memmove(out, out + t, ol - t + 1);
 }
 
 /* 清理命令输出：去掉首行回显和末尾提示符行，返回堆分配字符串（调用方 free）。 */
@@ -1126,6 +1175,13 @@ void ssh_session_exec_stream(const char *host, int port,
         LOG_INFO("ssh_session_exec_stream(net): initial prompt detected, sending %d cmds",
                  cmd_count);
 
+        {
+            char iprompt[384];
+            fill_prompt_after_line(accum, init_len, iprompt, sizeof(iprompt));
+            if (cb && iprompt[0])
+                cb(-1, "", "", 0, iprompt, ud);
+        }
+
         /* Step 2: 逐条发送命令，等待提示符返回 */
         for (int i = 0; i < cmd_count; i++) {
             const char *cmd  = skip_shell_marker_prefix(commands[i]);
@@ -1199,8 +1255,11 @@ void ssh_session_exec_stream(const char *host, int port,
             }
 
             accum[cmd_len] = '\0';
+            char  prompt_line[384];
+            fill_prompt_after_line(accum, cmd_len, prompt_line, sizeof(prompt_line));
             char *clean = strip_cmd_output(accum, cmd_len);
-            if (cb) cb(i, cmd, clean ? clean : "", 0, ud);
+            if (cb)
+                cb(i, cmd, clean ? clean : "", 0, prompt_line, ud);
             free(clean);
 
             if (timed_out) break;
@@ -1307,7 +1366,10 @@ net_done:
             /* 临时截断，调用回调 */
             char saved = accum[out_end];
             accum[out_end] = '\0';
-            if (cb) cb(cmd_idx, commands[cmd_idx], accum, exit_code, ud);
+            char prompt_line[384];
+            fill_prompt_after_line(accum, out_end, prompt_line, sizeof(prompt_line));
+            if (cb)
+                cb(cmd_idx, commands[cmd_idx], accum, exit_code, prompt_line, ud);
             accum[out_end] = saved;
 
             /* 压缩缓冲区：将已处理数据移出，为下一条命令腾出空间 */

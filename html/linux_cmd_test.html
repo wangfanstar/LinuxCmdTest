@@ -416,15 +416,94 @@ main {
 #report { display: none; max-width: 1440px; margin: 0 auto; }
 
 .rpt-header {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px 20px;
   margin-bottom: 16px;
 }
-.rpt-header h2 { font-size: 16px; color: #f0f6fc; margin-bottom: 8px; }
-.rpt-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--dim); }
-.rpt-meta span { display: flex; align-items: center; gap: 5px; }
+/* 报告头：仿 SSH + PTY 终端窗口（标题栏 + 屏幕区） */
+.rpt-header.rpt-ssh-term {
+  padding: 0;
+  overflow: hidden;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.rpt-ssh-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #2d333b;
+  border-bottom: 1px solid #444c56;
+  font-family: "SF Mono", Consolas, ui-monospace, monospace;
+  font-size: 11px;
+  color: #adbac7;
+}
+.rpt-ssh-dots {
+  display: inline-flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.rpt-ssh-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #484f58;
+}
+.rpt-ssh-dots span:nth-child(1) { background: #ff5f57; }
+.rpt-ssh-dots span:nth-child(2) { background: #febc2e; }
+.rpt-ssh-dots span:nth-child(3) { background: #28c840; }
+.rpt-ssh-window-title {
+  flex: 1;
+  text-align: center;
+  color: #8b949e;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rpt-ssh-pty-tag { color: var(--accent); }
+.rpt-ssh-body {
+  padding: 12px 14px 14px;
+  font-family: "SF Mono", Consolas, ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #c9d1d9;
+  background: linear-gradient(180deg, #0d1117 0%, #0a0e14 100%);
+}
+.rpt-ssh-line { margin-bottom: 3px; }
+.rpt-ssh-line.rpt-ssh-muted { color: #6e7681; }
+.rpt-ssh-hash { color: #484f58; margin-right: 4px; }
+.rpt-ssh-prompt-local {
+  color: #7ee787;
+  font-weight: 700;
+  margin-right: 6px;
+  user-select: none;
+}
+.rpt-ssh-bin { color: #ff7b72; }
+.rpt-ssh-flag { color: #79c0ff; }
+.rpt-ssh-num { color: #ffa657; }
+.rpt-ssh-target { color: #a5d6ff; }
+.rpt-ssh-paren { color: #484f58; }
+.rpt-ssh-remote-prompt {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #21262d;
+}
+.rpt-ssh-cursor {
+  display: inline-block;
+  color: var(--accent);
+  animation: rpt-cursor-blink 1s step-end infinite;
+  font-weight: 300;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+}
+@keyframes rpt-cursor-blink { 50% { opacity: 0; } }
+.rpt-ssh-status-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #21262d;
+}
+.rpt-ssh-status-row .badge-ok,
+.rpt-ssh-status-row .badge-err { vertical-align: middle; }
 .badge-ok  { background: #1a3a24; color: var(--green); border: 1px solid #2ea04340; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 .badge-err { background: #3d0a0a; color: var(--red);   border: 1px solid #f8514940; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 
@@ -459,16 +538,34 @@ main {
   color: var(--accent);
   padding: 0 2px;
 }
-.cmd-text {
+.cmd-rpt-line {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
   font-family: "SF Mono", Consolas, monospace;
   font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd-rpt-prompt {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.cmd-rpt-prompt-dev {
+  color: #79c0ff;
+  font-weight: 600;
+}
+.cmd-text {
+  flex: 1;
+  min-width: 0;
   color: var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cmd-text::before { content: "$ "; color: var(--dim); }
 .exit-ok  { color: var(--green); font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .exit-err { color: var(--red);   font-size: 11px; font-weight: 600; flex-shrink: 0; }
 .cmd-elapsed { color: #8b949e; font-size: 11px; flex-shrink: 0; }
@@ -1667,6 +1764,11 @@ async function doExec() {
   refreshCmdSeqNumbers();
   const cmdSeqLabels = getReportCmdSeqLabels();
 
+  window._streamCommands = commands.slice();
+  window._rptOutputs     = new Array(commands.length).fill('');
+  window._rptPromptAfter = new Array(commands.length).fill('');
+  window._rptSessionInitialPrompt = '';
+
   /* 先渲染所有骨架块，全部标记为「等待」 */
   renderReportSkeleton({ host, port, user, commands, cmdSeqLabels });
   if (commands.length > 0) markBlockRunning(0);
@@ -1731,9 +1833,13 @@ async function doExec() {
         let ev;
         try { ev = JSON.parse(m[1]); } catch { continue; }
 
-        if (ev.type === 'result') {
+        if (ev.type === 'session_prompt') {
+          window._rptSessionInitialPrompt = ev.prompt != null ? String(ev.prompt) : '';
+          refreshReportCmdHeaderLines(0);
+        } else if (ev.type === 'result') {
           streamResults[ev.i] = ev;
-          updateReportBlock(ev.i, ev.output, ev.exit_code, '');
+          updateReportBlock(ev.i, ev.output, ev.exit_code, '',
+            ev.prompt_after != null ? ev.prompt_after : '');
           if (window.rtMarkDone) rtMarkDone(ev.i, ev.exit_code);
           const nextIdx = ev.i + 1;
           if (nextIdx < commands.length) {
@@ -1857,6 +1963,137 @@ function promptDirName(workdir, user) {
   return parts[parts.length - 1] || '/';
 }
 
+/** 推断远端默认家目录（用于报告条目前模拟「执行前 PWD」） */
+function defaultRemoteHome(user) {
+  const u = String(user || 'root').trim() || 'root';
+  return u === 'root' ? '/root' : ('/home/' + u);
+}
+
+function normUnixPath(p) {
+  if (!p) return '/';
+  const parts = p.split('/').filter(x => x && x !== '.');
+  const stack = [];
+  for (const part of parts) {
+    if (part === '..') { if (stack.length) stack.pop(); }
+    else stack.push(part);
+  }
+  const s = '/' + stack.join('/');
+  return s === '/' ? '/' : s.replace(/\/+$/, '') || '/';
+}
+
+function joinUnixPath(base, rel) {
+  if (!rel) return base || '/';
+  if (rel.startsWith('/')) return normUnixPath(rel);
+  const b = (base || '/').replace(/\/+$/, '');
+  return normUnixPath(b + '/' + rel);
+}
+
+/** 仅处理整行为 cd … 的情况，用于在报告头展示「下一条命令前的目录」 */
+function simCdUpdateCwd(cwd, home, cmdLine) {
+  const t = (cmdLine || '').trim();
+  const m = t.match(/^cd(?:\s+(.+))?$/);
+  if (!m) return cwd || home;
+  let rest = (m[1] || '').trim();
+  if (!rest) return home;
+  if (rest === '-') return cwd || home;
+  if (rest.startsWith('~')) {
+    if (rest === '~' || rest === '~/') return home;
+    return joinUnixPath(home, rest.slice(2));
+  }
+  const unq = rest.replace(/^["']|["']$/g, '');
+  return joinUnixPath(cwd || home, unq);
+}
+
+/** 第 idx 条命令执行前的模拟工作目录（由前序 cd 推导） */
+function computePwdBeforeIdx(commands, idx, user) {
+  const home = defaultRemoteHome(user);
+  let cwd = home;
+  for (let j = 0; j < idx; j++) {
+    cwd = simCdUpdateCwd(cwd, home, commands[j] || '');
+  }
+  return cwd;
+}
+
+/**
+ * 第 idx 条命令执行前的报告标题行：优先使用流式 SSE 下发的远端提示符（prompt_after 链），
+ * 否则用 bash 风格 + workdir / cd 模拟。
+ * streamHints：{ sessionInitial, afterEach }，仅流式执行时传入。
+ */
+function stateBeforeReportCommand(commands, idx, user, host, workdirs, streamHints) {
+  const home = defaultRemoteHome(user);
+  if (idx === 0) {
+    const ip = streamHints && streamHints.sessionInitial &&
+      String(streamHints.sessionInitial).trim();
+    if (ip) return { kind: 'device', label: ip };
+    return { kind: 'bash', pwdPath: home };
+  }
+  const chain = (streamHints && streamHints.afterEach) || [];
+  const p = chain[idx - 1] && String(chain[idx - 1]).trim();
+  if (p) return { kind: 'device', label: p };
+  let pwdPath = home;
+  for (let j = 0; j < idx; j++) {
+    const cmd = commands[j] || '';
+    if (workdirs && workdirs[j] && String(workdirs[j]).trim())
+      pwdPath = String(workdirs[j]).trim();
+    else
+      pwdPath = simCdUpdateCwd(pwdPath, home, cmd);
+  }
+  return { kind: 'bash', pwdPath };
+}
+
+function streamPromptHints() {
+  return {
+    sessionInitial: window._rptSessionInitialPrompt || '',
+    afterEach: window._rptPromptAfter || []
+  };
+}
+
+function buildReportCmdLineInnerHtml(user, host, commands, idx, workdirs, streamHints) {
+  const st = stateBeforeReportCommand(commands, idx, user, host, workdirs, streamHints);
+  if (st.kind === 'bash') {
+    return (
+      `<span class="cmd-rpt-prompt">${buildReportCmdPromptHtml(user, host, st.pwdPath)}</span>` +
+      `<span class="cmd-text">${esc(commands[idx] || '')}</span>`
+    );
+  }
+  return (
+    `<span class="cmd-rpt-prompt cmd-rpt-prompt-dev">${esc(st.label)} </span>` +
+    `<span class="cmd-text">${esc(commands[idx] || '')}</span>`
+  );
+}
+
+/** 流式执行：某条完成后刷新后续命令的标题提示符（bash ↔ 设备视图） */
+function refreshReportCmdHeaderLines(startIdx) {
+  const cmds = window._streamCommands;
+  if (!cmds || !cmds.length) return;
+  const host = document.getElementById('f-host').value.trim();
+  const user = document.getElementById('f-user').value.trim() || 'root';
+  const hints = streamPromptHints();
+  for (let i = Math.max(0, startIdx); i < cmds.length; i++) {
+    const blk = document.getElementById('cb-' + i);
+    if (!blk) continue;
+    const line = blk.querySelector('.cmd-rpt-line');
+    if (!line) continue;
+    const cmdPlain = cmds[i] != null ? cmds[i] : '';
+    line.innerHTML = buildReportCmdLineInnerHtml(user, host, cmds, i, null, hints);
+    line.setAttribute('title', cmdPlain);
+  }
+}
+
+/** 报告每条命令标题行：[ user@host dir]$ （与常见 bash 提示风格一致） */
+function buildReportCmdPromptHtml(user, host, pwdFullPath) {
+  const uRaw = String(user || 'user').trim() || 'user';
+  const u = esc(uRaw);
+  const h = host || '';
+  const shortHost = esc(h.split('.')[0] || h || 'host');
+  const dirSeg = esc(promptDirName(pwdFullPath, uRaw) || '~');
+  return (
+    `<span class="ps-b">[</span> ` +
+    `<span class="ps-u">${u}</span><span class="ps-a">@</span><span class="ps-h">${shortHost}</span> ` +
+    `<span class="ps-d">${dirSeg}</span><span class="ps-b">]$</span> `
+  );
+}
+
 /* 构造仿终端提示符 HTML */
 function buildPromptHtml(user, host, workdir) {
   if (!workdir) return '';
@@ -1871,22 +2108,45 @@ function buildPromptHtml(user, host, workdir) {
          `<span class="ps-s">$</span>`;
 }
 
+/** 报告顶部：仿本地打开终端 → ssh → 分配 PTY → 远端 shell 提示符 */
+function buildReportSshTerminalHeader(host, port, user, ts, summaryInnerHtml) {
+  const u   = user && String(user).trim() ? String(user).trim() : 'root';
+  const h   = host || '';
+  const p   = (port != null && port !== '') ? Number(port) : 22;
+  const sh  = h.split('.')[0] || h || 'host';
+  const illustWd = (u === 'root') ? '/root' : ('/home/' + u);
+  const pty = buildPromptHtml(u, h, illustWd);
+  return (
+    `<div class="rpt-header rpt-ssh-term" id="rpt-header">` +
+    `<div class="rpt-ssh-titlebar">` +
+    `<span class="rpt-ssh-dots" aria-hidden="true"><span></span><span></span><span></span></span>` +
+    `<span class="rpt-ssh-window-title">${esc(u)}@${esc(h)} — <span class="rpt-ssh-pty-tag">ssh · PTY</span></span>` +
+    `</div>` +
+    `<div class="rpt-ssh-body">` +
+    `<div class="rpt-ssh-line rpt-ssh-muted"><span class="rpt-ssh-hash">#</span>执行报告 · ${esc(ts)}</div>` +
+    `<div class="rpt-ssh-line">` +
+    `<span class="rpt-ssh-prompt-local">$</span> ` +
+    `<span class="rpt-ssh-bin">ssh</span>` +
+    `<span class="rpt-ssh-flag"> -p</span> <span class="rpt-ssh-num">${esc(String(p))}</span>` +
+    ` <span class="rpt-ssh-target">${esc(u)}@${esc(h)}</span>` +
+    `</div>` +
+    `<div class="rpt-ssh-line rpt-ssh-muted">Pseudo-terminal allocated ` +
+    `<span class="rpt-ssh-paren">(tty)</span> · remote <span class="rpt-ssh-paren">${esc(sh)}</span></div>` +
+    `<div class="rpt-ssh-line rpt-ssh-remote-prompt">${pty}<span class="rpt-ssh-cursor">▋</span></div>` +
+    `<div class="rpt-ssh-line rpt-ssh-status-row"><span id="rpt-summary">${summaryInnerHtml}</span></div>` +
+    `</div></div>`
+  );
+}
+
 function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
   const ts = new Date().toLocaleString('zh-CN', { hour12: false });
 
-  let html = `
-    <div class="rpt-header" id="rpt-header">
-      <h2>执行报告</h2>
-      <div class="rpt-meta">
-        <span>🖥 ${esc(host)}:${port}</span>
-        <span>👤 ${esc(user)}</span>
-        <span>🕐 ${ts}</span>
-        <span id="rpt-summary"><span class="badge-ok" style="opacity:.5">正在执行…</span></span>
-      </div>
-    </div>`;
+  let html = buildReportSshTerminalHeader(host, port, user, ts,
+    `<span class="badge-ok" style="opacity:.5">正在执行…</span>`);
 
+  const hints0 = streamPromptHints();
   commands.forEach((cmd, idx) => {
     const seqLabel = (cmdSeqLabels && cmdSeqLabels[idx] !== undefined && cmdSeqLabels[idx] !== '')
       ? cmdSeqLabels[idx]
@@ -1896,7 +2156,7 @@ function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
         <div class="cmd-block-header" onclick="toggleBlock(${idx})">
           <span class="cmd-chevron">▼</span>
           <span class="cmd-rpt-seq" title="命令序号（与左侧命令集合一致）">${esc(seqLabel)}</span>
-          <span class="cmd-text" title="${esc(cmd)}">${esc(cmd)}</span>
+          <span class="cmd-rpt-line" title="${esc(cmd)}">${buildReportCmdLineInnerHtml(user, host, commands, idx, null, hints0)}</span>
           <span class="exit-pending" id="exit-${idx}">…</span>
           <span class="cmd-elapsed" id="el-${idx}">--</span>
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
@@ -1924,7 +2184,7 @@ function markBlockRunning(idx) {
   if (exitEl) exitEl.innerHTML = '<span class="progress-dot"></span>';
 }
 
-function updateReportBlock(idx, output, exitCode, workdir) {
+function updateReportBlock(idx, output, exitCode, workdir, promptAfter) {
   const block = document.getElementById('cb-' + idx);
   if (!block) return;
   block.classList.remove('pending', 'running');
@@ -1940,6 +2200,13 @@ function updateReportBlock(idx, output, exitCode, workdir) {
   if (elEl) elEl.textContent = elapsed;
   const out = document.getElementById('out-' + idx);
   if (out) out.innerHTML = ansiToHtml(output);
+  if (!window._rptOutputs) window._rptOutputs = [];
+  while (window._rptOutputs.length <= idx) window._rptOutputs.push('');
+  window._rptOutputs[idx] = output != null ? output : '';
+  if (!window._rptPromptAfter) window._rptPromptAfter = [];
+  while (window._rptPromptAfter.length <= idx) window._rptPromptAfter.push('');
+  window._rptPromptAfter[idx] = promptAfter != null ? String(promptAfter) : '';
+  refreshReportCmdHeaderLines(idx + 1);
   /* 显示当前目录 */
   const wd = document.getElementById('wd-' + idx);
   if (wd && workdir) {
@@ -2009,20 +2276,14 @@ function renderReport({ host, port, user, results }) {
   const okN  = results.filter(r => r.exit_code === 0).length;
   const failN = results.length - okN;
 
-  // 报告头
-  let html = `
-    <div class="rpt-header">
-      <h2>执行报告</h2>
-      <div class="rpt-meta">
-        <span>🖥 ${esc(host)}:${port}</span>
-        <span>👤 ${esc(user)}</span>
-        <span>🕐 ${ts}</span>
-        <span><span class="badge-ok">✓ ${okN} 成功</span></span>
-        ${failN > 0 ? `<span><span class="badge-err">✗ ${failN} 失败</span></span>` : ''}
-      </div>
-    </div>`;
+  const sumHtml =
+    `<span class="badge-ok">✓ ${okN} 成功</span>` +
+    (failN > 0 ? ` <span class="badge-err">✗ ${failN} 失败</span>` : '');
+  let html = buildReportSshTerminalHeader(host, port, user, ts, sumHtml);
 
   const cmdSeqLabels = getReportCmdSeqLabels();
+  const cmdList = results.map(r => r.cmd || '');
+  const wdArr   = results.map(r => (r.workdir && String(r.workdir).trim() ? String(r.workdir).trim() : ''));
   results.forEach((r, idx) => {
     const isOk  = r.exit_code === 0;
     const seqLabel = (cmdSeqLabels[idx] !== undefined && cmdSeqLabels[idx] !== '')
@@ -2033,7 +2294,7 @@ function renderReport({ host, port, user, results }) {
         <div class="cmd-block-header" onclick="toggleBlock(${idx})">
           <span class="cmd-chevron">▼</span>
           <span class="cmd-rpt-seq" title="命令序号（与左侧命令集合一致）">${esc(seqLabel)}</span>
-          <span class="cmd-text" title="${esc(r.cmd)}">${esc(r.cmd)}</span>
+          <span class="cmd-rpt-line" title="${esc(r.cmd)}">${buildReportCmdLineInnerHtml(user, host, cmdList, idx, wdArr, null)}</span>
           <span class="${isOk ? 'exit-ok' : 'exit-err'}">${isOk ? '✓ 0' : '✗ ' + r.exit_code}</span>
           <span class="cmd-elapsed">--</span>
           <button class="btn-copy-cmd" onclick="event.stopPropagation();copyOutput(${idx})" title="复制输出">复制</button>
@@ -2091,8 +2352,10 @@ btnEdit.addEventListener('click', () => {
 document.getElementById('btn-copy-all').addEventListener('click', () => {
   const outputs = [...report.querySelectorAll('.cmd-output')]
     .map((el, i) => {
-      const hdr = report.querySelector(`#cb-${i} .cmd-text`);
-      return `$ ${hdr ? hdr.textContent : ''}\n${el.textContent}`;
+      const line = report.querySelector(`#cb-${i} .cmd-rpt-line`);
+      const hdr = line ? line.textContent.trim()
+        : (() => { const t = report.querySelector(`#cb-${i} .cmd-text`); return t ? t.textContent.trim() : ''; })();
+      return hdr + '\n' + el.textContent;
     }).join('\n\n' + '─'.repeat(60) + '\n\n');
   navigator.clipboard.writeText(outputs)
     .then(() => flash(document.getElementById('btn-copy-all'), '已复制'))
@@ -2291,16 +2554,39 @@ function buildReportHTML() {
 </div>`;
   const styles = `
     body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1500px;margin:0 auto}
-    .rpt-header{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;margin-bottom:16px}
-    .rpt-header h2{font-size:16px;color:#f0f6fc;margin-bottom:8px}
-    .rpt-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#8b949e}
+    .rpt-header{margin-bottom:16px}
+    .rpt-header.rpt-ssh-term{padding:0;overflow:hidden;background:#0d1117;border:1px solid #30363d;border-radius:10px}
+    .rpt-ssh-titlebar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#2d333b;border-bottom:1px solid #444c56;font-family:Consolas,monospace;font-size:11px;color:#adbac7}
+    .rpt-ssh-dots{display:inline-flex;gap:5px;flex-shrink:0}
+    .rpt-ssh-dots span{width:10px;height:10px;border-radius:50%;background:#484f58}
+    .rpt-ssh-dots span:nth-child(1){background:#ff5f57}
+    .rpt-ssh-dots span:nth-child(2){background:#febc2e}
+    .rpt-ssh-dots span:nth-child(3){background:#28c840}
+    .rpt-ssh-window-title{flex:1;text-align:center;color:#8b949e;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rpt-ssh-pty-tag{color:#58a6ff}
+    .rpt-ssh-body{padding:12px 14px 14px;font-family:Consolas,monospace;font-size:12px;line-height:1.55;color:#c9d1d9;background:linear-gradient(180deg,#0d1117 0%,#0a0e14 100%)}
+    .rpt-ssh-line{margin-bottom:3px}
+    .rpt-ssh-line.rpt-ssh-muted{color:#6e7681}
+    .rpt-ssh-hash{color:#484f58;margin-right:4px}
+    .rpt-ssh-prompt-local{color:#7ee787;font-weight:700;margin-right:6px}
+    .rpt-ssh-bin{color:#ff7b72}
+    .rpt-ssh-flag{color:#79c0ff}
+    .rpt-ssh-num{color:#ffa657}
+    .rpt-ssh-target{color:#a5d6ff}
+    .rpt-ssh-paren{color:#484f58}
+    .rpt-ssh-remote-prompt{margin-top:6px;padding-top:8px;border-top:1px dashed #21262d}
+    .rpt-ssh-cursor{display:inline-block;color:#58a6ff;animation:rpt-cursor-blink 1s step-end infinite;font-weight:300;margin-left:2px;vertical-align:text-bottom}
+    @keyframes rpt-cursor-blink{50%{opacity:0}}
+    .rpt-ssh-status-row{margin-top:10px;padding-top:10px;border-top:1px solid #21262d}
     .badge-ok{background:#1a3a24;color:#3fb950;border:1px solid #2ea04340;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
     .badge-err{background:#3d0a0a;color:#f85149;border:1px solid #f8514940;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
     .cmd-block{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
     .cmd-block-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1c2128;border-bottom:1px solid #30363d}
     .cmd-rpt-seq{flex-shrink:0;min-width:1.35em;text-align:center;font-family:Consolas,monospace;font-size:11px;font-weight:700;color:#58a6ff;padding:0 2px}
-    .cmd-text{flex:1;font-family:Consolas,monospace;font-size:12.5px;color:#58a6ff}
-    .cmd-text::before{content:"$ ";color:#8b949e}
+    .cmd-rpt-line{flex:1;min-width:0;display:flex;align-items:baseline;flex-wrap:nowrap;font-family:Consolas,monospace;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cmd-rpt-prompt{flex-shrink:0;white-space:nowrap}
+    .cmd-rpt-prompt-dev{color:#79c0ff;font-weight:600}
+    .cmd-text{flex:1;min-width:0;color:#58a6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .exit-ok{color:#3fb950;font-size:11px;font-weight:600}
     .exit-err{color:#f85149;font-size:11px;font-weight:600}
     .cmd-elapsed{color:#8b949e;font-size:11px;flex-shrink:0}

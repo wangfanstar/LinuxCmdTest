@@ -756,17 +756,35 @@ static void sse_write_json(int fd, const char *json)
 typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; int completed; } stream_ctx_t;
 
 static void on_stream_result(int idx, const char *cmd, const char *output,
-                              int exit_code, void *ud)
+                              int exit_code, const char *prompt_after, void *ud)
 {
-    ((stream_ctx_t *)ud)->completed++;
-    int fd = ((stream_ctx_t *)ud)->fd;
-    strbuf_t sb = {0};
+    stream_ctx_t *ctx = (stream_ctx_t *)ud;
+    int           fd  = ctx->fd;
+    strbuf_t      sb  = {0};
+
+    if (idx < 0) {
+        SB_LIT(&sb, "{\"type\":\"session_prompt\",\"prompt\":");
+        sb_json_str(&sb, prompt_after ? prompt_after : "");
+        SB_LIT(&sb, "}");
+        if (sb.data) {
+            sse_write_json(fd, sb.data);
+            free(sb.data);
+        }
+        return;
+    }
+
+    ctx->completed++;
     sb_appendf(&sb, "{\"type\":\"result\",\"i\":%d,\"cmd\":", idx);
-    sb_json_str(&sb, cmd    ? cmd    : "");
+    sb_json_str(&sb, cmd ? cmd : "");
     sb_appendf(&sb, ",\"exit_code\":%d,\"output\":", exit_code);
     sb_json_str(&sb, output ? output : "");
+    SB_LIT(&sb, ",\"prompt_after\":");
+    sb_json_str(&sb, prompt_after ? prompt_after : "");
     SB_LIT(&sb, "}");
-    if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+    if (sb.data) {
+        sse_write_json(fd, sb.data);
+        free(sb.data);
+    }
 }
 
 static void handle_api_ssh_exec_stream(int client_fd, const char *body)

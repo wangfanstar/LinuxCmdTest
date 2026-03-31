@@ -868,13 +868,8 @@ void ssh_session_exec_stream(const char *host, int port,
         const char *home = getenv("HOME");
         snprintf(env_home, sizeof(env_home), "HOME=%s", home ? home : "/tmp");
 
-        /* askpass 环境：用于 Linux/NET 模式的 SSH 密码认证 */
+        /* 所有模式共用同一份环境变量：SSH_ASKPASS 处理密码认证 */
         char *envp_askpass[] = { env_askpass, env_display, env_require, env_home,
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            NULL };
-        /* PTY 模式不使用 askpass（sshpass 直接处理密码），去掉 SSH_ASKPASS_REQUIRE=force
-         * 以免 SSH 跳过 sshpass 的 PTY 密码拦截流程 */
-        char *envp_pty[] = { env_home,
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             NULL };
 
@@ -918,12 +913,13 @@ void ssh_session_exec_stream(const char *host, int port,
             userhost,
             NULL
         };
-        /* PTY 模式：通过 sshpass 提供密码，ssh -t 请求服务端 PTY。
-         * sshpass 内部为 SSH 创建 PTY 对，使 SSH 客户端看到真实 tty，
-         * 从而能正确向服务器申请 PTY 分配。密码直接从临时文件读取，
-         * 无需 SSH_ASKPASS 机制。stdin 管道用于后续逐条发命令。 */
+        /* PTY 模式：SSH_ASKPASS 处理密码，-t -t 强制向服务端申请 PTY。
+         * 双 -t 的作用：即使客户端 stdin 不是 tty（当前为管道），
+         * 也强制发送 pty-req，服务端 bash 获得真实 PTY，
+         * isatty(0)=1，build.sh 等需要 TTY 的脚本可正常运行。
+         * SSH_ASKPASS_REQUIRE=force + setsid（无控制终端）保证密码由
+         * askpass 脚本提供，而非等待用户在终端输入。 */
         char *argv_netdev_pty[] = {
-            "sshpass", "-f", pass_file,
             "ssh",
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout=15",
@@ -936,15 +932,15 @@ void ssh_session_exec_stream(const char *host, int port,
             "-o", "LogLevel=ERROR",
             "-o", "ServerAliveInterval=10",
             "-o", "ServerAliveCountMax=6",
-            "-t",          /* 请求服务端 PTY；sshpass 为 SSH 提供真实本地 tty */
+            "-t", "-t",    /* 强制申请服务端 PTY，即使客户端无本地 tty */
             "-p", port_str,
             userhost,
             NULL
         };
-        if (net_device_mode == 2) {
-            execvpe("sshpass", argv_netdev_pty, envp_pty);
-        } else {
-            char **argv_sel = (net_device_mode == 1) ? argv_netdev : argv_linux;
+        {
+            char **argv_sel = (net_device_mode == 2) ? argv_netdev_pty :
+                              (net_device_mode == 1) ? argv_netdev :
+                              argv_linux;
             execvpe("ssh", argv_sel, envp_askpass);
         }
         _exit(127);

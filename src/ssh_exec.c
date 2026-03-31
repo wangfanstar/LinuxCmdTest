@@ -1003,6 +1003,9 @@ void ssh_session_exec_stream(const char *host, int port,
             }
         }
         if (!is_prompt(accum, init_len)) {
+            /* 与 Linux/bash 模式一致：必须结束 SSH 子进程，否则 waitpid 可能永久阻塞，
+             * SSE 无法收尾，前端表现为「超时/失败不生效」。 */
+            kill(pid, SIGKILL);
             /* 未检测到提示符：连接失败或设备无响应 */
             if (init_len > 0) {
                 size_t el = init_len < error_buf_sz-1 ? init_len : error_buf_sz-1;
@@ -1054,6 +1057,7 @@ void ssh_session_exec_stream(const char *host, int port,
                             out_partial_buf[cp] = '\0';
                         }
                         timed_out = 1;
+                        kill(pid, SIGKILL); /* 否则 waitpid 阻塞，流式 API 无法返回 */
                         break;
                     }
                 }

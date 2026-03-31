@@ -32,8 +32,8 @@ void ssh_cancel_current(void)
     pid_t pid = g_session_pid;
     pthread_mutex_unlock(&g_session_mutex);
     if (pid > (pid_t)0) {
-        kill(pid, SIGKILL);
-        LOG_INFO("ssh_cancel_current: SIGKILL -> pid=%d", (int)pid);
+        killpg(pid, SIGKILL);
+        LOG_INFO("ssh_cancel_current: SIGKILL -> pgid=%d", (int)pid);
     }
 }
 
@@ -484,9 +484,9 @@ static int run_ssh_session(const char *host, int port,
         int sel = select(out_pipe[0] + 1, &rfds, NULL, NULL, &tv);
         if (sel == 0) {
             /* 超时：强制终止 SSH 子进程 */
-            LOG_INFO("ssh_session: idle timeout (%ds), killing pid=%d",
+            LOG_INFO("ssh_session: idle timeout (%ds), killing pgid=%d",
                      idle_timeout_sec, (int)pid);
-            kill(pid, SIGKILL);
+            killpg(pid, SIGKILL);
             break;
         }
         if (sel < 0) break;   /* select 出错 */
@@ -1005,7 +1005,7 @@ void ssh_session_exec_stream(const char *host, int port,
     /* ── 流式读取 + 实时边界解析（Linux）/ 提示符检测（网络设备）── */
     char *accum = malloc(SSH_OUTPUT_MAX);
     if (!accum) {
-        kill(pid, SIGKILL);
+        killpg(pid, SIGKILL);
         close(out_pipe[0]);
         waitpid(pid, NULL, 0);
         session_pid_set((pid_t)-1);
@@ -1052,7 +1052,7 @@ void ssh_session_exec_stream(const char *host, int port,
         if (!is_prompt(accum, init_len)) {
             /* 与 Linux/bash 模式一致：必须结束 SSH 子进程，否则 waitpid 可能永久阻塞，
              * SSE 无法收尾，前端表现为「超时/失败不生效」。 */
-            kill(pid, SIGKILL);
+            killpg(pid, SIGKILL);
             /* 未检测到提示符：连接失败或设备无响应 */
             if (init_len > 0) {
                 size_t el = init_len < error_buf_sz-1 ? init_len : error_buf_sz-1;
@@ -1098,7 +1098,7 @@ void ssh_session_exec_stream(const char *host, int port,
                     }
                     timed_out = 1;
                     if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                    kill(pid, SIGKILL);
+                    killpg(pid, SIGKILL);
                     break;
                 }
 
@@ -1166,7 +1166,7 @@ net_done:
                         out_partial_buf[cpy-1] == ' '))
                     out_partial_buf[--cpy] = '\0';
             }
-            kill(pid, SIGKILL);
+            killpg(pid, SIGKILL);
             timed_out = 1;
             if (out_timeout_cmd_idx) *out_timeout_cmd_idx = cmd_idx;
             break;

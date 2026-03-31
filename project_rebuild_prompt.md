@@ -764,7 +764,7 @@ data: {"type":"error","msg":"..."}\n\n
 
 **`handle_api_monitor(int client_fd)`**
 
-刷新 CPU/内存/进程快照，返回 JSON：
+刷新 CPU/内存/进程快照，返回 JSON（**响应短 TTL 缓存**：`MONITOR_CACHE_SEC` 默认 8 秒，命中则不再触发 `update_cpu`/全量扫 `/proc`）：
 ```json
 {
   "sys_cpu_pct": 45.2,
@@ -794,10 +794,10 @@ data: {"type":"error","msg":"..."}\n\n
 }
 ```
 
-**`handle_api_procs(int client_fd, const char *query)`**
+**`handle_api_procs(int client_fd, const char *query, int include_ports)`**
 
-接收 URL 参数 `q=<keyword>`（可选）
-遍历 /proc 扫描进程，按名称/用户子串过滤（大小写不敏感）
+接收 URL 参数 `q=<keyword>`（可选）、`ports=1` 时附带 TCP 端口（开销大）
+遍历 /proc 扫描进程，按名称/用户子串过滤（大小写不敏感）；**相同 `ports`+`q` 在 `PROCS_CACHE_SEC`（默认 4 秒）内复用 JSON 缓存以降低 CPU**
 返回：
 ```json
 {"procs":[{"n":"bash","u":"root","p":15.2,"i":1234,"c":0},...]}
@@ -920,18 +920,19 @@ static int recommend_threads(void) {
 9. 结果对比面板（多主机结果并排显示）
 10. 工具栏「📂 报告库」跳转 `reports.html`；与「💾 存档」配套
 11. 「💾 存档」打开弹窗：默认文件名 `时间_客户端IP_SSH用户.html`（时间浏览器本地、`/api/client-info` 取对端作 IP 段、左侧 SSH 用户名）；预览与成功后的<strong>访问链接</strong>使用 `location.host`（Web 服务器，如 `IP:8881`）；非 SSH 目标主机
+12. 命令列表每项前显示序号（从 1 递增）；点击可切换「不计序号」（显示「–」，不占递增位，仅 UI）；配置 JSON 可选 `skipSeq: true`，与 localStorage 一并保存/恢复
 
 **实现细节：**
 - 使用原生 JavaScript（无框架）
 - 流式模式使用 `fetch()` + `ReadableStream` 或 `EventSource` 消费 SSE
 - 命令和结果支持导出（复制到剪贴板 / 下载 JSON）
 - 加载状态指示（按钮禁用、进度文字）
-- **比对规则**：`=` / `~` / `!` 仅出现在**预期结果 JSON** 的 `commands[].marker`（及对比视图旁按钮）；命令列表与 SSH 配置 JSON 中仅为纯命令，`marker` 仅用于 `ctrlc`（^C 行）
+- **比对规则**：`=` / `~` / `!` 仅出现在**预期结果 JSON** 的 `commands[].marker`（及对比视图旁按钮）；命令列表与 SSH 配置 JSON 中仅为纯命令，`marker` 仅用于 `ctrlc`（^C 行），`skipSeq` 仅表示侧栏序号不参与递增
 
 ### html/monitor.html — 实时监控
 
 **功能：**
-1. 轮询 `/api/monitor`（每 2 秒）
+1. 轮询 `/api/monitor`（`POLL_MS`，默认约 5 秒）
 2. 显示：
    - 系统 CPU 总体利用率（进度条）
    - 每核 CPU 利用率（小进度条）
@@ -993,6 +994,8 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.2 | monitor.html 进程查询结果新增 Kill 按钮（两步确认）；后端新增 POST /api/kill 端点 |
 | 2026-03-30 | v1.3 | 超时中断保留已有结果：ssh_exec 新增 out_timed_out 参数，服务端发 type:timeout 事件，前端新增 markBlockTimeout 和超时状态展示 |
 | 2026-03-30 | v1.4 | 降低 CPU 占用：UID→用户名缓存（64 条）、scan_proc_top 并发 trylock+同秒不重扫、/api/monitor 响应缓存 2 秒 |
+| 2026-03-30 | v1.14 | 进一步降 CPU：`MONITOR_CACHE_SEC` 8s、`/api/procs` 4s 缓存（key=ports+q）、`scan_proc_top` 最小间隔 2s、`monitor.html` `POLL_MS` 5s |
+| 2026-03-30 | v1.15 | linux_cmd_test：命令行前自动序号（点击切换不计序号）；配置 JSON `skipSeq` + localStorage |
 | 2026-03-30 | v1.5 | linux_cmd_test.html：执行区增加暂停/恢复（SSE 消费门闩）；帮助文案同步 |
 | 2026-03-30 | v1.6 | linux_cmd_test「存档」：默认文件名用 /api/client-info 客户端 IP；预览与成功链接用 location.host（服务器） |
 | 2026-03-30 | v1.9 | 存档默认文件名改为「时间 + 客户端 IP 段 + SSH 登录用户名」（左侧用户名表单） |

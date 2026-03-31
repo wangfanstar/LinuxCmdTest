@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>10.150.71.102 服务器监控</title>
+<title>服务器监控</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
@@ -153,7 +153,7 @@ canvas{display:block;width:100%}
 <header>
   <div class="header-left">
     <a class="back-link" href="/index.html">← 返回</a>
-    <h1>10.150.71.102 服务器监控</h1>
+    <h1 id="monitor-page-title">服务器监控</h1>
   </div>
   <span id="status" class="ok">连接正常</span>
 </header>
@@ -312,7 +312,16 @@ canvas{display:block;width:100%}
 
 </div>
 <script>
-const POLL_MS = 3000;
+(function initMonitorPageTitle() {
+  var host = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '';
+  var suffix = '服务器监控';
+  var label = (host ? host + ' ' : '') + suffix;
+  document.title = label;
+  var h1 = document.getElementById('monitor-page-title');
+  if (h1) h1.textContent = label;
+})();
+
+const POLL_MS = 5000;
 const MAX_PTS = 60;
 
 const history  = { sysCpu:[], sysMem:[], online:[] };

@@ -117,14 +117,35 @@ aside {
 
 /* ── 命令列表 ── */
 #cmd-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
+.cmd-seq {
+  flex-shrink: 0;
+  width: 20px;
+  min-width: 20px;
+  text-align: center;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  line-height: 20px;
+  border: 1px solid transparent;
+}
+.cmd-seq:hover { background: #1f3a6e33; border-color: var(--accent); }
+.cmd-seq.no-seq {
+  color: var(--dim);
+  font-weight: 600;
+}
+.cmd-seq.no-seq:hover { border-color: var(--border); }
 .cmd-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 4px 6px 4px 10px;
+  padding: 4px 5px 4px 4px;
 }
 .cmd-item input {
   flex: 1;
@@ -150,21 +171,21 @@ aside {
   padding: 0;
 }
 .cmd-item .btn-del:hover { background: #3d0a0a; color: var(--red); }
-/* 与旧版「= / ~ / !」按钮同宽占位；^C 行显示红色标记 */
+/* ^C 行显示红色标记；普通命令不占位（避免与输入框之间空隙） */
 .cmd-kind-slot {
   flex-shrink: 0;
   width: 22px;
   height: 20px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   font-family: monospace;
   font-weight: 700;
-  color: transparent;
   user-select: none;
 }
 .cmd-item.ctrlc .cmd-kind-slot {
+  display: flex;
   color: var(--red);
   border: 1px solid #f8514940;
   border-radius: 4px;
@@ -428,6 +449,16 @@ main {
 .cmd-chevron { color: var(--dim); font-size: 10px; transition: transform .2s; flex-shrink: 0; }
 .cmd-block.collapsed .cmd-chevron { transform: rotate(-90deg); }
 .cmd-block.collapsed .cmd-block-body { display: none; }
+.cmd-rpt-seq {
+  flex-shrink: 0;
+  min-width: 1.35em;
+  text-align: center;
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 0 2px;
+}
 .cmd-text {
   flex: 1;
   font-family: "SF Mono", Consolas, monospace;
@@ -934,7 +965,7 @@ body.edit-mode .cmd-output { cursor: text; }
   padding: 4px 0;
 }
 .rt-row {
-  display: grid; grid-template-columns: 22px 1fr 54px 80px;
+  display: grid; grid-template-columns: 22px 22px 1fr 54px 80px;
   align-items: center; gap: 0; padding: 3px 14px;
   font-size: .72rem; font-family: 'SF Mono', Consolas, monospace;
   border-left: 3px solid transparent; transition: background .15s;
@@ -943,7 +974,8 @@ body.edit-mode .cmd-output { cursor: text; }
 .rt-row.done     { border-left-color: transparent; }
 .rt-row.rt-error { border-left-color: #f85149; background: rgba(248,81,73,.05); }
 .rt-icon  { font-size: .8rem; text-align: center; flex-shrink: 0; }
-.rt-cmd   { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 6px; }
+.rt-seq   { font-size: .68rem; font-weight: 700; color: #58a6ff; text-align: center; min-width: 18px; flex-shrink: 0; }
+.rt-cmd   { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 4px; }
 .rt-time  { color: #8b949e; text-align: right; padding-right: 8px; }
 .rt-exit  { text-align: right; }
 .rt-row.running .rt-icon { animation: rt-blink .8s step-end infinite; }
@@ -1018,7 +1050,7 @@ body.edit-mode .cmd-output { cursor: text; }
 
       <!-- 命令集合 -->
       <div class="form-section">
-        <div class="section-label">命令集合</div>
+        <div class="section-label" title="每条命令前的数字为显示序号；点击可切换为「不计序号」（不占位递增，仅展示用，不影响执行顺序）">命令集合</div>
         <div id="cmd-list"></div>
         <div class="cmd-toolbar">
           <button id="btn-add-cmd">＋ 添加</button>
@@ -1182,7 +1214,7 @@ df -h
       </ul>
 
       <h3>SSH 配置文件格式（导入 / 导出）</h3>
-      <p>保存连接信息与<strong>纯命令</strong>列表。<code>marker</code> 仅用于 <code>"ctrlc"</code>（^C 行），不含 fuzzy/ignore：</p>
+      <p>保存连接信息与<strong>纯命令</strong>列表。<code>marker</code> 仅用于 <code>"ctrlc"</code>（^C 行）；<code>skipSeq</code> 表示该行在侧栏不参与显示序号（可选）：</p>
       <pre>{
   "version": 1,
   "host": "192.168.1.100",
@@ -1191,12 +1223,14 @@ df -h
   "pass": "password",
   "commands": [
     { "cmd": "uname -a" },
+    { "cmd": "注释说明用", "skipSeq": true },
     { "cmd": "kill -INT $$", "marker": "ctrlc" }
   ]
 }</pre>
       <ul>
-        <li><strong>导出配置</strong>：连接 + 命令（^C 行带 <code>marker:"ctrlc"</code>）</li>
+        <li><strong>导出配置</strong>：连接 + 命令（^C 行带 <code>marker:"ctrlc"</code>；不计序号行带 <code>skipSeq:true</code>）</li>
         <li><strong>导入配置</strong>：填充表单与命令列表</li>
+        <li>侧栏每条命令前的<strong>序号</strong>可点击切换为「–」不计序号，仅影响展示，执行顺序不变</li>
       </ul>
 
       <h3>注意事项</h3>
@@ -1271,19 +1305,59 @@ const cmdList = document.getElementById('cmd-list');
 
 let _dragSrc = null;
 
-function addCmd(value = '', marker = '', afterItem = null) {
+/** 左侧显示序号：仅 UI，从 1 递增；dataset.noSeq 的行显示「–」且不占序号 */
+function refreshCmdSeqNumbers() {
+  let n = 0;
+  cmdList.querySelectorAll('.cmd-item').forEach(item => {
+    const el = item.querySelector('.cmd-seq');
+    if (!el) return;
+    if (item.dataset.noSeq === '1') {
+      el.textContent = '–';
+      el.classList.add('no-seq');
+      el.title = '不计序号（点击恢复参与编号）';
+    } else {
+      n += 1;
+      el.textContent = String(n);
+      el.classList.remove('no-seq');
+      el.title = '序号 ' + n + '（点击设为不计序号）';
+    }
+  });
+}
+
+function addCmd(value = '', marker = '', afterItem = null, noSeq = false) {
   const isCtrlc = marker === 'ctrlc';
   const item = document.createElement('div');
   item.className = 'cmd-item' + (isCtrlc ? ' ctrlc' : '');
   item.dataset.marker = isCtrlc ? 'ctrlc' : '';
+  if (noSeq) item.dataset.noSeq = '1';
   const slotLabel = isCtrlc ? '^C' : '';
   item.innerHTML =
+    `<span class="cmd-seq" role="button" tabindex="0" aria-label="命令序号，点击切换是否计入序号">1</span>` +
     `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
     `<span class="cmd-kind-slot" title="${isCtrlc ? '本行向远端发送 SIGINT（kill -INT $$）' : ''}">${slotLabel}</span>` +
     `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
     `<button class="btn-insert" title="在此处下方插入命令">+</button>` +
     `<button class="btn-del" title="删除">×</button>`;
-  item.querySelector('.btn-del').addEventListener('click', () => item.remove());
+  const seqEl = item.querySelector('.cmd-seq');
+  seqEl.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.dataset.noSeq === '1') delete item.dataset.noSeq;
+    else item.dataset.noSeq = '1';
+    refreshCmdSeqNumbers();
+    if (window._saveState) window._saveState();
+  });
+  seqEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      seqEl.click();
+    }
+  });
+  item.querySelector('.btn-del').addEventListener('click', () => {
+    item.remove();
+    refreshCmdSeqNumbers();
+    if (window._saveState) window._saveState();
+  });
   item.querySelector('.btn-insert').addEventListener('click', () => {
     addCmd('', '', item);
   });
@@ -1305,6 +1379,8 @@ function addCmd(value = '', marker = '', afterItem = null) {
     cmdList.querySelectorAll('.cmd-item').forEach(el => {
       el.classList.remove('drag-over', 'drag-over-above', 'drag-over-below');
     });
+    refreshCmdSeqNumbers();
+    if (window._saveState) window._saveState();
   });
   item.addEventListener('dragover', e => {
     if (!_dragSrc || _dragSrc === item) return;
@@ -1340,6 +1416,7 @@ function addCmd(value = '', marker = '', afterItem = null) {
   } else {
     cmdList.appendChild(item);
   }
+  refreshCmdSeqNumbers();
   item.querySelector('input').focus();
 
   /* Ctrl+Shift+C 在当前行后插入 ^C 项 */
@@ -1358,14 +1435,27 @@ function getCommands() {
     .map(i => i.value.trim()).filter(Boolean);
 }
 
-/** 命令列表项：仅 cmd + 可选 ctrlc；~ / ! 不在命令区，而在「预期结果」JSON 的 marker 字段。 */
+/** 命令列表项：仅 cmd + 可选 ctrlc；noSeq 仅影响左侧显示序号。~ / ! 不在命令区，而在「预期结果」JSON 的 marker 字段。 */
 function getCommandListItems() {
   return [...cmdList.querySelectorAll('.cmd-item')]
     .map(item => ({
       cmd:    item.querySelector('input').value.trim(),
-      marker: item.dataset.marker === 'ctrlc' ? 'ctrlc' : ''
+      marker: item.dataset.marker === 'ctrlc' ? 'ctrlc' : '',
+      noSeq:  item.dataset.noSeq === '1'
     }))
     .filter(o => o.cmd);
+}
+
+/** 与侧栏 .cmd-seq 一致：每条将执行的非空命令对应的显示序号（含「–」不计序号行） */
+function getReportCmdSeqLabels() {
+  const labels = [];
+  cmdList.querySelectorAll('.cmd-item').forEach(item => {
+    const cmd = item.querySelector('input').value.trim();
+    if (!cmd) return;
+    const el = item.querySelector('.cmd-seq');
+    labels.push(el ? el.textContent.trim() : String(labels.length + 1));
+  });
+  return labels;
 }
 
 function addCtrlCCmd(afterItem = null) {
@@ -1381,6 +1471,7 @@ document.getElementById('btn-add-ctrlc').addEventListener('click', () => {
 });
 document.getElementById('btn-clear-cmds').addEventListener('click', () => {
   cmdList.innerHTML = '';
+  if (window._saveState) window._saveState();
 });
 
 /* ── 从文件导入命令 ── */
@@ -1573,12 +1664,15 @@ async function doExec() {
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `准备连接 ${user}@${host}:${port}…`;
 
+  refreshCmdSeqNumbers();
+  const cmdSeqLabels = getReportCmdSeqLabels();
+
   /* 先渲染所有骨架块，全部标记为「等待」 */
-  renderReportSkeleton({ host, port, user, commands });
+  renderReportSkeleton({ host, port, user, commands, cmdSeqLabels });
   if (commands.length > 0) markBlockRunning(0);
 
   /* 实时面板初始化 */
-  if (window.rtInit) { rtInit(commands, host, user); rtMarkRunning(0); }
+  if (window.rtInit) { rtInit(commands, host, user, cmdSeqLabels); rtMarkRunning(0); }
 
   execStatus.style.color = 'var(--dim)';
   execStatus.textContent = `共 ${commands.length} 条命令，连接 ${user}@${host}:${port}…`;
@@ -1777,7 +1871,7 @@ function buildPromptHtml(user, host, workdir) {
          `<span class="ps-s">$</span>`;
 }
 
-function renderReportSkeleton({ host, port, user, commands }) {
+function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
   const ts = new Date().toLocaleString('zh-CN', { hour12: false });
@@ -1794,10 +1888,14 @@ function renderReportSkeleton({ host, port, user, commands }) {
     </div>`;
 
   commands.forEach((cmd, idx) => {
+    const seqLabel = (cmdSeqLabels && cmdSeqLabels[idx] !== undefined && cmdSeqLabels[idx] !== '')
+      ? cmdSeqLabels[idx]
+      : String(idx + 1);
     html += `
       <div class="cmd-block pending" id="cb-${idx}">
         <div class="cmd-block-header" onclick="toggleBlock(${idx})">
           <span class="cmd-chevron">▼</span>
+          <span class="cmd-rpt-seq" title="命令序号（与左侧命令集合一致）">${esc(seqLabel)}</span>
           <span class="cmd-text" title="${esc(cmd)}">${esc(cmd)}</span>
           <span class="exit-pending" id="exit-${idx}">…</span>
           <span class="cmd-elapsed" id="el-${idx}">--</span>
@@ -1924,12 +2022,17 @@ function renderReport({ host, port, user, results }) {
       </div>
     </div>`;
 
+  const cmdSeqLabels = getReportCmdSeqLabels();
   results.forEach((r, idx) => {
     const isOk  = r.exit_code === 0;
+    const seqLabel = (cmdSeqLabels[idx] !== undefined && cmdSeqLabels[idx] !== '')
+      ? cmdSeqLabels[idx]
+      : String(idx + 1);
     html += `
       <div class="cmd-block" id="cb-${idx}">
         <div class="cmd-block-header" onclick="toggleBlock(${idx})">
           <span class="cmd-chevron">▼</span>
+          <span class="cmd-rpt-seq" title="命令序号（与左侧命令集合一致）">${esc(seqLabel)}</span>
           <span class="cmd-text" title="${esc(r.cmd)}">${esc(r.cmd)}</span>
           <span class="${isOk ? 'exit-ok' : 'exit-err'}">${isOk ? '✓ 0' : '✗ ' + r.exit_code}</span>
           <span class="cmd-elapsed">--</span>
@@ -2195,6 +2298,7 @@ function buildReportHTML() {
     .badge-err{background:#3d0a0a;color:#f85149;border:1px solid #f8514940;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
     .cmd-block{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
     .cmd-block-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1c2128;border-bottom:1px solid #30363d}
+    .cmd-rpt-seq{flex-shrink:0;min-width:1.35em;text-align:center;font-family:Consolas,monospace;font-size:11px;font-weight:700;color:#58a6ff;padding:0 2px}
     .cmd-text{flex:1;font-family:Consolas,monospace;font-size:12.5px;color:#58a6ff}
     .cmd-text::before{content:"$ ";color:#8b949e}
     .exit-ok{color:#3fb950;font-size:11px;font-weight:600}
@@ -2281,8 +2385,11 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
-    commands: getCommandListItems().map(o =>
-      o.marker === 'ctrlc' ? { cmd: o.cmd, marker: 'ctrlc' } : { cmd: o.cmd })
+    commands: getCommandListItems().map(o => {
+      const row = o.marker === 'ctrlc' ? { cmd: o.cmd, marker: 'ctrlc' } : { cmd: o.cmd };
+      if (o.noSeq) row.skipSeq = true;
+      return row;
+    })
   };
   const json     = JSON.stringify(cfg, null, 2);
   const filename = `ssh-config-${cfg.host || 'unnamed'}-${Date.now()}.json`;
@@ -2315,7 +2422,7 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
           } else {
             const cmd = String(c.cmd != null ? c.cmd : '').trim();
             if (!cmd) return;
-            addCmd(cmd, c.marker === 'ctrlc' ? 'ctrlc' : '');
+            addCmd(cmd, c.marker === 'ctrlc' ? 'ctrlc' : '', null, !!(c.skipSeq || c.noSeq));
           }
         });
       }
@@ -2737,13 +2844,19 @@ function flash(el, msg) {
   }
 
   /* 公开接口：由 doExec 调用 */
-  window.rtInit = function(commands, host, user) {
+  window.rtInit = function(commands, host, user, cmdSeqLabels) {
     if (!rtEnabled || !panel) return;
     panel.classList.remove('rt-hidden', 'rt-minimized');
     document.getElementById('rt-minimize').textContent = '─';
     rtState = {
       startMs: Date.now(), host, user,
-      rows: commands.map(cmd => ({ cmd, status: 'pending', exitCode: null, startMs: null, elapsed: null }))
+      rows: commands.map((cmd, i) => ({
+        cmd,
+        seqLabel: (cmdSeqLabels && cmdSeqLabels[i] !== undefined && cmdSeqLabels[i] !== '')
+          ? cmdSeqLabels[i]
+          : String(i + 1),
+        status: 'pending', exitCode: null, startMs: null, elapsed: null
+      }))
     };
     rtRender();
     rtStartTicker();
@@ -2839,8 +2952,10 @@ function flash(el, msg) {
       timeStr = '--';
       exitStr = '';
     }
+    const seq = esc(r.seqLabel != null ? String(r.seqLabel) : String(i + 1));
     return `<div class="rt-row ${r.status}" data-status="${r.status}" data-idx="${i}">` +
       `<span class="rt-icon" style="color:${color}">${icon}</span>` +
+      `<span class="rt-seq" title="命令序号">${seq}</span>` +
       `<span class="rt-cmd" title="${escAttr(r.cmd)}">${esc(cmd)}</span>` +
       `<span class="rt-time">${timeStr}</span>` +
       `<span class="rt-exit">${exitStr}</span>` +
@@ -2868,7 +2983,12 @@ function flash(el, msg) {
         pass:    document.getElementById('f-pass').value,
         timeout: document.getElementById('f-timeout').value,
       },
-      cmds:       getCommandListItems(),
+      cmds:       getCommandListItems().map(o => {
+        const row = { cmd: o.cmd };
+        if (o.marker === 'ctrlc') row.marker = 'ctrlc';
+        if (o.noSeq) row.noSeq = true;
+        return row;
+      }),
       matchExact: matchExact,
     };
     if (report.innerHTML) state.report = { html: report.innerHTML, title: reportTitle.textContent };
@@ -2924,7 +3044,7 @@ function flash(el, msg) {
           const cmd = String(o.cmd != null ? o.cmd : '').trim();
           if (!cmd) return;
           const m = o.marker === 'ctrlc' ? 'ctrlc' : '';
-          addCmd(cmd, m);
+          addCmd(cmd, m, null, !!(o.noSeq || o.skipSeq));
         });
       }
 

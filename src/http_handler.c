@@ -451,7 +451,7 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
 }
 
 /* ------------------------------------------------------------------ */
-/*  GET /api/reports — 列出 WEB_ROOT/report/YYYYMM/*.html               */
+/*  GET /api/reports — 列出 WEB_ROOT/report/YYYYMM/ 下各 .html 文件    */
 /* ------------------------------------------------------------------ */
 
 #define REPORTS_MAX_MONTHS 200
@@ -942,12 +942,20 @@ static void uid_lookup(uid_t uid, char *out, int outlen)
 }
 
 /* ── /api/monitor 响应缓存 ── */
-#define MONITOR_CACHE_SEC 4
+#define MONITOR_CACHE_SEC 8
 static char           *g_monitor_json     = NULL;
 static size_t          g_monitor_json_len = 0;
 static time_t          g_monitor_json_ts  = 0;
 static pthread_mutex_t g_monitor_json_mtx    = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_monitor_update_mtx  = PTHREAD_MUTEX_INITIALIZER;
+
+/* ── /api/procs 响应缓存（全量扫 /proc 开销大，相同 q+ports 短时复用） ── */
+#define PROCS_CACHE_SEC 4
+static char           *g_procs_json     = NULL;
+static size_t          g_procs_json_len = 0;
+static time_t          g_procs_json_ts  = 0;
+static char            g_procs_cache_key[160] = "";
+static pthread_mutex_t g_procs_json_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void stats_init(void) { g_start_time = time(NULL); }
 
@@ -1121,9 +1129,12 @@ static void scan_proc_top(double dt, int core_count)
     static pthread_mutex_t scan_lock = PTHREAD_MUTEX_INITIALIZER;
     static time_t          last_scan = 0;
     if (pthread_mutex_trylock(&scan_lock) != 0) return;
-    /* 同一秒内不重复扫描（dt 精度为秒级，防止同秒多次触发） */
+    /* 至少间隔 2 秒再全量扫 /proc（monitor/procs 并发时避免 CPU 尖峰） */
     time_t scan_now = time(NULL);
-    if (scan_now == last_scan) { pthread_mutex_unlock(&scan_lock); return; }
+    if (last_scan != 0 && difftime(scan_now, last_scan) < 2.0) {
+        pthread_mutex_unlock(&scan_lock);
+        return;
+    }
     last_scan = scan_now;
 
     long clk = sysconf(_SC_CLK_TCK);
@@ -1563,6 +1574,19 @@ static void handle_api_port(int client_fd, int query_port)
  */
 static void handle_api_procs(int client_fd, const char *query, int include_ports)
 {
+    char cache_key[160];
+    snprintf(cache_key, sizeof(cache_key), "%d:%s", include_ports, query ? query : "");
+
+    pthread_mutex_lock(&g_procs_json_mtx);
+    if (g_procs_json &&
+        difftime(time(NULL), g_procs_json_ts) < (double)PROCS_CACHE_SEC &&
+        strcmp(cache_key, g_procs_cache_key) == 0) {
+        send_json(client_fd, 200, "OK", g_procs_json, g_procs_json_len);
+        pthread_mutex_unlock(&g_procs_json_mtx);
+        return;
+    }
+    pthread_mutex_unlock(&g_procs_json_mtx);
+
     /* 复制上次快照 */
     static proc_snap_t prev_snap[MAX_PROCS];
     int    prev_cnt;
@@ -1657,6 +1681,16 @@ static void handle_api_procs(int client_fd, const char *query, int include_ports
         closedir(dir);
     }
     SB_LIT(&sb, "]}");
+
+    pthread_mutex_lock(&g_procs_json_mtx);
+    free(g_procs_json);
+    g_procs_json = (sb.data && sb.len > 0) ? strdup(sb.data) : NULL;
+    g_procs_json_len = sb.len;
+    g_procs_json_ts  = time(NULL);
+    strncpy(g_procs_cache_key, cache_key, sizeof(g_procs_cache_key) - 1);
+    g_procs_cache_key[sizeof(g_procs_cache_key) - 1] = '\0';
+    pthread_mutex_unlock(&g_procs_json_mtx);
+
     send_json(client_fd, 200, "OK", sb.data ? sb.data : "{\"procs\":[]}", sb.len);
     free(sb.data);
     free(tcp_map);

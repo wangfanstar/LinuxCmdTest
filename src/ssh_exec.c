@@ -122,6 +122,29 @@ static char effective_last_printable(const char *s, size_t len)
     return last_real;
 }
 
+/* 末行形如 [DEBUG]、[ INFO]、[OK] 等调试/状态行：以 ] 结尾，易被误判为 VRP 提示符，
+ * 若据此提前发下一条命令会导致会话错乱、长时间等不到真提示符（看似超时失效）。 */
+static int line_is_bracket_log_tag(const char *s, size_t ll)
+{
+    while (ll > 0 && (s[0] == ' ' || s[0] == '\t')) {
+        s++;
+        ll--;
+    }
+    while (ll > 0 && (s[ll - 1] == ' ' || s[ll - 1] == '\t'))
+        ll--;
+    if (ll < 3 || s[0] != '[' || s[ll - 1] != ']')
+        return 0;
+    /* 接口名/路径等多含 / . : ，与短日志标签区分 */
+    for (size_t k = 1; k + 1 < ll; k++) {
+        unsigned char c = (unsigned char)s[k];
+        if (c == '/' || c == '.' || c == ':')
+            return 0;
+    }
+    if (ll > 56)
+        return 0;
+    return 1;
+}
+
 /* 判断 buf 末尾是否为 CLI 提示符（> # $ ] %）。
  * VRP 提示符示例：<GT>  [GT-GigabitEthernet0/0/0]
  * Linux 提示符示例：root@host:~#   user@host:~$
@@ -143,9 +166,13 @@ static int is_prompt(const char *buf, size_t len)
     /* 用 effective_last_printable 找最后一个可打印非空格字符 */
     char last_real = effective_last_printable(last, ll);
     if (!last_real) return 0;
-    if (last_real == '>' || last_real == '#' || last_real == '$' ||
-        last_real == ']')
+    if (last_real == '>' || last_real == '#' || last_real == '$')
         return 1;
+    if (last_real == ']') {
+        if (line_is_bracket_log_tag(last, ll))
+            return 0;
+        return 1;
+    }
     if (last_real != '%')
         return 0;
     /* 末行含 %% → 多为设备报错/说明，勿当提示符（否则会提前发下一条命令导致会话错乱） */
@@ -175,8 +202,12 @@ static char *strip_cmd_output(const char *buf, size_t len)
         while (line_start > start && buf[line_start-1] != '\n') line_start--;
         /* 用 effective_last_printable 取本行有效末字符 */
         char lc = effective_last_printable(buf + line_start, end - line_start);
-        if (lc == '>' || lc == '#' || lc == '$' || lc == ']' || lc == '%') {
+        if (lc == '>' || lc == '#' || lc == '$' || lc == '%') {
             end = line_start;   /* 去掉本行 */
+        } else if (lc == ']') {
+            if (line_is_bracket_log_tag(buf + line_start, end - line_start))
+                break;   /* [DEBUG] 等保留在输出中 */
+            end = line_start;
         } else {
             break;
         }
@@ -1052,8 +1083,12 @@ void ssh_session_exec_stream(const char *host, int port,
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
                 if (select(out_pipe[0]+1, &rset, NULL, NULL, &tv) > 0) {
-                    ssize_t nr = read(out_pipe[0], accum + init_len,
-                                      SSH_OUTPUT_MAX - 1 - init_len);
+                    size_t space = (init_len < SSH_OUTPUT_MAX - 1)
+                                       ? (SSH_OUTPUT_MAX - 1 - init_len)
+                                       : 0;
+                    if (space == 0)
+                        break;   /* 缓冲满仍未见提示符，交外层处理 */
+                    ssize_t nr = read(out_pipe[0], accum + init_len, space);
                     if (nr > 0) { init_len += (size_t)nr; t_data = monotonic_sec(); }
                     else break;   /* EOF：SSH 已断开 */
                     if (monotonic_sec() - t_init_start >= (double)idle_timeout_sec)
@@ -1128,8 +1163,26 @@ void ssh_session_exec_stream(const char *host, int port,
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
                 int sel = select(out_pipe[0]+1, &rset, NULL, NULL, &tv);
                 if (sel > 0) {
-                    ssize_t nr = read(out_pipe[0], accum + cmd_len,
-                                      SSH_OUTPUT_MAX - 1 - cmd_len);
+                    size_t space = (cmd_len < SSH_OUTPUT_MAX - 1)
+                                       ? (SSH_OUTPUT_MAX - 1 - cmd_len)
+                                       : 0;
+                    if (space == 0) {
+                        LOG_INFO("ssh_session_exec_stream(net): cmd[%d] output "
+                                 "buffer full (%d bytes), killing session",
+                                 i, SSH_OUTPUT_MAX);
+                        if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
+                            size_t cp = cmd_len < out_partial_sz - 1
+                                            ? cmd_len
+                                            : out_partial_sz - 1;
+                            memcpy(out_partial_buf, accum, cp);
+                            out_partial_buf[cp] = '\0';
+                        }
+                        timed_out = 1;
+                        if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                        killpg(pid, SIGKILL);
+                        break;
+                    }
+                    ssize_t nr = read(out_pipe[0], accum + cmd_len, space);
                     if (nr <= 0) {
                         timed_out = 1;
                         if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;

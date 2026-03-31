@@ -937,7 +937,8 @@ static int count_online(void)
 
 /* GET /api/port?port=<number>
  * 通过 /proc/net/tcp[6] 查找占用指定端口的进程。
- * 返回 JSON: {"port":8881,"procs":[{"pid":123,"name":"simpleserver","user":"root","state":"LISTEN"},...]}
+ * 返回 JSON: {"port":8881,"procs":[{"pid":123,"name":"...","user":"...","state":"LISTEN",
+ *   "p":1.2,"c":0},...]} ；p/c 与 /api/procs 相同方式估算 CPU%、末次调度 CPU。
  */
 static void handle_api_port(int client_fd, int query_port)
 {
@@ -1035,7 +1036,20 @@ static void handle_api_port(int client_fd, int query_port)
         }
     }
 
-    /* Step 3: 组装 JSON */
+    /* Step 3: 与 /api/procs 相同快照，估算各 PID 的 CPU%（供 monitor 进程表展示） */
+    static proc_snap_t prev_snap[MAX_PROCS];
+    int    prev_cnt;
+    double last_dt;
+    pthread_mutex_lock(&g_proc_mutex);
+    prev_cnt = g_prev_proc_count;
+    last_dt  = g_last_scan_dt;
+    memcpy(prev_snap, g_prev_procs, sizeof(proc_snap_t) * (size_t)prev_cnt);
+    pthread_mutex_unlock(&g_proc_mutex);
+    long clk = sysconf(_SC_CLK_TCK);
+    if (clk <= 0) clk = 100;
+    double scale = (last_dt > 0.1) ? 100.0 / ((double)clk * last_dt) : 0.0;
+
+    /* Step 4: 组装 JSON */
     strbuf_t sb = {0};
     char hdr[64];
     int hlen = snprintf(hdr, sizeof(hdr), "{\"port\":%d,\"procs\":[", query_port);
@@ -1055,10 +1069,17 @@ static void handle_api_port(int client_fd, int query_port)
 
         const char *state_str = (state >= 1 && state <= 12) ? tcp_states[state] : "UNKNOWN";
 
-        char entry[256];
+        unsigned long long prev_ticks = 0;
+        for (int j = 0; j < prev_cnt; j++)
+            if (prev_snap[j].pid == pid) { prev_ticks = prev_snap[j].ticks; break; }
+        float pct = (scale > 0 && ticks > prev_ticks)
+                    ? (float)((double)(ticks - prev_ticks) * scale) : 0.0f;
+
+        char entry[384];
         int en = snprintf(entry, sizeof(entry),
-                          "%s{\"pid\":%d,\"name\":\"%s\",\"user\":\"%s\",\"state\":\"%s\"}",
-                          i ? "," : "", (int)pid, name, user, state_str);
+                          "%s{\"pid\":%d,\"name\":\"%s\",\"user\":\"%s\",\"state\":\"%s\","
+                          "\"p\":%.1f,\"c\":%d}",
+                          i ? "," : "", (int)pid, name, user, state_str, pct, cpu_idx);
         sb_append(&sb, entry, (size_t)en);
     }
 

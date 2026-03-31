@@ -238,15 +238,26 @@ canvas{display:block;width:100%}
         <label>核心号</label>
         <input id="q-core" type="text" placeholder="如 0 或 0-7 或留空">
       </div>
+      <div class="search-field" style="min-width:100px;max-width:130px">
+        <label>端口筛选</label>
+        <input id="q-search-port" type="number" min="1" max="65535" placeholder="如 8881"
+          title="开启「按端口过滤」后，仅列出占用该 TCP 端口的进程">
+      </div>
+      <label class="toggle-wrap" style="align-self:flex-end;margin-bottom:2px;flex-shrink:0"
+        title="根据 /proc/net/tcp 查找占用指定端口的进程（LISTEN、ESTABLISHED 等）">
+        <input type="checkbox" id="chk-by-port">
+        <span class="toggle-track"></span>
+        按端口过滤
+      </label>
       <button class="btn-search-clear" id="btn-search-clear">清空</button>
     </div>
-    <div class="search-hint" id="search-hint">输入任意条件后自动过滤，留空则显示所有已采集进程</div>
+    <div class="search-hint" id="search-hint">输入进程名/用户名自动过滤；开启「按端口过滤」后仅显示占用该端口的进程（可与名称/用户/核心条件组合）</div>
     <table class="search-result-table" id="search-table">
       <thead><tr>
         <th style="width:32px;text-align:center"><input type="checkbox" id="chk-all" class="kill-chk"></th>
-        <th>PID</th><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th><th>操作</th>
+        <th>PID</th><th>核心</th><th>进程名</th><th>用户</th><th>CPU %</th><th>TCP 状态</th><th>操作</th>
       </tr></thead>
-      <tbody id="search-body"><tr><td colspan="7" class="search-empty">等待数据...</td></tr></tbody>
+      <tbody id="search-body"><tr><td colspan="8" class="search-empty">等待数据...</td></tr></tbody>
     </table>
     <div class="kill-bar" id="kill-bar">
       <span class="kill-bar-info" id="kill-sel-info">已选 0 个进程</span>
@@ -494,12 +505,81 @@ function buildProcList(data){
 }
 
 let _searchTimer = null;
+
+function fmtTcpStateCell(st){
+  if(!st) return '<span style="color:#484f58">—</span>';
+  const cls = st === 'LISTEN' ? 'port-state port-state-listen'
+            : st === 'ESTABLISHED' ? 'port-state port-state-estab'
+            : 'port-state port-state-other';
+  return '<span class="'+cls+'">'+esc(st)+'</span>';
+}
+
 function runSearch(){
   const qName = document.getElementById('q-name').value.trim();
   const qUser = document.getElementById('q-user').value.trim();
   const qCore = parseCoreFilter(document.getElementById('q-core').value);
+  const byPort = document.getElementById('chk-by-port').checked;
+  const portVal = parseInt(document.getElementById('q-search-port').value, 10);
   const hint  = document.getElementById('search-hint');
   const tbody = document.getElementById('search-body');
+
+  /* 按端口：走 /api/port，再按名称/用户/核心/0% CPU 在客户端过滤 */
+  if(byPort){
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(async ()=>{
+      if(!portVal || portVal < 1 || portVal > 65535){
+        hint.textContent = '已开启「按端口过滤」：请在「端口筛选」中填写有效端口号（1–65535）';
+        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请输入端口号</td></tr>';
+        updateKillBar();
+        return;
+      }
+      hint.textContent = '正在查询端口 '+portVal+'…';
+      tbody.innerHTML = '<tr><td colspan="8" class="search-empty">查询中…</td></tr>';
+      try {
+        const resp = await fetch('/api/port?port='+portVal);
+        const data = await resp.json();
+        if(data.error){
+          hint.textContent = '端口查询失败: '+data.error;
+          tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
+          updateKillBar();
+          return;
+        }
+        const inclZero = document.getElementById('chk-zero-cpu').checked;
+        let rows = (data.procs||[]).map(p=>({
+          core: typeof p.c === 'number' ? p.c : 0,
+          name: p.name || '',
+          user: p.user || '',
+          pct:  typeof p.p === 'number' ? p.p : 0,
+          pid:  p.pid,
+          state: p.state || ''
+        }));
+        if(!inclZero) rows = rows.filter(r=>r.pct >= 0.05);
+        if(qName){
+          const ln = qName.toLowerCase();
+          rows = rows.filter(r=>r.name.toLowerCase().includes(ln));
+        }
+        if(qUser){
+          const lu = qUser.toLowerCase();
+          rows = rows.filter(r=>r.user.toLowerCase().includes(lu));
+        }
+        if(qCore) rows = rows.filter(r=>qCore.has(r.core));
+        rows.sort((a,b)=>b.pct-a.pct);
+
+        const conds = ['端口 '+portVal];
+        if(qName) conds.push('进程名含「'+qName+'」');
+        if(qUser) conds.push('用户含「'+qUser+'」');
+        if(qCore) conds.push('核心 ['+[...qCore].sort((a,b)=>a-b).join(',')+']');
+        hint.textContent = '按端口占用：'+conds.join(' · ')+'，共 '+rows.length+' 条'+
+          (inclZero?'（含 0% CPU）':'（仅 CPU≥0.05%）');
+        renderSearchRows(rows, tbody);
+      } catch(e){
+        hint.textContent = '端口查询失败: '+e.message;
+        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
+        updateKillBar();
+      }
+    }, 300);
+    return;
+  }
 
   /* 有进程名/用户名关键词时走 /api/procs 全量搜索（含 0% CPU 进程）
      仅有核心号过滤时走本地 Top-3 数据 */
@@ -508,7 +588,7 @@ function runSearch(){
     _searchTimer = setTimeout(async ()=>{
       const q = encodeURIComponent(qName || qUser);
       hint.textContent = '搜索中…';
-      tbody.innerHTML = '<tr><td colspan="7" class="search-empty">搜索中…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="search-empty">搜索中…</td></tr>';
       try {
         const resp = await fetch('/api/procs?q='+q);
         const data = await resp.json();
@@ -536,7 +616,7 @@ function runSearch(){
         renderSearchRows(rows, tbody);
       } catch(e){
         hint.textContent = '搜索失败: '+e.message;
-        tbody.innerHTML = '<tr><td colspan="7" class="search-empty">请求失败</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="search-empty">请求失败</td></tr>';
       }
     }, 300);
     return;
@@ -559,7 +639,7 @@ function runSearch(){
 
 function renderSearchRows(rows, tbody){
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="7" class="search-empty">无匹配结果</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="search-empty">无匹配结果</td></tr>';
     updateKillBar();
     return;
   }
@@ -571,6 +651,7 @@ function renderSearchRows(rows, tbody){
       <td><span class="pname">${esc(r.name)}</span></td>
       <td><span class="uname" style="color:#8b949e">${esc(r.user)}</span></td>
       <td class="td-pct" style="color:${colorFor(r.pct)}">${r.pct.toFixed(1)}%</td>
+      <td class="td-tcp" style="text-align:center;white-space:nowrap;font-size:.68rem">${fmtTcpStateCell(r.state)}</td>
       <td style="white-space:nowrap;display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
         <button class="btn-kill-copy" data-pid="${r.pid||''}" onclick="copySingleKill(this)">复制</button>
         <button class="btn-kill" data-pid="${r.pid||''}" data-name="${esc(r.name)}" data-user="${esc(r.user)}" onclick="startKill(this)">Kill</button>
@@ -721,11 +802,13 @@ async function confirmKill(btn, pid){
 }
 
 /* 输入事件绑定 */
-['q-name','q-user','q-core'].forEach(id=>{
+['q-name','q-user','q-core','q-search-port'].forEach(id=>{
   document.getElementById(id).addEventListener('input', runSearch);
 });
+document.getElementById('chk-by-port').addEventListener('change', runSearch);
 document.getElementById('btn-search-clear').addEventListener('click', ()=>{
-  ['q-name','q-user','q-core'].forEach(id=>{ document.getElementById(id).value=''; });
+  ['q-name','q-user','q-core','q-search-port'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('chk-by-port').checked = false;
   runSearch();
 });
 document.getElementById('chk-zero-cpu').addEventListener('change', runSearch);

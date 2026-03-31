@@ -490,6 +490,16 @@ static int run_ssh_session(const char *host, int port,
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
+/* 与 linux_cmd_test 导入规则一致：去掉行首「~ 」「! 」比对标记后再交给 shell。
+ * PTY/bash 下行首 ~ 会被当作波浪线展开，导致命令异常、无提示符、空闲超时行为混乱。 */
+static const char *skip_shell_marker_prefix(const char *cmd)
+{
+    if (!cmd) return "";
+    if (cmd[0] == '~' && cmd[1] == ' ') return cmd + 2;
+    if (cmd[0] == '!' && cmd[1] == ' ') return cmd + 2;
+    return cmd;
+}
+
 /* 构建复合 shell 脚本：每条命令后输出 boundary:exitcode\n */
 static char *build_session_script(const char *boundary,
                                    char **commands, int count)
@@ -497,7 +507,7 @@ static char *build_session_script(const char *boundary,
     /* 估算脚本大小 */
     size_t sz = 256;  /* 为 trap 行预留空间 */
     for (int i = 0; i < count; i++)
-        sz += strlen(commands[i]) + strlen(boundary) + 64;
+        sz += strlen(skip_shell_marker_prefix(commands[i])) + strlen(boundary) + 64;
 
     char *script = malloc(sz);
     if (!script) return NULL;
@@ -514,10 +524,11 @@ static char *build_session_script(const char *boundary,
         "kill -9 -- -$$ 2>/dev/null' HUP EXIT INT TERM\n"
         "set +e\n");
     for (int i = 0; i < count; i++) {
+        const char *c = skip_shell_marker_prefix(commands[i]);
         off += snprintf(script + off, sz - (size_t)off,
                         "%s\n"
                         "printf '%s:%%d\\n' $?\n",
-                        commands[i], boundary);
+                        c, boundary);
     }
     return script;
 }
@@ -1026,7 +1037,7 @@ void ssh_session_exec_stream(const char *host, int port,
 
         /* Step 2: 逐条发送命令，等待提示符返回 */
         for (int i = 0; i < cmd_count; i++) {
-            const char *cmd  = commands[i];
+            const char *cmd  = skip_shell_marker_prefix(commands[i]);
             size_t      clen = strlen(cmd);
 
             /* 发送命令 + 换行 */
@@ -1063,6 +1074,7 @@ void ssh_session_exec_stream(const char *host, int port,
                             out_partial_buf[cp] = '\0';
                         }
                         timed_out = 1;
+                        if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
                         kill(pid, SIGKILL); /* 否则 waitpid 阻塞，流式 API 无法返回 */
                         break;
                     }

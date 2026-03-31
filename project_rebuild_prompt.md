@@ -519,6 +519,7 @@ ssh
 - 读取循环中每次找到 boundary → 立即提取并调用 `cb(idx, cmd, output, exit_code, ud)`
 - 然后从 buffer 中移除已处理部分，继续读取
 - 若所有读取完毕后 buffer 无任何 boundary → SSH 连接失败，写入 `error_buf`
+- `build_session_script` 与 **网络设备 / PTY 逐条写命令** 前，对每条 `commands[i]` 调用 `skip_shell_marker_prefix()`：去掉行首 `~ `、`! `（与前端导入一致），避免 PTY 下 bash 将 `~` 当作波浪线展开
 
 ### ssh_cancel_current
 
@@ -994,6 +995,7 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.9 | 存档默认文件名改为「时间 + 客户端 IP 段 + SSH 登录用户名」（左侧用户名表单） |
 | 2026-03-30 | v1.7 | reports.html + GET /api/reports 浏览存档；index 与 linux_cmd_test 入口 |
 | 2026-03-30 | v1.8 | PTY 流式空闲超时：`ssh_session_exec_stream` 增加 `out_timeout_cmd_idx`，SSE `timeout` 事件带 `i`；`linux_cmd_test.html` 收到 `timeout` 时用标签跳出 SSE 读循环，立即取消「执行中」 |
+| 2026-03-30 | v1.10 | PTY/流式：命令去掉行首 `~ ` / `! ` 再执行（`skip_shell_marker_prefix`，linux_cmd_test `cmdTextForRemoteExec`）；PTY 空闲超时补写 `out_timeout_cmd_idx` |
 
 ---
 

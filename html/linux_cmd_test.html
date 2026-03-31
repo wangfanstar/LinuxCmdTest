@@ -1133,6 +1133,7 @@ body.edit-mode .cmd-output { cursor: text; }
         <li><code>!</code> <strong>忽略比对</strong>：跳过此命令的比对，报告中固定显示「— 跳过」</li>
       </ul>
       <p>标记会随命令一起保存到导出的文本文件和配置 JSON 中，导入时自动还原。</p>
+      <p>若在输入框里直接写了与导入相同的 <code>~ </code> / <code>! </code> 前缀，执行（含<strong>自定义 PTY</strong>）时会<strong>先去掉前缀</strong>再发给 shell，避免行首 <code>~</code> 被 bash 当作家目录展开而导致命令跑飞、无提示符或长时间不结束。</p>
       <div class="note">使用场景举例：版本号、时间戳等每次不同的输出设为「忽略」；内核版本等含多余空格的输出设为「模糊匹配」。</div>
 
       <h3>预期结果比对</h3>
@@ -1373,6 +1374,14 @@ function getCommandsWithMarkers() {
     .filter(o => o.cmd);
 }
 
+/** 发给 SSH 的正文：去掉行首「~ 」「! 」（与文件导入一致）。PTY 下行首 ~ 会被 bash 展开，导致命令错误甚至一直无提示符。 */
+function cmdTextForRemoteExec(cmd) {
+  const s = String(cmd || '').trim();
+  if (s.startsWith('! ')) return s.slice(2).trim();
+  if (s.startsWith('~ ')) return s.slice(2).trim();
+  return s;
+}
+
 function addCtrlCCmd(afterItem = null) {
   return addCmd('kill -INT $$', 'ctrlc', afterItem);
 }
@@ -1561,11 +1570,18 @@ async function doExec() {
   const user    = document.getElementById('f-user').value.trim() || 'root';
   const pass    = document.getElementById('f-pass').value;
   const cmdItems = getCommandsWithMarkers();
-  const commands = cmdItems.map(o => o.cmd);
+  const commands = cmdItems.map(o => cmdTextForRemoteExec(o.cmd));
   const markers  = cmdItems.map(o => o.marker);
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
+  for (let bi = 0; bi < commands.length; bi++) {
+    if (!commands[bi]) {
+      execStatus.textContent = `第 ${bi + 1} 条去掉行首 ~ / ! 前缀后为空，请填写实际 shell 命令`;
+      execStatus.style.color = 'var(--red)';
+      return;
+    }
+  }
 
   resumeStreamConsume();
   setLoading(true);

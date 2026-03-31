@@ -52,14 +52,15 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
                                  const char *output, int exit_code,
                                  void *ud);
 
-/* idle_timeout_sec：同上，传 0 使用默认值（300s）。
+/* idle_timeout_sec：单条命令的绝对超时秒数（wall-clock，从发出命令时起计）；
+ *   传 0 使用默认值（300s）。PTY/NET 模式下每 200ms 在循环顶检查，
+ *   无论是否有数据持续流入都能可靠触发，不因 PTY echo/ANSI 码而被绕过。
  * out_timed_out：非 NULL 时，超时中断置 1，正常/连接失败置 0。
  * out_timeout_cmd_idx：非 NULL 时，超时中断填入被中断命令的 0-based 下标；
  *   未超时或非命令级中断时置为 -1。
  * out_partial_buf/out_partial_sz：非 NULL 时，超时中断后填入被中断命令
  *   的已采集输出（不完整），正常结束置为空字符串。
- * net_device_mode：非 0 时使用交互式提示符检测模式（适用于 Huawei VRP 等
- *   网络设备 CLI），逐条发命令并等待提示符回显，退出码固定为 0；
+ * net_device_mode：非 0 时使用交互式提示符检测模式，逐条发命令并等待提示符；
  *   为 0 时使用 bash -s 脚本模式（适用于 Linux/Unix 服务器）。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,

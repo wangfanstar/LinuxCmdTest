@@ -998,7 +998,9 @@ void ssh_session_exec_stream(const char *host, int port,
          * 适用于 PTY 模式下脚本启动后需要较长时间才进入自定义视图的场景。 */
         size_t init_len = 0;
         {
-            time_t t_data = time(NULL);
+            /* t_init_start：墙上时钟上限，防止登录/欢迎信息细水长流永不出现提示符 */
+            time_t t_init_start = time(NULL);
+            time_t t_data       = time(NULL);
             for (;;) {
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
@@ -1007,11 +1009,18 @@ void ssh_session_exec_stream(const char *host, int port,
                                       SSH_OUTPUT_MAX - 1 - init_len);
                     if (nr > 0) { init_len += (size_t)nr; t_data = time(NULL); }
                     else break;   /* EOF：SSH 已断开 */
+                    if (difftime(time(NULL), t_init_start) >= (double)idle_timeout_sec)
+                        break;
                 } else {
                     /* 200ms 无新数据：检查是否已出现提示符 */
                     if (init_len > 0 && is_prompt(accum, init_len)) break;
-                    /* 空闲超时（与每条命令超时一致） */
-                    if (difftime(time(NULL), t_data) >= (double)idle_timeout_sec) break;
+                    {
+                        time_t now = time(NULL);
+                        if (difftime(now, t_init_start) >= (double)idle_timeout_sec)
+                            break;
+                        /* 空闲超时（与每条命令超时一致） */
+                        if (difftime(now, t_data) >= (double)idle_timeout_sec) break;
+                    }
                 }
             }
         }
@@ -1044,11 +1053,30 @@ void ssh_session_exec_stream(const char *host, int port,
             write(in_pipe[1], cmd, clen);
             write(in_pipe[1], "\n", 1);
 
-            /* 读取命令输出，直到提示符出现或超时 */
-            size_t cmd_len = 0;
-            time_t t_last  = time(NULL);
+            /* 读取命令输出，直到提示符出现或超时。
+             * wall-clock 检查放在循环顶部，每 200ms 必然执行一次，
+             * 无论 select 返回 0（无数据）还是 >0（有数据）都不会被绕过。
+             * 这样即使 PTY 持续产生 ANSI 码/echo 导致 select 一直有数据，
+             * 到时也能可靠触发，不会像分支内检查那样被跳过。 */
+            size_t cmd_len    = 0;
+            time_t t_cmd_start = time(NULL);
 
             for (;;) {
+                /* ── 墙上时钟（绝对超时）：循环顶优先检查 ── */
+                if (difftime(time(NULL), t_cmd_start) >= (double)idle_timeout_sec) {
+                    LOG_INFO("ssh_session_exec_stream(net): wall-clock timeout (%ds) on cmd[%d]",
+                             idle_timeout_sec, i);
+                    if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
+                        size_t cp = cmd_len < out_partial_sz-1 ? cmd_len : out_partial_sz-1;
+                        memcpy(out_partial_buf, accum, cp);
+                        out_partial_buf[cp] = '\0';
+                    }
+                    timed_out = 1;
+                    if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
+                    kill(pid, SIGKILL);
+                    break;
+                }
+
                 struct timeval tv = { 0, 200000 };
                 fd_set rset; FD_ZERO(&rset); FD_SET(out_pipe[0], &rset);
                 int sel = select(out_pipe[0]+1, &rset, NULL, NULL, &tv);
@@ -1061,23 +1089,9 @@ void ssh_session_exec_stream(const char *host, int port,
                         break;
                     }   /* EOF */
                     cmd_len += (size_t)nr;
-                    t_last = time(NULL);
                 } else {
-                    /* 200ms 无新数据 */
+                    /* 200ms 无新数据：检测提示符，超时由循环顶处理 */
                     if (cmd_len > 0 && is_prompt(accum, cmd_len)) break;
-                    if (difftime(time(NULL), t_last) >= idle_timeout_sec) {
-                        LOG_INFO("ssh_session_exec_stream(net): idle timeout (%ds) on cmd[%d]",
-                                 idle_timeout_sec, i);
-                        if (out_partial_buf && out_partial_sz > 0 && cmd_len > 0) {
-                            size_t cp = cmd_len < out_partial_sz-1 ? cmd_len : out_partial_sz-1;
-                            memcpy(out_partial_buf, accum, cp);
-                            out_partial_buf[cp] = '\0';
-                        }
-                        timed_out = 1;
-                        if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                        kill(pid, SIGKILL); /* 否则 waitpid 阻塞，流式 API 无法返回 */
-                        break;
-                    }
                 }
             }
 

@@ -150,19 +150,6 @@ aside {
   padding: 0;
 }
 .cmd-item .btn-del:hover { background: #3d0a0a; color: var(--red); }
-.btn-mode {
-  flex-shrink: 0;
-  font-size: 9px; font-weight: 700;
-  padding: 1px 5px; border-radius: 3px;
-  cursor: pointer; font-family: monospace; border: 1px solid;
-  line-height: 1.6; transition: background .15s;
-}
-.btn-mode.net { background: #0d2644; color: #58a6ff; border-color: #58a6ff50; }
-.btn-mode.net:hover { background: #1a3a6e; }
-.btn-mode.sh  { background: #0d2a18; color: #3fb950; border-color: #3fb95050; }
-.btn-mode.sh:hover  { background: #1a4a28; }
-.btn-mode.pty { background: #1a1a2e; color: #c792ea; border-color: #c792ea50; }
-.btn-mode.pty:hover { background: #2d1f4a; }
 .btn-marker {
   flex-shrink: 0;
   width: 22px; height: 20px;
@@ -826,12 +813,6 @@ body.edit-mode .cmd-notes {
           <label>密码</label>
           <input id="f-pass" type="password" placeholder="••••••••">
         </div>
-        <label class="toggle-wrap" title="适用于 Huawei VRP 等网络设备 CLI，使用交互式提示符检测替代 bash 脚本模式">
-          <input type="checkbox" id="f-net-device" checked>
-          <span class="toggle-track"></span>
-          网络设备模式
-        </label>
-
       </div>
 
       <!-- 命令集合 -->
@@ -1057,21 +1038,10 @@ function addCmd(value = '', marker = '', afterItem = null) {
   item.dataset.marker = marker;
   item.innerHTML =
     `<span class="cmd-drag" title="拖拽排序">⠿</span>` +
-    `<button class="btn-mode net" title="网络设备模式 — 点击切换为 Linux/bash 模式">NET</button>` +
     `<button class="btn-marker" title="点击切换匹配模式"></button>` +
     `<input type="text" placeholder="输入命令" value="${escAttr(value)}">` +
     `<button class="btn-insert" title="在此处下方插入命令">+</button>` +
     `<button class="btn-del" title="删除">×</button>`;
-
-  /* 模式徽标：点击只切换本行模式（不影响其他命令），3 档循环：NET → SH → PTY → NET */
-  const modeBtn = item.querySelector('.btn-mode');
-  modeBtn.addEventListener('click', () => {
-    const cur  = modeBtn.classList.contains('sh') ? 'sh' :
-                 modeBtn.classList.contains('pty') ? 'pty' : 'net';
-    const next = cur === 'net' ? 'sh' : cur === 'sh' ? 'pty' : 'net';
-    applyModeBtnEl(modeBtn, next);
-  });
-  applyModeBtnState(modeBtn);   /* 初始继承当前全局状态 */
 
   const markerBtn = item.querySelector('.btn-marker');
   applyMarker(item, markerBtn, marker);
@@ -1150,36 +1120,6 @@ function addCmd(value = '', marker = '', afterItem = null) {
   return item;
 }
 
-/* 更新单个模式按钮外观（不影响其他按钮）
- * mode: 'net' — 网络设备模式（无 PTY，适用于 Huawei VRP 等）
- *        'sh'  — Linux/bash 脚本模式
- *        'pty' — PTY 终端模式（适用于执行脚本后进入交互式 CLI，如 build.sh xware --exec） */
-function applyModeBtnEl(btn, mode) {
-  if (mode === 'sh') {
-    btn.textContent = 'SH';  btn.className = 'btn-mode sh';
-    btn.title = 'Linux/bash 模式 — 点击切换为 PTY 终端模式';
-  } else if (mode === 'pty') {
-    btn.textContent = 'PTY'; btn.className = 'btn-mode pty';
-    btn.title = 'PTY 终端模式（执行后进入交互式 CLI 的命令，如 build.sh xware --exec）— 点击切换为网络设备模式';
-  } else {
-    btn.textContent = 'NET'; btn.className = 'btn-mode net';
-    btn.title = '网络设备模式 — 点击切换为 Linux/bash 模式';
-  }
-}
-
-/* 将单个按钮同步到当前全局设置（仅用于新建行时初始化） */
-function applyModeBtnState(btn) {
-  applyModeBtnEl(btn, document.getElementById('f-net-device').checked ? 'net' : 'sh');
-}
-
-/* 全局切换时同步所有命令行的模式按钮（保留已手动设置为 PTY 的行） */
-function applyAllModeBtns() {
-  const mode = document.getElementById('f-net-device').checked ? 'net' : 'sh';
-  document.querySelectorAll('#cmd-list .btn-mode').forEach(btn => {
-    if (!btn.classList.contains('pty'))   /* 不覆盖手动设置的 PTY 行 */
-      applyModeBtnEl(btn, mode);
-  });
-}
 
 function applyMarker(item, btn, marker) {
   item.dataset.marker = marker;
@@ -1207,16 +1147,10 @@ function getCommands() {
 
 function getCommandsWithMarkers() {
   return [...cmdList.querySelectorAll('.cmd-item')]
-    .map(item => {
-      const modeBtn = item.querySelector('.btn-mode');
-      const dev = modeBtn && modeBtn.classList.contains('sh') ? 'sh' :
-                  modeBtn && modeBtn.classList.contains('pty') ? 'pty' : 'net';
-      return {
-        cmd:    item.querySelector('input').value.trim(),
-        marker: item.dataset.marker || '',
-        dev
-      };
-    })
+    .map(item => ({
+      cmd:    item.querySelector('input').value.trim(),
+      marker: item.dataset.marker || ''
+    }))
     .filter(o => o.cmd);
 }
 
@@ -1382,145 +1316,124 @@ async function doExec() {
 
   _execAbortCtrl = new AbortController();
 
-  /* 按连续相同 dev 模式分组，支持混合 NET/SH 执行 */
-  const groups = [];
-  cmdItems.forEach((item, idx) => {
-    if (groups.length === 0 || groups[groups.length - 1].dev !== item.dev) {
-      groups.push({ dev: item.dev, indices: [], cmds: [] });
-    }
-    const g = groups[groups.length - 1];
-    g.indices.push(idx);
-    g.cmds.push(item.cmd);
-  });
-
   const streamResults = new Array(commands.length).fill(null);
   let   streamTimeout  = null;
 
-  groupLoop:
-  for (const group of groups) {
-    const net_device = group.dev === 'net' ? 1 : group.dev === 'pty' ? 2 : 0;
-
-    /* 流式请求：每条命令完成后服务端立即推送 SSE 事件 */
-    let resp;
-    try {
-      resp = await fetch('/api/ssh-exec-stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host, port, user, pass, timeout, commands: group.cmds, net_device }),
-        signal: _execAbortCtrl.signal
-      });
-    } catch (e) {
-      if (e.name !== 'AbortError') {
-        for (let j = 0; j < commands.length; j++) {
-          if (!streamResults[j]) markBlockError(j, e.message);
-        }
-        execStatus.style.color = 'var(--red)';
-        execStatus.textContent = '请求失败: ' + e.message;
+  /* 流式请求：每条命令完成后服务端立即推送 SSE 事件
+   * net_device=2：PTY 模式，连接后自动检测提示符（bash $ 或自定义 CLI >），
+   * 逐条发命令并等待提示符返回，适用于普通 Linux 命令和交互式 CLI 的混合场景。 */
+  let resp;
+  try {
+    resp = await fetch('/api/ssh-exec-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, user, pass, timeout, commands, net_device: 2 }),
+      signal: _execAbortCtrl.signal
+    });
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      for (let j = 0; j < commands.length; j++) {
+        if (!streamResults[j]) markBlockError(j, e.message);
       }
-      setLoading(false);
-      btnReset.classList.remove('active');
-      _execAbortCtrl = null;
-      return;
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '请求失败: ' + e.message;
     }
+    setLoading(false);
+    btnReset.classList.remove('active');
+    _execAbortCtrl = null;
+    return;
+  }
 
-    /* 逐行读取 SSE 流 */
-    const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let   sseBuf  = '';
+  /* 逐行读取 SSE 流 */
+  const reader  = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let   sseBuf  = '';
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        sseBuf += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuf += decoder.decode(value, { stream: true });
 
-        /* SSE 事件以 \n\n 分隔 */
-        const parts = sseBuf.split('\n\n');
-        sseBuf = parts.pop();  /* 保留不完整的最后一段 */
+      /* SSE 事件以 \n\n 分隔 */
+      const parts = sseBuf.split('\n\n');
+      sseBuf = parts.pop();  /* 保留不完整的最后一段 */
 
-        for (const part of parts) {
-          const m = part.match(/^data:\s*(.+)$/m);
-          if (!m) continue;
-          let ev;
-          try { ev = JSON.parse(m[1]); } catch { continue; }
+      for (const part of parts) {
+        const m = part.match(/^data:\s*(.+)$/m);
+        if (!m) continue;
+        let ev;
+        try { ev = JSON.parse(m[1]); } catch { continue; }
 
-          if (ev.type === 'result') {
-            const globalIdx = group.indices[ev.i];
-            streamResults[globalIdx] = ev;
-            updateReportBlock(globalIdx, ev.output, ev.exit_code, '');
-            if (window.rtMarkDone) rtMarkDone(globalIdx, ev.exit_code);
-            /* 激活下一块运行动画（可能跨组） */
-            const nextGlobal = globalIdx + 1;
-            if (nextGlobal < commands.length) {
-              markBlockRunning(nextGlobal);
-              if (window.rtMarkRunning) rtMarkRunning(nextGlobal);
-            }
-            const done_n = streamResults.filter(Boolean).length;
-            execStatus.textContent = `执行中 ${done_n}/${commands.length}…`;
+        if (ev.type === 'result') {
+          streamResults[ev.i] = ev;
+          updateReportBlock(ev.i, ev.output, ev.exit_code, '');
+          if (window.rtMarkDone) rtMarkDone(ev.i, ev.exit_code);
+          const nextIdx = ev.i + 1;
+          if (nextIdx < commands.length) {
+            markBlockRunning(nextIdx);
+            if (window.rtMarkRunning) rtMarkRunning(nextIdx);
+          }
+          const done_n = streamResults.filter(Boolean).length;
+          execStatus.textContent = `执行中 ${done_n}/${commands.length}…`;
 
-          } else if (ev.type === 'error') {
-            /* 仅标记尚未完成的块，不覆盖已有结果 */
-            for (let j = 0; j < commands.length; j++) {
-              if (!streamResults[j]) markBlockError(j, ev.message);
-            }
-            if (window.rtFinish) rtFinish();
-            execStatus.style.color = 'var(--red)';
-            execStatus.textContent = '错误: ' + ev.message;
-            setLoading(false);
-            btnReset.classList.remove('active');
-            _execAbortCtrl = null;
-            if (expectedData) refreshComparison();
-            return;
+        } else if (ev.type === 'error') {
+          /* 仅标记尚未完成的块，不覆盖已有结果 */
+          for (let j = 0; j < commands.length; j++) {
+            if (!streamResults[j]) markBlockError(j, ev.message);
+          }
+          if (window.rtFinish) rtFinish();
+          execStatus.style.color = 'var(--red)';
+          execStatus.textContent = '错误: ' + ev.message;
+          setLoading(false);
+          btnReset.classList.remove('active');
+          _execAbortCtrl = null;
+          if (expectedData) refreshComparison();
+          return;
 
-          } else if (ev.type === 'timeout') {
-            const completedInGroup = ev.completed != null ? ev.completed : 0;
-            /* 将组内索引映射回全局索引 */
-            const globalCompleted  = group.indices[completedInGroup] !== undefined
-              ? group.indices[completedInGroup]
-              : group.indices[group.indices.length - 1] + 1;
-            const timeoutSec = ev.timeout_sec != null ? ev.timeout_sec
-              : (parseInt(document.getElementById('f-timeout').value) || 300);
-            streamTimeout = { completed: globalCompleted, total: commands.length,
-              partial: ev.partial != null ? ev.partial : null, timeoutSec };
-            /* 超时命令：显示截断输出 + 超时时长 */
-            if (globalCompleted < commands.length) {
-              markBlockTimeout(globalCompleted, streamTimeout.partial, timeoutSec);
-              if (window.rtMarkSkipped) rtMarkSkipped(globalCompleted);
-            }
-            /* 后续命令：标跳过 */
-            for (let j = globalCompleted + 1; j < commands.length; j++) {
+        } else if (ev.type === 'timeout') {
+          const completedIdx = ev.completed != null ? ev.completed : 0;
+          const timeoutSec = ev.timeout_sec != null ? ev.timeout_sec
+            : (parseInt(document.getElementById('f-timeout').value) || 300);
+          streamTimeout = { completed: completedIdx, total: commands.length,
+            partial: ev.partial != null ? ev.partial : null, timeoutSec };
+          /* 超时命令：显示截断输出 + 超时时长 */
+          if (completedIdx < commands.length) {
+            markBlockTimeout(completedIdx, streamTimeout.partial, timeoutSec);
+            if (window.rtMarkSkipped) rtMarkSkipped(completedIdx);
+          }
+          /* 后续命令：标跳过 */
+          for (let j = completedIdx + 1; j < commands.length; j++) {
+            markBlockSkipped(j);
+            if (window.rtMarkSkipped) rtMarkSkipped(j);
+          }
+          /* 报告头加超时徽章 */
+          const summaryEl = document.getElementById('rpt-summary');
+          if (summaryEl) {
+            const doneN = streamResults.filter(Boolean).length;
+            const okN   = streamResults.filter(r => r && r.exit_code === 0).length;
+            summaryEl.innerHTML =
+              (okN > 0 ? `<span class="badge-ok">✓ ${okN} 成功</span> ` : '') +
+              (doneN - okN > 0 ? `<span class="badge-err">✗ ${doneN - okN} 失败</span> ` : '') +
+              `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${completedIdx + 1}/${commands.length} 条，空闲 ${timeoutSec}s）</span>`;
+          }
+          break;  /* 超时后退出读取循环 */
+
+        } else if (ev.type === 'done') {
+          /* 补全未收到结果的命令块（容错） */
+          for (let j = 0; j < commands.length; j++) {
+            if (!streamResults[j]) {
               markBlockSkipped(j);
               if (window.rtMarkSkipped) rtMarkSkipped(j);
-            }
-            /* 报告头加超时徽章 */
-            const summaryEl = document.getElementById('rpt-summary');
-            if (summaryEl) {
-              const doneN = streamResults.filter(Boolean).length;
-              const okN   = streamResults.filter(r => r && r.exit_code === 0).length;
-              summaryEl.innerHTML =
-                (okN > 0 ? `<span class="badge-ok">✓ ${okN} 成功</span> ` : '') +
-                (doneN - okN > 0 ? `<span class="badge-err">✗ ${doneN - okN} 失败</span> ` : '') +
-                `<span class="badge-err" style="background:#3a2200;border-color:#d2992240;color:#d29922">⏱ 超时中断（第 ${globalCompleted + 1}/${commands.length} 条，空闲 ${timeoutSec}s）</span>`;
-            }
-            break groupLoop;  /* 超时后不继续下一组 */
-
-          } else if (ev.type === 'done') {
-            /* 补全本组未收到结果的命令块（容错） */
-            for (const gIdx of group.indices) {
-              if (!streamResults[gIdx]) {
-                markBlockSkipped(gIdx);
-                if (window.rtMarkSkipped) rtMarkSkipped(gIdx);
-              }
             }
           }
         }
       }
-    } catch (e) {
-      if (e.name !== 'AbortError') {
-        execStatus.style.color = 'var(--red)';
-        execStatus.textContent = '流读取失败: ' + e.message;
-      }
-      break;
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      execStatus.style.color = 'var(--red)';
+      execStatus.textContent = '流读取失败: ' + e.message;
     }
   }
 
@@ -2301,9 +2214,6 @@ function flash(el, msg) {
     rtBody   = document.getElementById('rt-body');
     rtTogBtn = document.getElementById('btn-rt-panel');
 
-    /* 网络设备模式切换 → 同步所有命令行徽标 */
-    document.getElementById('f-net-device').addEventListener('change', applyAllModeBtns);
-
     /* 默认展开实时面板 */
     panel.classList.remove('rt-hidden');
     rtTogBtn.classList.add('rt-on');
@@ -2530,12 +2440,7 @@ function flash(el, msg) {
       if (Array.isArray(state.cmds) && state.cmds.length > 0) {
         cmdList.innerHTML = '';
         state.cmds.forEach(function(o) {
-          const item = addCmd(o.cmd != null ? o.cmd : '', o.marker != null ? o.marker : '');
-          /* 恢复每条命令的独立模式（net/sh/pty） */
-          if (o.dev && o.dev !== 'net') {
-            const mb = item.querySelector('.btn-mode');
-            if (mb) applyModeBtnEl(mb, o.dev);  /* 'sh' 或 'pty' */
-          }
+          addCmd(o.cmd != null ? o.cmd : '', o.marker != null ? o.marker : '');
         });
       }
 

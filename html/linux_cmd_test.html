@@ -1121,7 +1121,7 @@ body.edit-mode .cmd-output { cursor: text; }
         <li>点击 <strong>▶ 执行</strong> 后命令逐条流式执行；可用 <strong>暂停 / 恢复</strong> 控制是否继续接收结果（不中断远端已发起的命令）</li>
         <li>右侧报告区展示每条命令的输出和退出码，可折叠查看</li>
         <li>每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
-        <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名中的 IP 为 <code>/api/client-info</code> 的<strong>客户端 IP</strong>；预览与存档成功后的<strong>访问链接</strong>为地址栏中的<strong>Web 服务器</strong>（如 <code>服务器IP:8881/report/…</code>）；与 SSH 目标无关；确认后写入 <code>html/report/年月/</code></li>
+        <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名为 <code>时间_客户端IP_SSH用户名.html</code>（时间本地生成；客户端 IP 来自 <code>/api/client-info</code>；SSH 用户名为左侧表单<strong>用户名</strong>）；预览与存档成功后的<strong>访问链接</strong>为地址栏中的<strong>Web 服务器</strong>（如 <code>服务器IP:8881/report/…</code>）；与 SSH 目标主机无关；确认后写入 <code>html/report/年月/</code></li>
         <li>「<strong>📂 报告库</strong>」打开 <code>reports.html</code>，按月份浏览已存档的 HTML 报告</li>
       </ol>
 
@@ -1205,7 +1205,7 @@ hostname
         <label for="archive-modal-filename">文件名</label>
         <input type="text" id="archive-modal-filename" autocomplete="off" spellcheck="false">
         <p class="archive-dlg-hint">将保存到服务器目录 <code>html/report/<span id="archive-ym-hint">—</span>/</code>（月文件夹以<strong>服务器</strong>本地时间为准；下方链接中的年月按<strong>浏览器本机日历</strong>预览，跨天/时区时可能与实际目录差一月）。</p>
-        <p class="archive-dlg-hint" style="margin-top:8px">默认文件名中的 IP/主机段来自<strong>您的客户端</strong> <code id="archive-client-ip-hint">—</code>（<code>GET /api/client-info</code>，TCP 对端）。</p>
+        <p class="archive-dlg-hint" style="margin-top:8px">默认文件名：<strong>时间</strong>_<strong>客户端 IP</strong>_<strong>SSH 用户</strong>。IP 来自 <code id="archive-client-ip-hint">—</code>（<code>GET /api/client-info</code>，TCP 对端）；SSH 用户来自左侧表单「用户名」当前值（默认 <code>root</code>）。</p>
         <div class="archive-url-label">预览与存档成功后的<strong>访问链接</strong>使用 <strong>Web 服务器</strong>（与地址栏一致）<code id="archive-origin-hint"></code>：</div>
         <div class="archive-url-block">
           <a id="archive-url-link" href="#" target="_blank" rel="noopener"></a>
@@ -2040,14 +2040,27 @@ function archivePeerHostForFilename() {
   return h || 'unknown';
 }
 
-function defaultArchiveFilename() {
-  const ts = archiveReportTimestamp();
+/** 客户端标识段：优先 API 返回的 IPv4（点改下划线）；否则净化 hostname */
+function archiveClientIpSegmentForFilename() {
   const host = archivePeerHostForFilename();
   const safe = s => String(s).replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_');
   const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
-  const ipSeg = ipv4 ? host.replace(/\./g, '_') : 'na';
-  const hostSeg = ipv4 ? 'page' : safe(host.split('.')[0] || host);
-  return `${ts}_${ipSeg}_${hostSeg}.html`;
+  if (ipv4) return host.replace(/\./g, '_');
+  return safe(host).replace(/\./g, '_') || 'unknown';
+}
+
+/** 左侧 SSH 用户名，净化后用于文件名 */
+function archiveSshUserSegmentForFilename() {
+  const el = document.getElementById('f-user');
+  const raw = (el && el.value ? el.value : '').trim() || 'root';
+  return String(raw).replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_') || 'root';
+}
+
+function defaultArchiveFilename() {
+  const ts = archiveReportTimestamp();
+  const ipSeg = archiveClientIpSegmentForFilename();
+  const userSeg = archiveSshUserSegmentForFilename();
+  return `${ts}_${ipSeg}_${userSeg}.html`;
 }
 
 /* 预览 / 成功链接：始终用地址栏中的 Web 服务器（如 10.150.72.102:8881），不用客户端 IP */

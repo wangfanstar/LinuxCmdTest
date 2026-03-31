@@ -752,7 +752,7 @@ data: {"type":"error","msg":"..."}\n\n
 
 **`GET /api/client-info`**
 
-- 返回 JSON：`{"ip":"a.b.c.d"}`，`ip` 为当前 HTTP 连接的 TCP 对端 IPv4；`linux_cmd_test` 存档弹窗用其生成<strong>默认文件名</strong>中的客户端 IP 段（预览与成功后的访问链接使用 `location.host`，即 Web 服务器）
+- 返回 JSON：`{"ip":"a.b.c.d"}`，`ip` 为当前 HTTP 连接的 TCP 对端 IPv4；`linux_cmd_test` 存档弹窗默认文件名为 `YYYYMMDDHHmmss_<客户端IP段>_<SSH用户名>.html`：IP 段来自本接口（IPv4 则点改下划线；否则净化 hostname）；SSH 用户名为页面左侧「用户名」输入框（净化后写入，空则 `root`）（预览与成功后的访问链接使用 `location.host`，即 Web 服务器）
 
 **`GET /api/reports`**
 
@@ -916,7 +916,7 @@ static int recommend_threads(void) {
 8. 支持多主机（行格式 `host:port:user:pass`），逐主机执行相同命令集
 9. 结果对比面板（多主机结果并排显示）
 10. 工具栏「📂 报告库」跳转 `reports.html`；与「💾 存档」配套
-11. 「💾 存档」打开弹窗：请求 `GET /api/client-info` 取 TCP 对端 IP 写入<strong>默认文件名</strong>；预览与成功后的<strong>访问链接</strong>使用 `location.host`（Web 服务器，如 `IP:8881`）；非 SSH 目标
+11. 「💾 存档」打开弹窗：默认文件名 `时间_客户端IP_SSH用户.html`（时间浏览器本地、`/api/client-info` 取对端作 IP 段、左侧 SSH 用户名）；预览与成功后的<strong>访问链接</strong>使用 `location.host`（Web 服务器，如 `IP:8881`）；非 SSH 目标主机
 
 **实现细节：**
 - 使用原生 JavaScript（无框架）
@@ -991,6 +991,7 @@ static int recommend_threads(void) {
 | 2026-03-30 | v1.4 | 降低 CPU 占用：UID→用户名缓存（64 条）、scan_proc_top 并发 trylock+同秒不重扫、/api/monitor 响应缓存 2 秒 |
 | 2026-03-30 | v1.5 | linux_cmd_test.html：执行区增加暂停/恢复（SSE 消费门闩）；帮助文案同步 |
 | 2026-03-30 | v1.6 | linux_cmd_test「存档」：默认文件名用 /api/client-info 客户端 IP；预览与成功链接用 location.host（服务器） |
+| 2026-03-30 | v1.9 | 存档默认文件名改为「时间 + 客户端 IP 段 + SSH 登录用户名」（左侧用户名表单） |
 | 2026-03-30 | v1.7 | reports.html + GET /api/reports 浏览存档；index 与 linux_cmd_test 入口 |
 | 2026-03-30 | v1.8 | PTY 流式空闲超时：`ssh_session_exec_stream` 增加 `out_timeout_cmd_idx`，SSE `timeout` 事件带 `i`；`linux_cmd_test.html` 收到 `timeout` 时用标签跳出 SSE 读循环，立即取消「执行中」 |
 

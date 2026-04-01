@@ -658,14 +658,33 @@ body.edit-mode .cmd-output { cursor: text; }
 }
 #expected-bar .btn-clear-exp:hover { color: var(--red); }
 
-/* ── 比对布局 ── */
+/* ── 比对布局：Grid 第一行并排两标题，行高自动取较高一侧（解决「实际/预期」标题栏高度不一致） */
 .compare-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
   align-items: stretch;
 }
-.compare-pane { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.compare-pane:last-child { border-right: none; }
+.compare-body > .compare-label.compare-col-a {
+  grid-column: 1;
+  grid-row: 1;
+  border-right: 1px solid var(--border);
+}
+.compare-body > .compare-label.compare-col-b {
+  grid-column: 2;
+  grid-row: 1;
+}
+.compare-body > .compare-out-actual {
+  grid-column: 1;
+  grid-row: 2;
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+.compare-body > .compare-out-expected {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+}
 .compare-label {
   font-size: 11px;
   font-weight: 600;
@@ -676,16 +695,11 @@ body.edit-mode .cmd-output { cursor: text; }
   border-bottom: 1px solid var(--border);
   color: var(--dim);
 }
-.compare-pane.pass .compare-label { color: var(--green); background: #1a3a2428; }
-.compare-pane.fail .compare-label { color: var(--red);   background: #3d0a0a28; }
-/* 固定高度使「实际 / 预期」输出区完全一致（不受标题栏换行影响） */
-.compare-pane .cmd-output {
-  flex: 0 0 280px;
-  height: 280px;
-  min-height: 280px;
-  max-height: 280px;
+.compare-label.compare-col-a.pass { color: var(--green); background: #1a3a2428; }
+.compare-label.compare-col-a.fail { color: var(--red);   background: #3d0a0a28; }
+.compare-body > .cmd-output {
+  max-height: 300px;
   overflow-y: auto;
-  box-sizing: border-box;
 }
 .compare-label-with-modes {
   display: flex;
@@ -2733,13 +2747,15 @@ function buildReportHTML() {
     .cmd-notes{padding:8px 14px;font-size:12px;color:#c9d1d9;background:#1c2128;border-top:1px solid #30363d}
     .cmd-notes:empty{display:none}
     .cmd-notes:not(:empty)::before{content:"备注  ";font-weight:600;color:#58a6ff}
-    .compare-body{display:grid;grid-template-columns:1fr 1fr;align-items:stretch}
-    .compare-pane{border-right:1px solid #30363d;display:flex;flex-direction:column}
-    .compare-pane:last-child{border-right:none}
-    .compare-pane .cmd-output{flex:0 0 280px;height:280px;min-height:280px;max-height:280px;overflow-y:auto;box-sizing:border-box}
+    .compare-body{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;align-items:stretch}
+    .compare-body>.compare-label.compare-col-a{grid-column:1;grid-row:1;border-right:1px solid #30363d}
+    .compare-body>.compare-label.compare-col-b{grid-column:2;grid-row:1}
+    .compare-body>.compare-out-actual{grid-column:1;grid-row:2;border-right:1px solid #30363d;min-height:0}
+    .compare-body>.compare-out-expected{grid-column:2;grid-row:2;min-height:0}
     .compare-label{font-size:11px;font-weight:600;text-transform:uppercase;padding:4px 14px;background:#1c2128;border-bottom:1px solid #30363d;color:#8b949e}
-    .compare-pane.pass .compare-label{color:#3fb950;background:#1a3a2428}
-    .compare-pane.fail .compare-label{color:#f85149;background:#3d0a0a28}
+    .compare-label.compare-col-a.pass{color:#3fb950;background:#1a3a2428}
+    .compare-label.compare-col-a.fail{color:#f85149;background:#3d0a0a28}
+    .compare-body>.cmd-output{max-height:300px;overflow-y:auto}
   `;
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -3128,22 +3144,19 @@ function refreshComparison() {
     const actSpaces = expMarker === 'fuzzy' ? ' cmp-mode-active' : '';
     const hashCls = ignoreHash ? ' cmp-hash-active' : '';
     const seqAttr = seqKey != null ? ` data-cmp-seq="${esc(seqKey)}"` : '';
+    const hdrPass = skipCompare ? '' : passed ? 'pass' : 'fail';
     cmp.innerHTML =
-      `<div class="compare-pane ${skipCompare ? '' : passed ? 'pass' : 'fail'}">` +
-        `<div class="compare-label compare-label-with-modes">` +
-          `<span>实际输出</span>` +
-          `<span class="cmp-mode-btns" title="≈ 忽略空格；! 跳过比对；# 忽略以 # 开头的行">` +
-            `<button type="button" class="cmp-mode-btn${actSpaces}" data-cmp-idx="${idx}"${seqAttr} data-action="spaces" title="忽略空格：开＝折叠空白后比对（导出为 marker:fuzzy）；关＝跟随全局精确/模糊">≈</button>` +
-            `<button type="button" class="cmp-mode-btn${actIgnore}" data-cmp-idx="${idx}"${seqAttr} data-mode="ignore" title="忽略本条与预期的比对">!</button>` +
-            `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}"${seqAttr} data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
-          `</span>` +
-        `</div>` +
-        `<pre class="cmd-output" data-cmp="${idx}">${esc(actual)}</pre>` +
+      `<div class="compare-label compare-label-with-modes compare-col-a ${hdrPass}">` +
+        `<span>实际输出</span>` +
+        `<span class="cmp-mode-btns" title="≈ 忽略空格；! 跳过比对；# 忽略以 # 开头的行">` +
+          `<button type="button" class="cmp-mode-btn${actSpaces}" data-cmp-idx="${idx}"${seqAttr} data-action="spaces" title="忽略空格：开＝折叠空白后比对（导出为 marker:fuzzy）；关＝跟随全局精确/模糊">≈</button>` +
+          `<button type="button" class="cmp-mode-btn${actIgnore}" data-cmp-idx="${idx}"${seqAttr} data-mode="ignore" title="忽略本条与预期的比对">!</button>` +
+          `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}"${seqAttr} data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
+        `</span>` +
       `</div>` +
-      `<div class="compare-pane">` +
-        `<div class="compare-label" style="color:var(--dim)">预期输出</div>` +
-        `<pre class="cmd-output">${esc(expText)}</pre>` +
-      `</div>`;
+      `<div class="compare-label compare-col-b" style="color:var(--dim)">预期输出</div>` +
+      `<pre class="cmd-output compare-out-actual" data-cmp="${idx}">${esc(actual)}</pre>` +
+      `<pre class="cmd-output compare-out-expected">${esc(expText)}</pre>`;
     body.insertBefore(cmp, notesEl || null);
 
     /* 匹配徽章插入到 header 复制按钮之前 */

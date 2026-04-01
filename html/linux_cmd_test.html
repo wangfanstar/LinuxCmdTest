@@ -722,6 +722,17 @@ body.edit-mode .cmd-output { cursor: text; }
 }
 .compare-label.compare-col-a.pass { color: var(--green); background: #1a3a2428; }
 .compare-label.compare-col-a.fail { color: var(--red);   background: #3d0a0a28; }
+/* 编辑预期模式：预期输出面板可编辑 */
+.compare-out-expected[contenteditable="true"] {
+  cursor: text;
+  border: 1px dashed var(--accent);
+  background: #0a1628e8;
+  outline: none;
+  caret-color: var(--accent);
+}
+.compare-out-expected[contenteditable="true"]:focus {
+  box-shadow: inset 0 0 0 1px #58a6ff44;
+}
 .compare-body > .cmd-output {
   max-height: 300px;
   overflow-y: auto;
@@ -1391,7 +1402,7 @@ body.edit-mode .cmd-output { cursor: text; }
       <button class="btn-xs" id="btn-cfg-load-srv" style="line-height:1.8" title="从服务器列出并读取已存档的配置 JSON（含密码）">读档配置</button>
       <button class="btn-xs" id="btn-cfg-save-srv" style="line-height:1.8" title="弹窗确认文件名，将当前配置（含密码）保存到服务器 report/SSH用户名/年月/">存档配置</button>
       <button id="btn-export-expected" title="将当前 SSH 配置、命令行列表和预期结果全部导出为一个 JSON 文件">导出全部</button>
-      <button id="btn-edit" title="切换编辑模式">编辑报告</button>
+      <button id="btn-edit" title="进入预期编辑模式：若无预期则从当前结果初始化，可直接修改预期输出">编辑预期</button>
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
       <button id="btn-preview" title="预览 HTML 报告">👁 预览</button>
       <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
@@ -2798,23 +2809,80 @@ function toggleBlock(idx) {
 }
 
 /* ================================================================
-   编辑模式
+   编辑预期模式
    ================================================================ */
 const btnEdit = document.getElementById('btn-edit');
-let editMode = false;
+let editExpectedMode = false;
+
+/** 保存当前所有可编辑预期面板的文本内容到 expectedData */
+function saveExpectedEdits() {
+  if (!editExpectedMode || !expectedData) return;
+  report.querySelectorAll('pre.compare-out-expected[data-exp-idx]').forEach(pre => {
+    const expIdx = parseInt(pre.getAttribute('data-exp-idx'), 10);
+    if (!isNaN(expIdx) && expectedData.commands[expIdx]) {
+      expectedData.commands[expIdx].output = pre.textContent;
+    }
+  });
+}
+
+/** 从当前报告实际输出初始化预期数据（每条命令的实际输出作为初始预期） */
+function initExpectedFromReport() {
+  const blocks = [...report.querySelectorAll('.cmd-block')];
+  if (blocks.length === 0) return;
+  const host = document.getElementById('f-host').value.trim() || 'unknown';
+  const items = blocks.map((blk, idx) => {
+    const seqEl = blk.querySelector('.cmd-rpt-seq');
+    const seq   = seqEl ? seqEl.textContent.trim() : String(idx + 1);
+    const cmdEl = blk.querySelector('.cmd-text');
+    const cmd   = cmdEl ? (cmdEl.textContent || '').trim() : '';
+    const outEl = document.getElementById('out-' + idx);
+    const output = outEl ? outEl.textContent : '';
+    return { seq, cmd, output, marker: '', ignoreHash: true };
+  });
+  applyExpectedData(
+    { version: 1, host, exportedAt: new Date().toISOString(), commands: items },
+    `当前报告（${items.length} 条）`
+  );
+}
 
 btnEdit.addEventListener('click', () => {
-  editMode = !editMode;
-  btnEdit.classList.toggle('active', editMode);
-  btnEdit.textContent = editMode ? '退出编辑' : '编辑报告';
-  document.body.classList.toggle('edit-mode', editMode);
+  if (!report.querySelector('.cmd-block')) {
+    execStatus.textContent = '请先执行命令再进入编辑预期模式';
+    execStatus.style.color = 'var(--yellow)';
+    return;
+  }
+  editExpectedMode = !editExpectedMode;
+  if (editExpectedMode) {
+    /* 进入：若无预期数据则从当前结果初始化 */
+    if (!expectedData || !expectedData.commands || expectedData.commands.length === 0) {
+      initExpectedFromReport();
+    }
+    showCompare = true;
+    btnToggleCompare.textContent = '对比视图';
+    btnToggleCompare.classList.remove('off');
+    btnEdit.classList.add('active');
+    btnEdit.textContent = '退出编辑预期';
+    refreshComparison();
+  } else {
+    /* 退出：保存所有编辑内容并刷新比对结果 */
+    saveExpectedEdits();
+    btnEdit.classList.remove('active');
+    btnEdit.textContent = '编辑预期';
+    refreshComparison();
+    if (window._saveState) window._saveState();
+  }
+});
 
-  const ce = editMode ? 'true' : 'false';
-  /* 备注始终可编辑，不随编辑报告开关变化 */
-  setReportNotesAlwaysEditable();
-  /* 单结果视图：编辑原始输出（比对模式下原始输出被隐藏，不可见即不可编辑） */
-  report.querySelectorAll('.cmd-block-body > .cmd-output')
-        .forEach(el => { if (el.style.display !== 'none') el.setAttribute('contenteditable', ce); });
+/* 预期面板实时输入 → 立即写入 expectedData（debounce 保存状态） */
+report.addEventListener('input', function(ev) {
+  if (!editExpectedMode || !expectedData) return;
+  const pre = ev.target.closest('pre.compare-out-expected[data-exp-idx]');
+  if (!pre) return;
+  const expIdx = parseInt(pre.getAttribute('data-exp-idx'), 10);
+  if (!isNaN(expIdx) && expectedData.commands[expIdx]) {
+    expectedData.commands[expIdx].output = pre.textContent;
+    if (window._saveState) window._saveState();
+  }
 });
 
 /* ================================================================
@@ -3874,6 +3942,7 @@ function matchOutput(actual, expected) {
  * 原始 <pre id="out-${idx}"> 始终保留为数据源，仅控制显示/隐藏
  * 比对面板使用 data-cmp 属性，不重用 id，避免 DOM 中出现重复 id */
 function refreshComparison() {
+  saveExpectedEdits();   /* 刷新前先保存当前可编辑面板的内容 */
   report.querySelectorAll('.cmd-block').forEach((blk, idx) => {
     const outEl = document.getElementById('out-' + idx);
     if (!outEl) return;
@@ -3931,9 +4000,9 @@ function refreshComparison() {
           `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}"${seqAttr} data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
         `</span>` +
       `</div>` +
-      `<div class="compare-label compare-col-b" style="color:var(--dim)">预期输出</div>` +
+      `<div class="compare-label compare-col-b" style="color:var(--dim)">${editExpectedMode ? '预期输出 ✎' : '预期输出'}</div>` +
       `<pre class="cmd-output compare-out-actual" data-cmp="${idx}">${esc(actual)}</pre>` +
-      `<pre class="cmd-output compare-out-expected">${esc(expText)}</pre>`;
+      `<pre class="cmd-output compare-out-expected" data-exp-idx="${expIdx}"${editExpectedMode ? ' contenteditable="true" spellcheck="false"' : ''}>${esc(expText)}</pre>`;
     body.insertBefore(cmp, notesEl || null);
 
     /* 匹配徽章插入到 header 复制按钮之前 */

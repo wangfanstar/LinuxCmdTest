@@ -2322,10 +2322,13 @@ async function autoArchiveAfterExec() {
   const htmlData = await htmlResp.json().catch(() => null);
   if (!htmlResp.ok || !htmlData?.ok) throw new Error((htmlData?.error) || ('HTTP ' + htmlResp.status));
 
-  /* 存档配置 JSON（含预期） */
+  /* 存档配置 JSON（SSH 配置 + 命令行 + 预期，共用一个文件） */
   const cfg = buildCurrentCfgObject();
-  const hasBlocks = !!report.querySelector('.cmd-block');
-  if (hasBlocks) cfg.expected = buildExpectedObject();
+  if (expectedData && expectedData.commands && expectedData.commands.length > 0) {
+    cfg.expected = buildExpectedObject();
+  } else if (report.querySelector('.cmd-block')) {
+    cfg.expected = buildExpectedObject();
+  }
   const cfgResp = await fetch('/api/save-config', {
     method: 'POST',
     headers: {
@@ -2338,24 +2341,8 @@ async function autoArchiveAfterExec() {
   const cfgData = await cfgResp.json().catch(() => null);
   if (!cfgResp.ok || !cfgData?.ok) throw new Error((cfgData?.error) || ('HTTP ' + cfgResp.status));
 
-  /* 存档预期 JSON（独立文件，有预期数据时追加保存） */
-  if (expectedData && expectedData.commands && expectedData.commands.length > 0) {
-    const expFn   = normalizeCfgArchiveFilename(fn.replace(/\.html$/, '_expected.json'));
-    const expResp = await fetch('/api/save-config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Config-Filename': encodeURIComponent(expFn),
-        'X-Report-User': userSeg
-      },
-      body: JSON.stringify(buildExpectedObject(), null, 2)
-    });
-    const expData = await expResp.json().catch(() => null);
-    if (!expResp.ok || !expData?.ok) throw new Error((expData?.error) || ('HTTP ' + expResp.status));
-    execStatus.textContent = `自动存档完成: ${fn} + 预期`;
-  } else {
-    execStatus.textContent = `自动存档完成: ${fn}`;
-  }
+  const hasExp = cfg.expected && cfg.expected.commands && cfg.expected.commands.length > 0;
+  execStatus.textContent = `自动存档完成: ${fn}${hasExp ? '（含预期）' : ''}`;
   execStatus.style.color = 'var(--green)';
 }
 

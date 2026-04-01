@@ -370,6 +370,10 @@ main {
   flex-shrink: 0;
 }
 .report-toolbar-title { font-size: 13px; color: var(--dim); flex: 1; min-width: 120px; }
+#btn-show-expected:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
 #btn-archive { white-space: nowrap; }
 .report-toolbar a.btn-reports-hub {
   display: inline-flex;
@@ -502,6 +506,27 @@ main {
   padding-top: 10px;
   border-top: 1px solid #21262d;
 }
+.rpt-ssh-stats-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #30363d;
+  font-size: 11px;
+  line-height: 1.65;
+  color: #8b949e;
+}
+.rpt-exec-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.rpt-exec-stats .rpt-st-k { color: #6e7681; font-weight: 500; }
+.rpt-exec-stats .rpt-st-v { color: #c9d1d9; font-weight: 600; }
+.rpt-exec-stats .rpt-st-ok { color: var(--green); font-weight: 700; }
+.rpt-exec-stats .rpt-st-fail { color: var(--red); font-weight: 700; }
+.rpt-exec-stats .rpt-st-skip { color: var(--dim); font-weight: 600; }
+.rpt-exec-stats .rpt-st-rate { color: var(--accent); font-weight: 600; }
+.rpt-exec-stats .rpt-st-sep { color: #484f58; user-select: none; }
 .rpt-ssh-status-row .badge-ok,
 .rpt-ssh-status-row .badge-err { vertical-align: middle; }
 .badge-ok  { background: #1a3a24; color: var(--green); border: 1px solid #2ea04340; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
@@ -940,7 +965,21 @@ body.edit-mode .cmd-output { cursor: text; }
   padding: 16px;
 }
 #archive-overlay.show { display: flex; }
-#archive-dialog {
+
+#cfg-save-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 212;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#cfg-save-overlay.show { display: flex; }
+#archive-dialog,
+#cfg-load-dialog,
+#cfg-save-dialog {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -967,7 +1006,8 @@ body.edit-mode .cmd-output { cursor: text; }
   color: var(--dim);
   margin-bottom: 6px;
 }
-#archive-modal-filename {
+#archive-modal-filename,
+#cfg-save-modal-filename {
   width: 100%;
   padding: 8px 11px;
   font-size: 12px;
@@ -978,7 +1018,8 @@ body.edit-mode .cmd-output { cursor: text; }
   color: var(--text);
   margin-bottom: 12px;
 }
-#archive-modal-filename:focus { outline: none; border-color: var(--accent); }
+#archive-modal-filename:focus,
+#cfg-save-modal-filename:focus { outline: none; border-color: var(--accent); }
 .archive-dlg-hint {
   font-size: 12px;
   color: var(--dim);
@@ -1022,6 +1063,65 @@ body.edit-mode .cmd-output { cursor: text; }
   border: 1px solid #f8514940;
 }
 #archive-error.show { display: block; }
+
+#cfg-save-error {
+  display: none;
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #3d0a0a22;
+  border-radius: 6px;
+  border: 1px solid #f8514940;
+}
+#cfg-save-error.show { display: block; }
+
+/* ── 读档配置弹窗 ── */
+#cfg-load-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 211;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#cfg-load-overlay.show { display: flex; }
+#cfg-load-error {
+  display: none;
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #3d0a0a22;
+  border-radius: 6px;
+  border: 1px solid #f8514940;
+}
+#cfg-load-error.show { display: block; }
+#cfg-load-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+#cfg-load-list button.cfg-load-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+}
+#cfg-load-list button.cfg-load-row:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .archive-dlg-actions {
   display: flex;
   justify-content: flex-end;
@@ -1132,6 +1232,27 @@ body.edit-mode .cmd-output { cursor: text; }
   background:#8b949e; border-radius:50%; transition:transform .2s, background .2s; }
 .toggle-wrap input:checked + .toggle-track { background:#1f6feb; }
 .toggle-wrap input:checked + .toggle-track::after { transform:translateX(13px); background:#e6edf3; }
+
+/* ── 导入/导出勾选模态框 ── */
+#io-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.65); z-index: 220;
+  align-items: center; justify-content: center; padding: 16px;
+}
+#io-modal-overlay.show { display: flex; }
+#io-modal-dialog {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; width: min(400px, 100%);
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.io-dlg-header { display:flex; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border); }
+.io-dlg-header h3 { font-size:15px; color:#f0f6fc; flex:1; font-weight:600; margin:0; }
+.io-dlg-body { padding:16px 20px 8px; display:flex; flex-direction:column; gap:12px; }
+.io-chk-row { display:flex; align-items:center; gap:10px; font-size:13px; cursor:pointer; user-select:none; color:var(--text); }
+.io-chk-row input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+.io-chk-desc { font-size:11px; color:var(--dim); margin-left:25px; margin-top:-6px; }
+.io-dlg-footer { padding:12px 20px 16px; display:flex; justify-content:flex-end; gap:8px; }
 </style>
 </head>
 <body>
@@ -1178,8 +1299,8 @@ body.edit-mode .cmd-output { cursor: text; }
         </div>
         <div class="field-row" style="align-items:center;margin-top:2px">
           <label style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:#8b949e;cursor:pointer;user-select:none">
-            <input type="checkbox" id="f-auto-exit" checked title="执行完所有命令后自动附加 exit 命令退出设备会话。&#10;适用于执行完毕后需要退出的网络设备。该命令计入统计。">
-            <span>执行完成后自动退出（exit）</span>
+            <input type="checkbox" id="f-auto-archive" title="执行完成后自动将报告 HTML 和配置 JSON 存档到服务器对应目录">
+            <span>执行完成后自动存档报告和配置文件</span>
           </label>
         </div>
         <div class="field">
@@ -1225,8 +1346,8 @@ body.edit-mode .cmd-output { cursor: text; }
               </div>
             </div>
           </div>
-          <input type="file" id="cmd-file-input" accept=".txt,.sh,.conf" style="display:none">
-          <label for="cmd-file-input" class="btn-upload-cmd" title="从文本文件导入命令（每行一条，# 开头为注释）">
+          <input type="file" id="cmd-file-input" accept=".txt,.json,.sh,.conf" style="display:none">
+          <label for="cmd-file-input" class="btn-upload-cmd" title="从文件导入命令（.txt/.sh 每行一条；.json 提取 commands 字段）">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
@@ -1264,15 +1385,19 @@ body.edit-mode .cmd-output { cursor: text; }
     <div class="report-toolbar">
       <span class="report-toolbar-title" id="report-title">执行结果将在此显示</span>
       <input type="file" id="expected-import-input" accept=".json" style="display:none">
-      <label for="expected-import-input" class="btn-xs" style="line-height:1.8" title="导入预期结果 JSON 文件">导入预期</label>
-      <button id="btn-export-expected" title="将当前报告导出为预期结果">导出预期</button>
+      <label for="expected-import-input" class="btn-xs" style="line-height:1.8" title="从 JSON 文件仅导入预期结果（SSH 配置和命令行不变；支持纯预期 JSON 和全量导出 JSON）">只导入预期</label>
+      <button type="button" class="btn-xs" id="btn-show-expected" disabled style="line-height:1.8" title="当前已加载预期结果时可用：切换到并排对比视图（实际输出 vs 预期输出）">显示预期</button>
+      <button class="btn-xs" id="btn-clear-workspace" style="line-height:1.8;color:#f85149;border-color:#f8514960" title="清空 SSH 表单、命令列表、报告与已加载的预期结果">清空配置</button>
+      <button class="btn-xs" id="btn-cfg-load-srv" style="line-height:1.8" title="从服务器列出并读取已存档的配置 JSON（含密码）">读档配置</button>
+      <button class="btn-xs" id="btn-cfg-save-srv" style="line-height:1.8" title="弹窗确认文件名，将当前配置（含密码）保存到服务器 report/SSH用户名/年月/">存档配置</button>
+      <button id="btn-export-expected" title="将当前 SSH 配置、命令行列表和预期结果全部导出为一个 JSON 文件">导出全部</button>
       <button id="btn-edit" title="切换编辑模式">编辑报告</button>
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
       <button id="btn-preview" title="预览 HTML 报告">👁 预览</button>
       <button id="btn-download" title="下载 HTML 报告">↓ 下载</button>
       <a class="btn-reports-hub" href="/reports.html" target="_blank" rel="noopener"
-        title="打开已存档报告列表（html/report/年月/）">📂 报告库</a>
-      <button id="btn-archive" title="弹出确认框并保存到服务器 html/report/当前年月/">💾 存档</button>
+        title="打开已存档报告列表（html/report/SSH用户名/年月/）">📂 报告库</a>
+      <button id="btn-archive" title="弹出确认框并保存到服务器 html/report/SSH用户名/当前年月/">💾 存档</button>
     </div>
     <div id="expected-bar">
       <span>⚑ 预期结果已加载</span>
@@ -1331,7 +1456,7 @@ body.edit-mode .cmd-output { cursor: text; }
         <li>点击 <strong>▶ 执行</strong> 后命令逐条流式执行；可用 <strong>暂停 / 恢复</strong> 控制是否继续接收结果（不中断远端已发起的命令）</li>
         <li>右侧报告区展示每条命令的输出和退出码，可折叠查看</li>
         <li>每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
-        <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名为 <code>时间_客户端IP_SSH用户名.html</code>（时间本地生成；客户端 IP 来自 <code>/api/client-info</code>；SSH 用户名为左侧表单<strong>用户名</strong>）；预览与存档成功后的<strong>访问链接</strong>为地址栏中的<strong>Web 服务器</strong>（如 <code>服务器IP:8881/report/…</code>）；与 SSH 目标主机无关；确认后写入 <code>html/report/年月/</code></li>
+        <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名为 <code>时间_客户端IP_SSH用户名.html</code>；确认后写入服务器 <code>html/report/&lt;SSH用户名目录&gt;/&lt;服务器年月&gt;/</code>（用户名由左侧「用户名」净化；年月为<strong>服务器</strong>本地 <code>YYYYMM</code>）。报告工具栏「<strong>导入预期</strong>」旁：<strong>清空配置</strong>、<strong>读档配置</strong>、<strong>存档配置</strong>（与「💾 存档」报告类似，弹窗可改文件名后写入同目录规则下的 <code>.json</code>；读档从该用户目录列出并加载）。客户端 IP 来自 <code>/api/client-info</code>；访问链接使用地址栏 Web 服务器（与 SSH 目标无关）</li>
         <li>「<strong>📂 报告库</strong>」打开 <code>reports.html</code>，按月份浏览已存档的 HTML 报告</li>
       </ol>
 
@@ -1348,6 +1473,7 @@ body.edit-mode .cmd-output { cursor: text; }
       <ol>
         <li>首次执行后点击 <strong>导出预期</strong>，生成含 <code>cmd</code>、<code>output</code>、可选 <code>marker</code> 的 JSON</li>
         <li>再次执行后 <strong>导入预期</strong>，打开 <strong>对比视图</strong> 并排查看；用旁侧按钮调整 <code>≈ / ! / #</code> 后再次导出即可固化</li>
+        <li>工具栏「<strong>显示预期</strong>」在已加载预期时启用：若曾点到「<strong>单结果视图</strong>」，可用它一键恢复并排比对；若尚无报告区内容，需先执行命令生成报告</li>
         <li>每条命令显示「<strong>✓ 通过</strong>」「<strong>✗ 不符</strong>」或「<strong>— 跳过</strong>」</li>
         <li>全局「<strong>模糊匹配 / 精确匹配</strong>」仅影响 <strong>≈ 关闭</strong>且 <code>marker</code> 非 <code>fuzzy</code>、非 <code>ignore</code> 的条目</li>
       </ol>
@@ -1380,7 +1506,7 @@ df -h
 }</pre>
       <ul>
         <li><strong>导出配置</strong>：连接 + 命令（^C 行带 <code>marker:"ctrlc"</code>；不计序号行带 <code>skipSeq:true</code>）</li>
-        <li><strong>导入配置</strong>：填充表单与命令列表</li>
+        <li><strong>导入配置</strong>：填充表单与命令列表；未包含 <code>pass</code> / <code>password</code> 时<strong>保留当前密码框内容</strong>。<code>"pass":null</code> 或空字符串表示清空（需重填）。亦支持 <code>password</code> 字段名（与 <code>pass</code> 二选一）</li>
         <li>侧栏每条命令前的<strong>序号</strong>可点击切换为「–」不计序号，仅影响展示，执行顺序不变</li>
       </ul>
 
@@ -1409,13 +1535,13 @@ df -h
         <p id="archive-error"></p>
         <label for="archive-modal-filename">文件名</label>
         <input type="text" id="archive-modal-filename" autocomplete="off" spellcheck="false">
-        <p class="archive-dlg-hint">将保存到服务器目录 <code>html/report/<span id="archive-ym-hint">—</span>/</code>（月文件夹以<strong>服务器</strong>本地时间为准；下方链接中的年月按<strong>浏览器本机日历</strong>预览，跨天/时区时可能与实际目录差一月）。</p>
+        <p class="archive-dlg-hint">将保存到服务器目录 <code>html/report/<span id="archive-user-hint">—</span>/<span id="archive-ym-hint">—</span>/</code>（用户名目录为左侧「用户名」净化后的片段；<strong>年月</strong>以<strong>服务器</strong>本地时间为准；链接预览中年月按<strong>浏览器本机日历</strong>可能与实际差一月）。</p>
         <p class="archive-dlg-hint" style="margin-top:8px">默认文件名：<strong>时间</strong>_<strong>客户端 IP</strong>_<strong>SSH 用户</strong>。IP 来自 <code id="archive-client-ip-hint">—</code>（<code>GET /api/client-info</code>，TCP 对端）；SSH 用户来自左侧表单「用户名」当前值（默认 <code>root</code>）。</p>
         <div class="archive-url-label">预览与存档成功后的<strong>访问链接</strong>使用 <strong>Web 服务器</strong>（与地址栏一致）<code id="archive-origin-hint"></code>：</div>
         <div class="archive-url-block">
           <a id="archive-url-link" href="#" target="_blank" rel="noopener"></a>
         </div>
-        <p class="archive-url-note">示例：<code>http://10.150.72.102:8881/report/202603/文件名.html</code> — 主机与端口随当前页 URL。</p>
+        <p class="archive-url-note">示例：<code>http://10.150.72.102:8881/report/root/202604/文件名.html</code> — <code>root</code> 为净化后的 SSH 用户名目录；主机与端口随当前页 URL。</p>
         <div class="archive-dlg-actions">
           <button type="button" id="archive-cancel">取消</button>
           <button type="button" id="archive-confirm">确认存档</button>
@@ -1427,6 +1553,59 @@ df -h
         <div class="archive-dlg-actions">
           <button type="button" id="archive-done">关闭</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 存档配置（自定义文件名，目录规则同报告存档） -->
+<div id="cfg-save-overlay">
+  <div id="cfg-save-dialog">
+    <div class="archive-dlg-header">
+      <h3>确认存档配置</h3>
+      <button type="button" class="btn-close" id="cfg-save-close-x" title="关闭">×</button>
+    </div>
+    <div class="archive-dlg-body">
+      <div id="cfg-save-form">
+        <p id="cfg-save-error"></p>
+        <label for="cfg-save-modal-filename">文件名</label>
+        <input type="text" id="cfg-save-modal-filename" autocomplete="off" spellcheck="false">
+        <p class="archive-dlg-hint">将保存到服务器目录 <code>html/report/<span id="cfg-save-user-hint">—</span>/<span id="cfg-save-ym-hint">—</span>/</code>（规则与「💾 存档」报告相同；年月以<strong>服务器</strong>本地为准）。</p>
+        <p class="archive-dlg-hint" style="margin-top:8px">默认文件名：<code>ssh-config-</code><strong>时间</strong><code>_</code><strong>客户端 IP</strong><code>_</code><strong>SSH 用户</strong><code>.json</code>。IP 来自 <code id="cfg-save-client-ip-hint">—</code>。</p>
+        <div class="archive-url-label">保存后可通过 Web 静态路径访问（与读档列表一致）<code id="cfg-save-origin-hint"></code>：</div>
+        <div class="archive-url-block">
+          <a id="cfg-save-url-link" href="#" target="_blank" rel="noopener"></a>
+        </div>
+        <p class="archive-url-note">须使用 <code>.json</code> 扩展名；未填写扩展名时将自动补上。</p>
+        <div class="archive-dlg-actions">
+          <button type="button" id="cfg-save-cancel">取消</button>
+          <button type="button" id="cfg-save-confirm">确认存档</button>
+        </div>
+      </div>
+      <div id="cfg-save-result" style="display:none">
+        <p class="archive-ok">配置已存档</p>
+        <a id="cfg-save-result-link" href="#" target="_blank" rel="noopener"></a>
+        <div class="archive-dlg-actions">
+          <button type="button" id="cfg-save-done">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="cfg-load-overlay">
+  <div id="cfg-load-dialog">
+    <div class="archive-dlg-header">
+      <h3>从服务器读取配置</h3>
+      <button type="button" class="btn-close" id="cfg-load-close-x" title="关闭">×</button>
+    </div>
+    <div class="archive-dlg-body">
+      <p id="cfg-load-error"></p>
+      <p class="archive-dlg-hint">列出 <code>html/report/<span id="cfg-load-user-hint">—</span>/</code> 下各月份目录中的 <code>.json</code>（点击一行加载到左侧表单与命令列表）。</p>
+      <div id="cfg-load-list"></div>
+      <div class="archive-dlg-actions" style="margin-top:14px">
+        <button type="button" id="cfg-load-cancel">关闭</button>
+        <button type="button" id="cfg-load-refresh">刷新列表</button>
       </div>
     </div>
   </div>
@@ -1475,7 +1654,8 @@ function refreshCmdSeqNumbers() {
   });
 }
 
-function addCmd(value = '', marker = '', afterItem = null, noSeq = false) {
+/** skipFocus：批量导入/恢复命令时为 true，避免 focus 离开密码框后部分浏览器清空程序化写入的密码 */
+function addCmd(value = '', marker = '', afterItem = null, noSeq = false, skipFocus = false) {
   const isCtrlc = marker === 'ctrlc';
   const item = document.createElement('div');
   item.className = 'cmd-item' + (isCtrlc ? ' ctrlc' : '');
@@ -1568,7 +1748,7 @@ function addCmd(value = '', marker = '', afterItem = null, noSeq = false) {
     cmdList.appendChild(item);
   }
   refreshCmdSeqNumbers();
-  item.querySelector('input').focus();
+  if (!skipFocus) item.querySelector('input').focus();
 
   /* Ctrl+Shift+C 在当前行后插入 ^C 项 */
   item.querySelector('input').addEventListener('keydown', e => {
@@ -1625,16 +1805,46 @@ document.getElementById('btn-clear-cmds').addEventListener('click', () => {
   if (window._saveState) window._saveState();
 });
 
-/* ── 从文件导入命令 ── */
+/* ── 从文件导入命令（.txt/.sh 每行一条；.json 从 commands 字段提取） ── */
 document.getElementById('cmd-file-input').addEventListener('change', function () {
   const file = this.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
+    const isJson = file.name.toLowerCase().endsWith('.json');
+    if (isJson) {
+      try {
+        const cfg = JSON.parse(e.target.result);
+        const cmds = Array.isArray(cfg.commands) ? cfg.commands : null;
+        if (!cmds || cmds.length === 0) {
+          execStatus.textContent = 'JSON 文件中未找到 commands 数组';
+          execStatus.style.color = 'var(--yellow)';
+          return;
+        }
+        let count = 0;
+        cmds.forEach(c => {
+          const line = typeof c === 'string' ? c.trim() : String(c.cmd != null ? c.cmd : '').trim();
+          if (!line) return;
+          const isCtrlc = (typeof c === 'object' && c.marker === 'ctrlc') || line === '^C';
+          const noSeq   = typeof c === 'object' && !!(c.skipSeq || c.noSeq);
+          addCmd(isCtrlc && line === '^C' ? 'kill -INT $$' : line,
+                 isCtrlc ? 'ctrlc' : '', null, noSeq, true);
+          count++;
+        });
+        refreshCmdSeqNumbers();
+        execStatus.textContent = `已从 ${file.name} 导入 ${count} 条命令`;
+        execStatus.style.color = 'var(--green)';
+      } catch (err) {
+        execStatus.textContent = `JSON 解析失败: ${err.message}`;
+        execStatus.style.color = 'var(--red)';
+      }
+      return;
+    }
+    /* TXT / SH / CONF：每行一条，# 开头为注释 */
     const lines = e.target.result
       .split('\n')
       .map(l => l.trim())
-      .filter(l => l && !l.startsWith('#'));   // 跳过空行和注释
+      .filter(l => l && !l.startsWith('#'));
     if (lines.length === 0) {
       execStatus.textContent = '文件中未找到有效命令（空行和 # 开头行已跳过）';
       execStatus.style.color = 'var(--yellow)';
@@ -1643,20 +1853,17 @@ document.getElementById('cmd-file-input').addEventListener('change', function ()
     lines.forEach(line => {
       if (line === '^C' || line.startsWith('^C ')) {
         const cmd = line === '^C' ? 'kill -INT $$' : line.slice(3).trim();
-        if (cmd) addCmd(cmd, 'ctrlc');
+        if (cmd) addCmd(cmd, 'ctrlc', null, false, true);
       } else {
-        addCmd(line, '');
+        addCmd(line, '', null, false, true);
       }
     });
     execStatus.textContent = `已从 ${file.name} 导入 ${lines.length} 条命令`;
     execStatus.style.color = 'var(--green)';
   };
-  reader.onerror = () => {
-    execStatus.textContent = '文件读取失败';
-    execStatus.style.color = 'var(--red)';
-  };
+  reader.onerror = () => { execStatus.textContent = '文件读取失败'; execStatus.style.color = 'var(--red)'; };
   reader.readAsText(file, 'utf-8');
-  this.value = '';   // 允许重复选同一文件
+  this.value = '';
 });
 
 /* ── 导出命令列表为文本文件（纯命令行，^C 行导出为单独一行 ^C） ── */
@@ -1689,7 +1896,7 @@ document.addEventListener('click', () => presetMenu.classList.remove('show'));
 
 presetMenu.querySelectorAll('.preset-item').forEach(el => {
   el.addEventListener('click', () => {
-    el.dataset.cmds.split('|').forEach(c => addCmd(c));
+    el.dataset.cmds.split('|').forEach(c => addCmd(c, '', null, false, true));
     presetMenu.classList.remove('show');
   });
 });
@@ -1797,7 +2004,7 @@ async function doExec() {
   const pass    = document.getElementById('f-pass').value;
   const cmdItems = getCommandListItems();
   const commands = cmdItems.map(o => o.cmd);
-  const autoExit = !!(document.getElementById('f-auto-exit')?.checked);
+  const autoExit = true;  /* 始终附加 exit 命令退出设备会话 */
 
   if (!host) { execStatus.textContent = '请填写主机地址'; execStatus.style.color = 'var(--red)'; return; }
   if (commands.length === 0) { execStatus.textContent = '请至少添加一条命令'; execStatus.style.color = 'var(--red)'; return; }
@@ -2046,6 +2253,52 @@ async function doExec() {
 
   if (expectedData) refreshComparison();
   if (window._saveStateNow) window._saveStateNow();
+
+  /* 自动存档：执行完成后自动保存报告 HTML + 配置 JSON */
+  if (!!(document.getElementById('f-auto-archive')?.checked)) {
+    autoArchiveAfterExec().catch(err => {
+      execStatus.textContent = '自动存档失败: ' + (err.message || String(err));
+      execStatus.style.color = 'var(--yellow)';
+    });
+  }
+}
+
+async function autoArchiveAfterExec() {
+  await refreshArchivePeerIp();
+  const userSeg = archiveSshUserSegmentForFilename();
+  const fn      = defaultArchiveFilename();
+  const cfgFn   = normalizeCfgArchiveFilename(fn.replace(/\.html$/, '.json'));
+
+  /* 存档报告 HTML */
+  const htmlResp = await fetch('/api/save-report', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Report-Filename': encodeURIComponent(fn),
+      'X-Report-User': userSeg
+    },
+    body: buildReportHTML()
+  });
+  const htmlData = await htmlResp.json().catch(() => null);
+  if (!htmlResp.ok || !htmlData?.ok) throw new Error((htmlData?.error) || ('HTTP ' + htmlResp.status));
+
+  /* 存档配置 JSON（含预期） */
+  const cfg = buildCurrentCfgObject();
+  if (report.querySelector('.cmd-block')) cfg.expected = buildExpectedObject();
+  const cfgResp = await fetch('/api/save-config', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'X-Config-Filename': encodeURIComponent(cfgFn),
+      'X-Report-User': userSeg
+    },
+    body: JSON.stringify(cfg, null, 2)
+  });
+  const cfgData = await cfgResp.json().catch(() => null);
+  if (!cfgResp.ok || !cfgData?.ok) throw new Error((cfgData?.error) || ('HTTP ' + cfgResp.status));
+
+  execStatus.textContent = `自动存档完成: ${fn}`;
+  execStatus.style.color = 'var(--green)';
 }
 
 function setLoading(on) {
@@ -2244,6 +2497,9 @@ function buildReportSshTerminalHeader(host, port, user, ts, summaryInnerHtml) {
     `<span class="rpt-ssh-paren">(tty)</span> · remote <span class="rpt-ssh-paren">${esc(sh)}</span></div>` +
     `<div class="rpt-ssh-line rpt-ssh-remote-prompt">${pty}<span class="rpt-ssh-cursor">▋</span></div>` +
     `<div class="rpt-ssh-line rpt-ssh-status-row"><span id="rpt-summary">${summaryInnerHtml}</span></div>` +
+    `<div class="rpt-ssh-line rpt-ssh-stats-detail" id="rpt-stats-detail">` +
+    `<div id="rpt-exec-stats" class="rpt-exec-stats" aria-live="polite"></div>` +
+    `</div>` +
     `</div></div>`
   );
 }
@@ -2282,6 +2538,7 @@ function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
   report.innerHTML = html;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
   setReportNotesAlwaysEditable();
+  updateReportExecStats();
 }
 
 function markBlockRunning(idx) {
@@ -2375,6 +2632,109 @@ function finalizeReportHeader(results) {
   summary.innerHTML =
     `<span class="badge-ok">✓ ${ok} 成功</span>` +
     (fail > 0 ? ` <span class="badge-err">✗ ${fail} 失败</span>` : '');
+  updateReportExecStats();
+}
+
+/** 从报告 DOM 统计执行结果（exit 徽标） */
+function computeReportExecutionStats() {
+  const blocks = [...report.querySelectorAll('.cmd-block')];
+  const total = blocks.length;
+  let execOk = 0, execFail = 0, execSkipped = 0, execTimeout = 0, inProgress = 0;
+  for (const blk of blocks) {
+    const ex = blk.querySelector('[id^="exit-"]');
+    if (!ex) continue;
+    if (blk.classList.contains('pending') || blk.classList.contains('running')) {
+      inProgress++;
+      continue;
+    }
+    const cls = ' ' + (ex.className || '') + ' ';
+    const t = ex.textContent || '';
+    if (cls.includes(' exit-ok ')) execOk++;
+    else if (cls.includes(' exit-timeout ')) execTimeout++;
+    else if (t.indexOf('跳过') >= 0) execSkipped++;
+    else if (cls.includes(' exit-err ')) execFail++;
+    else execFail++;
+  }
+  return { total, execOk, execFail, execSkipped, execTimeout, inProgress };
+}
+
+/** 从比对徽章统计（仅对比视图下存在 .match-*） */
+function computeReportCompareStats() {
+  const pass = report.querySelectorAll('.match-pass').length;
+  const fail = report.querySelectorAll('.match-fail').length;
+  const skip = report.querySelectorAll('.match-skip').length;
+  const active = pass + fail + skip;
+  const decided = pass + fail;
+  const rateExclSkip = decided > 0 ? Math.round(1000 * pass / decided) / 10 : null;
+  return { pass, fail, skip, active, rateExclSkip };
+}
+
+/** 更新报告头「执行/比对」明细统计与通过率 */
+function updateReportExecStats() {
+  const el = document.getElementById('rpt-exec-stats');
+  const wrap = document.getElementById('rpt-stats-detail');
+  if (!el || !wrap) return;
+  if (!report.querySelector('.cmd-block')) {
+    wrap.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  wrap.style.display = '';
+  const s = computeReportExecutionStats();
+  const c = computeReportCompareStats();
+
+  const notOk = s.execFail + s.execTimeout + s.execSkipped;
+  let execRateHtml = '';
+  if (s.total > 0) {
+    if (s.inProgress > 0) {
+      const done = s.execOk + notOk;
+      const sub = done > 0 ? (Math.round(1000 * s.execOk / done) / 10) : null;
+      execRateHtml = `<span class="rpt-st-rate">${sub != null ? '已结束条目中执行通过率 ' + sub + '%' : '执行中…'}</span>` +
+        `<span class="rpt-st-k">（已完成 ${done}/${s.total}）</span>`;
+    } else {
+      const rate = Math.round(1000 * s.execOk / s.total) / 10;
+      execRateHtml = `<span class="rpt-st-rate">执行通过率 ${rate}%</span>` +
+        `<span class="rpt-st-k">（${s.execOk}/${s.total}）</span>`;
+    }
+  }
+
+  let cmpHtml = '';
+  if (typeof expectedData === 'undefined' || !expectedData) {
+    cmpHtml = `<span class="rpt-st-sep">|</span><span class="rpt-st-k">结果比对：未加载预期</span>`;
+  } else if (!hasExpectedForCompare()) {
+    cmpHtml = `<span class="rpt-st-sep">|</span><span class="rpt-st-k">结果比对：预期无效或 commands 为空</span>`;
+  } else if (!showCompare) {
+    cmpHtml = `<span class="rpt-st-sep">|</span><span class="rpt-st-k">结果比对：单结果视图，切换「对比视图」后显示统计</span>`;
+  } else if (c.active > 0) {
+    cmpHtml =
+      `<span class="rpt-st-sep">|</span>` +
+      `<span class="rpt-st-k">比对通过</span> <span class="rpt-st-ok">${c.pass}</span>` +
+      `<span class="rpt-st-sep">·</span>` +
+      `<span class="rpt-st-k">比对失败</span> <span class="rpt-st-fail">${c.fail}</span>` +
+      `<span class="rpt-st-sep">·</span>` +
+      `<span class="rpt-st-k">比对跳过</span> <span class="rpt-st-skip">${c.skip}</span>`;
+    if (c.rateExclSkip != null) {
+      cmpHtml += `<span class="rpt-st-sep">·</span>` +
+        `<span class="rpt-st-rate">比对通过率（不含跳过）${c.rateExclSkip}%</span>` +
+        `<span class="rpt-st-k">（${c.pass}/${c.pass + c.fail}）</span>`;
+    }
+  } else {
+    cmpHtml = `<span class="rpt-st-sep">|</span><span class="rpt-st-k">结果比对：无徽章（预期条目与当前报告命令未对齐）</span>`;
+  }
+
+  el.innerHTML =
+    `<span class="rpt-st-k">命令总数</span> <span class="rpt-st-v">${s.total}</span>` +
+    `<span class="rpt-st-sep">·</span>` +
+    `<span class="rpt-st-k">执行通过</span> <span class="rpt-st-ok">${s.execOk}</span>` +
+    `<span class="rpt-st-sep">·</span>` +
+    `<span class="rpt-st-k">执行失败/异常</span> <span class="rpt-st-fail">${s.execFail}</span>` +
+    `<span class="rpt-st-sep">·</span>` +
+    `<span class="rpt-st-k">超时</span> <span class="rpt-st-fail">${s.execTimeout}</span>` +
+    `<span class="rpt-st-sep">·</span>` +
+    `<span class="rpt-st-k">跳过</span> <span class="rpt-st-skip">${s.execSkipped}</span>` +
+    `<span class="rpt-st-sep">·</span>` +
+    execRateHtml +
+    cmpHtml;
 }
 
 /* ── 完整渲染（批量结果，兼容旧接口） ── */
@@ -2421,8 +2781,9 @@ function renderReport({ host, port, user, results }) {
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
   setReportNotesAlwaysEditable();
 
-  /* 若已加载预期结果，自动进行比对 */
+  /* 若已加载预期结果，自动进行比对（内会 updateReportExecStats） */
   if (expectedData) refreshComparison();
+  else updateReportExecStats();
 }
 
 /* 备注区始终可编辑（执行中、比对视图下均可）；与「编辑报告」控制的输出区分离 */
@@ -2549,7 +2910,8 @@ function normalizeArchiveFilename(raw) {
 
 function predictedArchiveUrl(fn) {
   const ym = archiveYmClient();
-  return `${reportOriginBase()}/report/${ym}/${encodeURIComponent(fn)}`;
+  const u = archiveSshUserSegmentForFilename();
+  return `${reportOriginBase()}/report/${encodeURIComponent(u)}/${ym}/${encodeURIComponent(fn)}`;
 }
 
 function updateArchiveUrlPreview() {
@@ -2577,6 +2939,7 @@ async function openArchiveModal() {
   form.style.display = '';
   res.style.display = 'none';
   inp.value = defaultArchiveFilename();
+  document.getElementById('archive-user-hint').textContent = archiveSshUserSegmentForFilename();
   document.getElementById('archive-ym-hint').textContent = archiveYmClient();
   document.getElementById('archive-client-ip-hint').textContent =
     _archivePeerIp || (location.hostname + '（未取到对端，文件名已回退）');
@@ -2618,7 +2981,8 @@ document.getElementById('archive-confirm').addEventListener('click', async () =>
       method: 'POST',
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'X-Report-Filename': encFn
+        'X-Report-Filename': encFn,
+        'X-Report-User': archiveSshUserSegmentForFilename()
       },
       body: html
     });
@@ -2627,11 +2991,125 @@ document.getElementById('archive-confirm').addEventListener('click', async () =>
     if (resp.ok && data && data.ok) {
       document.getElementById('archive-form').style.display = 'none';
       document.getElementById('archive-result').style.display = 'block';
-      const rel = (data.path || `report/${archiveYmClient()}/${fn}`).replace(/^\/+/, '');
+      const u = archiveSshUserSegmentForFilename();
+      const rel = (data.path || `report/${u}/${archiveYmClient()}/${fn}`).replace(/^\/+/, '');
       const full = `${reportOriginBase()}/${rel}`;
       const rl = document.getElementById('archive-result-link');
       rl.href = full;
       rl.textContent = full;
+    } else {
+      const msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+      errEl.textContent = '存档失败：' + msg;
+      errEl.classList.add('show');
+    }
+  } catch (e) {
+    errEl.textContent = '存档失败：' + (e.message || String(e));
+    errEl.classList.add('show');
+  }
+  btn.disabled = false;
+});
+
+function defaultCfgArchiveFilename() {
+  const ts = archiveReportTimestamp();
+  const ipSeg = archiveClientIpSegmentForFilename();
+  const userSeg = archiveSshUserSegmentForFilename();
+  return `ssh-config-${ts}_${ipSeg}_${userSeg}.json`;
+}
+
+function normalizeCfgArchiveFilename(raw) {
+  let fn = (raw || '').trim();
+  if (!fn) fn = defaultCfgArchiveFilename();
+  if (!/\.json$/i.test(fn)) fn += '.json';
+  return fn;
+}
+
+function predictedCfgSaveUrl(fn) {
+  const ym = archiveYmClient();
+  const u = archiveSshUserSegmentForFilename();
+  return `${reportOriginBase()}/report/${encodeURIComponent(u)}/${ym}/${encodeURIComponent(fn)}`;
+}
+
+function updateCfgSaveUrlPreview() {
+  const fn = normalizeCfgArchiveFilename(document.getElementById('cfg-save-modal-filename').value);
+  const url = predictedCfgSaveUrl(fn);
+  const a = document.getElementById('cfg-save-url-link');
+  a.href = url;
+  a.textContent = url;
+}
+
+async function openCfgSaveModal() {
+  await refreshArchivePeerIp();
+  const ov = document.getElementById('cfg-save-overlay');
+  const form = document.getElementById('cfg-save-form');
+  const res = document.getElementById('cfg-save-result');
+  const err = document.getElementById('cfg-save-error');
+  const inp = document.getElementById('cfg-save-modal-filename');
+  err.textContent = '';
+  err.classList.remove('show');
+  form.style.display = '';
+  res.style.display = 'none';
+  inp.value = defaultCfgArchiveFilename();
+  document.getElementById('cfg-save-user-hint').textContent = archiveSshUserSegmentForFilename();
+  document.getElementById('cfg-save-ym-hint').textContent = archiveYmClient();
+  document.getElementById('cfg-save-client-ip-hint').textContent =
+    _archivePeerIp || (location.hostname + '（未取到对端）');
+  document.getElementById('cfg-save-origin-hint').textContent = location.host;
+  updateCfgSaveUrlPreview();
+  ov.classList.add('show');
+  inp.focus();
+  inp.select();
+}
+
+function closeCfgSaveModal() {
+  document.getElementById('cfg-save-overlay').classList.remove('show');
+}
+
+document.getElementById('btn-cfg-save-srv').addEventListener('click', () => { openCfgSaveModal(); });
+document.getElementById('cfg-save-modal-filename').addEventListener('input', updateCfgSaveUrlPreview);
+document.getElementById('cfg-save-cancel').addEventListener('click', closeCfgSaveModal);
+document.getElementById('cfg-save-close-x').addEventListener('click', closeCfgSaveModal);
+document.getElementById('cfg-save-done').addEventListener('click', closeCfgSaveModal);
+document.getElementById('cfg-save-overlay').addEventListener('click', e => {
+  if (e.target.id === 'cfg-save-overlay') closeCfgSaveModal();
+});
+
+document.getElementById('cfg-save-confirm').addEventListener('click', async () => {
+  const inp = document.getElementById('cfg-save-modal-filename');
+  const fn = normalizeCfgArchiveFilename(inp.value);
+  inp.value = fn;
+  const errEl = document.getElementById('cfg-save-error');
+  errEl.textContent = '';
+  errEl.classList.remove('show');
+
+  const cfg = buildCurrentCfgObject();
+  const userSeg = archiveSshUserSegmentForFilename();
+  const encFn = encodeURIComponent(fn);
+  const body = JSON.stringify(cfg, null, 2);
+  const btn = document.getElementById('cfg-save-confirm');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/save-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Config-Filename': encFn,
+        'X-Report-User': userSeg
+      },
+      body
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (_) { /* ignore */ }
+    if (resp.ok && data && data.ok) {
+      document.getElementById('cfg-save-form').style.display = 'none';
+      document.getElementById('cfg-save-result').style.display = 'block';
+      const rel = (data.path || `report/${userSeg}/${archiveYmClient()}/${fn}`).replace(/^\/+/, '');
+      const full = `${reportOriginBase()}/${rel}`;
+      const rl = document.getElementById('cfg-save-result-link');
+      rl.href = full;
+      rl.textContent = full;
+      execStatus.textContent = `配置已存档: ${rel}`;
+      execStatus.style.color = 'var(--green)';
+      if (window._saveStateNow) window._saveStateNow();
     } else {
       const msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
       errEl.textContent = '存档失败：' + msg;
@@ -2660,7 +3138,7 @@ function buildReportHTML() {
     port:      parseInt(document.getElementById('f-port').value) || 22,
     user:      document.getElementById('f-user').value.trim(),
     timeout:   parseInt(document.getElementById('f-timeout').value) || 300,
-    auto_exit: !!(document.getElementById('f-auto-exit')?.checked),
+    auto_exit: true,
     commands:  getCommandListItems().map(o => {
       const row = { cmd: o.cmd };
       if (o.marker === 'ctrlc') row.marker = 'ctrlc';
@@ -2723,6 +3201,15 @@ function buildReportHTML() {
     .rpt-ssh-cursor{display:inline-block;color:#58a6ff;animation:rpt-cursor-blink 1s step-end infinite;font-weight:300;margin-left:2px;vertical-align:text-bottom}
     @keyframes rpt-cursor-blink{50%{opacity:0}}
     .rpt-ssh-status-row{margin-top:10px;padding-top:10px;border-top:1px solid #21262d}
+    .rpt-ssh-stats-detail{margin-top:8px;padding-top:8px;border-top:1px dashed #30363d;font-size:11px;line-height:1.65;color:#8b949e}
+    .rpt-exec-stats{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+    .rpt-exec-stats .rpt-st-k{color:#6e7681;font-weight:500}
+    .rpt-exec-stats .rpt-st-v{color:#c9d1d9;font-weight:600}
+    .rpt-exec-stats .rpt-st-ok{color:#3fb950;font-weight:700}
+    .rpt-exec-stats .rpt-st-fail{color:#f85149;font-weight:700}
+    .rpt-exec-stats .rpt-st-skip{color:#8b949e;font-weight:600}
+    .rpt-exec-stats .rpt-st-rate{color:#58a6ff;font-weight:600}
+    .rpt-exec-stats .rpt-st-sep{color:#484f58;user-select:none}
     .badge-ok{background:#1a3a24;color:#3fb950;border:1px solid #2ea04340;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
     .badge-err{background:#3d0a0a;color:#f85149;border:1px solid #f8514940;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600}
     .cmd-block{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
@@ -2827,17 +3314,16 @@ document.addEventListener('keydown', e => {
 });
 
 /* ================================================================
-   SSH 配置 导出 / 导入
+   SSH 配置 导出 / 导入 / 服务器存读档 / 清空
    ================================================================ */
 
-/* 导出：将当前表单（含密码）+ 命令列表存为 JSON（仅含纯命令；^C 行带 marker:"ctrlc"） */
-document.getElementById('btn-cfg-export').addEventListener('click', () => {
-  const cfg = {
+function buildCurrentCfgObject() {
+  return {
     version:  1,
     host:     document.getElementById('f-host').value.trim(),
     port:     parseInt(document.getElementById('f-port').value) || 22,
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
-    auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
+    auto_exit:  true,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
     commands: getCommandListItems().map(o => {
@@ -2846,15 +3332,214 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
       return row;
     })
   };
-  const json     = JSON.stringify(cfg, null, 2);
-  const filename = `ssh-config-${cfg.host || 'unnamed'}-${Date.now()}.json`;
-  const blob     = new Blob([json], { type: 'application/json;charset=utf-8' });
-  triggerDownload(blob, filename);
-  execStatus.textContent = `配置已导出: ${filename}`;
+}
+
+/** 从导入的配置 JSON 读取密码：支持 pass / password；null 不得赋给 input（浏览器会变成字面 "null"） */
+function readPasswordFromImportedCfg(cfg) {
+  const raw = cfg.pass !== undefined ? cfg.pass : cfg.password;
+  if (raw === undefined) return { fromFile: false, value: '' };
+  if (raw === null || raw === false) return { fromFile: true, value: '' };
+  if (typeof raw === 'string') return { fromFile: true, value: raw };
+  if (typeof raw === 'number' && Number.isFinite(raw)) return { fromFile: true, value: String(raw) };
+  return { fromFile: true, value: '' };
+}
+
+function applyImportedPasswordField(cfg) {
+  const { fromFile, value } = readPasswordFromImportedCfg(cfg);
+  if (!fromFile) return;
+  document.getElementById('f-pass').value = value;
+}
+
+/** 将配置对象写入表单与命令列表（替换命令列表） */
+function applyImportedCfg(cfg, label) {
+  if (cfg.host    !== undefined) document.getElementById('f-host').value    = cfg.host;
+  if (cfg.port    !== undefined) document.getElementById('f-port').value    = cfg.port;
+  if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
+  if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
+  applyImportedPasswordField(cfg);
+  /* auto_exit is now always true; skip restoring it */
+  cmdList.innerHTML = '';
+  if (Array.isArray(cfg.commands)) {
+    cfg.commands.forEach(c => {
+      if (typeof c === 'string') {
+        const cmd = String(c).trim();
+        if (cmd) addCmd(cmd, '', null, false, true);
+      } else {
+        const cmd = String(c.cmd != null ? c.cmd : '').trim();
+        if (!cmd) return;
+        addCmd(cmd, c.marker === 'ctrlc' ? 'ctrlc' : '', null, !!(c.skipSeq || c.noSeq), true);
+      }
+    });
+  }
+  refreshCmdSeqNumbers();
+  /* 配置内嵌预期（与报告导出 JSON 一致） */
+  if (cfg.expected !== undefined && cfg.expected !== null) {
+    if (Array.isArray(cfg.expected.commands) && cfg.expected.commands.length > 0) {
+      try {
+        const data = cfg.expected;
+        data.commands = data.commands.map(function(c) {
+          if (typeof c === 'string')
+            return { cmd: c, output: '', marker: '', ignoreHash: true };
+          var cmd = String(c.cmd != null ? c.cmd : '');
+          var output = c.output != null ? c.output : '';
+          var marker = c.marker;
+          if (marker !== 'fuzzy' && marker !== 'ignore') marker = '';
+          var ignoreHash = c.ignoreHash !== false;
+          var seq = c.seq != null ? String(c.seq) : null;
+          return { seq: seq, cmd: cmd, output: output, marker: marker, ignoreHash: ignoreHash };
+        });
+        var _seqMapCfg = new Map();
+        data.commands.forEach(function(c, i) { if (c.seq != null) _seqMapCfg.set(c.seq, i); });
+        data._seqMap = _seqMapCfg;
+        expectedData = data;
+        showCompare = true;
+        btnToggleCompare.textContent = '对比视图';
+        btnToggleCompare.classList.remove('off');
+        expectedBar.classList.add('show');
+        expectedBarInfo.textContent = '· 随配置（' + label + '，' + data.commands.length + ' 条）';
+        if (report.querySelector('.cmd-block')) refreshComparison();
+      } catch (_) { /* 忽略损坏的 expected */ }
+    } else {
+      expectedData = null;
+      expectedBar.classList.remove('show');
+      if (report.querySelector('.cmd-block')) refreshComparison();
+    }
+    syncShowExpectedButton();
+  }
+  /* 批量 addCmd 曾将焦点移到命令行时，部分浏览器会清空未由用户直接输入的密码，需再次写入 */
+  applyImportedPasswordField(cfg);
+  const pwImp = readPasswordFromImportedCfg(cfg);
+  execStatus.textContent =
+    pwImp.fromFile && !pwImp.value
+      ? `配置已导入: ${label}（密码请手动填写）`
+      : `配置已导入: ${label}`;
   execStatus.style.color = 'var(--green)';
+  if (pwImp.fromFile && !pwImp.value) document.getElementById('f-pass').focus();
+  if (window._saveStateNow) window._saveStateNow();
+}
+
+/* 导出配置：弹出勾选框，按选择导出 SSH 配置 / 命令行 / 预期输出 */
+document.getElementById('btn-cfg-export').addEventListener('click', () => {
+  openIOModal('选择导出内容', (sel) => {
+    if (!sel.conn && !sel.cmds && !sel.exp) {
+      execStatus.textContent = '请至少选择一项导出内容';
+      execStatus.style.color = 'var(--yellow)';
+      return;
+    }
+    const base = buildCurrentCfgObject();
+    const obj  = { version: 1 };
+    if (sel.conn) {
+      obj.host = base.host; obj.port = base.port; obj.timeout = base.timeout;
+      obj.auto_exit = base.auto_exit; obj.user = base.user; obj.pass = base.pass;
+    }
+    if (sel.cmds) { obj.commands = base.commands; }
+    if (sel.exp && report.querySelector('.cmd-block')) { obj.expected = buildExpectedObject(); }
+    const host     = base.host || 'unnamed';
+    const json     = JSON.stringify(obj, null, 2);
+    const filename = `ssh-config-${host}-${Date.now()}.json`;
+    triggerDownload(new Blob([json], { type: 'application/json;charset=utf-8' }), filename);
+    execStatus.textContent = `配置已导出: ${filename}`;
+    execStatus.style.color = 'var(--green)';
+  });
 });
 
-/* 导入：读取 JSON 文件，填充表单并替换命令列表 */
+function openCfgLoadModal() {
+  const ov = document.getElementById('cfg-load-overlay');
+  const err = document.getElementById('cfg-load-error');
+  err.textContent = '';
+  err.classList.remove('show');
+  document.getElementById('cfg-load-user-hint').textContent = archiveSshUserSegmentForFilename();
+  ov.classList.add('show');
+  refreshCfgLoadList();
+}
+
+function closeCfgLoadModal() {
+  document.getElementById('cfg-load-overlay').classList.remove('show');
+}
+
+async function refreshCfgLoadList() {
+  const listEl = document.getElementById('cfg-load-list');
+  const err = document.getElementById('cfg-load-error');
+  err.textContent = '';
+  err.classList.remove('show');
+  listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">加载中…</div>';
+  const u = encodeURIComponent(archiveSshUserSegmentForFilename());
+  try {
+    const resp = await fetch('/api/list-ssh-configs?user=' + u);
+    const data = await resp.json();
+    if (!resp.ok || !data || !data.ok) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+    const files = data.files || [];
+    if (!files.length) {
+      listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">暂无已存档的 .json 配置</div>';
+      return;
+    }
+    files.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    listEl.innerHTML = '';
+    const userSeg = archiveSshUserSegmentForFilename();
+    files.forEach(f => {
+      const ym = f.ym || '';
+      const name = f.name || '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cfg-load-row';
+      btn.textContent = `${ym} / ${name}`;
+      btn.addEventListener('click', async () => {
+        const url = `/report/${encodeURIComponent(userSeg)}/${encodeURIComponent(ym)}/${encodeURIComponent(name)}`;
+        try {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const cfg = await r.json();
+          applyImportedCfg(cfg, `${ym}/${name}`);
+          closeCfgLoadModal();
+        } catch (e) {
+          err.textContent = '读取失败: ' + (e.message || String(e));
+          err.classList.add('show');
+        }
+      });
+      listEl.appendChild(btn);
+    });
+  } catch (e) {
+    listEl.innerHTML = '';
+    err.textContent = '列表加载失败: ' + (e.message || String(e));
+    err.classList.add('show');
+  }
+}
+
+document.getElementById('btn-cfg-load-srv').addEventListener('click', () => { openCfgLoadModal(); });
+document.getElementById('cfg-load-cancel').addEventListener('click', closeCfgLoadModal);
+document.getElementById('cfg-load-close-x').addEventListener('click', closeCfgLoadModal);
+document.getElementById('cfg-load-refresh').addEventListener('click', () => { refreshCfgLoadList(); });
+document.getElementById('cfg-load-overlay').addEventListener('click', e => {
+  if (e.target.id === 'cfg-load-overlay') closeCfgLoadModal();
+});
+
+document.getElementById('btn-clear-workspace').addEventListener('click', () => {
+  if (!confirm('确定清空当前 SSH 连接、命令列表、报告与已加载的预期结果？')) return;
+  document.getElementById('f-host').value = '';
+  document.getElementById('f-port').value = '22';
+  document.getElementById('f-timeout').value = '300';
+  document.getElementById('f-user').value = '';
+  document.getElementById('f-pass').value = '';
+  const ae = document.getElementById('f-auto-archive');
+  if (ae) ae.checked = false;
+  cmdList.innerHTML = '';
+  report.innerHTML = '';
+  report.style.display = 'none';
+  placeholder.style.display = '';
+  reportTitle.textContent = '执行结果将在此显示';
+  expectedData = null;
+  expectedBar.classList.remove('show');
+  syncShowExpectedButton();
+  showCompare = true;
+  btnToggleCompare.textContent = '对比视图';
+  btnToggleCompare.classList.remove('off');
+  execStatus.textContent = '已清空';
+  execStatus.style.color = 'var(--dim)';
+  try { localStorage.removeItem('lct_v1'); } catch (_) {}
+  if (window._saveStateNow) window._saveStateNow();
+});
+
+/* 导入配置：读取 JSON 文件后弹出勾选框，按选择导入对应部分 */
 document.getElementById('cfg-import-input').addEventListener('change', function () {
   const file = this.files[0];
   if (!file) return;
@@ -2862,47 +3547,61 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
   reader.onload = e => {
     try {
       const cfg = JSON.parse(e.target.result);
-      if (cfg.host    !== undefined) document.getElementById('f-host').value    = cfg.host;
-      if (cfg.port    !== undefined) document.getElementById('f-port').value    = cfg.port;
-      if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
-      if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
-      if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
-      if (cfg.auto_exit !== undefined) {
-        const ae = document.getElementById('f-auto-exit');
-        if (ae) ae.checked = !!cfg.auto_exit;
-      }
-      /* 替换命令列表（先清空再填入，避免与现有命令合并） */
-      cmdList.innerHTML = '';
-      if (Array.isArray(cfg.commands) && cfg.commands.length > 0) {
-        cfg.commands.forEach(c => {
-          if (typeof c === 'string') {
-            const cmd = String(c).trim();
-            if (cmd) addCmd(cmd, '');
-          } else {
-            const cmd = String(c.cmd != null ? c.cmd : '').trim();
-            if (!cmd) return;
-            addCmd(cmd, c.marker === 'ctrlc' ? 'ctrlc' : '', null, !!(c.skipSeq || c.noSeq));
-          }
-        });
-      }
-      execStatus.textContent = cfg.pass
-        ? `配置已导入: ${file.name}`
-        : `配置已导入: ${file.name}（密码请手动填写）`;
-      execStatus.style.color = 'var(--green)';
-      if (!cfg.pass) document.getElementById('f-pass').focus();
-      if (window._saveStateNow) window._saveStateNow();
+      openIOModal('选择导入内容', (sel) => {
+        applyImportedCfgPartial(cfg, file.name, sel);
+      });
     } catch (err) {
       execStatus.textContent = `配置文件解析失败: ${err.message}`;
       execStatus.style.color = 'var(--red)';
     }
   };
-  reader.onerror = () => {
-    execStatus.textContent = '文件读取失败';
-    execStatus.style.color = 'var(--red)';
-  };
+  reader.onerror = () => { execStatus.textContent = '文件读取失败'; execStatus.style.color = 'var(--red)'; };
   reader.readAsText(file, 'utf-8');
-  this.value = '';   // 重置输入，允许重复选同一文件（readAsText 已开始异步读取，此时清空输入安全）
+  this.value = '';
 });
+
+/** 按 sel 选择性地应用配置 JSON 的各部分 */
+function applyImportedCfgPartial(cfg, label, sel) {
+  if (sel.conn) {
+    if (cfg.host      !== undefined) document.getElementById('f-host').value    = cfg.host;
+    if (cfg.port      !== undefined) document.getElementById('f-port').value    = cfg.port;
+    if (cfg.timeout   !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
+    if (cfg.user      !== undefined) document.getElementById('f-user').value    = cfg.user;
+    applyImportedPasswordField(cfg);
+    /* auto_exit is now always true; skip restoring it */
+  }
+  if (sel.cmds && Array.isArray(cfg.commands)) {
+    cmdList.innerHTML = '';
+    cfg.commands.forEach(c => {
+      if (typeof c === 'string') {
+        const cmd = String(c).trim();
+        if (cmd) addCmd(cmd, '', null, false, true);
+      } else {
+        const cmd = String(c.cmd != null ? c.cmd : '').trim();
+        if (!cmd) return;
+        addCmd(cmd, c.marker === 'ctrlc' ? 'ctrlc' : '', null, !!(c.skipSeq || c.noSeq), true);
+      }
+    });
+    refreshCmdSeqNumbers();
+  }
+  if (sel.exp) {
+    /* 支持全量 JSON（expected 嵌套）和纯预期 JSON（commands 在顶层） */
+    const expSrc = (cfg.expected && Array.isArray(cfg.expected.commands)) ? cfg.expected
+                 : (Array.isArray(cfg.commands) && cfg.commands[0] && cfg.commands[0].output !== undefined) ? cfg
+                 : null;
+    if (expSrc && expSrc.commands.length > 0) {
+      try { applyExpectedData(expSrc, `随配置（${label}，${expSrc.commands.length} 条）`); } catch (_) {}
+    }
+  }
+  const pwImp = readPasswordFromImportedCfg(cfg);
+  execStatus.textContent =
+    sel.conn && pwImp.fromFile && !pwImp.value
+      ? `配置已导入: ${label}（密码请手动填写）`
+      : `配置已导入: ${label}`;
+  execStatus.style.color = 'var(--green)';
+  if (sel.conn && pwImp.fromFile && !pwImp.value) document.getElementById('f-pass').focus();
+  if (window._saveStateNow) window._saveStateNow();
+}
 
 /* ================================================================
    测试连接
@@ -2983,22 +3682,50 @@ const expectedBar      = document.getElementById('expected-bar');
 const expectedBarInfo  = document.getElementById('expected-bar-info');
 const btnToggleCompare = document.getElementById('btn-toggle-compare');
 
-/* 导出预期：将当前报告序列化为 JSON */
-document.getElementById('btn-export-expected').addEventListener('click', exportExpected);
+function hasExpectedForCompare() {
+  return !!(expectedData && Array.isArray(expectedData.commands) && expectedData.commands.length > 0);
+}
 
-function exportExpected() {
+function syncShowExpectedButton() {
+  const el = document.getElementById('btn-show-expected');
+  if (el) el.disabled = !hasExpectedForCompare();
+}
+
+/* 将预期数据对象写入应用状态（供导入使用） */
+function applyExpectedData(data, infoLabel) {
+  data.commands = data.commands.map(function(c) {
+    if (typeof c === 'string')
+      return { cmd: c, output: '', marker: '', ignoreHash: true };
+    var cmd = String(c.cmd != null ? c.cmd : '');
+    var output = c.output != null ? c.output : '';
+    var marker = c.marker;
+    if (marker !== 'fuzzy' && marker !== 'ignore') marker = '';
+    var ignoreHash = c.ignoreHash !== false;
+    var seq = c.seq != null ? String(c.seq) : null;
+    return { seq: seq, cmd: cmd, output: output, marker: marker, ignoreHash: ignoreHash };
+  });
+  var _seqMap = new Map();
+  data.commands.forEach(function(c, i) { if (c.seq != null) _seqMap.set(c.seq, i); });
+  data._seqMap = _seqMap;
+  expectedData = data;
+  showCompare  = true;
+  btnToggleCompare.textContent = '对比视图';
+  btnToggleCompare.classList.remove('off');
+  expectedBar.classList.add('show');
+  expectedBarInfo.textContent = '· ' + infoLabel;
+  if (report.querySelector('.cmd-block')) refreshComparison();
+  syncShowExpectedButton();
+  if (window._saveState) window._saveState();
+}
+
+/* 将当前报告的预期输出序列化为对象（供导出使用） */
+function buildExpectedObject() {
   const blocks = [...report.querySelectorAll('.cmd-block')];
-  if (blocks.length === 0) {
-    execStatus.textContent = '没有可导出的报告';
-    execStatus.style.color = 'var(--yellow)';
-    return;
-  }
-  const host = document.getElementById('f-host').value.trim() || 'unknown';
-  /* 始终从原始 out-${idx} 读取（compare 模式下该元素被隐藏但内容完整） */
-  const items = blocks.map((blk, idx) => {
-    var seqEl = blk.querySelector('.cmd-rpt-seq');
-    var seq   = seqEl ? seqEl.textContent.trim() : String(idx + 1);
-    var ex    = expectedData && expectedData.commands[idx];
+  const host   = document.getElementById('f-host').value.trim() || 'unknown';
+  const items  = blocks.map((blk, idx) => {
+    var seqEl  = blk.querySelector('.cmd-rpt-seq');
+    var seq    = seqEl ? seqEl.textContent.trim() : String(idx + 1);
+    var ex     = expectedData && expectedData.commands[idx];
     var marker = ex && (ex.marker === 'fuzzy' || ex.marker === 'ignore') ? ex.marker : '';
     var ignoreHash = ex ? (ex.ignoreHash !== false) : true;
     return {
@@ -3009,49 +3736,40 @@ function exportExpected() {
       ignoreHash: ignoreHash,
     };
   });
-  const payload = { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
-  const json     = JSON.stringify(payload, null, 2);
-  const filename = `ssh-expected-${host}-${Date.now()}.json`;
-  const blob     = new Blob([json], { type: 'application/json;charset=utf-8' });
-  triggerDownload(blob, filename);
-  execStatus.textContent = `预期结果已导出: ${filename}`;
-  execStatus.style.color = 'var(--green)';
+  return { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
 }
 
-/* 导入预期 */
+/* 导出全部：SSH 配置 + 命令行 + 预期结果 合并为一个 JSON */
+document.getElementById('btn-export-expected').addEventListener('click', () => {
+  const host = document.getElementById('f-host').value.trim() || 'unnamed';
+  const cfg  = buildCurrentCfgObject();
+  const obj  = Object.assign({ version: 1 }, cfg);
+  if (report.querySelector('.cmd-block')) {
+    obj.expected = buildExpectedObject();
+  }
+  const json     = JSON.stringify(obj, null, 2);
+  const filename = `ssh-full-${host}-${Date.now()}.json`;
+  triggerDownload(new Blob([json], { type: 'application/json;charset=utf-8' }), filename);
+  execStatus.textContent = `全部配置已导出: ${filename}`;
+  execStatus.style.color = 'var(--green)';
+});
+
+/* 只导入预期（支持纯预期 JSON 和全量导出 JSON） */
 document.getElementById('expected-import-input').addEventListener('change', function () {
   const file = this.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data.commands)) throw new Error('格式错误：缺少 commands 数组');
-      data.commands = data.commands.map(function(c) {
-        if (typeof c === 'string')
-          return { cmd: c, output: '', marker: '', ignoreHash: true };
-        var cmd = String(c.cmd != null ? c.cmd : '');
-        var output = c.output != null ? c.output : '';
-        var marker = c.marker;
-        if (marker !== 'fuzzy' && marker !== 'ignore') marker = '';
-        var ignoreHash = c.ignoreHash !== false;
-        var seq = c.seq != null ? String(c.seq) : null;
-        return { seq: seq, cmd: cmd, output: output, marker: marker, ignoreHash: ignoreHash };
-      });
-      /* 构建 seq → 下标映射，用于 refreshComparison 按序号匹配 */
-      var _seqMap = new Map();
-      data.commands.forEach(function(c, i) { if (c.seq != null) _seqMap.set(c.seq, i); });
-      data._seqMap = _seqMap;
-      expectedData = data;
-      showCompare  = true;
-      btnToggleCompare.textContent = '对比视图';
-      btnToggleCompare.classList.remove('off');
-      expectedBar.classList.add('show');
-      expectedBarInfo.textContent = `· ${file.name}（${data.commands.length} 条）`;
+      const raw = JSON.parse(e.target.result);
+      /* 优先取 raw.commands（纯预期格式）；若不存在则取 raw.expected.commands（全量导出格式） */
+      const data = Array.isArray(raw.commands) ? raw
+                 : (raw.expected && Array.isArray(raw.expected.commands)) ? raw.expected
+                 : null;
+      if (!data) throw new Error('格式错误：未找到 commands 数组（支持纯预期 JSON 和全量导出 JSON）');
+      applyExpectedData(data, `${file.name}（${data.commands.length} 条）`);
       execStatus.textContent = `预期结果已导入: ${file.name}`;
       execStatus.style.color = 'var(--green)';
-      if (report.querySelector('.cmd-block')) refreshComparison();
-      if (window._saveState) window._saveState();
     } catch (err) {
       execStatus.textContent = `预期文件解析失败: ${err.message}`;
       execStatus.style.color = 'var(--red)';
@@ -3062,14 +3780,67 @@ document.getElementById('expected-import-input').addEventListener('change', func
   this.value = '';
 });
 
+/* 工具栏：有预期数据时启用，点击后进入对比视图并刷新并排比对 */
+document.getElementById('btn-show-expected').addEventListener('click', () => {
+  if (!hasExpectedForCompare()) return;
+  showCompare = true;
+  btnToggleCompare.textContent = '对比视图';
+  btnToggleCompare.classList.remove('off');
+  if (!expectedBar.classList.contains('show')) expectedBar.classList.add('show');
+  if (report.querySelector('.cmd-block')) {
+    refreshComparison();
+    execStatus.textContent = '已显示预期对比视图';
+    execStatus.style.color = 'var(--green)';
+  } else {
+    execStatus.textContent = '已启用对比视图；执行命令生成报告后将自动显示实际与预期并排对比';
+    execStatus.style.color = 'var(--yellow)';
+  }
+  if (window._saveState) window._saveState();
+});
+
 /* 清除预期 */
 document.getElementById('btn-clear-exp').addEventListener('click', () => {
   expectedData = null;
   expectedBar.classList.remove('show');
+  syncShowExpectedButton();
   execStatus.textContent = '预期结果已清除';
   execStatus.style.color = 'var(--dim)';
   if (report.querySelector('.cmd-block')) refreshComparison();
   if (window._saveState) window._saveState();
+});
+
+/* ── 导入/导出勾选模态框 ── */
+let _ioModalCallback = null;
+function openIOModal(title, callback) {
+  _ioModalCallback = callback;
+  document.getElementById('io-modal-title').textContent = title;
+  document.getElementById('io-chk-conn').checked = true;
+  document.getElementById('io-chk-cmds').checked = true;
+  document.getElementById('io-chk-exp').checked  = true;
+  document.getElementById('io-modal-overlay').classList.add('show');
+}
+function closeIOModal() {
+  document.getElementById('io-modal-overlay').classList.remove('show');
+  _ioModalCallback = null;
+}
+document.getElementById('io-modal-cancel').addEventListener('click', closeIOModal);
+document.getElementById('io-modal-close-x').addEventListener('click', closeIOModal);
+document.getElementById('io-modal-overlay').addEventListener('click', e => {
+  if (e.target.id === 'io-modal-overlay') closeIOModal();
+});
+document.getElementById('io-modal-confirm').addEventListener('click', () => {
+  const sel = {
+    conn: document.getElementById('io-chk-conn').checked,
+    cmds: document.getElementById('io-chk-cmds').checked,
+    exp:  document.getElementById('io-chk-exp').checked,
+  };
+  const cb = _ioModalCallback;
+  closeIOModal();
+  if (cb) cb(sel);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('io-modal-overlay').classList.contains('show'))
+    closeIOModal();
 });
 
 /* 切换对比视图 / 单结果视图 */
@@ -3078,6 +3849,7 @@ btnToggleCompare.addEventListener('click', () => {
   btnToggleCompare.textContent = showCompare ? '对比视图' : '单结果视图';
   btnToggleCompare.classList.toggle('off', !showCompare);
   if (report.querySelector('.cmd-block')) refreshComparison();
+  if (window._saveState) window._saveState();
 });
 
 /* 过滤掉以 # 开头的行（忽略注释/回显行） */
@@ -3177,6 +3949,7 @@ function refreshComparison() {
     hdr.querySelector('.btn-copy-cmd').before(badge);
   });
   setReportNotesAlwaysEditable();
+  updateReportExecStats();
 }
 
 /* 对比视图：点击 ≈ / ! / # 写入预期数据并重新比对 */
@@ -3506,7 +4279,7 @@ function flash(el, msg) {
         user:    document.getElementById('f-user').value,
         pass:    document.getElementById('f-pass').value,
         timeout: document.getElementById('f-timeout').value,
-        auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
+        auto_archive: !!(document.getElementById('f-auto-archive') && document.getElementById('f-auto-archive').checked),
       },
       cmds:       getCommandListItems().map(o => {
         const row = { cmd: o.cmd };
@@ -3532,8 +4305,8 @@ function flash(el, msg) {
   ['f-host','f-port','f-user','f-pass','f-timeout'].forEach(id => {
     document.getElementById(id).addEventListener('input', window._saveState);
   });
-  const _autoExit = document.getElementById('f-auto-exit');
-  if (_autoExit) _autoExit.addEventListener('change', window._saveState);
+  const _autoArchive = document.getElementById('f-auto-archive');
+  if (_autoArchive) _autoArchive.addEventListener('change', window._saveState);
 
   /* ── 监听命令列表（结构变动 + 输入） ── */
   new MutationObserver(window._saveState).observe(cmdList, { childList: true });
@@ -3582,20 +4355,21 @@ function flash(el, msg) {
       if (c.user    != null) document.getElementById('f-user').value    = c.user;
       if (c.pass    != null) document.getElementById('f-pass').value    = c.pass;
       if (c.timeout != null) document.getElementById('f-timeout').value = c.timeout;
-      if (c.auto_exit != null) {
-        const ae = document.getElementById('f-auto-exit');
-        if (ae) ae.checked = !!c.auto_exit;
+      if (c.auto_archive != null) {
+        const aa = document.getElementById('f-auto-archive');
+        if (aa) aa.checked = !!c.auto_archive;
       }
 
-      /* 命令列表 */
-      if (Array.isArray(state.cmds) && state.cmds.length > 0) {
+      /* 命令列表（含空数组：须清空，避免残留） */
+      if (Array.isArray(state.cmds)) {
         cmdList.innerHTML = '';
         state.cmds.forEach(function(o) {
           const cmd = String(o.cmd != null ? o.cmd : '').trim();
           if (!cmd) return;
           const m = o.marker === 'ctrlc' ? 'ctrlc' : '';
-          addCmd(cmd, m, null, !!(o.noSeq || o.skipSeq));
+          addCmd(cmd, m, null, !!(o.noSeq || o.skipSeq), true);
         });
+        refreshCmdSeqNumbers();
       }
 
       /* 报告 */
@@ -3628,9 +4402,16 @@ function flash(el, msg) {
         expectedBar.classList.add('show');
         expectedBarInfo.textContent = '· 已恢复（' + (expectedData.commands ? expectedData.commands.length : 0) + ' 条）';
         if (report.querySelector('.cmd-block')) refreshComparison();
+      } else {
+        expectedData = null;
+        expectedBar.classList.remove('show');
       }
+
+      /* 会话恢复后再写一次密码：与导入配置相同，避免批量命令行构建后密码被浏览器清空 */
+      if (c.pass != null) document.getElementById('f-pass').value = c.pass;
     } finally {
       _restoring = false;
+      if (typeof syncShowExpectedButton === 'function') syncShowExpectedButton();
     }
 
     return true;
@@ -3646,9 +4427,37 @@ function flash(el, msg) {
     execStatus.textContent = '已恢复上次会话';
     execStatus.style.color = 'var(--dim)';
   }
+  if (typeof syncShowExpectedButton === 'function') syncShowExpectedButton();
 })();
 </script>
 
+<!-- ── 导入/导出勾选模态框 ── -->
+<div id="io-modal-overlay">
+  <div id="io-modal-dialog">
+    <div class="io-dlg-header">
+      <h3 id="io-modal-title">选择内容</h3>
+      <button id="io-modal-close-x" style="background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:0 0 0 12px;line-height:1" title="关闭">×</button>
+    </div>
+    <div class="io-dlg-body">
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-conn" checked> SSH 连接配置</label>
+        <div class="io-chk-desc">主机、端口、用户名、密码、超时等</div>
+      </div>
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-cmds" checked> 命令行列表</label>
+        <div class="io-chk-desc">所有命令条目（含 ^C 标记）</div>
+      </div>
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-exp" checked> 预期输出</label>
+        <div class="io-chk-desc">各命令的预期结果及比对规则</div>
+      </div>
+    </div>
+    <div class="io-dlg-footer">
+      <button id="io-modal-cancel" class="btn-xs">取消</button>
+      <button id="io-modal-confirm" class="btn-xs" style="background:#1f6feb;color:#fff;border-color:#1f6feb">确认</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

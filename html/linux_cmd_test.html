@@ -1402,6 +1402,7 @@ body.edit-mode .cmd-output { cursor: text; }
       <button class="btn-xs" id="btn-cfg-load-srv" style="line-height:1.8" title="从服务器列出并读取已存档的配置 JSON（含密码）">读档配置</button>
       <button class="btn-xs" id="btn-cfg-save-srv" style="line-height:1.8" title="弹窗确认文件名，将当前配置（含密码）保存到服务器 report/SSH用户名/年月/">存档配置</button>
       <button id="btn-export-expected" title="将当前 SSH 配置、命令行列表和预期结果全部导出为一个 JSON 文件">导出全部</button>
+      <button id="btn-save-expected-srv" title="将当前预期数据（含 SSH 配置和命令行）保存到服务器配置目录">保存预期</button>
       <button id="btn-edit" title="进入预期编辑模式：若无预期则从当前结果初始化，可直接修改预期输出">编辑预期</button>
       <button id="btn-copy-all" title="复制全部输出">复制全部</button>
       <button id="btn-preview" title="预览 HTML 报告">👁 预览</button>
@@ -2323,7 +2324,8 @@ async function autoArchiveAfterExec() {
 
   /* 存档配置 JSON（含预期） */
   const cfg = buildCurrentCfgObject();
-  if (report.querySelector('.cmd-block')) cfg.expected = buildExpectedObject();
+  const hasBlocks = !!report.querySelector('.cmd-block');
+  if (hasBlocks) cfg.expected = buildExpectedObject();
   const cfgResp = await fetch('/api/save-config', {
     method: 'POST',
     headers: {
@@ -2336,7 +2338,24 @@ async function autoArchiveAfterExec() {
   const cfgData = await cfgResp.json().catch(() => null);
   if (!cfgResp.ok || !cfgData?.ok) throw new Error((cfgData?.error) || ('HTTP ' + cfgResp.status));
 
-  execStatus.textContent = `自动存档完成: ${fn}`;
+  /* 存档预期 JSON（独立文件，有预期数据时追加保存） */
+  if (expectedData && expectedData.commands && expectedData.commands.length > 0) {
+    const expFn   = normalizeCfgArchiveFilename(fn.replace(/\.html$/, '_expected.json'));
+    const expResp = await fetch('/api/save-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Config-Filename': encodeURIComponent(expFn),
+        'X-Report-User': userSeg
+      },
+      body: JSON.stringify(buildExpectedObject(), null, 2)
+    });
+    const expData = await expResp.json().catch(() => null);
+    if (!expResp.ok || !expData?.ok) throw new Error((expData?.error) || ('HTTP ' + expResp.status));
+    execStatus.textContent = `自动存档完成: ${fn} + 预期`;
+  } else {
+    execStatus.textContent = `自动存档完成: ${fn}`;
+  }
   execStatus.style.color = 'var(--green)';
 }
 
@@ -3161,6 +3180,47 @@ function closeCfgSaveModal() {
 }
 
 document.getElementById('btn-cfg-save-srv').addEventListener('click', () => { openCfgSaveModal(); });
+
+/* 保存预期到服务器：将当前预期（含 SSH 配置和命令行）直接存档，无需弹窗 */
+document.getElementById('btn-save-expected-srv').addEventListener('click', () => { saveExpectedToServer(); });
+
+async function saveExpectedToServer() {
+  if (!expectedData || !expectedData.commands || expectedData.commands.length === 0) {
+    execStatus.textContent = '没有预期数据可保存，请先加载或编辑预期';
+    execStatus.style.color = 'var(--yellow)';
+    return;
+  }
+  const btn = document.getElementById('btn-save-expected-srv');
+  btn.disabled = true;
+  try {
+    await refreshArchivePeerIp();
+    const userSeg = archiveSshUserSegmentForFilename();
+    const fn  = normalizeCfgArchiveFilename('');  /* 自动生成文件名 */
+    const cfg = buildCurrentCfgObject();
+    cfg.expected = buildExpectedObject();
+    const resp = await fetch('/api/save-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Config-Filename': encodeURIComponent(fn),
+        'X-Report-User': userSeg
+      },
+      body: JSON.stringify(cfg, null, 2)
+    });
+    const data = await resp.json().catch(() => null);
+    if (resp.ok && data?.ok) {
+      execStatus.textContent = `预期已保存: ${fn}`;
+      execStatus.style.color = 'var(--green)';
+    } else {
+      throw new Error((data?.error) || ('HTTP ' + resp.status));
+    }
+  } catch (e) {
+    execStatus.textContent = '保存失败: ' + (e.message || String(e));
+    execStatus.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+  }
+}
 document.getElementById('cfg-save-modal-filename').addEventListener('input', updateCfgSaveUrlPreview);
 document.getElementById('cfg-save-cancel').addEventListener('click', closeCfgSaveModal);
 document.getElementById('cfg-save-close-x').addEventListener('click', closeCfgSaveModal);

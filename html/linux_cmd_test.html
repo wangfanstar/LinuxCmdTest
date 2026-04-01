@@ -1133,6 +1133,35 @@ body.edit-mode .cmd-output { cursor: text; }
   border-color: var(--accent);
   color: var(--accent);
 }
+#cfg-load-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0 4px;
+}
+#cfg-load-filter {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  font-family: ui-monospace, Consolas, monospace;
+}
+#cfg-load-filter:focus { border-color: var(--accent); }
+.cfg-sort-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--dim);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cfg-sort-btn.active { border-color: var(--accent); color: var(--accent); }
 .archive-dlg-actions {
   display: flex;
   justify-content: flex-end;
@@ -1614,6 +1643,11 @@ df -h
     <div class="archive-dlg-body">
       <p id="cfg-load-error"></p>
       <p class="archive-dlg-hint">浏览服务器 <code>html/report/</code> 目录中所有已存档的配置 JSON（点击一行加载到左侧表单与命令列表）。</p>
+      <div id="cfg-load-toolbar">
+        <input type="text" id="cfg-load-filter" placeholder="筛选（用户 / 月份 / 文件名）…" autocomplete="off" spellcheck="false">
+        <button type="button" class="cfg-sort-btn active" id="cfg-sort-time" title="按修改时间排序">时间↓</button>
+        <button type="button" class="cfg-sort-btn" id="cfg-sort-name" title="按文件名排序">文件名</button>
+      </div>
       <div id="cfg-load-list"></div>
       <div class="archive-dlg-actions" style="margin-top:14px">
         <button type="button" id="cfg-load-cancel">关闭</button>
@@ -3591,6 +3625,8 @@ function openCfgLoadModal() {
   const err = document.getElementById('cfg-load-error');
   err.textContent = '';
   err.classList.remove('show');
+  document.getElementById('cfg-load-filter').value = '';
+  _updateCfgSortBtns();
   ov.classList.add('show');
   refreshCfgLoadList();
 }
@@ -3599,9 +3635,97 @@ function closeCfgLoadModal() {
   document.getElementById('cfg-load-overlay').classList.remove('show');
 }
 
+let _cfgLoadFiles = [];
+let _cfgSortBy  = 'time';   /* 'time' | 'name' */
+let _cfgSortAsc = false;    /* time 默认最新在前(desc) */
+
+function _renderCfgLoadList() {
+  const listEl  = document.getElementById('cfg-load-list');
+  const err     = document.getElementById('cfg-load-error');
+  const filterQ = (document.getElementById('cfg-load-filter').value || '').toLowerCase();
+
+  let files = _cfgLoadFiles.slice();
+
+  /* 筛选 */
+  if (filterQ) {
+    files = files.filter(f => {
+      const s = `${f.user||''} ${f.ym||''} ${f.name||''}`.toLowerCase();
+      return s.indexOf(filterQ) !== -1;
+    });
+  }
+
+  /* 排序 */
+  if (_cfgSortBy === 'time') {
+    files.sort((a, b) => _cfgSortAsc ? (a.mtime||0)-(b.mtime||0) : (b.mtime||0)-(a.mtime||0));
+  } else {
+    files.sort((a, b) => {
+      const na = `${a.user||''}/${a.ym||''}/${a.name||''}`;
+      const nb = `${b.user||''}/${b.ym||''}/${b.name||''}`;
+      return _cfgSortAsc ? na.localeCompare(nb) : nb.localeCompare(na);
+    });
+  }
+
+  if (!files.length) {
+    listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">' +
+      (filterQ ? '无匹配结果' : '暂无已存档的 .json 配置') + '</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  files.forEach(f => {
+    const user = f.user || '';
+    const ym   = f.ym   || '';
+    const name = f.name || '';
+    const btn  = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cfg-load-row';
+    /* 时间显示 */
+    const ts = f.mtime ? new Date(f.mtime * 1000).toLocaleString('zh-CN', {
+      month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+    btn.innerHTML = `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${user} / ${ym} / ${name}</span>`
+                  + `<span style="color:var(--dim);font-size:10px;margin-left:8px;white-space:nowrap">${ts}</span>`;
+    btn.style.cssText = 'display:flex;align-items:center;width:100%;text-align:left;' +
+      'padding:7px 10px;margin-bottom:4px;background:var(--bg);border:1px solid var(--border);' +
+      'border-radius:6px;color:var(--text);cursor:pointer;font-size:12px;' +
+      'font-family:ui-monospace,Consolas,monospace;box-sizing:border-box;';
+    btn.addEventListener('mouseenter', () => { btn.style.borderColor='var(--accent)'; btn.style.color='var(--accent)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.borderColor='var(--border)';  btn.style.color='var(--text)'; });
+    btn.addEventListener('click', async () => {
+      const url = `/report/${encodeURIComponent(user)}/${encodeURIComponent(ym)}/${encodeURIComponent(name)}`;
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const cfg = await r.json();
+        applyImportedCfg(cfg, `${user}/${ym}/${name}`);
+        closeCfgLoadModal();
+      } catch (e) {
+        err.textContent = '读取失败: ' + (e.message || String(e));
+        err.classList.add('show');
+      }
+    });
+    listEl.appendChild(btn);
+  });
+}
+
+function _updateCfgSortBtns() {
+  const tBtn = document.getElementById('cfg-sort-time');
+  const nBtn = document.getElementById('cfg-sort-name');
+  if (_cfgSortBy === 'time') {
+    tBtn.textContent = _cfgSortAsc ? '时间↑' : '时间↓';
+    tBtn.classList.add('active');
+    nBtn.textContent = '文件名';
+    nBtn.classList.remove('active');
+  } else {
+    nBtn.textContent = _cfgSortAsc ? '文件名↑' : '文件名↓';
+    nBtn.classList.add('active');
+    tBtn.textContent = '时间';
+    tBtn.classList.remove('active');
+  }
+}
+
 async function refreshCfgLoadList() {
   const listEl = document.getElementById('cfg-load-list');
-  const err = document.getElementById('cfg-load-error');
+  const err    = document.getElementById('cfg-load-error');
   err.textContent = '';
   err.classList.remove('show');
   listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">加载中…</div>';
@@ -3609,38 +3733,11 @@ async function refreshCfgLoadList() {
     const resp = await fetch('/api/list-all-configs');
     const data = await resp.json();
     if (!resp.ok || !data || !data.ok) throw new Error((data && data.error) || ('HTTP ' + resp.status));
-    const files = data.files || [];
-    if (!files.length) {
-      listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">暂无已存档的 .json 配置</div>';
-      return;
-    }
-    files.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
-    listEl.innerHTML = '';
-    files.forEach(f => {
-      const user = f.user || '';
-      const ym   = f.ym   || '';
-      const name = f.name || '';
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cfg-load-row';
-      btn.textContent = `${user} / ${ym} / ${name}`;
-      btn.addEventListener('click', async () => {
-        const url = `/report/${encodeURIComponent(user)}/${encodeURIComponent(ym)}/${encodeURIComponent(name)}`;
-        try {
-          const r = await fetch(url);
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const cfg = await r.json();
-          applyImportedCfg(cfg, `${user}/${ym}/${name}`);
-          closeCfgLoadModal();
-        } catch (e) {
-          err.textContent = '读取失败: ' + (e.message || String(e));
-          err.classList.add('show');
-        }
-      });
-      listEl.appendChild(btn);
-    });
+    _cfgLoadFiles = data.files || [];
+    _renderCfgLoadList();
   } catch (e) {
     listEl.innerHTML = '';
+    _cfgLoadFiles = [];
     err.textContent = '列表加载失败: ' + (e.message || String(e));
     err.classList.add('show');
   }
@@ -3650,6 +3747,19 @@ document.getElementById('btn-cfg-load-srv').addEventListener('click', () => { op
 document.getElementById('cfg-load-cancel').addEventListener('click', closeCfgLoadModal);
 document.getElementById('cfg-load-close-x').addEventListener('click', closeCfgLoadModal);
 document.getElementById('cfg-load-refresh').addEventListener('click', () => { refreshCfgLoadList(); });
+document.getElementById('cfg-load-filter').addEventListener('input', () => { _renderCfgLoadList(); });
+document.getElementById('cfg-sort-time').addEventListener('click', () => {
+  if (_cfgSortBy === 'time') { _cfgSortAsc = !_cfgSortAsc; }
+  else { _cfgSortBy = 'time'; _cfgSortAsc = false; }
+  _updateCfgSortBtns();
+  _renderCfgLoadList();
+});
+document.getElementById('cfg-sort-name').addEventListener('click', () => {
+  if (_cfgSortBy === 'name') { _cfgSortAsc = !_cfgSortAsc; }
+  else { _cfgSortBy = 'name'; _cfgSortAsc = true; }
+  _updateCfgSortBtns();
+  _renderCfgLoadList();
+});
 document.getElementById('cfg-load-overlay').addEventListener('click', e => {
   if (e.target.id === 'cfg-load-overlay') closeCfgLoadModal();
 });

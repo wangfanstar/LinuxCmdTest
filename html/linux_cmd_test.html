@@ -1622,6 +1622,34 @@ df -h
   </div>
 </div>
 
+<!-- ── 导入/导出勾选模态框 ── -->
+<div id="io-modal-overlay">
+  <div id="io-modal-dialog">
+    <div class="io-dlg-header">
+      <h3 id="io-modal-title">选择内容</h3>
+      <button id="io-modal-close-x" style="background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:0 0 0 12px;line-height:1" title="关闭">×</button>
+    </div>
+    <div class="io-dlg-body">
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-conn" checked> SSH 连接配置</label>
+        <div class="io-chk-desc">主机、端口、用户名、密码、超时等</div>
+      </div>
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-cmds" checked> 命令行列表</label>
+        <div class="io-chk-desc">所有命令条目（含 ^C 标记）</div>
+      </div>
+      <div>
+        <label class="io-chk-row"><input type="checkbox" id="io-chk-exp" checked> 预期输出</label>
+        <div class="io-chk-desc">各命令的预期结果及比对规则</div>
+      </div>
+    </div>
+    <div class="io-dlg-footer">
+      <button id="io-modal-cancel" class="btn-xs">取消</button>
+      <button id="io-modal-confirm" class="btn-xs" style="background:#1f6feb;color:#fff;border-color:#1f6feb">确认</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ================================================================
    通用工具
@@ -4500,33 +4528,6 @@ function flash(el, msg) {
 })();
 </script>
 
-<!-- ── 导入/导出勾选模态框 ── -->
-<div id="io-modal-overlay">
-  <div id="io-modal-dialog">
-    <div class="io-dlg-header">
-      <h3 id="io-modal-title">选择内容</h3>
-      <button id="io-modal-close-x" style="background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:0 0 0 12px;line-height:1" title="关闭">×</button>
-    </div>
-    <div class="io-dlg-body">
-      <div>
-        <label class="io-chk-row"><input type="checkbox" id="io-chk-conn" checked> SSH 连接配置</label>
-        <div class="io-chk-desc">主机、端口、用户名、密码、超时等</div>
-      </div>
-      <div>
-        <label class="io-chk-row"><input type="checkbox" id="io-chk-cmds" checked> 命令行列表</label>
-        <div class="io-chk-desc">所有命令条目（含 ^C 标记）</div>
-      </div>
-      <div>
-        <label class="io-chk-row"><input type="checkbox" id="io-chk-exp" checked> 预期输出</label>
-        <div class="io-chk-desc">各命令的预期结果及比对规则</div>
-      </div>
-    </div>
-    <div class="io-dlg-footer">
-      <button id="io-modal-cancel" class="btn-xs">取消</button>
-      <button id="io-modal-confirm" class="btn-xs" style="background:#1f6feb;color:#fff;border-color:#1f6feb">确认</button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

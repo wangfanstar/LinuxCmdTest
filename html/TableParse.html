@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>域段解析工具 — GT 网页工具</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #a371f7;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding: 24px 20px 48px;
+    font-size: 14px;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+
+  header.top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  header.top h1 { font-size: 1.2rem; font-weight: 700; color: #f0f6fc; }
+  header.top .sub { color: var(--dim); font-size: 12px; width: 100%; margin-left: 21px; }
+  header.top .hdr-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: border-color .15s, background .15s;
+  }
+  .btn:hover { border-color: var(--accent); color: #f0f6fc; }
+  .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+  .btn-primary:hover { background: #2ea043; color: #fff; }
+  .btn-warn { background: #9e6a03; border-color: var(--yellow); color: #fff; }
+  .btn-danger { background: #da3633; border-color: #f85149; color: #fff; }
+  .btn-ghost { background: transparent; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-length { background: #1f3a6e; border-color: #58a6ff; color: #79c0ff; }
+  .btn-range { background: #2d1f6e; border-color: #a371f7; color: #d2a8ff; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .panel-title {
+    font-size: 14px; font-weight: 600; color: #f0f6fc;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title .dot-s { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .panel-title .dot-s.purple { background: var(--purple); }
+  .panel-title .dot-s.green { background: var(--green); }
+  .panel-title .dot-s.yellow { background: var(--yellow); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 120px; flex: 1; }
+  .field label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .03em; }
+  .field input, .field select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; color: var(--text); font-size: 14px; font-family: ui-monospace, monospace;
+    outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field-grow { flex: 2; min-width: 200px; }
+
+  .msg {
+    display: none; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
+  }
+  .msg.show { display: flex; }
+  .msg.ok { background: rgba(63, 185, 80, 0.12); border: 1px solid rgba(63, 185, 80, 0.35); color: var(--green); }
+  .msg.err { background: rgba(248, 81, 73, 0.12); border: 1px solid rgba(248, 81, 73, 0.35); color: #ff7b72; }
+
+  .warn-banner {
+    display: none; padding: 12px 14px; border-radius: 8px; margin-bottom: 14px;
+    background: rgba(210, 153, 34, 0.12); border: 1px solid rgba(210, 153, 34, 0.4); color: var(--yellow); font-size: 13px;
+  }
+  .warn-banner.show { display: block; }
+
+  .segment-row {
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px;
+    background: rgba(13, 17, 23, 0.5);
+    transition: box-shadow .15s;
+  }
+  .segment-row:hover { box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  .segment-row.indent { border-left: 3px solid var(--accent); }
+  .sg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  .sg-field label { font-size: 11px; color: var(--dim); display: block; margin-bottom: 4px; }
+  .sg-field input, .sg-field select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; color: var(--text); font-size: 13px; font-family: ui-monospace, monospace;
+  }
+  .sg-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; }
+  .sg-err { margin-top: 8px; font-size: 12px; color: #ff7b72; }
+
+  .bit-bar-wrap {
+    display: flex; height: 44px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
+  }
+  .bit-bar-seg {
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600;
+    color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.5); padding: 0 4px; text-align: center; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .ex-card {
+    text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: inherit; cursor: pointer; font-family: inherit; transition: border-color .15s;
+  }
+  .ex-card:hover { border-color: var(--accent); }
+  .ex-card strong { color: var(--accent); font-size: 13px; display: block; margin-bottom: 6px; }
+  .ex-card span { font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+  footer.page-ft { text-align: center; margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.55);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    max-width: 520px; width: 100%; max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  }
+  .modal.wide { max-width: 640px; }
+  .modal-hd { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .modal-hd h3 { font-size: 15px; color: #f0f6fc; }
+  .modal-bd { padding: 16px 18px; overflow-y: auto; font-size: 13px; color: var(--text); line-height: 1.6; }
+  .modal-ft { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .modal.warn .modal-bd { background: rgba(210, 153, 34, 0.08); }
+  .valid-row { display: flex; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .valid-row:last-child { border-bottom: none; }
+  .valid-row.err { color: #ff7b72; }
+  .valid-row.warn { color: var(--yellow); }
+  .valid-row.ok { color: var(--green); }
+
+  .help-section { margin-bottom: 16px; }
+  .help-section h4 { color: var(--accent); font-size: 13px; margin-bottom: 8px; }
+  .help-section ul, .help-section ol { padding-left: 1.25rem; color: var(--dim); }
+  .help-section li { margin-bottom: 4px; }
+  .help-section p { color: var(--dim); margin-bottom: 6px; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .error-shake { animation: shake 0.3s ease-in-out; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="dot"></div>
+    <h1>域段解析工具</h1>
+    <div class="hdr-actions">
+      <a href="/index.html" class="btn btn-sm btn-ghost">← 工具首页</a>
+      <button type="button" class="btn btn-sm" id="btn-help">使用说明</button>
+    </div>
+    <p class="sub">二进制 / 十六进制 / 十进制数据的多进制解析、嵌套域段与双向解析（无外部依赖）</p>
+  </header>
+
+  <div id="msg-bar" class="msg" role="status"><span id="msg-text"></span><button type="button" class="btn btn-sm btn-ghost" id="msg-close" aria-label="关闭">&times;</button></div>
+
+  <section class="panel">
+    <div class="panel-title"><span class="dot-s"></span>Input Data</div>
+    <div class="row">
+      <div class="field field-grow">
+        <label for="inp-data">Input Data</label>
+        <input type="text" id="inp-data" placeholder="例如: 12345678" autocomplete="off">
+      </div>
+      <div class="field" style="max-width:120px">
+        <label for="inp-bw">Bit Width</label>
+        <input type="number" id="inp-bw" min="1" max="512" value="32">
+      </div>
+      <div class="field" style="max-width:160px">
+        <label for="sel-base">Base</label>
+        <select id="sel-base">
+          <option value="hex">Hex（十六进制）</option>
+          <option value="dec">Dec（十进制）</option>
+          <option value="bin">Bin（二进制）</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary" id="btn-parse">Parse Data</button>
+      <button type="button" class="btn btn-warn" id="btn-reverse">Reverse Parse</button>
+    </div>
+  </section>
+
+  <section class="panel" id="chart-panel" hidden>
+    <div class="panel-title"><span class="dot-s purple"></span>位分布可视化</div>
+    <div id="bitChart" aria-hidden="true"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <span style="display:flex;align-items:center;gap:8px"><span class="dot-s green"></span>域段列表</span>
+      <div class="sg-actions">
+        <button type="button" class="btn btn-sm btn-primary" id="btn-add-seg">+ Add Segment</button>
+        <button type="button" class="btn btn-sm" id="btn-clear-seg">Clear All</button>
+        <button type="button" class="btn btn-sm" id="btn-save-cfg">Save Config</button>
+        <button type="button" class="btn btn-sm" id="btn-load-cfg">Load Config</button>
+        <input type="file" id="file-cfg" accept=".json,.JSON" hidden>
+        <button type="button" class="btn btn-sm btn-warn" id="btn-validity">合法性检查</button>
+      </div>
+    </div>
+    <div id="warn-inline" class="warn-banner"></div>
+    <div id="segments-root"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title"><span class="dot-s yellow"></span>快速示例</div>
+    <div class="examples">
+      <button type="button" class="ex-card" data-example="1">
+        <strong>示例 1：Length 模式</strong>
+        <span>解析 32 位 0x12345678 为 Byte1+Byte2+Word2</span>
+      </button>
+      <button type="button" class="ex-card" data-example="2">
+        <strong>示例 2：Range 模式</strong>
+        <span>提取 31:24 与 7:0 位</span>
+      </button>
+      <button type="button" class="ex-card" data-example="3">
+        <strong>示例 3：嵌套域段</strong>
+        <span>16 位 Header 含 Version+Type+Length</span>
+      </button>
+    </div>
+  </section>
+
+  <footer class="page-ft">域段解析工具 — GT 网页工具</footer>
+</div>
+
+<div class="modal-overlay warn" id="modal-overlap" aria-modal="true" role="dialog">
+  <div class="modal warn">
+    <div class="modal-hd"><h3>域段位数告警</h3><button type="button" class="btn btn-sm btn-ghost modal-x" data-close="modal-overlap">&times;</button></div>
+    <div class="modal-bd" id="overlap-body"></div>
+    <div class="modal-ft"><button type="button" class="btn btn-primary" data-close="modal-overlap">知道了</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-validity" aria-modal="true" role="dialog">
+  <div class="modal wide">
+    <div class="modal-hd"><h3>合法性检查结果</h3><button type="button" class="btn btn-sm btn-ghost modal-x" data-close="modal-validity">&times;</button></div>
+    <div class="modal-bd" id="validity-body"></div>
+    <div class="modal-ft"><button type="button" class="btn" data-close="modal-validity">关闭</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-help" aria-modal="true" role="dialog">
+  <div class="modal wide">
+    <div class="modal-hd"><h3>使用说明</h3><button type="button" class="btn btn-sm btn-ghost modal-x" data-close="modal-help">&times;</button></div>
+    <div class="modal-bd">
+      <div class="help-section">
+        <h4>一、功能概述</h4>
+        <p>按自定义格式将数据解析成域段，并可将域段反解析为整条数据。</p>
+        <ul>
+          <li><strong>多进制</strong>：hex / dec / bin</li>
+          <li><strong>双模式</strong>：Length、Range [高:低]</li>
+          <li><strong>嵌套域段</strong>：子域段解析协议结构</li>
+          <li><strong>配置</strong>：Save / Load JSON</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h4>二、操作流程</h4>
+        <ol>
+          <li>填写 Input Data、Bit Width、Base</li>
+          <li>配置域段名称、Length 或 Range、模式切换、Base；可添加根域段与子域段</li>
+          <li>Parse Data 正向解析；修改值后 Reverse Parse 合并</li>
+        </ol>
+      </div>
+      <div class="help-section">
+        <h4>三、注意事项</h4>
+        <ul>
+          <li>Range 高位 ≥ 低位；根域段总长度勿超过 Bit Width</li>
+          <li>反向解析时子域段总长度须与父域段 Length 一致（Length 模式）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
+  }
+
+  function findSegById(list, id) {
+    for (const s of list) {
+      if (s.id === id) return s;
+      if (s.children && s.children.length) {
+        const f = findSegById(s.children, id);
+        if (f) return f;
+      }
+    }
+    return null;
+  }
+
+  function findParentRef(list, id) {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === id) return { parentList: list, idx: i, seg: list[i] };
+      const ch = list[i].children;
+      if (ch && ch.length) {
+        const r = findParentRef(ch, id);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+
+  function segmentParser() {
+    return {
+      inputData: '',
+      bitWidth: 32,
+      inputBase: 'hex',
+      segments: [],
+      message: { text: '', type: '' },
+      parsedOnce: false,
+      nextId: 1,
+      overlapWarningModalOpen: false,
+      validityModalOpen: false,
+      validityResults: [],
+
+      generateId() { return this.nextId++; },
+
+      createSegment(name, length) {
+        return {
+          id: this.generateId(),
+          name: name || ('Segment_' + (this.nextId - 1)),
+          length: length != null ? length : 8,
+          rangeHigh: '',
+          rangeLow: '',
+          mode: 'length',
+          value: '',
+          base: 'hex',
+          children: [],
+          error: ''
+        };
+      },
+
+      addSegment() {
+        this.segments.push(this.createSegment());
+        this.refreshUI();
+      },
+
+      getFlattenedSegments() {
+        const out = [];
+        const walk = (list, depth) => {
+          if (!list || !Array.isArray(list)) return;
+          list.forEach((seg) => {
+            out.push({ seg, depth });
+            if (seg.children && seg.children.length) walk(seg.children, depth + 1);
+          });
+        };
+        walk(this.segments, 0);
+        return out;
+      },
+
+      getOverlapWarning() {
+        const checkLevel = (segments, width, levelName) => {
+          if (!segments || segments.length === 0) return '';
+          const hasRange = segments.some(s => s.mode === 'range');
+          if (!hasRange) {
+            let total = 0;
+            for (const s of segments) {
+              const len = parseInt(s.length, 10);
+              if (!isNaN(len) && len > 0) total += len;
+            }
+            if (total > width) return (levelName ? '域段「' + levelName + '」下' : '根') + '域段总长度(' + total + ')超过位宽(' + width + ')，存在重叠或溢出，请检查 Length 或 Bit Width。';
+          } else {
+            const ranges = [];
+            for (const s of segments) {
+              const h = parseInt(s.rangeHigh, 10), l = parseInt(s.rangeLow, 10);
+              if (s.mode === 'range' && !isNaN(h) && !isNaN(l) && h >= l) {
+                ranges.push({ name: s.name, high: h, low: l });
+              }
+            }
+            for (let i = 0; i < ranges.length; i++) {
+              for (let j = i + 1; j < ranges.length; j++) {
+                const a = ranges[i], b = ranges[j];
+                if (a.high >= b.low && b.high >= a.low) {
+                  return '域段「' + a.name + '」与「' + b.name + '」位范围重叠（' + a.high + ':' + a.low + ' 与 ' + b.high + ':' + b.low + '），请修改 Range 避免重叠。';
+                }
+              }
+            }
+          }
+          for (const seg of segments) {
+            if (seg.children && seg.children.length > 0) {
+              const segLen = parseInt(seg.length, 10);
+              const w = !isNaN(segLen) && segLen > 0 ? segLen : 0;
+              const msg = checkLevel(seg.children, w, seg.name);
+              if (msg) return msg;
+            }
+          }
+          return '';
+        };
+        return checkLevel(this.segments, this.bitWidth, '');
+      },
+
+      runValidityCheck() {
+        const out = [];
+        const err = (msg) => out.push({ level: 'error', msg });
+        const warn = (msg) => out.push({ level: 'warning', msg });
+
+        if (!this.bitWidth || this.bitWidth < 1 || this.bitWidth > 512) {
+          err('Bit Width 无效，应为 1～512 之间的整数。');
+        }
+
+        const overlapMsg = this.getOverlapWarning();
+        if (overlapMsg) err(overlapMsg);
+
+        const checkSegments = (segments, parentWidth, parentName) => {
+          if (!segments || !Array.isArray(segments)) return;
+          const hasRange = segments.some(s => s.mode === 'range');
+
+          if (!hasRange) {
+            let total = 0;
+            for (const s of segments) {
+              const len = parseInt(s.length, 10);
+              if (isNaN(len) || len <= 0) err('域段「' + (s.name || '未命名') + '」的 Length 无效，须为正整数。');
+              else total += len;
+            }
+            if (parentWidth > 0 && total > parentWidth) {
+              err((parentName ? '域段「' + parentName + '」下' : '根') + '域段总长度(' + total + ')超过位宽(' + parentWidth + ')。');
+            }
+            if (parentWidth > 0 && total < parentWidth) {
+              warn((parentName ? '域段「' + parentName + '」下' : '根') + '域段总长度(' + total + ')小于位宽(' + parentWidth + ')，低位将补零。');
+            }
+          } else {
+            for (const s of segments) {
+              if (s.mode !== 'range') continue;
+              const h = parseInt(s.rangeHigh, 10), l = parseInt(s.rangeLow, 10);
+              if (isNaN(h) || isNaN(l)) err('域段「' + (s.name || '未命名') + '」的 Range 高位/低位未填写或格式无效。');
+              else if (h < l) err('域段「' + (s.name || '未命名') + '」Range 高位(' + h + ')小于低位(' + l + ')。');
+              else if (parentWidth > 0 && h >= parentWidth) err('域段「' + (s.name || '未命名') + '」Range 高位(' + h + ')超出位宽(' + parentWidth + ')。');
+            }
+            for (let i = 0; i < segments.length; i++) {
+              for (let j = i + 1; j < segments.length; j++) {
+                const a = segments[i], b = segments[j];
+                if (a.mode !== 'range' || b.mode !== 'range') continue;
+                const ah = parseInt(a.rangeHigh, 10), al = parseInt(a.rangeLow, 10), bh = parseInt(b.rangeHigh, 10), bl = parseInt(b.rangeLow, 10);
+                if (isNaN(ah) || isNaN(al) || isNaN(bh) || isNaN(bl)) continue;
+                if (ah >= bl && bh >= al) err('域段「' + (a.name || '未命名') + '」与「' + (b.name || '未命名') + '」位范围重叠。');
+              }
+            }
+          }
+
+          for (const seg of segments) {
+            if (!seg.name || String(seg.name).trim() === '') warn('域段名称为空，建议填写便于识别。');
+            if (seg.children && seg.children.length > 0) {
+              const parentLen = parseInt(seg.length, 10);
+              const childTotal = seg.children.reduce((sum, c) => sum + (parseInt(c.length, 10) || 0), 0);
+              if (!isNaN(parentLen) && parentLen > 0 && childTotal !== parentLen) {
+                err('域段「' + (seg.name || '未命名') + '」子域段总长度(' + childTotal + ')与父域段长度(' + parentLen + ')不一致。');
+              }
+              checkSegments(seg.children, parentLen, seg.name);
+            } else if (seg.value !== undefined && seg.value !== '' && seg.value !== null) {
+              if (!this.validateInput(String(seg.value).trim(), seg.base)) {
+                warn('域段「' + (seg.name || '未命名') + '」的显示/值不符合所选进制(' + seg.base + ')格式。');
+              } else {
+                const len = parseInt(seg.length, 10);
+                if (!isNaN(len) && len > 0) {
+                  try {
+                    const bin = this.toBinaryStr(String(seg.value).trim(), seg.base, len);
+                    if (bin.length > len) warn('域段「' + (seg.name || '未命名') + '」的值超出' + len + '位表示范围。');
+                  } catch (e) {
+                    warn('域段「' + (seg.name || '未命名') + '」的值无法按' + seg.base + '解析。');
+                  }
+                }
+              }
+            }
+          }
+        };
+
+        checkSegments(this.segments, this.bitWidth, '');
+
+        this.validityResults = out.length ? out : [{ level: 'success', msg: '所有域段合法性检查通过，未发现错误或警告。' }];
+        this.validityModalOpen = true;
+        syncValidityModal();
+      },
+
+      clearAllSegments() {
+        this.segments = [this.createSegment()];
+        this.parsedOnce = false;
+        this.showMessage('已清空所有域段，保留第一个根域段', 'success');
+        this.refreshUI();
+      },
+
+      showMessage(text, type) {
+        this.message = { text, type: type || 'error' };
+        syncMessage();
+        if (this.message.text) {
+          clearTimeout(this._msgT);
+          this._msgT = setTimeout(() => { this.message = { text: '', type: '' }; syncMessage(); }, 4000);
+        }
+      },
+
+      validateInput(data, base) {
+        if (!data || data.trim() === '') return false;
+        data = data.trim().replace(/^0[xX]/, '');
+        switch (base) {
+          case 'hex': return /^[0-9a-fA-F]+$/.test(data);
+          case 'dec': return /^[0-9]+$/.test(data);
+          case 'bin': return /^[01]+$/.test(data);
+        }
+        return false;
+      },
+
+      toBinaryStr(data, base, width) {
+        data = data.trim().replace(/^0[xX]/, '');
+        let bigVal;
+        switch (base) {
+          case 'hex': bigVal = BigInt('0x' + data); break;
+          case 'dec': bigVal = BigInt(data); break;
+          case 'bin': bigVal = BigInt('0b' + data); break;
+          default: bigVal = 0n;
+        }
+        let binStr = bigVal.toString(2);
+        if (width && binStr.length < width) binStr = binStr.padStart(width, '0');
+        return binStr;
+      },
+
+      fromBinary(binStr, base) {
+        if (!binStr || binStr.length === 0) return '0';
+        let bigVal = BigInt('0b' + binStr);
+        switch (base) {
+          case 'hex': return bigVal.toString(16).toUpperCase();
+          case 'dec': return bigVal.toString(10);
+          case 'bin': return bigVal.toString(2);
+        }
+        return bigVal.toString(16).toUpperCase();
+      },
+
+      parseData() {
+        this.syncFromForm();
+        if (!this.inputData || this.inputData.trim() === '') {
+          this.showMessage('请输入待解析数据');
+          return;
+        }
+        let cleanInput = this.inputData.trim().replace(/^0[xX]/, '').replace(/\s+/g, '');
+        if (!this.validateInput(cleanInput, this.inputBase)) {
+          this.showMessage('输入数据格式错误，不符合 ' + this.inputBase + ' 进制格式');
+          return;
+        }
+
+        let fullBin;
+        try {
+          fullBin = this.toBinaryStr(cleanInput, this.inputBase, this.bitWidth);
+        } catch (e) {
+          this.showMessage('数据转换错误: ' + e.message);
+          return;
+        }
+
+        if (fullBin.length > this.bitWidth) {
+          fullBin = fullBin.slice(fullBin.length - this.bitWidth);
+        } else if (fullBin.length < this.bitWidth) {
+          fullBin = fullBin.padStart(this.bitWidth, '0');
+        }
+
+        try {
+          this.parseSegments(this.segments, fullBin, this.bitWidth);
+          this.parsedOnce = true;
+          this.showMessage('解析成功！', 'success');
+          this.refreshUI();
+          queueMicrotask(() => this.renderChart());
+        } catch (e) {
+          this.showMessage('解析失败: ' + e.message);
+        }
+      },
+
+      parseSegments(segments, binaryData, totalWidth) {
+        let offset = 0;
+        for (let seg of segments) {
+          if (seg.mode === 'range') {
+            const highBit = parseInt(seg.rangeHigh, 10);
+            const lowBit = parseInt(seg.rangeLow, 10);
+            if (isNaN(highBit) || isNaN(lowBit)) {
+              seg.error = 'Range值无效';
+              seg.value = '';
+              continue;
+            }
+            if (highBit < lowBit) {
+              seg.error = '高位必须≥低位';
+              seg.value = '';
+              continue;
+            }
+            if (highBit >= totalWidth) {
+              seg.error = '高位超出总位宽(' + totalWidth + ')';
+              seg.value = '';
+              continue;
+            }
+            const segLen = highBit - lowBit + 1;
+            seg.length = segLen;
+            const startIdx = totalWidth - 1 - highBit;
+            const endIdx = totalWidth - lowBit;
+            const segBin = binaryData.slice(startIdx, endIdx);
+            seg.value = this.fromBinary(segBin, seg.base);
+            seg.error = '';
+            if (seg.children && seg.children.length > 0) {
+              this.parseSegments(seg.children, segBin, segLen);
+            }
+          } else {
+            const segLen = parseInt(seg.length, 10);
+            if (isNaN(segLen) || segLen <= 0) {
+              seg.error = 'Length值无效';
+              seg.value = '';
+              continue;
+            }
+            if (offset + segLen > binaryData.length) {
+              seg.error = 'Length exceeds data';
+              seg.value = '';
+              continue;
+            }
+            seg.rangeHigh = String(totalWidth - 1 - offset);
+            seg.rangeLow = String(totalWidth - offset - segLen);
+            const segBin = binaryData.slice(offset, offset + segLen);
+            seg.value = this.fromBinary(segBin, seg.base);
+            seg.error = '';
+            offset += segLen;
+            if (seg.children && seg.children.length > 0) {
+              this.parseSegments(seg.children, segBin, segLen);
+            }
+          }
+        }
+      },
+
+      reverseParse() {
+        this.syncFromForm();
+        this.runValidityCheck();
+        try {
+          let fullBin = this.reverseSegments(this.segments, this.bitWidth);
+          if (fullBin.length < this.bitWidth) {
+            fullBin = fullBin.padStart(this.bitWidth, '0');
+          }
+          this.inputData = this.fromBinary(fullBin, this.inputBase);
+          document.getElementById('inp-data').value = this.inputData;
+          this.parsedOnce = true;
+          this.showMessage('反向解析成功！', 'success');
+          this.refreshUI();
+          queueMicrotask(() => this.renderChart());
+        } catch (e) {
+          this.showMessage('反向解析失败: ' + e.message);
+        }
+      },
+
+      reverseSegments(segments, parentWidth) {
+        const hasRange = segments.some(s => s.mode === 'range');
+
+        if (hasRange) {
+          const bits = new Array(parentWidth).fill('0');
+          for (let seg of segments) {
+            const highBit = parseInt(seg.rangeHigh, 10);
+            const lowBit = parseInt(seg.rangeLow, 10);
+            if (isNaN(highBit) || isNaN(lowBit)) throw new Error('域段 "' + seg.name + '" Range值无效');
+            const segLen = highBit - lowBit + 1;
+
+            let segValue;
+            if (seg.children && seg.children.length > 0) {
+              segValue = this.reverseSegments(seg.children, segLen);
+            } else {
+              if (!seg.value && seg.value !== '0') throw new Error('域段 "' + seg.name + '" 没有值');
+              if (!this.validateInput(seg.value, seg.base)) throw new Error('域段 "' + seg.name + '" 值格式错误');
+              segValue = this.toBinaryStr(seg.value, seg.base, segLen);
+            }
+
+            if (segValue.length > segLen) {
+              segValue = segValue.slice(segValue.length - segLen);
+            }
+            segValue = segValue.padStart(segLen, '0');
+
+            const maxVal = (1n << BigInt(segLen)) - 1n;
+            const actualVal = BigInt('0b' + segValue);
+            if (actualVal > maxVal) throw new Error('域段 "' + seg.name + '" 值超出 ' + segLen + ' 位范围');
+
+            const startIdx = parentWidth - 1 - highBit;
+            for (let i = 0; i < segLen; i++) {
+              bits[startIdx + i] = segValue[i];
+            }
+          }
+          return bits.join('');
+        }
+
+        let result = '';
+        for (let seg of segments) {
+          const segLen = parseInt(seg.length, 10);
+          if (isNaN(segLen) || segLen <= 0) throw new Error('域段 "' + seg.name + '" Length值无效');
+
+          let segBin;
+          if (seg.children && seg.children.length > 0) {
+            const childTotalLen = seg.children.reduce((sum, c) => sum + parseInt(c.length || 0, 10), 0);
+            if (childTotalLen !== segLen) {
+              throw new Error('域段 "' + seg.name + '" 子域段总长度(' + childTotalLen + ')与父域段长度(' + segLen + ')不匹配');
+            }
+            segBin = this.reverseSegments(seg.children, segLen);
+            seg.value = this.fromBinary(segBin, seg.base);
+          } else {
+            if (!seg.value && seg.value !== '0') throw new Error('域段 "' + seg.name + '" 没有值');
+            if (!this.validateInput(seg.value, seg.base)) throw new Error('域段 "' + seg.name + '" 值格式错误 (' + seg.base + ': ' + seg.value + ')');
+            segBin = this.toBinaryStr(seg.value, seg.base, segLen);
+
+            const maxVal = (1n << BigInt(segLen)) - 1n;
+            const actualVal = BigInt('0b' + segBin);
+            if (actualVal > maxVal) throw new Error('域段 "' + seg.name + '" 值超出 ' + segLen + ' 位最大值');
+          }
+
+          if (segBin.length > segLen) {
+            segBin = segBin.slice(segBin.length - segLen);
+          }
+          segBin = segBin.padStart(segLen, '0');
+          result += segBin;
+        }
+        return result;
+      },
+
+      toggleMode(seg) {
+        if (seg.mode === 'length') {
+          seg.mode = 'range';
+        } else {
+          seg.mode = 'length';
+          const h = parseInt(seg.rangeHigh, 10);
+          const l = parseInt(seg.rangeLow, 10);
+          if (!isNaN(h) && !isNaN(l) && h >= l) {
+            seg.length = h - l + 1;
+          }
+        }
+        this.refreshUI();
+      },
+
+      addSubsegment(seg) {
+        seg.children.push(this.createSegment('Sub_' + (this.nextId - 1), 4));
+        this.refreshUI();
+      },
+
+      deleteSegment(parentList, idx) {
+        if (parentList.length <= 1 && parentList === this.segments) {
+          this.showMessage('至少保留一个根域段');
+          return;
+        }
+        parentList.splice(idx, 1);
+        this.refreshUI();
+      },
+
+      saveConfig() {
+        this.syncFromForm();
+        const config = {
+          bitWidth: this.bitWidth,
+          inputBase: this.inputBase,
+          segments: JSON.parse(JSON.stringify(this.segments))
+        };
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'segment_config.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showMessage('配置已保存', 'success');
+      },
+
+      loadConfigFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const config = JSON.parse(e.target.result);
+            if (!config.segments) {
+              this.showMessage('配置文件格式错误：缺少 segments 节点');
+              return;
+            }
+            this.bitWidth = config.bitWidth || 32;
+            this.inputBase = config.inputBase || 'hex';
+            this.segments = config.segments;
+            this.reassignIds(this.segments);
+            this.showMessage('配置已导入', 'success');
+            this.syncToForm();
+            this.refreshUI();
+          } catch (err) {
+            this.showMessage('配置文件解析失败: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      },
+
+      reassignIds(segments) {
+        for (let seg of segments) {
+          seg.id = this.generateId();
+          if (seg.children && seg.children.length > 0) {
+            this.reassignIds(seg.children);
+          }
+        }
+      },
+
+      loadExample(num) {
+        switch (num) {
+          case 1:
+            this.inputData = '12345678';
+            this.bitWidth = 32;
+            this.inputBase = 'hex';
+            this.segments = [
+              this.createSegment('Byte1', 8),
+              this.createSegment('Byte2', 8),
+              this.createSegment('Word2', 16)
+            ];
+            break;
+          case 2:
+            this.inputData = '12345678';
+            this.bitWidth = 32;
+            this.inputBase = 'hex';
+            var s1 = this.createSegment('HighByte', 8);
+            s1.mode = 'range'; s1.rangeHigh = '31'; s1.rangeLow = '24';
+            var s2 = this.createSegment('LowByte', 8);
+            s2.mode = 'range'; s2.rangeHigh = '7'; s2.rangeLow = '0';
+            this.segments = [s1, s2];
+            break;
+          case 3:
+            this.inputData = '1234';
+            this.bitWidth = 16;
+            this.inputBase = 'hex';
+            var header = this.createSegment('Header', 16);
+            header.children = [
+              this.createSegment('Version', 4),
+              this.createSegment('Type', 4),
+              this.createSegment('Length', 8)
+            ];
+            this.segments = [header];
+            break;
+        }
+        this.syncToForm();
+        this.parseData();
+      },
+
+      renderChart() {
+        const chartDom = document.getElementById('bitChart');
+        if (!chartDom || !this.parsedOnce) return;
+        const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+        let colorIdx = 0;
+        let html = '<div class="bit-bar-wrap">';
+        for (let seg of this.segments) {
+          const len = parseInt(seg.length, 10) || 0;
+          if (len <= 0) continue;
+          const pct = (len / this.bitWidth) * 100;
+          const bg = colors[colorIdx % colors.length];
+          colorIdx++;
+          const title = escapeAttr(seg.name + ' (' + len + 'b)');
+          const label = escapeHtml(seg.name) + ' · ' + len + 'b';
+          html += '<div class="bit-bar-seg" style="width:' + pct + '%;background:' + bg + '" title="' + title + '">' + label + '</div>';
+        }
+        html += '</div>';
+        chartDom.innerHTML = html;
+      },
+
+      syncFromForm() {
+        this.inputData = document.getElementById('inp-data').value;
+        this.bitWidth = parseInt(document.getElementById('inp-bw').value, 10) || 32;
+        this.inputBase = document.getElementById('sel-base').value;
+      },
+
+      syncToForm() {
+        document.getElementById('inp-data').value = this.inputData;
+        document.getElementById('inp-bw').value = this.bitWidth;
+        document.getElementById('sel-base').value = this.inputBase;
+      },
+
+      refreshUI() {
+        const w = this.getOverlapWarning();
+        const warnEl = document.getElementById('warn-inline');
+        if (w) {
+          warnEl.textContent = '⚠ ' + w;
+          warnEl.classList.add('show');
+          this.overlapWarningModalOpen = true;
+        } else {
+          warnEl.classList.remove('show');
+          warnEl.textContent = '';
+          this.overlapWarningModalOpen = false;
+        }
+        syncOverlapModal();
+        renderSegmentRows(this);
+        const chartPanel = document.getElementById('chart-panel');
+        chartPanel.hidden = !this.parsedOnce;
+        if (this.parsedOnce) queueMicrotask(() => this.renderChart());
+      }
+    };
+  }
+
+  function renderSegmentRows(app) {
+    const root = document.getElementById('segments-root');
+    const items = app.getFlattenedSegments();
+    let html = '';
+    for (const item of items) {
+      const seg = item.seg;
+      const depth = item.depth;
+      const id = seg.id;
+      const ref = findParentRef(app.segments, id);
+      const canDel = !(ref && ref.parentList === app.segments && ref.parentList.length <= 1);
+      const indentClass = depth > 0 ? ' indent' : '';
+      const ph = (seg.children && seg.children.length) ? '（由子域段合成）' : '';
+
+      let mid = '';
+      if (seg.mode === 'length') {
+        mid += '<div class="sg-field"><label>Length</label><input type="number" min="1" data-seg-id="' + id + '" data-field="length" value="' + escapeAttr(seg.length) + '"></div>';
+      } else {
+        mid += '<div class="sg-field"><label>High</label><input type="text" data-seg-id="' + id + '" data-field="rangeHigh" value="' + escapeAttr(seg.rangeHigh) + '"></div>';
+        mid += '<div class="sg-field"><label>Low</label><input type="text" data-seg-id="' + id + '" data-field="rangeLow" value="' + escapeAttr(seg.rangeLow) + '"></div>';
+      }
+
+      const modeBtnClass = seg.mode === 'length' ? 'btn-length' : 'btn-range';
+      const modeLabel = seg.mode === 'length' ? 'Length' : 'Range';
+
+      html += '<div class="segment-row' + indentClass + '" data-seg-row="' + id + '" style="margin-left:' + (depth * 16) + 'px">';
+      html += '<div class="sg-grid">';
+      html += '<div class="sg-field"><label>Name</label><input type="text" data-seg-id="' + id + '" data-field="name" value="' + escapeAttr(seg.name) + '"></div>';
+      html += mid;
+      html += '<div class="sg-field"><label>模式</label><button type="button" class="btn btn-sm ' + modeBtnClass + '" data-action="toggle-mode" data-seg-id="' + id + '">' + modeLabel + '</button></div>';
+      html += '<div class="sg-field"><label>显示/值</label><input type="text" data-seg-id="' + id + '" data-field="value" value="' + escapeAttr(seg.value) + '" placeholder="' + escapeAttr(ph) + '"></div>';
+      html += '<div class="sg-field"><label>Base</label><select data-seg-id="' + id + '" data-field="base">';
+      ['hex', 'dec', 'bin'].forEach(function (b) {
+        html += '<option value="' + b + '"' + (seg.base === b ? ' selected' : '') + '>' + b + '</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="sg-actions">';
+      html += '<button type="button" class="btn btn-sm btn-primary" data-action="add-child" data-seg-id="' + id + '">+ 子域段</button>';
+      html += '<button type="button" class="btn btn-sm btn-danger" data-action="del-seg" data-seg-id="' + id + '"' + (canDel ? '' : ' disabled') + '>删除</button>';
+      html += '</div></div>';
+      if (seg.error) {
+        html += '<div class="sg-err">' + escapeHtml(seg.error) + '</div>';
+      }
+      html += '</div>';
+    }
+    root.innerHTML = html;
+  }
+
+  function syncMessage() {
+    const bar = document.getElementById('msg-bar');
+    const t = document.getElementById('msg-text');
+    const app = window.__tableParseApp;
+    if (!app || !app.message.text) {
+      bar.classList.remove('show', 'ok', 'err');
+      t.textContent = '';
+      return;
+    }
+    t.textContent = (app.message.type === 'error' ? '❌ ' : '✅ ') + app.message.text;
+    bar.classList.add('show');
+    bar.classList.toggle('ok', app.message.type === 'success');
+    bar.classList.toggle('err', app.message.type !== 'success');
+  }
+
+  function syncOverlapModal() {
+    const app = window.__tableParseApp;
+    const el = document.getElementById('modal-overlap');
+    const body = document.getElementById('overlap-body');
+    if (!app || !app.overlapWarningModalOpen || !app.getOverlapWarning()) {
+      el.classList.remove('open');
+      return;
+    }
+    body.textContent = app.getOverlapWarning();
+    el.classList.add('open');
+  }
+
+  function syncValidityModal() {
+    const app = window.__tableParseApp;
+    const el = document.getElementById('modal-validity');
+    const body = document.getElementById('validity-body');
+    if (!app || !app.validityModalOpen) {
+      el.classList.remove('open');
+      return;
+    }
+    let html = '';
+    app.validityResults.forEach(function (item) {
+      const cls = item.level === 'error' ? 'err' : (item.level === 'warning' ? 'warn' : 'ok');
+      const icon = item.level === 'error' ? '❌' : (item.level === 'warning' ? '⚠️' : '✅');
+      html += '<div class="valid-row ' + cls + '"><span>' + icon + '</span><span>' + escapeHtml(item.msg) + '</span></div>';
+    });
+    body.innerHTML = html;
+    el.classList.add('open');
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+    const app = window.__tableParseApp;
+    if (id === 'modal-overlap' && app) app.overlapWarningModalOpen = false;
+    if (id === 'modal-validity' && app) app.validityModalOpen = false;
+  }
+
+  const app = segmentParser();
+  window.__tableParseApp = app;
+  app.addSegment();
+
+  document.getElementById('btn-parse').addEventListener('click', () => app.parseData());
+  document.getElementById('btn-reverse').addEventListener('click', () => app.reverseParse());
+  document.getElementById('btn-add-seg').addEventListener('click', () => app.addSegment());
+  document.getElementById('btn-clear-seg').addEventListener('click', () => app.clearAllSegments());
+  document.getElementById('btn-save-cfg').addEventListener('click', () => app.saveConfig());
+  document.getElementById('btn-load-cfg').addEventListener('click', () => document.getElementById('file-cfg').click());
+  document.getElementById('file-cfg').addEventListener('change', function (e) {
+    const f = e.target.files[0];
+    if (f) app.loadConfigFile(f);
+    e.target.value = '';
+  });
+  document.getElementById('btn-validity').addEventListener('click', function () {
+    app.syncFromForm();
+    app.runValidityCheck();
+  });
+  document.getElementById('btn-help').addEventListener('click', function () {
+    document.getElementById('modal-help').classList.add('open');
+  });
+  document.getElementById('msg-close').addEventListener('click', function () {
+    app.message = { text: '', type: '' };
+    syncMessage();
+  });
+
+  document.querySelectorAll('[data-close]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      closeModal(btn.getAttribute('data-close'));
+    });
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(function (ov) {
+    ov.addEventListener('click', function (e) {
+      if (e.target === ov) closeModal(ov.id);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      ['modal-help', 'modal-validity', 'modal-overlap'].forEach(function (id) {
+        closeModal(id);
+      });
+    }
+  });
+
+  document.querySelectorAll('.ex-card').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      app.loadExample(parseInt(btn.getAttribute('data-example'), 10));
+    });
+  });
+
+  document.getElementById('segments-root').addEventListener('input', function (e) {
+    const el = e.target;
+    const sid = el.getAttribute('data-seg-id');
+    const field = el.getAttribute('data-field');
+    if (!sid || !field) return;
+    const seg = findSegById(app.segments, parseInt(sid, 10));
+    if (!seg) return;
+    if (field === 'length') seg.length = parseInt(el.value, 10) || 1;
+    else if (field === 'name') seg.name = el.value;
+    else if (field === 'value') seg.value = el.value;
+    else if (field === 'rangeHigh') seg.rangeHigh = el.value;
+    else if (field === 'rangeLow') seg.rangeLow = el.value;
+  });
+
+  document.getElementById('segments-root').addEventListener('change', function (e) {
+    const el = e.target;
+    if (el.tagName !== 'SELECT' || !el.getAttribute('data-field')) return;
+    const sid = el.getAttribute('data-seg-id');
+    const seg = findSegById(app.segments, parseInt(sid, 10));
+    if (seg) seg.base = el.value;
+  });
+
+  document.getElementById('segments-root').addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const sid = parseInt(btn.getAttribute('data-seg-id'), 10);
+    const seg = findSegById(app.segments, sid);
+    if (action === 'toggle-mode' && seg) app.toggleMode(seg);
+    else if (action === 'add-child' && seg) app.addSubsegment(seg);
+    else if (action === 'del-seg') {
+      const ref = findParentRef(app.segments, sid);
+      if (ref) app.deleteSegment(ref.parentList, ref.idx);
+    }
+  });
+
+  app.syncToForm();
+  app.refreshUI();
+})();
+</script>
+</body>
+</html>

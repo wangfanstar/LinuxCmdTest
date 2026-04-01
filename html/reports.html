@@ -11,21 +11,28 @@ header{max-width:960px;margin:0 auto 24px;display:flex;align-items:center;gap:14
 header h1{font-size:1.1rem;font-weight:600;color:#f0f6fc}
 .back-link{font-size:.75rem;color:#8b949e;text-decoration:none;border:1px solid #30363d;border-radius:6px;padding:5px 12px}
 .back-link:hover{color:#58a6ff;border-color:#58a6ff}
-#status{font-size:.72rem;color:#8b949e;margin-left:auto}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#status{font-size:.72rem;color:#8b949e}
 #status.err{color:#f85149}
 #status.ok{color:#3fb950}
 main{max-width:960px;margin:0 auto}
 .btn-refresh{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:.75rem;padding:5px 12px;cursor:pointer;margin-left:8px}
 .btn-refresh:hover{border-color:#58a6ff;color:#58a6ff}
+.filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:.75rem;color:#8b949e}
+.filters label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.filters input{accent-color:#58a6ff}
 .month-block{background:#161b22;border:1px solid #21262d;border-radius:10px;margin-bottom:16px;overflow:hidden}
 .month-hd{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:#58a6ff;font-weight:600;padding:12px 16px;background:#1c2128;border-bottom:1px solid #21262d}
 .file-list{list-style:none}
-.file-list li{border-bottom:1px solid #21262d}
+.file-list li{border-bottom:1px solid #21262d;display:flex;align-items:stretch;gap:0}
 .file-list li:last-child{border-bottom:none}
-.file-list a{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;color:#c9d1d9;font-size:.82rem;transition:background .12s}
+.file-list a{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;color:#c9d1d9;font-size:.82rem;transition:background .12s;flex:1;min-width:0}
 .file-list a:hover{background:#21262d;color:#58a6ff}
+.btn-del{flex-shrink:0;align-self:center;margin-right:12px;background:transparent;border:1px solid #30363d;border-radius:6px;color:#f85149;font-size:.68rem;padding:4px 10px;cursor:pointer}
+.btn-del:hover{border-color:#f85149;background:#21262d}
 .fname{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;word-break:break-all}
 .fmeta{font-size:.68rem;color:#8b949e;white-space:nowrap;flex-shrink:0}
+.kind-tag{font-size:.62rem;color:#58a6ff;opacity:.85;margin-right:6px}
 .empty{padding:40px 20px;text-align:center;color:#8b949e;font-size:.88rem}
 .empty code{color:#58a6ff;font-size:.75rem}
 </style>
@@ -33,9 +40,15 @@ main{max-width:960px;margin:0 auto}
 <body>
 <header>
   <a class="back-link" href="/index.html">← 返回首页</a>
-  <h1>已存档 HTML 报告</h1>
+  <h1>已存档报告（HTML / JSON）</h1>
   <button type="button" class="btn-refresh" id="btn-refresh" title="重新加载列表">↻ 刷新</button>
-  <span id="status"></span>
+  <div class="header-right">
+    <div class="filters" id="filters">
+      <label><input type="checkbox" id="chk-html" checked> 显示 HTML</label>
+      <label><input type="checkbox" id="chk-json" checked> 显示 JSON</label>
+    </div>
+    <span id="status"></span>
+  </div>
 </header>
 <main id="main">
   <div class="empty" id="loading">正在加载…</div>
@@ -56,6 +69,89 @@ function esc(s) {
   t.textContent = s;
   return t.innerHTML;
 }
+function reportHref(legacy, user, ym, name) {
+  if (legacy)
+    return '/report/' + encodeURIComponent(ym) + '/' + encodeURIComponent(name);
+  return '/report/' + encodeURIComponent(user) + '/' + encodeURIComponent(ym) + '/' + encodeURIComponent(name);
+}
+function groupTitle(g) {
+  const ym = g.ym || '';
+  if (g.legacy) return ym + ' · 旧路径（无用户目录）';
+  return (g.user || '—') + ' / ' + ym;
+}
+function kindVisible(kind) {
+  const showHtml = document.getElementById('chk-html').checked;
+  const showJson = document.getElementById('chk-json').checked;
+  const k = (kind || 'html').toLowerCase();
+  if (k === 'json') return showJson;
+  return showHtml;
+}
+let reportsCache = null;
+function renderReportsFromCache() {
+  const main = document.getElementById('main');
+  const st = document.getElementById('status');
+  const data = reportsCache;
+  if (!data) return;
+  const groups = data.groups || [];
+  let n = 0;
+  let html = '';
+  for (const g of groups) {
+    const files = (g.files || []).filter(function (f) { return kindVisible(f.kind); });
+    if (!files.length) continue;
+    n += files.length;
+    html += '<section class="month-block"><div class="month-hd">' + esc(groupTitle(g)) + ' · ' + files.length + ' 个文件</div><ul class="file-list">';
+    for (const f of files) {
+      const name = f.name || '';
+      const href = reportHref(!!g.legacy, g.user || '', g.ym || '', name);
+      const kind = (f.kind || 'html').toLowerCase();
+      const kindLabel = kind === 'json' ? 'JSON' : 'HTML';
+      const dLegacy = g.legacy ? '1' : '0';
+      const dUser = encodeURIComponent(g.user || '');
+      const dYm = encodeURIComponent(g.ym || '');
+      const dName = encodeURIComponent(name);
+      html += '<li><a target="_blank" rel="noopener" href="' + esc(href) + '">' +
+        '<span class="kind-tag">' + esc(kindLabel) + '</span>' +
+        '<span class="fname">' + esc(name) + '</span>' +
+        '<span class="fmeta">' + fmtSize(f.size || 0) + ' · ' + fmtTime(f.mtime) + '</span></a>' +
+        '<button type="button" class="btn-del" data-legacy="' + dLegacy + '" data-user="' + dUser.replace(/"/g, '&quot;') + '" data-ym="' + dYm.replace(/"/g, '&quot;') + '" data-name="' + dName.replace(/"/g, '&quot;') + '">删除</button></li>';
+    }
+    html += '</ul></section>';
+  }
+  if (!html) {
+    const totalFiles = groups.reduce(function (acc, g) { return acc + (g.files || []).length; }, 0);
+    if (totalFiles === 0) {
+      main.innerHTML = '<div class="empty">暂无存档报告。<br><br>在 <a href="/linux_cmd_test.html" style="color:#58a6ff">Linux 命令行测试</a> 执行后使用「💾 存档」保存到 <code>html/report/&lt;SSH用户名&gt;/年月/</code></div>';
+      st.textContent = '0 个分组';
+    } else {
+      main.innerHTML = '<div class="empty">当前筛选下没有可显示的文件。请勾选「显示 HTML」或「显示 JSON」。</div>';
+      st.textContent = groups.length + ' 个分组 · 筛选后 0 条';
+    }
+  } else {
+    main.innerHTML = html;
+    st.textContent = groups.length + ' 个分组 · 显示 ' + n + ' 个文件';
+  }
+  st.className = 'ok';
+}
+async function deleteReport(legacy, user, ym, name) {
+  const body = JSON.stringify({
+    legacy: !!legacy,
+    user: user || '',
+    ym: ym || '',
+    name: name
+  });
+  const resp = await fetch('/api/delete-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body
+  });
+  let j = {};
+  try { j = await resp.json(); } catch (e) { /* ignore */ }
+  if (!resp.ok || !j.ok) {
+    alert(j.error || ('删除失败 HTTP ' + resp.status));
+    return false;
+  }
+  return true;
+}
 async function loadReports() {
   const main = document.getElementById('main');
   const st = document.getElementById('status');
@@ -66,44 +162,40 @@ async function loadReports() {
     const resp = await fetch('/api/reports');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
-    const months = data.months || [];
-    if (!months.length) {
-      main.innerHTML = '<div class="empty">暂无存档报告。<br><br>在 <a href="/linux_cmd_test.html" style="color:#58a6ff">Linux 命令行测试</a> 执行后使用「💾 存档」保存到 <code>html/report/年月/</code></div>';
-      st.textContent = '0 个月份';
+    const groups = data.groups || [];
+    reportsCache = data;
+    if (!groups.length) {
+      main.innerHTML = '<div class="empty">暂无存档报告。<br><br>在 <a href="/linux_cmd_test.html" style="color:#58a6ff">Linux 命令行测试</a> 执行后使用「💾 存档」保存到 <code>html/report/&lt;SSH用户名&gt;/年月/</code></div>';
+      st.textContent = '0 个分组';
       st.className = 'ok';
       return;
     }
-    let n = 0;
-    let html = '';
-    for (const m of months) {
-      const ym = m.ym || '';
-      const files = m.files || [];
-      if (!files.length) continue;
-      n += files.length;
-      html += '<section class="month-block"><div class="month-hd">' + esc(ym) + ' · ' + files.length + ' 个文件</div><ul class="file-list">';
-      for (const f of files) {
-        const name = f.name || '';
-        const href = '/report/' + encodeURIComponent(ym) + '/' + encodeURIComponent(name);
-        html += '<li><a target="_blank" rel="noopener" href="' + href + '">' +
-          '<span class="fname">' + esc(name) + '</span>' +
-          '<span class="fmeta">' + fmtSize(f.size || 0) + ' · ' + fmtTime(f.mtime) + '</span></a></li>';
-      }
-      html += '</ul></section>';
-    }
-    if (!html) {
-      main.innerHTML = '<div class="empty">暂无 .html 报告文件。</div>';
-    } else {
-      main.innerHTML = html;
-    }
-    st.textContent = months.length + ' 个目录 · ' + n + ' 个报告';
-    st.className = 'ok';
+    renderReportsFromCache();
   } catch (e) {
+    reportsCache = null;
     main.innerHTML = '<div class="empty err">加载失败：' + esc(e.message || String(e)) + '</div>';
     st.textContent = '加载失败';
     st.className = 'err';
   }
 }
 document.getElementById('btn-refresh').addEventListener('click', loadReports);
+document.getElementById('chk-html').addEventListener('change', function () {
+  if (reportsCache) renderReportsFromCache();
+});
+document.getElementById('chk-json').addEventListener('change', function () {
+  if (reportsCache) renderReportsFromCache();
+});
+document.getElementById('main').addEventListener('click', function (e) {
+  const btn = e.target.closest('.btn-del');
+  if (!btn) return;
+  const name = decodeURIComponent(btn.getAttribute('data-name') || '');
+  if (!name) return;
+  if (!confirm('确定删除文件「' + name + '」？此操作不可恢复。')) return;
+  const legacy = btn.getAttribute('data-legacy') === '1';
+  const user = decodeURIComponent(btn.getAttribute('data-user') || '');
+  const ym = decodeURIComponent(btn.getAttribute('data-ym') || '');
+  deleteReport(legacy, user, ym, name).then(function (ok) { if (ok) loadReports(); });
+});
 loadReports();
 </script>
 </body>

@@ -522,6 +522,28 @@ static void sanitize_report_basename(char *name)
     }
 }
 
+/* 存档文件名净化（删除接口用）：不强制改后缀，由 report_*_basename_ok 校验 */
+static void sanitize_report_archive_name(char *name)
+{
+    char *slash = strrchr(name, '/');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+    slash = strrchr(name, '\\');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+
+    for (char *p = name; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == '"' || *p < 0x20)
+            *p = '_';
+    }
+    while (name[0] == '.')
+        memmove(name, name + 1, strlen(name));
+    if (name[0] == '\0')
+        return;
+    if (strlen(name) > 200)
+        name[200] = '\0';
+}
+
 /* SSH 登录名净化为单级目录名：report/<user>/… */
 static void sanitize_report_user_dir(char *name, size_t cap)
 {
@@ -796,11 +818,12 @@ static void handle_api_save_config(int client_fd, const char *req_headers,
 }
 
 /* ------------------------------------------------------------------ */
-/*  GET /api/reports — 列出已存档 .html（旧路径 + 按用户分子目录）       */
+/*  GET /api/reports — 列出已存档 .html / .json（旧路径 + 按用户分子目录） */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
     char      name[256];
+    char      kind[8]; /* "html" or "json" */
     long long mtime;
     long long size;
 } report_one_t;
@@ -905,7 +928,7 @@ static int cmp_report_grp_desc(const void *a, const void *b)
     return strcmp(x->user, y->user);
 }
 
-static void scan_report_dir_html(const char *sub, report_grp_t *g)
+static void scan_report_dir_archive_files(const char *sub, report_grp_t *g)
 {
     DIR           *sd = opendir(sub);
     struct dirent *de;
@@ -915,7 +938,9 @@ static void scan_report_dir_html(const char *sub, report_grp_t *g)
         de = readdir(sd);
         if (!de)
             break;
-        if (!report_html_basename_ok(de->d_name))
+        int is_html = report_html_basename_ok(de->d_name);
+        int is_json = !is_html && report_json_basename_ok(de->d_name);
+        if (!is_html && !is_json)
             continue;
         {
             char        fp[768];
@@ -926,6 +951,9 @@ static void scan_report_dir_html(const char *sub, report_grp_t *g)
             strncpy(g->files[g->nf].name, de->d_name,
                     sizeof(g->files[g->nf].name) - 1);
             g->files[g->nf].name[sizeof(g->files[g->nf].name) - 1] = '\0';
+            strncpy(g->files[g->nf].kind, is_json ? "json" : "html",
+                    sizeof(g->files[g->nf].kind) - 1);
+            g->files[g->nf].kind[sizeof(g->files[g->nf].kind) - 1] = '\0';
             g->files[g->nf].mtime = (long long)st.st_mtime;
             g->files[g->nf].size  = (long long)st.st_size;
             g->nf++;
@@ -969,14 +997,14 @@ static void handle_api_reports(int client_fd)
             strncpy(g->ym, de->d_name, 7);
             g->ym[7] = '\0';
             snprintf(sub, sizeof(sub), "%s/%s", base, de->d_name);
-            scan_report_dir_html(sub, g);
+            scan_report_dir_archive_files(sub, g);
             if (g->nf > 0)
                 ng++;
         }
     }
     rewinddir(d);
 
-    /* 新布局：report 下用户目录再下六位年月目录中的 .html */
+    /* 新布局：report 下用户目录再下六位年月目录中的 .html / .json */
     while (ng < REPORTS_MAX_GROUPS) {
         de = readdir(d);
         if (!de)
@@ -1013,7 +1041,7 @@ static void handle_api_reports(int client_fd)
                     strncpy(g->ym, ue->d_name, 7);
                     g->ym[7] = '\0';
                     snprintf(sub, sizeof(sub), "%s/%s", userbase, ue->d_name);
-                    scan_report_dir_html(sub, g);
+                    scan_report_dir_archive_files(sub, g);
                     if (g->nf > 0)
                         ng++;
                 }
@@ -1048,6 +1076,8 @@ static void handle_api_reports(int client_fd)
                     SB_LIT(&sb, ",");
                 SB_LIT(&sb, "{\"name\":");
                 sb_json_str(&sb, g->files[fi].name);
+                SB_LIT(&sb, ",\"kind\":");
+                sb_json_str(&sb, g->files[fi].kind[0] ? g->files[fi].kind : "html");
                 sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
                            (long long)g->files[fi].mtime,
                            (long long)g->files[fi].size);
@@ -1063,6 +1093,82 @@ static void handle_api_reports(int client_fd)
     } else {
         send_json(client_fd, 200, "OK", "{\"months\":[],\"groups\":[]}", 28);
     }
+}
+
+/* POST /api/delete-report — 删除 report 下已存档 .html / .json（JSON 体） */
+static void handle_api_delete_report(int client_fd, const char *body)
+{
+    char name[256] = {0};
+    char user[128] = {0};
+    char ym[16]    = {0};
+    char filepath[800];
+    int  legacy    = 0;
+
+    if (!body || !body[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        return;
+    }
+    {
+        const char *p = strstr(body, "\"legacy\"");
+        if (p) {
+            p = strchr(p, ':');
+            if (p) {
+                p++;
+                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+                if (strncmp(p, "true", 4) == 0) legacy = 1;
+            }
+        }
+    }
+    if (json_get_str(body, "name", name, sizeof(name)) < 0 || !name[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing name\"}", 37);
+        return;
+    }
+    sanitize_report_archive_name(name);
+    if (!report_html_basename_ok(name) && !report_json_basename_ok(name)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid filename\"}", 40);
+        return;
+    }
+    if (json_get_str(body, "ym", ym, sizeof(ym)) < 0 || !dir_name_is_yyyymm(ym)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid ym\"}", 33);
+        return;
+    }
+
+    if (legacy) {
+        snprintf(filepath, sizeof(filepath), "%s/report/%s/%s", WEB_ROOT, ym,
+                 name);
+    } else {
+        if (json_get_str(body, "user", user, sizeof(user)) < 0 || !user[0]) {
+            send_json(client_fd, 400, "Bad Request",
+                      "{\"ok\":false,\"error\":\"missing user\"}", 37);
+            return;
+        }
+        sanitize_report_user_dir(user, sizeof(user));
+        snprintf(filepath, sizeof(filepath), "%s/report/%s/%s/%s", WEB_ROOT,
+                 user, ym, name);
+    }
+
+    {
+        char prefix[400];
+        snprintf(prefix, sizeof(prefix), "%s/report/", WEB_ROOT);
+        if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
+            send_json(client_fd, 500, "Internal Server Error",
+                      "{\"ok\":false,\"error\":\"path\"}", 28);
+            return;
+        }
+    }
+
+    if (unlink(filepath) != 0) {
+        int code = 500;
+        if (errno == ENOENT) code = 404;
+        send_json(client_fd, code, code == 404 ? "Not Found" : "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"unlink failed\"}", 33);
+        return;
+    }
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
 }
 
 static int query_param_get(const char *path, const char *key, char *out,
@@ -2674,6 +2780,12 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 send_json(client_fd, 400, "Bad Request",
                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
             }
+        } else if (strcmp(path, "/api/delete-report") == 0) {
+            if (body)
+                handle_api_delete_report(client_fd, body);
+            else
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");

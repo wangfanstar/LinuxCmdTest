@@ -2629,16 +2629,55 @@ function buildCmdsTxt() {
 }
 
 function buildReportHTML() {
-  /* 将命令列表编码为 base64 作为内嵌附件 */
-  const txtContent = buildCmdsTxt();
-  const b64 = btoa(unescape(encodeURIComponent(txtContent)));
-  const txtDataURI = 'data:text/plain;charset=utf-8;base64,' + b64;
   const tsStr = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-  const attachBtn = `<div style="margin-bottom:16px">
+
+  /* ── 配置附件 JSON：连接参数 + 命令列表 + 预期数据 ── */
+  const cfgObj = {
+    version:   1,
+    host:      document.getElementById('f-host').value.trim(),
+    port:      parseInt(document.getElementById('f-port').value) || 22,
+    user:      document.getElementById('f-user').value.trim(),
+    timeout:   parseInt(document.getElementById('f-timeout').value) || 300,
+    auto_exit: !!(document.getElementById('f-auto-exit')?.checked),
+    commands:  getCommandListItems().map(o => {
+      const row = { cmd: o.cmd };
+      if (o.marker === 'ctrlc') row.marker = 'ctrlc';
+      if (o.noSeq) row.skipSeq = true;
+      return row;
+    })
+  };
+  if (typeof expectedData !== 'undefined' && expectedData) cfgObj.expected = expectedData;
+  const cfgJson    = JSON.stringify(cfgObj, null, 2);
+  const cfgB64     = btoa(unescape(encodeURIComponent(cfgJson)));
+  const cfgDataURI = 'data:application/json;charset=utf-8;base64,' + cfgB64;
+
+  /* ── 命令列表纯文本附件（保留兼容） ── */
+  const txtContent = buildCmdsTxt();
+  const b64        = btoa(unescape(encodeURIComponent(txtContent)));
+  const txtDataURI = 'data:text/plain;charset=utf-8;base64,' + b64;
+
+  /* ── 报告内嵌自下载按钮（onclick 直接序列化当前 DOM） ── */
+  const selfDlBtn =
+    `<button onclick="(function(){` +
+      `var a=document.createElement('a');` +
+      `a.download='cmd-report-${tsStr}.html';` +
+      `a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));` +
+      `document.body.appendChild(a);a.click();document.body.removeChild(a);` +
+    `})()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;` +
+    `background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#58a6ff;` +
+    `font-size:12px;cursor:pointer;font-family:inherit">` +
+    `↓ 下载本报告 HTML</button>`;
+
+  const attachBtn = `<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <a href="${cfgDataURI}" download="config-${tsStr}.json"
+     style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:12px;text-decoration:none">
+    ↓ 配置文件 (config-${tsStr}.json)
+  </a>
   <a href="${txtDataURI}" download="commands-${tsStr}.txt"
      style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:12px;text-decoration:none">
-    ↓ 下载命令列表 (commands-${tsStr}.txt)
+    ↓ 命令列表 (commands-${tsStr}.txt)
   </a>
+  ${selfDlBtn}
 </div>`;
   const styles = `
     body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;padding:24px;max-width:1500px;margin:0 auto}

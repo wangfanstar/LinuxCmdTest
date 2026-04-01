@@ -678,7 +678,15 @@ body.edit-mode .cmd-output { cursor: text; }
 }
 .compare-pane.pass .compare-label { color: var(--green); background: #1a3a2428; }
 .compare-pane.fail .compare-label { color: var(--red);   background: #3d0a0a28; }
-.compare-pane .cmd-output { flex: 1; max-height: 300px; overflow-y: auto; }
+/* 固定高度使「实际 / 预期」输出区完全一致（不受标题栏换行影响） */
+.compare-pane .cmd-output {
+  flex: 0 0 280px;
+  height: 280px;
+  min-height: 280px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
 .compare-label-with-modes {
   display: flex;
   align-items: center;
@@ -707,8 +715,9 @@ body.edit-mode .cmd-output { cursor: text; }
 }
 .cmp-mode-btn:hover { border-color: var(--accent); color: var(--accent); }
 .cmp-mode-btn.cmp-mode-active { border-color: var(--accent); color: var(--accent); background: #1f3a6e30; }
-.cmp-mode-btn[data-mode="fuzzy"].cmp-mode-active { border-color: var(--yellow); color: var(--yellow); background: #3a2e0a40; }
+.cmp-mode-btn[data-action="spaces"].cmp-mode-active { border-color: var(--yellow); color: var(--yellow); background: #3a2e0a40; }
 .cmp-mode-btn[data-mode="ignore"].cmp-mode-active { border-color: var(--border); color: var(--dim); background: #21262d; }
+.cmp-mode-btn[data-action="spaces"] { min-width: 28px; font-size: 13px; }
 .cmp-mode-btn[data-action="hash"]                 { border-color: var(--border); color: var(--dim); margin-left: 4px; }
 .cmp-mode-btn[data-action="hash"].cmp-hash-active { border-color: var(--accent); color: var(--accent); background: #1f3a6e30; }
 
@@ -1312,25 +1321,25 @@ body.edit-mode .cmd-output { cursor: text; }
         <li>「<strong>📂 报告库</strong>」打开 <code>reports.html</code>，按月份浏览已存档的 HTML 报告</li>
       </ol>
 
-      <h3>比对规则（= / ~ / !）</h3>
-      <p><strong>不在命令列表里设置。</strong>命令集合中只填写要执行的 shell 文本；<code>=</code>、<code>~</code>、<code>!</code> 仅用于<strong>与预期结果比对</strong>：</p>
+      <h3>比对规则（≈ / ! / #）</h3>
+      <p><strong>不在命令列表里设置。</strong>命令集合中只填写要执行的 shell 文本；对比视图下的 <code>≈</code>、<code>!</code>、<code>#</code> 仅用于<strong>与预期结果比对</strong>：</p>
       <ul>
-        <li>在 <strong>对比视图</strong> 下，每条命令「实际输出」标题旁有三个小按钮：<code>=</code> 跟随全局「精确/模糊」、<code>~</code> 强制模糊、<code>!</code> 忽略本条比对（显示「— 跳过」）</li>
+        <li>在 <strong>对比视图</strong> 下，每条命令「实际输出」标题旁：<strong>≈</strong> 为「忽略空格」开关（开：按空白折叠后比对，等同 JSON <code>marker:"fuzzy"</code>；关：跟随全局「精确/模糊」）；<strong>!</strong> 忽略本条比对（显示「— 跳过」）；<strong>#</strong> 切换是否忽略以 <code>#</code> 开头的行</li>
         <li>点击按钮会写入内存中的预期数据；<strong>导出预期</strong> JSON 时会把每条对应的 <code>"marker"</code> 字段一并保存（<code>""</code> / <code>"fuzzy"</code> / <code>"ignore"</code>）</li>
         <li>也可直接编辑预期 JSON 中的 <code>marker</code> 后再 <strong>导入预期</strong></li>
       </ul>
-      <div class="note">版本号、时间戳等易变输出可在预期里设 <code>"marker":"ignore"</code>；含多余空格的输出可设 <code>"fuzzy"</code>。</div>
+      <div class="note">版本号、时间戳等易变输出可在预期里设 <code>"marker":"ignore"</code>；需忽略空格差异时打开 <strong>≈</strong> 或设 <code>"marker":"fuzzy"</code>。</div>
 
       <h3>预期结果比对</h3>
       <ol>
         <li>首次执行后点击 <strong>导出预期</strong>，生成含 <code>cmd</code>、<code>output</code>、可选 <code>marker</code> 的 JSON</li>
-        <li>再次执行后 <strong>导入预期</strong>，打开 <strong>对比视图</strong> 并排查看；用旁侧按钮调整 <code>= / ~ / !</code> 后再次导出即可固化</li>
+        <li>再次执行后 <strong>导入预期</strong>，打开 <strong>对比视图</strong> 并排查看；用旁侧按钮调整 <code>≈ / ! / #</code> 后再次导出即可固化</li>
         <li>每条命令显示「<strong>✓ 通过</strong>」「<strong>✗ 不符</strong>」或「<strong>— 跳过</strong>」</li>
-        <li>全局「<strong>模糊匹配 / 精确匹配</strong>」仅影响 <code>marker</code> 为空（<code>=</code>）的条目</li>
+        <li>全局「<strong>模糊匹配 / 精确匹配</strong>」仅影响 <strong>≈ 关闭</strong>且 <code>marker</code> 非 <code>fuzzy</code>、非 <code>ignore</code> 的条目</li>
       </ol>
 
       <h3>命令文件格式（导入 / 导出 .txt）</h3>
-      <p>每行一条<strong>原始命令</strong>，不含 <code>~</code> / <code>!</code> 前缀（比对规则只在预期 JSON 里）：</p>
+      <p>每行一条<strong>原始命令</strong>，不含比对前缀（比对规则只在预期 JSON / 对比视图按钮里）：</p>
       <pre># 注释行（以 # 开头）会被跳过
 uname -a
 hostname
@@ -1563,7 +1572,7 @@ function getCommands() {
     .map(i => i.value.trim()).filter(Boolean);
 }
 
-/** 命令列表项：仅 cmd + 可选 ctrlc；noSeq 仅影响左侧显示序号。~ / ! 不在命令区，而在「预期结果」JSON 的 marker 字段。 */
+/** 命令列表项：仅 cmd + 可选 ctrlc；noSeq 仅影响左侧显示序号。比对规则（≈ / ! / #）不在命令区，而在预期 JSON 的 marker / ignoreHash。 */
 function getCommandListItems() {
   return [...cmdList.querySelectorAll('.cmd-item')]
     .map(item => ({
@@ -2727,7 +2736,7 @@ function buildReportHTML() {
     .compare-body{display:grid;grid-template-columns:1fr 1fr;align-items:stretch}
     .compare-pane{border-right:1px solid #30363d;display:flex;flex-direction:column}
     .compare-pane:last-child{border-right:none}
-    .compare-pane .cmd-output{flex:1;max-height:300px;overflow-y:auto}
+    .compare-pane .cmd-output{flex:0 0 280px;height:280px;min-height:280px;max-height:280px;overflow-y:auto;box-sizing:border-box}
     .compare-label{font-size:11px;font-weight:600;text-transform:uppercase;padding:4px 14px;background:#1c2128;border-bottom:1px solid #30363d;color:#8b949e}
     .compare-pane.pass .compare-label{color:#3fb950;background:#1a3a2428}
     .compare-pane.fail .compare-label{color:#f85149;background:#3d0a0a28}
@@ -3115,17 +3124,17 @@ function refreshComparison() {
     const notesEl   = body.querySelector('.cmd-notes');
     const cmp       = document.createElement('div');
     cmp.className   = 'compare-body';
-    const act  = (m) => (expMarker === m ? ' cmp-mode-active' : '');
+    const actIgnore = expMarker === 'ignore' ? ' cmp-mode-active' : '';
+    const actSpaces = expMarker === 'fuzzy' ? ' cmp-mode-active' : '';
     const hashCls = ignoreHash ? ' cmp-hash-active' : '';
     const seqAttr = seqKey != null ? ` data-cmp-seq="${esc(seqKey)}"` : '';
     cmp.innerHTML =
       `<div class="compare-pane ${skipCompare ? '' : passed ? 'pass' : 'fail'}">` +
         `<div class="compare-label compare-label-with-modes">` +
           `<span>实际输出</span>` +
-          `<span class="cmp-mode-btns" title="比对规则写入预期 JSON 的 marker；= 模糊匹配">` +
-            `<button type="button" class="cmp-mode-btn${act('')}" data-cmp-idx="${idx}"${seqAttr} data-mode="">=</button>` +
-            `<button type="button" class="cmp-mode-btn${act('fuzzy')}" data-cmp-idx="${idx}"${seqAttr} data-mode="fuzzy">~</button>` +
-            `<button type="button" class="cmp-mode-btn${act('ignore')}" data-cmp-idx="${idx}"${seqAttr} data-mode="ignore">!</button>` +
+          `<span class="cmp-mode-btns" title="≈ 忽略空格；! 跳过比对；# 忽略以 # 开头的行">` +
+            `<button type="button" class="cmp-mode-btn${actSpaces}" data-cmp-idx="${idx}"${seqAttr} data-action="spaces" title="忽略空格：开＝折叠空白后比对（导出为 marker:fuzzy）；关＝跟随全局精确/模糊">≈</button>` +
+            `<button type="button" class="cmp-mode-btn${actIgnore}" data-cmp-idx="${idx}"${seqAttr} data-mode="ignore" title="忽略本条与预期的比对">!</button>` +
             `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}"${seqAttr} data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
           `</span>` +
         `</div>` +
@@ -3152,7 +3161,7 @@ function refreshComparison() {
   setReportNotesAlwaysEditable();
 }
 
-/* 对比视图：点击 = / ~ / ! / # 写入预期数据并重新比对 */
+/* 对比视图：点击 ≈ / ! / # 写入预期数据并重新比对 */
 report.addEventListener('click', function (ev) {
   const btn = ev.target.closest('.cmp-mode-btn');
   if (!btn || !expectedData) return;
@@ -3168,10 +3177,17 @@ report.addEventListener('click', function (ev) {
     /* # 按钮：切换忽略 # 行（默认 true，点击取反） */
     const cur = expectedData.commands[expIdx].ignoreHash !== false;
     expectedData.commands[expIdx].ignoreHash = !cur;
+  } else if (btn.getAttribute('data-action') === 'spaces') {
+    /* ≈：在 fuzzy（忽略空格）与「跟随全局」之间切换；从 skip 状态点一次回到非 fuzzy */
+    const row = expectedData.commands[expIdx];
+    const m = row.marker;
+    if (m === 'fuzzy') row.marker = '';
+    else if (m === 'ignore') row.marker = '';
+    else row.marker = 'fuzzy';
   } else {
-    /* = / ~ / ! 按钮：切换 marker */
+    /* ! 按钮：设为 ignore */
     const mode = btn.getAttribute('data-mode') || '';
-    expectedData.commands[expIdx].marker = (mode === 'fuzzy' || mode === 'ignore') ? mode : '';
+    if (mode === 'ignore') expectedData.commands[expIdx].marker = 'ignore';
   }
   if (window._saveState) window._saveState();
   refreshComparison();

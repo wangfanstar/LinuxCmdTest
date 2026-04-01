@@ -1505,7 +1505,8 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
 /*  POST /api/ssh-exec-stream  (SSE 流式，每条命令完成即推送)          */
 /* ------------------------------------------------------------------ */
 
-static void sse_write_json(int fd, const char *json)
+/* 返回 0 成功，-1 连接已断（EPIPE / ECONNRESET） */
+static int sse_write_json(int fd, const char *json)
 {
     /* 用 writev 一次性写出，避免 Nagle 算法将三次小写分批延迟发送 */
     struct iovec iov[3];
@@ -1515,10 +1516,26 @@ static void sse_write_json(int fd, const char *json)
     iov[1].iov_len  = strlen(json);
     iov[2].iov_base = (void *)"\n\n";
     iov[2].iov_len  = 2;
-    writev(fd, iov, 3);
+    ssize_t w = writev(fd, iov, 3);
+    return (w < 0) ? -1 : 0;
 }
 
-typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; int completed; } stream_ctx_t;
+typedef struct {
+    int   fd;
+    char (*cmds)[CMD_BUF_SIZE];
+    int   completed;
+    int   conn_broken;   /* 1 = 客户端已断开，停止写入并取消 SSH 会话 */
+} stream_ctx_t;
+
+/* 写入失败时：标记断开、立即杀掉 SSH 进程组，避免进程泄漏 */
+static void sse_on_write_fail(stream_ctx_t *ctx)
+{
+    if (!ctx->conn_broken) {
+        ctx->conn_broken = 1;
+        LOG_INFO("sse_stream: client disconnected, cancelling SSH session");
+        ssh_cancel_current();
+    }
+}
 
 static void on_stream_result(int idx, const char *cmd, const char *output,
                               int exit_code, const char *prompt_after, void *ud)
@@ -1527,13 +1544,19 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
     int           fd  = ctx->fd;
     strbuf_t      sb  = {0};
 
+    /* 连接已断：跳过所有写入（ssh_cancel_current 已在首次失败时调用） */
+    if (ctx->conn_broken) return;
+
     if (idx == -3) {
         /* PTY 部分输出事件（实时进度）：prompt_after 存放命令 0-based 下标字符串 */
         int cmd_i = (prompt_after && *prompt_after) ? atoi(prompt_after) : 0;
         sb_appendf(&sb, "{\"type\":\"partial\",\"i\":%d,\"output\":", cmd_i);
         sb_json_str(&sb, output ? output : "");
         SB_LIT(&sb, "}");
-        if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+        if (sb.data) {
+            if (sse_write_json(fd, sb.data) < 0) sse_on_write_fail(ctx);
+            free(sb.data);
+        }
         return;
     }
     if (idx == -2) {
@@ -1543,7 +1566,10 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
         sb_appendf(&sb, ",\"tail\":");
         sb_json_str(&sb, output ? output : "");
         SB_LIT(&sb, "}");
-        if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+        if (sb.data) {
+            if (sse_write_json(fd, sb.data) < 0) sse_on_write_fail(ctx);
+            free(sb.data);
+        }
         return;
     }
     if (idx == -1) {
@@ -1551,7 +1577,7 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
         sb_json_str(&sb, prompt_after ? prompt_after : "");
         SB_LIT(&sb, "}");
         if (sb.data) {
-            sse_write_json(fd, sb.data);
+            if (sse_write_json(fd, sb.data) < 0) sse_on_write_fail(ctx);
             free(sb.data);
         }
         return;
@@ -1566,7 +1592,7 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
     sb_json_str(&sb, prompt_after ? prompt_after : "");
     SB_LIT(&sb, "}");
     if (sb.data) {
-        sse_write_json(fd, sb.data);
+        if (sse_write_json(fd, sb.data) < 0) sse_on_write_fail(ctx);
         free(sb.data);
     }
 }
@@ -1633,13 +1659,13 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                    "\"log\":\"server file logs: ssh_pty_diag / ssh_session_exec_stream\"}",
                    timeout, eff_to);
         if (ds.data) {
-            sse_write_json(client_fd, ds.data);
+            sse_write_json(client_fd, ds.data);  /* 初始化阶段写失败：直接返回即可 */
             free(ds.data);
         }
     }
 
     /* 流式执行 */
-    stream_ctx_t ctx = { client_fd, cmd_bufs, 0 };
+    stream_ctx_t ctx = { client_fd, cmd_bufs, 0, 0 };
     char  error_buf[512] = {0};
     int   timed_out = 0;
     int   timeout_cmd_idx = -1;
@@ -1655,29 +1681,29 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                             net_device,
                             pty_debug);
 
-    /* 结束事件 */
-    int timeout_sec = (timeout > 0) ? timeout : 300;   /* 实际使用的超时秒数 */
-    strbuf_t sb = {0};
-    if (timed_out) {
-        /* 超时中断：发送已完成数量、实际超时秒数、以及被中断命令的部分输出 */
-        sb_appendf(&sb, "{\"type\":\"timeout\",\"completed\":%d,\"total\":%d,\"timeout_sec\":%d",
-                   ctx.completed, cmd_count, timeout_sec);
-        if (timeout_cmd_idx >= 0) {
-            sb_appendf(&sb, ",\"i\":%d", timeout_cmd_idx);
+    /* 结束事件（连接已断时跳过，SSH 进程已在写入失败时 cancel） */
+    if (!ctx.conn_broken) {
+        int timeout_sec = (timeout > 0) ? timeout : 300;
+        strbuf_t sb = {0};
+        if (timed_out) {
+            sb_appendf(&sb, "{\"type\":\"timeout\",\"completed\":%d,\"total\":%d,\"timeout_sec\":%d",
+                       ctx.completed, cmd_count, timeout_sec);
+            if (timeout_cmd_idx >= 0)
+                sb_appendf(&sb, ",\"i\":%d", timeout_cmd_idx);
+            if (partial_buf && partial_buf[0]) {
+                SB_LIT(&sb, ",\"partial\":");
+                sb_json_str(&sb, partial_buf);
+            }
+            SB_LIT(&sb, "}");
+        } else if (error_buf[0]) {
+            SB_LIT(&sb, "{\"type\":\"error\",\"message\":");
+            sb_json_str(&sb, error_buf);
+            SB_LIT(&sb, "}");
+        } else {
+            sb_appendf(&sb, "{\"type\":\"done\",\"total\":%d}", cmd_count);
         }
-        if (partial_buf && partial_buf[0]) {
-            SB_LIT(&sb, ",\"partial\":");
-            sb_json_str(&sb, partial_buf);
-        }
-        SB_LIT(&sb, "}");
-    } else if (error_buf[0]) {
-        SB_LIT(&sb, "{\"type\":\"error\",\"message\":");
-        sb_json_str(&sb, error_buf);
-        SB_LIT(&sb, "}");
-    } else {
-        sb_appendf(&sb, "{\"type\":\"done\",\"total\":%d}", cmd_count);
+        if (sb.data) { sse_write_json(client_fd, sb.data); free(sb.data); }
     }
-    if (sb.data) { sse_write_json(client_fd, sb.data); free(sb.data); }
     free(partial_buf);
     free(cmd_bufs);
 }

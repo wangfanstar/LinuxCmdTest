@@ -170,6 +170,151 @@ static int json_get_str(const char *json, const char *key,
     return 0;
 }
 
+/* 读取密码字段：支持 JSON 字符串或 null（空密码）；其它非字符串视为空 */
+static void json_read_pass_value_at(const char *vp, char *out, size_t len)
+{
+    out[0] = '\0';
+    if (!vp || !*vp) return;
+    if (strncmp(vp, "null", 4) == 0 &&
+        (vp[4] == '\0' || vp[4] == ',' || vp[4] == '}' || vp[4] == ']' ||
+         isspace((unsigned char)vp[4])))
+        return;
+    if (*vp != '"') return;
+    vp++;
+    size_t i = 0;
+    while (*vp && *vp != '"' && i < len - 1) {
+        if (*vp == '\\') {
+            vp++;
+            if (!*vp) break;
+            switch (*vp) {
+                case 'n': out[i++] = '\n'; break;
+                case 'r': out[i++] = '\r'; break;
+                case 't': out[i++] = '\t'; break;
+                default:  out[i++] = *vp; break;
+            }
+        } else {
+            out[i++] = *vp;
+        }
+        vp++;
+    }
+    out[i] = '\0';
+}
+
+static const char *json_parse_skip_string(const char *p)
+{
+    if (!p || *p != '"') return p;
+    p++;
+    while (*p) {
+        if (*p == '\\') {
+            if (!p[1]) break;
+            p += 2;
+            continue;
+        }
+        if (*p == '"') return p + 1;
+        p++;
+    }
+    return p;
+}
+
+/* 跳过 {…} 或 […]，字符串内忽略括号 */
+static const char *json_skip_composite(const char *p)
+{
+    int b = 0, s = 0;
+    if (*p == '{') {
+        b++;
+        p++;
+    } else if (*p == '[') {
+        s++;
+        p++;
+    } else
+        return p;
+    while (*p && (b > 0 || s > 0)) {
+        if (*p == '"') {
+            p = json_parse_skip_string(p);
+            continue;
+        }
+        if (*p == '{') {
+            b++;
+            p++;
+            continue;
+        }
+        if (*p == '}') {
+            b--;
+            p++;
+            continue;
+        }
+        if (*p == '[') {
+            s++;
+            p++;
+            continue;
+        }
+        if (*p == ']') {
+            s--;
+            p++;
+            continue;
+        }
+        p++;
+    }
+    return p;
+}
+
+static const char *json_skip_value_full(const char *p)
+{
+    while (p && *p && isspace((unsigned char)*p)) p++;
+    if (!p || !*p) return p;
+    if (*p == '"') return json_parse_skip_string(p);
+    if (*p == '{' || *p == '[') return json_skip_composite(p);
+    while (*p && *p != ',' && *p != '}' && *p != ']' &&
+           !isspace((unsigned char)*p))
+        p++;
+    return p;
+}
+
+/* 仅从根对象读取 pass / password，避免 strstr("\"pass\"") 命中 expected 等嵌套字段 */
+static void json_api_get_pass(const char *body, char *out, size_t len)
+{
+    out[0] = '\0';
+    const char *p = body;
+    while (*p && *p != '{') p++;
+    if (*p != '{') return;
+    p++;
+    for (;;) {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '}') return;
+        if (*p != '"') return;
+        p++;
+        const char *k0 = p;
+        while (*p && *p != '"') {
+            if (*p == '\\' && p[1]) {
+                p += 2;
+                continue;
+            }
+            p++;
+        }
+        if (*p != '"') return;
+        size_t klen = (size_t)(p - k0);
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ':') return;
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        int hit = (klen == 4 && !strncmp(k0, "pass", 4)) ||
+                  (klen == 8 && !strncmp(k0, "password", 8));
+        if (hit) {
+            json_read_pass_value_at(p, out, len);
+            return;
+        }
+        p = json_skip_value_full(p);
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ',') {
+            p++;
+            continue;
+        }
+        if (*p == '}')
+            return;
+    }
+}
+
 static int json_get_int(const char *json, const char *key, int def)
 {
     char search[128];
@@ -292,7 +437,7 @@ static int send_file(int fd, const char *filepath)
 }
 
 /* ------------------------------------------------------------------ */
-/*  POST /api/save-report — 将 HTML 报告写入 WEB_ROOT/report/YYYYMM/   */
+/*  报告存档：HTML / JSON 配置 → WEB_ROOT/report/<user>/YYYYMM/         */
 /* ------------------------------------------------------------------ */
 
 static int http_header_value(const char *headers, const char *name,
@@ -377,10 +522,95 @@ static void sanitize_report_basename(char *name)
     }
 }
 
+/* SSH 登录名净化为单级目录名：report/<user>/… */
+static void sanitize_report_user_dir(char *name, size_t cap)
+{
+    char *slash;
+
+    if (!name || cap < 4) return;
+    if (!name[0]) {
+        snprintf(name, cap, "root");
+        return;
+    }
+    slash = strrchr(name, '/');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+    slash = strrchr(name, '\\');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+
+    for (char *p = name; *p; p++) {
+        if (!isalnum((unsigned char)*p) && *p != '_' && *p != '.' && *p != '-')
+            *p = '_';
+    }
+    while (name[0] == '.')
+        memmove(name, name + 1, strlen(name) + 1);
+
+    if (name[0] == '\0') {
+        snprintf(name, cap, "root");
+        return;
+    }
+    if (strlen(name) > 63)
+        name[63] = '\0';
+}
+
+static void sanitize_config_basename(char *name)
+{
+    char *slash = strrchr(name, '/');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+    slash = strrchr(name, '\\');
+    if (slash)
+        memmove(name, slash + 1, strlen(slash + 1) + 1);
+
+    for (char *p = name; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == '"' || *p < 0x20)
+            *p = '_';
+    }
+    while (name[0] == '.')
+        memmove(name, name + 1, strlen(name));
+
+    if (name[0] == '\0') {
+        strncpy(name, "ssh-config.json", 256);
+        name[255] = '\0';
+        return;
+    }
+    size_t len = strlen(name);
+    if (len > 200)
+        name[200] = '\0';
+    len = strlen(name);
+    if (len < 6 || strcasecmp(name + len - 5, ".json") != 0) {
+        if (len + 6 < 256)
+            memcpy(name + len, ".json", 6);
+    }
+}
+
+/* 创建 report/<user>/<YYYYMM>/ ，返回最终目录路径于 dirpath */
+static int mkdir_report_user_ym(char *dirpath, size_t dcap,
+                                  const char *user_sanitized, const char *yyyymm)
+{
+    char tmp[512];
+
+    snprintf(tmp, sizeof(tmp), "%s/report", WEB_ROOT);
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+        return -1;
+
+    snprintf(tmp, sizeof(tmp), "%s/report/%s", WEB_ROOT, user_sanitized);
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+        return -1;
+
+    snprintf(dirpath, dcap, "%s/report/%s/%s", WEB_ROOT, user_sanitized, yyyymm);
+    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST)
+        return -1;
+    return 0;
+}
+
+/*  POST /api/save-report — HTML 写入 WEB_ROOT/report/<user>/YYYYMM/   */
 static void handle_api_save_report(int client_fd, const char *req_headers,
                                    const char *body, size_t body_len)
 {
     char filename[256];
+    char userdir[128];
 
     if (http_header_value(req_headers, "X-Report-Filename", filename,
                           sizeof(filename)) != 0 || filename[0] == '\0') {
@@ -391,6 +621,14 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
 
     url_decode_report_fn(filename);
     sanitize_report_basename(filename);
+
+    if (http_header_value(req_headers, "X-Report-User", userdir,
+                          sizeof(userdir)) != 0 || userdir[0] == '\0')
+        strncpy(userdir, "root", sizeof(userdir));
+    else
+        url_decode_report_fn(userdir);
+    userdir[sizeof(userdir) - 1] = '\0';
+    sanitize_report_user_dir(userdir, sizeof(userdir));
 
     time_t     now = time(NULL);
     struct tm  tm_local;
@@ -407,22 +645,14 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
         return;
     }
 
-    char dirpath[384];
-    snprintf(dirpath, sizeof(dirpath), "%s/report", WEB_ROOT);
-    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) {
+    char dirpath[512];
+    if (mkdir_report_user_ym(dirpath, sizeof(dirpath), userdir, yyyymm) != 0) {
         send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"mkdir report\"}", 36);
+                  "{\"ok\":false,\"error\":\"mkdir\"}", 30);
         return;
     }
 
-    snprintf(dirpath, sizeof(dirpath), "%s/report/%s", WEB_ROOT, yyyymm);
-    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) {
-        send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"mkdir yyyymm\"}", 36);
-        return;
-    }
-
-    char filepath[512];
+    char filepath[640];
     int  fn = snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, filename);
     if (fn < 0 || (size_t)fn >= sizeof(filepath)) {
         send_json(client_fd, 400, "Bad Request",
@@ -430,8 +660,9 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
         return;
     }
 
-    char prefix[64];
-    snprintf(prefix, sizeof(prefix), "%s/report/", WEB_ROOT);
+    char prefix[512];
+    snprintf(prefix, sizeof(prefix), "%s/report/%s/%s/", WEB_ROOT, userdir,
+             yyyymm);
     if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
         send_json(client_fd, 400, "Bad Request",
                   "{\"ok\":false,\"error\":\"bad path\"}", 33);
@@ -456,10 +687,10 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
 
     fclose(fp);
 
-    char resp[640];
+    char resp[768];
     int  rl = snprintf(resp, sizeof(resp),
-                       "{\"ok\":true,\"path\":\"report/%s/%s\"}",
-                       yyyymm, filename);
+                       "{\"ok\":true,\"path\":\"report/%s/%s/%s\"}",
+                       userdir, yyyymm, filename);
     if (rl < 0 || (size_t)rl >= sizeof(resp)) {
         send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
     } else {
@@ -469,12 +700,104 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
     LOG_INFO("save_report  %s  (%zu bytes)", filepath, body_len);
 }
 
-/* ------------------------------------------------------------------ */
-/*  GET /api/reports — 列出 WEB_ROOT/report/YYYYMM/ 下各 .html 文件    */
-/* ------------------------------------------------------------------ */
+/*  POST /api/save-config — JSON 配置写入 report/<user>/YYYYMM/         */
+static void handle_api_save_config(int client_fd, const char *req_headers,
+                                   const char *body, size_t body_len)
+{
+    char filename[256];
+    char userdir[128];
 
-#define REPORTS_MAX_MONTHS 200
-#define REPORTS_MAX_FILES  500
+    if (http_header_value(req_headers, "X-Config-Filename", filename,
+                          sizeof(filename)) != 0 || filename[0] == '\0') {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing X-Config-Filename\"}", 46);
+        return;
+    }
+
+    url_decode_report_fn(filename);
+    sanitize_config_basename(filename);
+
+    if (http_header_value(req_headers, "X-Report-User", userdir,
+                          sizeof(userdir)) != 0 || userdir[0] == '\0')
+        strncpy(userdir, "root", sizeof(userdir));
+    else
+        url_decode_report_fn(userdir);
+    userdir[sizeof(userdir) - 1] = '\0';
+    sanitize_report_user_dir(userdir, sizeof(userdir));
+
+    time_t     now = time(NULL);
+    struct tm  tm_local;
+    if (localtime_r(&now, &tm_local) == NULL) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"time\"}", 28);
+        return;
+    }
+
+    char yyyymm[16];
+    if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"strftime\"}", 32);
+        return;
+    }
+
+    char dirpath[512];
+    if (mkdir_report_user_ym(dirpath, sizeof(dirpath), userdir, yyyymm) != 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"mkdir\"}", 30);
+        return;
+    }
+
+    char filepath[640];
+    int  fn = snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, filename);
+    if (fn < 0 || (size_t)fn >= sizeof(filepath)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"path too long\"}", 38);
+        return;
+    }
+
+    char prefix[512];
+    snprintf(prefix, sizeof(prefix), "%s/report/%s/%s/", WEB_ROOT, userdir,
+             yyyymm);
+    if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"bad path\"}", 33);
+        return;
+    }
+
+    FILE *fp = fopen(filepath, "wb");
+    if (!fp) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"open file\"}", 35);
+        return;
+    }
+
+    if (body_len > 0 &&
+        fwrite(body, 1, body_len, fp) != body_len) {
+        fclose(fp);
+        unlink(filepath);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write\"}", 30);
+        return;
+    }
+
+    fclose(fp);
+
+    char resp[768];
+    int  rl = snprintf(resp, sizeof(resp),
+                       "{\"ok\":true,\"path\":\"report/%s/%s/%s\"}",
+                       userdir, yyyymm, filename);
+    if (rl < 0 || (size_t)rl >= sizeof(resp)) {
+        send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    } else {
+        send_json(client_fd, 200, "OK", resp, (size_t)rl);
+    }
+
+    LOG_INFO("save_config  %s  (%zu bytes)", filepath, body_len);
+}
+
+/* ------------------------------------------------------------------ */
+/*  GET /api/reports — 列出已存档 .html（旧路径 + 按用户分子目录）       */
+/* ------------------------------------------------------------------ */
 
 typedef struct {
     char      name[256];
@@ -522,101 +845,212 @@ static int cmp_report_one_desc(const void *a, const void *b)
     return strcmp(x->name, y->name);
 }
 
-static int cmp_ym_desc(const void *a, const void *b)
+static int report_json_basename_ok(const char *name)
 {
-    return strcmp((const char *)b, (const char *)a);
+    size_t i, n;
+    if (!name || !*name)
+        return 0;
+    n = strlen(name);
+    if (n < 6 || strcasecmp(name + n - 5, ".json") != 0)
+        return 0;
+    if (strstr(name, "..") != NULL)
+        return 0;
+    for (i = 0; name[i]; i++) {
+        unsigned char c = (unsigned char)name[i];
+        if (c < 0x20 || c == '/' || c == '\\')
+            return 0;
+    }
+    return 1;
 }
 
+/* report 下第一层：用户名目录（非六位年月、安全字符） */
+static int report_user_first_segment_ok(const char *name)
+{
+    size_t i, n;
+    if (!name || !*name || name[0] == '.')
+        return 0;
+    if (dir_name_is_yyyymm(name))
+        return 0;
+    n = strlen(name);
+    if (n > 80)
+        return 0;
+    for (i = 0; name[i]; i++) {
+        unsigned char c = (unsigned char)name[i];
+        if (!(isalnum(c) || c == '_' || c == '.' || c == '-'))
+            return 0;
+    }
+    return 1;
+}
+
+#define REPORTS_MAX_GROUPS     400
+#define REPORTS_FILES_PER_GRP  200
+
+typedef struct {
+    char         user[96];
+    int          legacy; /* 1: 旧路径 report/YM/… */
+    char         ym[8];
+    report_one_t files[REPORTS_FILES_PER_GRP];
+    int          nf;
+} report_grp_t;
+
+static int cmp_report_grp_desc(const void *a, const void *b)
+{
+    const report_grp_t *x = (const report_grp_t *)a;
+    const report_grp_t *y = (const report_grp_t *)b;
+    int                 c = strcmp(y->ym, x->ym);
+    if (c != 0)
+        return c;
+    if (x->legacy != y->legacy)
+        return x->legacy - y->legacy;
+    return strcmp(x->user, y->user);
+}
+
+static void scan_report_dir_html(const char *sub, report_grp_t *g)
+{
+    DIR           *sd = opendir(sub);
+    struct dirent *de;
+    if (!sd)
+        return;
+    while (g->nf < REPORTS_FILES_PER_GRP) {
+        de = readdir(sd);
+        if (!de)
+            break;
+        if (!report_html_basename_ok(de->d_name))
+            continue;
+        {
+            char        fp[768];
+            struct stat st;
+            snprintf(fp, sizeof(fp), "%s/%s", sub, de->d_name);
+            if (stat(fp, &st) != 0 || !S_ISREG(st.st_mode))
+                continue;
+            strncpy(g->files[g->nf].name, de->d_name,
+                    sizeof(g->files[g->nf].name) - 1);
+            g->files[g->nf].name[sizeof(g->files[g->nf].name) - 1] = '\0';
+            g->files[g->nf].mtime = (long long)st.st_mtime;
+            g->files[g->nf].size  = (long long)st.st_size;
+            g->nf++;
+        }
+    }
+    closedir(sd);
+}
+
+/* GET /api/reports：兼容旧路径 report 下六位年月目录，以及 report 下用户名子目录 */
 static void handle_api_reports(int client_fd)
 {
-    char     base[384];
-    char     months[REPORTS_MAX_MONTHS][8];
-    int      nmonths = 0;
-    DIR     *d;
-    strbuf_t sb = {0};
+    char          base[384];
+    DIR          *d;
+    strbuf_t      sb = {0};
+    report_grp_t  groups[REPORTS_MAX_GROUPS];
+    int           ng = 0;
+    struct dirent *de;
 
     snprintf(base, sizeof(base), "%s/report", WEB_ROOT);
     d = opendir(base);
     if (!d) {
-        send_json(client_fd, 200, "OK", "{\"months\":[]}", 13);
+        send_json(client_fd, 200, "OK", "{\"months\":[],\"groups\":[]}", 28);
         return;
     }
 
-    while (nmonths < REPORTS_MAX_MONTHS) {
-        struct dirent *de = readdir(d);
+    /* 旧布局：report 下六位年月目录中的 .html */
+    while (ng < REPORTS_MAX_GROUPS) {
+        de = readdir(d);
         if (!de)
             break;
         if (de->d_name[0] == '.')
             continue;
         if (!dir_name_is_yyyymm(de->d_name))
             continue;
-        strncpy(months[nmonths], de->d_name, 7);
-        months[nmonths][7] = '\0';
-        nmonths++;
+        {
+            report_grp_t *g = &groups[ng];
+            char          sub[512];
+
+            memset(g, 0, sizeof(*g));
+            g->legacy = 1;
+            strncpy(g->ym, de->d_name, 7);
+            g->ym[7] = '\0';
+            snprintf(sub, sizeof(sub), "%s/%s", base, de->d_name);
+            scan_report_dir_html(sub, g);
+            if (g->nf > 0)
+                ng++;
+        }
+    }
+    rewinddir(d);
+
+    /* 新布局：report 下用户目录再下六位年月目录中的 .html */
+    while (ng < REPORTS_MAX_GROUPS) {
+        de = readdir(d);
+        if (!de)
+            break;
+        if (de->d_name[0] == '.')
+            continue;
+        if (!report_user_first_segment_ok(de->d_name))
+            continue;
+        {
+            char userbase[512];
+            DIR *ud;
+
+            snprintf(userbase, sizeof(userbase), "%s/%s", base, de->d_name);
+            ud = opendir(userbase);
+            if (!ud)
+                continue;
+            while (ng < REPORTS_MAX_GROUPS) {
+                struct dirent *ue = readdir(ud);
+                if (!ue)
+                    break;
+                if (ue->d_name[0] == '.')
+                    continue;
+                if (!dir_name_is_yyyymm(ue->d_name))
+                    continue;
+                {
+                    report_grp_t *g = &groups[ng];
+                    char          sub[640];
+
+                    memset(g, 0, sizeof(*g));
+                    g->legacy = 0;
+                    strncpy(g->user, de->d_name,
+                            sizeof(g->user) - 1);
+                    g->user[sizeof(g->user) - 1] = '\0';
+                    strncpy(g->ym, ue->d_name, 7);
+                    g->ym[7] = '\0';
+                    snprintf(sub, sizeof(sub), "%s/%s", userbase, ue->d_name);
+                    scan_report_dir_html(sub, g);
+                    if (g->nf > 0)
+                        ng++;
+                }
+            }
+            closedir(ud);
+        }
     }
     closedir(d);
 
-    qsort(months, (size_t)nmonths, sizeof(months[0]), cmp_ym_desc);
+    qsort(groups, (size_t)ng, sizeof(groups[0]), cmp_report_grp_desc);
 
-    SB_LIT(&sb, "{\"months\":[");
+    SB_LIT(&sb, "{\"months\":[],\"groups\":[");
     {
-        int first_m = 1;
-        int mi;
-        for (mi = 0; mi < nmonths; mi++) {
-            const char *ym = months[mi];
-            char        sub[512];
-            DIR        *sd;
-            report_one_t files[REPORTS_MAX_FILES];
-            int          nf = 0;
-            int          fi;
-
-            snprintf(sub, sizeof(sub), "%s/%s", base, ym);
-            sd = opendir(sub);
-            if (!sd)
-                continue;
-
-            while (nf < REPORTS_MAX_FILES) {
-                struct dirent *de = readdir(sd);
-                if (!de)
-                    break;
-                if (!report_html_basename_ok(de->d_name))
-                    continue;
-                {
-                    char        fp[768];
-                    struct stat st;
-                    snprintf(fp, sizeof(fp), "%s/%s", sub, de->d_name);
-                    if (stat(fp, &st) != 0 || !S_ISREG(st.st_mode))
-                        continue;
-                    strncpy(files[nf].name, de->d_name,
-                            sizeof(files[nf].name) - 1);
-                    files[nf].name[sizeof(files[nf].name) - 1] = '\0';
-                    files[nf].mtime = (long long)st.st_mtime;
-                    files[nf].size  = (long long)st.st_size;
-                    nf++;
-                }
-            }
-            closedir(sd);
-
-            if (nf == 0)
-                continue;
-
-            qsort(files, (size_t)nf, sizeof(files[0]), cmp_report_one_desc);
-
-            if (!first_m)
+        int gi, fi, first_g = 1;
+        for (gi = 0; gi < ng; gi++) {
+            report_grp_t *g = &groups[gi];
+            if (!first_g)
                 SB_LIT(&sb, ",");
-            first_m = 0;
-            SB_LIT(&sb, "{\"ym\":\"");
-            sb_append(&sb, ym, strlen(ym));
+            first_g = 0;
+            SB_LIT(&sb, "{\"legacy\":");
+            sb_appendf(&sb, "%s", g->legacy ? "true" : "false");
+            SB_LIT(&sb, ",\"user\":");
+            sb_json_str(&sb, g->user);
+            SB_LIT(&sb, ",\"ym\":\"");
+            sb_append(&sb, g->ym, strlen(g->ym));
             SB_LIT(&sb, "\",\"files\":[");
 
-            for (fi = 0; fi < nf; fi++) {
+            qsort(g->files, (size_t)g->nf, sizeof(g->files[0]),
+                  cmp_report_one_desc);
+            for (fi = 0; fi < g->nf; fi++) {
                 if (fi)
                     SB_LIT(&sb, ",");
                 SB_LIT(&sb, "{\"name\":");
-                sb_json_str(&sb, files[fi].name);
+                sb_json_str(&sb, g->files[fi].name);
                 sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
-                           (long long)files[fi].mtime,
-                           (long long)files[fi].size);
+                           (long long)g->files[fi].mtime,
+                           (long long)g->files[fi].size);
             }
             SB_LIT(&sb, "]}");
         }
@@ -627,7 +1061,192 @@ static void handle_api_reports(int client_fd)
         send_json(client_fd, 200, "OK", sb.data, sb.len);
         free(sb.data);
     } else {
-        send_json(client_fd, 200, "OK", "{\"months\":[]}", 13);
+        send_json(client_fd, 200, "OK", "{\"months\":[],\"groups\":[]}", 28);
+    }
+}
+
+static int query_param_get(const char *path, const char *key, char *out,
+                           size_t cap)
+{
+    const char *q = strchr(path, '?');
+    size_t      klen;
+
+    if (!q || cap < 2)
+        return -1;
+    q++;
+    klen = strlen(key);
+    while (*q) {
+        if (strncmp(q, key, klen) == 0 && q[klen] == '=') {
+            q += klen + 1;
+            size_t i = 0;
+            while (*q && *q != '&' && i + 1 < cap) {
+                if (*q == '%' && isxdigit((unsigned char)q[1]) &&
+                    isxdigit((unsigned char)q[2])) {
+                    char hx[3] = { q[1], q[2], '\0' };
+                    out[i++] = (char)strtol(hx, NULL, 16);
+                    q += 3;
+                } else if (*q == '+') {
+                    out[i++] = ' ';
+                    q++;
+                } else {
+                    out[i++] = *q++;
+                }
+            }
+            out[i] = '\0';
+            return 0;
+        }
+        {
+            const char *amp = strchr(q, '&');
+            if (!amp)
+                break;
+            q = amp + 1;
+        }
+    }
+    return -1;
+}
+
+/* GET /api/list-ssh-configs?user= ：列出各 YYYYMM 子目录下的 .json 配置 */
+static void handle_api_list_ssh_configs(int client_fd, const char *path)
+{
+    char     userdir[128];
+    char     ubase[512];
+    DIR     *d;
+    strbuf_t sb = {0};
+
+    if (query_param_get(path, "user", userdir, sizeof(userdir)) != 0)
+        strncpy(userdir, "root", sizeof(userdir));
+    userdir[sizeof(userdir) - 1] = '\0';
+    sanitize_report_user_dir(userdir, sizeof(userdir));
+
+    snprintf(ubase, sizeof(ubase), "%s/report/%s", WEB_ROOT, userdir);
+
+    SB_LIT(&sb, "{\"ok\":true,\"user\":");
+    sb_json_str(&sb, userdir);
+    SB_LIT(&sb, ",\"files\":[");
+
+    d = opendir(ubase);
+    if (d) {
+        int          first = 1;
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL) {
+            char sub[640];
+            DIR *sd;
+
+            if (de->d_name[0] == '.')
+                continue;
+            if (!dir_name_is_yyyymm(de->d_name))
+                continue;
+            snprintf(sub, sizeof(sub), "%s/%s", ubase, de->d_name);
+            sd = opendir(sub);
+            if (!sd)
+                continue;
+            while (1) {
+                struct dirent *fe = readdir(sd);
+                char           fp[768];
+                struct stat    st;
+
+                if (!fe)
+                    break;
+                if (!report_json_basename_ok(fe->d_name))
+                    continue;
+                snprintf(fp, sizeof(fp), "%s/%s", sub, fe->d_name);
+                if (stat(fp, &st) != 0 || !S_ISREG(st.st_mode))
+                    continue;
+                if (!first)
+                    SB_LIT(&sb, ",");
+                first = 0;
+                SB_LIT(&sb, "{\"ym\":\"");
+                sb_append(&sb, de->d_name, strlen(de->d_name));
+                SB_LIT(&sb, "\",\"name\":");
+                sb_json_str(&sb, fe->d_name);
+                sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
+                           (long long)st.st_mtime, (long long)st.st_size);
+            }
+            closedir(sd);
+        }
+        closedir(d);
+    }
+    SB_LIT(&sb, "]}");
+
+    if (sb.data) {
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+        free(sb.data);
+    } else {
+        send_json(client_fd, 200, "OK",
+                  "{\"ok\":true,\"user\":\"root\",\"files\":[]}", 40);
+    }
+}
+
+/* GET /api/list-all-configs : 列出 report/ 下所有用户目录中各月份的 .json 配置 */
+static void handle_api_list_all_configs(int client_fd)
+{
+    char     rbase[512];
+    DIR     *d;
+    strbuf_t sb = {0};
+
+    snprintf(rbase, sizeof(rbase), "%s/report", WEB_ROOT);
+    SB_LIT(&sb, "{\"ok\":true,\"files\":[");
+
+    d = opendir(rbase);
+    if (d) {
+        int first = 1;
+        struct dirent *ue;
+        while ((ue = readdir(d)) != NULL) {
+            char udir[640];
+            DIR *ud;
+            struct dirent *de;
+
+            if (!report_user_first_segment_ok(ue->d_name))
+                continue;
+            snprintf(udir, sizeof(udir), "%s/%s", rbase, ue->d_name);
+            ud = opendir(udir);
+            if (!ud)
+                continue;
+            while ((de = readdir(ud)) != NULL) {
+                char sub[768];
+                DIR *sd;
+                struct dirent *fe;
+
+                if (!dir_name_is_yyyymm(de->d_name))
+                    continue;
+                snprintf(sub, sizeof(sub), "%s/%s", udir, de->d_name);
+                sd = opendir(sub);
+                if (!sd)
+                    continue;
+                while ((fe = readdir(sd)) != NULL) {
+                    char fp[896];
+                    struct stat st;
+
+                    if (!report_json_basename_ok(fe->d_name))
+                        continue;
+                    snprintf(fp, sizeof(fp), "%s/%s", sub, fe->d_name);
+                    if (stat(fp, &st) != 0 || !S_ISREG(st.st_mode))
+                        continue;
+                    if (!first)
+                        SB_LIT(&sb, ",");
+                    first = 0;
+                    SB_LIT(&sb, "{\"user\":");
+                    sb_json_str(&sb, ue->d_name);
+                    SB_LIT(&sb, ",\"ym\":\"");
+                    sb_append(&sb, de->d_name, strlen(de->d_name));
+                    SB_LIT(&sb, "\",\"name\":");
+                    sb_json_str(&sb, fe->d_name);
+                    sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
+                               (long long)st.st_mtime, (long long)st.st_size);
+                }
+                closedir(sd);
+            }
+            closedir(ud);
+        }
+        closedir(d);
+    }
+    SB_LIT(&sb, "]}");
+
+    if (sb.data) {
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+        free(sb.data);
+    } else {
+        send_json(client_fd, 200, "OK", "{\"ok\":true,\"files\":[]}", 22);
     }
 }
 
@@ -665,7 +1284,7 @@ static void handle_api_ssh_exec_one(int client_fd, const char *body)
                   "{\"error\":\"missing host\"}", 24); return;
     }
     json_get_str(body, "user", user, sizeof(user));
-    json_get_str(body, "pass", pass, sizeof(pass));
+    json_api_get_pass(body, pass, sizeof(pass));
     port = json_get_int(body, "port", 22);
     if (!user[0]) strcpy(user, "root");
 
@@ -714,7 +1333,7 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
                   "{\"error\":\"missing host\"}", 24); return;
     }
     json_get_str(body, "user", user, sizeof(user));
-    json_get_str(body, "pass", pass, sizeof(pass));
+    json_api_get_pass(body, pass, sizeof(pass));
     port    = json_get_int(body, "port",    22);
     int timeout = json_get_int(body, "timeout", 0);
     if (!user[0]) strcpy(user, "root");
@@ -843,7 +1462,7 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
                   "{\"error\":\"missing host\"}", 24); return;
     }
     json_get_str(body, "user", user, sizeof(user));
-    json_get_str(body, "pass", pass, sizeof(pass));
+    json_api_get_pass(body, pass, sizeof(pass));
     port             = json_get_int(body, "port",       22);
     int timeout      = json_get_int(body, "timeout",    0);
     int net_device   = json_get_int(body, "net_device", 0);
@@ -1970,7 +2589,8 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         }
 
         long max_body_allowed = MAX_BODY_SIZE;
-        if (strcmp(path, "/api/save-report") == 0)
+        if (strcmp(path, "/api/save-report") == 0 ||
+            strcmp(path, "/api/save-config") == 0)
             max_body_allowed = SAVE_REPORT_MAX_BODY;
 
         char *body = NULL;
@@ -2046,6 +2666,14 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 send_json(client_fd, 400, "Bad Request",
                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
             }
+        } else if (strcmp(path, "/api/save-config") == 0) {
+            if (body)
+                handle_api_save_config(client_fd, req_buf, body,
+                                       (size_t)content_length);
+            else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
+            }
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -2074,6 +2702,19 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/reports") == 0) {
         handle_api_reports(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/list-ssh-configs", 21) == 0) {
+        const char *rest = path + 21;
+        if (*rest == '\0' || *rest == '?') {
+            handle_api_list_ssh_configs(client_fd, path);
+            goto done;
+        }
+    }
+
+    if (strcmp(path, "/api/list-all-configs") == 0) {
+        handle_api_list_all_configs(client_fd);
         goto done;
     }
 

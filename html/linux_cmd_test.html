@@ -1613,7 +1613,7 @@ df -h
     </div>
     <div class="archive-dlg-body">
       <p id="cfg-load-error"></p>
-      <p class="archive-dlg-hint">列出 <code>html/report/<span id="cfg-load-user-hint">—</span>/</code> 下各月份目录中的 <code>.json</code>（点击一行加载到左侧表单与命令列表）。</p>
+      <p class="archive-dlg-hint">浏览服务器 <code>html/report/</code> 目录中所有已存档的配置 JSON（点击一行加载到左侧表单与命令列表）。</p>
       <div id="cfg-load-list"></div>
       <div class="archive-dlg-actions" style="margin-top:14px">
         <button type="button" id="cfg-load-cancel">关闭</button>
@@ -3591,7 +3591,6 @@ function openCfgLoadModal() {
   const err = document.getElementById('cfg-load-error');
   err.textContent = '';
   err.classList.remove('show');
-  document.getElementById('cfg-load-user-hint').textContent = archiveSshUserSegmentForFilename();
   ov.classList.add('show');
   refreshCfgLoadList();
 }
@@ -3606,9 +3605,8 @@ async function refreshCfgLoadList() {
   err.textContent = '';
   err.classList.remove('show');
   listEl.innerHTML = '<div style="color:var(--dim);font-size:12px">加载中…</div>';
-  const u = encodeURIComponent(archiveSshUserSegmentForFilename());
   try {
-    const resp = await fetch('/api/list-ssh-configs?user=' + u);
+    const resp = await fetch('/api/list-all-configs');
     const data = await resp.json();
     if (!resp.ok || !data || !data.ok) throw new Error((data && data.error) || ('HTTP ' + resp.status));
     const files = data.files || [];
@@ -3618,21 +3616,21 @@ async function refreshCfgLoadList() {
     }
     files.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
     listEl.innerHTML = '';
-    const userSeg = archiveSshUserSegmentForFilename();
     files.forEach(f => {
-      const ym = f.ym || '';
+      const user = f.user || '';
+      const ym   = f.ym   || '';
       const name = f.name || '';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'cfg-load-row';
-      btn.textContent = `${ym} / ${name}`;
+      btn.textContent = `${user} / ${ym} / ${name}`;
       btn.addEventListener('click', async () => {
-        const url = `/report/${encodeURIComponent(userSeg)}/${encodeURIComponent(ym)}/${encodeURIComponent(name)}`;
+        const url = `/report/${encodeURIComponent(user)}/${encodeURIComponent(ym)}/${encodeURIComponent(name)}`;
         try {
           const r = await fetch(url);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const cfg = await r.json();
-          applyImportedCfg(cfg, `${ym}/${name}`);
+          applyImportedCfg(cfg, `${user}/${ym}/${name}`);
           closeCfgLoadModal();
         } catch (e) {
           err.textContent = '读取失败: ' + (e.message || String(e));

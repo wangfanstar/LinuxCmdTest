@@ -2228,6 +2228,11 @@ async function doExec() {
           const done_n = streamResults.filter(Boolean).length;
           execStatus.textContent = `执行中 ${done_n}/${commands.length}…`;
 
+        } else if (ev.type === 'partial') {
+          /* PTY 实时部分输出：直接更新输出区（命令结束时 updateReportBlock 会覆盖最终结果） */
+          const outEl = document.getElementById('out-' + ev.i);
+          if (outEl) outEl.textContent = ev.output || '';
+
         } else if (ev.type === 'error') {
           /* 仅标记尚未完成的块，不覆盖已有结果 */
           for (let j = 0; j < commands.length; j++) {

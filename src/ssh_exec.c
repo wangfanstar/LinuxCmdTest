@@ -1361,9 +1361,11 @@ void ssh_session_exec_stream(const char *host, int port,
 
             /* 读取直到提示符或 cmd_deadline。顶循环检查截止时刻，避免仅靠「距起算秒数」
              * 与写命令阶段耗时不同步。分页（--More--）在无新数据时自动发空格。 */
-            double last_pager_try = 0.0;
+            double last_pager_try   = 0.0;
             /* 须初始化为「当前单调时钟」，勿用 0：否则 nd-0 恒 >=2s，每条命令首圈就会在 read 前误打 len=0 */
-            double last_pty_diag  = monotonic_sec();
+            double last_pty_diag    = monotonic_sec();
+            double last_partial_push = monotonic_sec(); /* 上次推送 partial 输出的时刻 */
+            size_t last_partial_len  = 0;               /* 上次推送时的 cmd_len，防重推 */
             for (;;) {
                 if (monotonic_sec() >= cmd_deadline) {
                     LOG_INFO("ssh_session_exec_stream(net): wall-clock timeout (%ds) on cmd[%d]",
@@ -1453,6 +1455,27 @@ void ssh_session_exec_stream(const char *host, int port,
                             last_pager_try = now;
                             if (wait_fd_writable_until(in_pipe[1], cmd_deadline) == 0)
                                 (void)write(in_pipe[1], " ", 1);
+                        }
+                    }
+                }
+
+                /* PTY 实时进度：每 1s 向前端推送当前命令已积累的部分输出（去 ANSI） */
+                if (cb && cmd_len > 0 && cmd_len != last_partial_len) {
+                    double now_p = monotonic_sec();
+                    if (now_p - last_partial_push >= 1.0) {
+                        last_partial_push = now_p;
+                        last_partial_len  = cmd_len;
+                        /* 最多取末 32KB，避免超大输出导致 SSE 事件过大 */
+                        size_t poff = (cmd_len > 32768) ? (cmd_len - 32768) : 0;
+                        size_t plen = cmd_len - poff;
+                        char  *pbuf = malloc(plen + 1);
+                        if (pbuf) {
+                            size_t cl = strip_ansi(accum + poff, plen, pbuf, plen + 1);
+                            pbuf[cl] = '\0';
+                            char istr[16];
+                            snprintf(istr, sizeof(istr), "%d", i);
+                            cb(-3, commands[i], pbuf, 0, istr, ud);
+                            free(pbuf);
                         }
                     }
                 }

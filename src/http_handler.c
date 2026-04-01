@@ -18,6 +18,8 @@
 #include <pwd.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <sys/uio.h>
+#include <netinet/tcp.h>
 
 /* ------------------------------------------------------------------ */
 /*  MIME 类型映射                                                       */
@@ -1505,13 +1507,15 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
 
 static void sse_write_json(int fd, const char *json)
 {
-    /* data: <json>\n\n */
-    char hdr[16];
-    int  hlen = snprintf(hdr, sizeof(hdr), "data: ");
-    int  jlen = (int)strlen(json);
-    write(fd, hdr, hlen);
-    write(fd, json, jlen);
-    write(fd, "\n\n", 2);
+    /* 用 writev 一次性写出，避免 Nagle 算法将三次小写分批延迟发送 */
+    struct iovec iov[3];
+    iov[0].iov_base = (void *)"data: ";
+    iov[0].iov_len  = 6;
+    iov[1].iov_base = (void *)json;
+    iov[1].iov_len  = strlen(json);
+    iov[2].iov_base = (void *)"\n\n";
+    iov[2].iov_len  = 2;
+    writev(fd, iov, 3);
 }
 
 typedef struct { int fd; char (*cmds)[CMD_BUF_SIZE]; int completed; } stream_ctx_t;
@@ -1523,6 +1527,15 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
     int           fd  = ctx->fd;
     strbuf_t      sb  = {0};
 
+    if (idx == -3) {
+        /* PTY 部分输出事件（实时进度）：prompt_after 存放命令 0-based 下标字符串 */
+        int cmd_i = (prompt_after && *prompt_after) ? atoi(prompt_after) : 0;
+        sb_appendf(&sb, "{\"type\":\"partial\",\"i\":%d,\"output\":", cmd_i);
+        sb_json_str(&sb, output ? output : "");
+        SB_LIT(&sb, "}");
+        if (sb.data) { sse_write_json(fd, sb.data); free(sb.data); }
+        return;
+    }
     if (idx == -2) {
         /* PTY 诊断事件：cmd=info串，output=tail片段 */
         sb_appendf(&sb, "{\"type\":\"diag\",\"info\":");
@@ -1593,12 +1606,20 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     LOG_INFO("api_ssh_exec_stream: %s@%s:%d  commands=%d timeout_req=%d pty_debug=%d",
              user, host, port, cmd_count, timeout, pty_debug);
 
-    /* SSE 响应头（无 Content-Length，流式） */
+    /* 禁用 Nagle 算法：确保每次 writev 后立即发送，SSE 事件不被攒批 */
+    {
+        int flag = 1;
+        setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY,
+                   (const char *)&flag, sizeof(flag));
+    }
+
+    /* SSE 响应头（无 Content-Length，流式；X-Accel-Buffering:no 告知 nginx 不缓冲） */
     const char *sse_hdr =
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/event-stream\r\n"
         "Cache-Control: no-cache\r\n"
         "Access-Control-Allow-Origin: *\r\n"
+        "X-Accel-Buffering: no\r\n"
         "Connection: close\r\n"
         "\r\n";
     write(client_fd, sse_hdr, strlen(sse_hdr));

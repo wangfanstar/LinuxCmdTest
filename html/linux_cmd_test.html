@@ -1153,14 +1153,8 @@ body.edit-mode .cmd-output { cursor: text; }
         </div>
         <div class="field-row" style="align-items:center;margin-top:2px">
           <label style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:#8b949e;cursor:pointer;user-select:none">
-            <input type="checkbox" id="f-auto-exit" checked title="执行完所有命令后自动附加两条退出命令：&#10;① ^C（发送 Ctrl+C 中断字符，退出当前视图）&#10;② y（确认退出）&#10;适用于执行完毕后需要交互式确认退出的网络设备。两条命令计入统计。">
-            <span>执行完成后自动退出（^C + y）</span>
-          </label>
-        </div>
-        <div class="field-row" style="align-items:center;margin-top:2px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:#8b949e;cursor:pointer;user-select:none">
-            <input type="checkbox" id="f-pty-debug" title="勾选后：右下角浮窗每 2 秒显示一条诊断（len/prompt/pager/距超时秒数/尾部片段），绿色=已检测到提示符，黄色=分页等待，红色=即将超时。同时写入服务端 log（ssh_pty_diag）。也可不勾选，启动前 export WF_SSH_PTY_DEBUG=1">
-            <span>PTY 诊断日志（区分缓存满 / 等提示符 / 读阻塞）</span>
+            <input type="checkbox" id="f-auto-exit" checked title="执行完所有命令后自动附加 exit 命令退出设备会话。&#10;适用于执行完毕后需要退出的网络设备。该命令计入统计。">
+            <span>执行完成后自动退出（exit）</span>
           </label>
         </div>
         <div class="field">
@@ -1792,9 +1786,9 @@ async function doExec() {
   }
   /* 注入自动退出命令（^C + y），注入后再做总量上限校验 */
   const userCmdCount = commands.length;
-  if (autoExit) { commands.push('\x03'); commands.push('y'); }
-  if (commands.length > 256) {
-    execStatus.textContent = `命令总数 ${commands.length} 超过上限 256${autoExit ? '（含自动退出 2 条）' : ''}，请减少命令数量`;
+  if (autoExit) { commands.push('exit'); }
+  if (commands.length > 1000) {
+    execStatus.textContent = `命令总数 ${commands.length} 超过上限 1000${autoExit ? '（含自动退出 1 条）' : ''}，请减少命令数量`;
     execStatus.style.color = 'var(--red)';
     return;
   }
@@ -1813,8 +1807,7 @@ async function doExec() {
   refreshCmdSeqNumbers();
   const cmdSeqLabels = getReportCmdSeqLabels();
   if (autoExit && commands.length > userCmdCount) {
-    cmdSeqLabels.push('^C');
-    cmdSeqLabels.push('y');
+    cmdSeqLabels.push('exit');
   }
 
   window._streamCommands = commands.slice();
@@ -1847,7 +1840,7 @@ async function doExec() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         host, port, user, pass, timeout, commands, net_device: 2,
-        pty_debug: (document.getElementById('f-pty-debug') && document.getElementById('f-pty-debug').checked) ? 1 : 0
+        pty_debug: 1 /* 固定开启：实时面板「日志」Tab + 服务端 ssh_pty_diag */
       }),
       signal: _execAbortCtrl.signal
     });
@@ -1892,6 +1885,7 @@ async function doExec() {
         if (ev.type === 'session_prompt') {
           window._rptSessionInitialPrompt = ev.prompt != null ? String(ev.prompt) : '';
           refreshReportCmdHeaderLines(0);
+          if (window.rtMarkPtyReady) rtMarkPtyReady();
         } else if (ev.type === 'debug') {
           console.warn('[ssh stream debug]', ev);
         } else if (ev.type === 'diag') {
@@ -1985,6 +1979,9 @@ async function doExec() {
               if (window.rtMarkSkipped) rtMarkSkipped(j);
             }
           }
+          /* 与 timeout 相同：收到 done 即结束 SSE 消费，勿等 TCP 半关闭/代理拖尾，
+           * 否则 reader.read() 可能长时间不返回 done，界面一直「执行中」 */
+          break sseRead;
         }
       }
     }
@@ -1993,6 +1990,8 @@ async function doExec() {
       execStatus.style.color = 'var(--red)';
       execStatus.textContent = '流读取失败: ' + e.message;
     }
+  } finally {
+    try { await reader.cancel(); } catch (_) { /* 已结束或已释放 */ }
   }
 
   _execAbortCtrl = null;
@@ -2017,7 +2016,7 @@ async function doExec() {
   } else {
     execStatus.style.color = userOk === userTotal && userTotal > 0 ? 'var(--green)' : 'var(--yellow)';
     let statusText = `用户命令 ${userOk}/${userTotal} 成功`;
-    if (autoTotal > 0) statusText += `，自动退出 ${autoOk}/${autoTotal} 成功（^C+y）`;
+    if (autoTotal > 0) statusText += `，自动退出 ${autoOk}/${autoTotal} 成功（exit）`;
     execStatus.textContent = statusText;
   }
 
@@ -2756,7 +2755,6 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     host:     document.getElementById('f-host').value.trim(),
     port:     parseInt(document.getElementById('f-port').value) || 22,
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
-    pty_debug:  !!(document.getElementById('f-pty-debug')  && document.getElementById('f-pty-debug').checked),
     auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
@@ -2787,10 +2785,6 @@ document.getElementById('cfg-import-input').addEventListener('change', function 
       if (cfg.timeout !== undefined) document.getElementById('f-timeout').value = cfg.timeout;
       if (cfg.user    !== undefined) document.getElementById('f-user').value    = cfg.user;
       if (cfg.pass    !== undefined) document.getElementById('f-pass').value    = cfg.pass;
-      if (cfg.pty_debug !== undefined) {
-        const pd = document.getElementById('f-pty-debug');
-        if (pd) pd.checked = !!cfg.pty_debug;
-      }
       if (cfg.auto_exit !== undefined) {
         const ae = document.getElementById('f-auto-exit');
         if (ae) ae.checked = !!cfg.auto_exit;
@@ -3228,11 +3222,15 @@ function flash(el, msg) {
 
   /* 公开接口：由 doExec 调用 */
   window.rtInit = function(commands, host, user, cmdSeqLabels) {
-    if (!rtEnabled || !panel) return;
-    panel.classList.remove('rt-hidden', 'rt-minimized');
-    document.getElementById('rt-minimize').textContent = '─';
+    /* 始终建立 rtState，便于 PTY 流式下 rtMarkRunning/rtMarkDone 与面板可见性解耦
+     * （用户关闭面板后执行，再打开仍能看到正确进度） */
+    if (!panel || !rtBody) return;
+    if (rtEnabled) {
+      panel.classList.remove('rt-hidden', 'rt-minimized');
+      document.getElementById('rt-minimize').textContent = '─';
+    }
     rtState = {
-      startMs: Date.now(), host, user,
+      startMs: Date.now(), host, user, ptySession: false,
       rows: commands.map((cmd, i) => ({
         cmd,
         seqLabel: (cmdSeqLabels && cmdSeqLabels[i] !== undefined && cmdSeqLabels[i] !== '')
@@ -3243,6 +3241,13 @@ function flash(el, msg) {
     };
     rtRender();
     rtStartTicker();
+  };
+
+  /* PTY 会话提示符就绪后由 doExec 的 session_prompt 调用，刷新标题等 */
+  window.rtMarkPtyReady = function() {
+    if (!rtState) return;
+    rtState.ptySession = true;
+    rtRender();
   };
 
   window.rtMarkRunning = function(i) {
@@ -3310,7 +3315,8 @@ function flash(el, msg) {
     const elap   = ((nowMs - rtState.startMs) / 1000).toFixed(1) + 's';
     const barCol = err > 0 ? '#f85149' : done === total ? '#3fb950' : '#58a6ff';
 
-    document.getElementById('rt-host-lbl').textContent = `${rtState.user}@${rtState.host}`;
+    document.getElementById('rt-host-lbl').textContent =
+      `${rtState.user}@${rtState.host}` + (rtState.ptySession ? ' · PTY' : '');
     document.getElementById('rt-prog-txt').textContent = `${done}/${total}`;
     document.getElementById('rt-elapsed').textContent  = elap;
     document.getElementById('rt-ok-n').textContent     = ok;
@@ -3384,7 +3390,6 @@ function flash(el, msg) {
         user:    document.getElementById('f-user').value,
         pass:    document.getElementById('f-pass').value,
         timeout: document.getElementById('f-timeout').value,
-        pty_debug:  !!(document.getElementById('f-pty-debug')  && document.getElementById('f-pty-debug').checked),
         auto_exit:  !!(document.getElementById('f-auto-exit')  && document.getElementById('f-auto-exit').checked),
       },
       cmds:       getCommandListItems().map(o => {
@@ -3412,8 +3417,6 @@ function flash(el, msg) {
   ['f-host','f-port','f-user','f-pass','f-timeout'].forEach(id => {
     document.getElementById(id).addEventListener('input', window._saveState);
   });
-  const _ptyDbg  = document.getElementById('f-pty-debug');
-  if (_ptyDbg)  _ptyDbg.addEventListener('change', window._saveState);
   const _autoExit = document.getElementById('f-auto-exit');
   if (_autoExit) _autoExit.addEventListener('change', window._saveState);
 
@@ -3421,18 +3424,18 @@ function flash(el, msg) {
   new MutationObserver(window._saveState).observe(cmdList, { childList: true });
   cmdList.addEventListener('input', window._saveState);
 
-  /* ── 命令数量徽标（超 256 变红警告） ── */
+  /* ── 命令数量徽标（超 1000 变红警告） ── */
   function refreshCmdCountBadge() {
     const badge = document.getElementById('cmd-count-badge');
     if (!badge) return;
     const n = cmdList.children.length;
-    badge.textContent = n > 0 ? `${n} / 256` : '';
-    if (n > 256) {
+    badge.textContent = n > 0 ? `${n} / 1000` : '';
+    if (n > 1000) {
       badge.style.color = 'var(--red)';
-      badge.title = `命令数量 ${n} 已超过上限 256，执行时将被拒绝，请拆分后分批执行`;
-    } else if (n > 200) {
+      badge.title = `命令数量 ${n} 已超过上限 1000，执行时将被拒绝，请拆分后分批执行`;
+    } else if (n > 800) {
       badge.style.color = 'var(--yellow)';
-      badge.title = `命令数量 ${n}，接近上限 256`;
+      badge.title = `命令数量 ${n}，接近上限 1000`;
     } else {
       badge.style.color = 'var(--dim)';
       badge.title = '';
@@ -3464,10 +3467,6 @@ function flash(el, msg) {
       if (c.user    != null) document.getElementById('f-user').value    = c.user;
       if (c.pass    != null) document.getElementById('f-pass').value    = c.pass;
       if (c.timeout != null) document.getElementById('f-timeout').value = c.timeout;
-      if (c.pty_debug != null) {
-        const pd = document.getElementById('f-pty-debug');
-        if (pd) pd.checked = !!c.pty_debug;
-      }
       if (c.auto_exit != null) {
         const ae = document.getElementById('f-auto-exit');
         if (ae) ae.checked = !!c.auto_exit;

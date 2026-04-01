@@ -86,33 +86,52 @@ static int sb_append(strbuf_t *b, const char *s, size_t n)
 
 static int sb_appendf(strbuf_t *b, const char *fmt, ...)
 {
-    char tmp[4096];
+    /* 先探测实际长度，避免栈缓冲截断 */
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    int n = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
-    return sb_append(b, tmp, n > 0 ? (size_t)n : 0);
+    if (n <= 0) return 0;
+
+    if ((size_t)n < 4096) {
+        char tmp[4096];
+        va_start(ap, fmt);
+        vsnprintf(tmp, sizeof(tmp), fmt, ap);
+        va_end(ap);
+        return sb_append(b, tmp, (size_t)n);
+    }
+    /* 超出栈缓冲，堆分配精确大小 */
+    char *tmp = malloc((size_t)n + 1);
+    if (!tmp) return -1;
+    va_start(ap, fmt);
+    vsnprintf(tmp, (size_t)n + 1, fmt, ap);
+    va_end(ap);
+    int r = sb_append(b, tmp, (size_t)n);
+    free(tmp);
+    return r;
 }
 
-/* 追加 JSON 转义字符串（含双引号） */
-static void sb_json_str(strbuf_t *b, const char *s)
+/* 追加 JSON 转义字符串（含双引号）；返回 0 成功，-1 内存分配失败 */
+static int sb_json_str(strbuf_t *b, const char *s)
 {
-    SB_LIT(b, "\"");
+    if (SB_LIT(b, "\"") < 0) return -1;
     for (; *s; s++) {
+        int r;
         switch (*s) {
-            case '"':  SB_LIT(b, "\\\""); break;
-            case '\\': SB_LIT(b, "\\\\"); break;
-            case '\n': SB_LIT(b, "\\n");  break;
-            case '\r': SB_LIT(b, "\\r");  break;
-            case '\t': SB_LIT(b, "\\t");  break;
+            case '"':  r = SB_LIT(b, "\\\""); break;
+            case '\\': r = SB_LIT(b, "\\\\"); break;
+            case '\n': r = SB_LIT(b, "\\n");  break;
+            case '\r': r = SB_LIT(b, "\\r");  break;
+            case '\t': r = SB_LIT(b, "\\t");  break;
             default:
                 if ((unsigned char)*s < 0x20)
-                    sb_appendf(b, "\\u%04x", (unsigned char)*s);
+                    r = sb_appendf(b, "\\u%04x", (unsigned char)*s);
                 else
-                    sb_append(b, s, 1);
+                    r = sb_append(b, s, 1);
         }
+        if (r < 0) return -1;
     }
-    SB_LIT(b, "\"");
+    return SB_LIT(b, "\"");
 }
 
 /* ------------------------------------------------------------------ */
@@ -619,7 +638,10 @@ static void handle_api_client_info(int client_fd, const char *client_ip)
     SB_LIT(&sb, "{\"ip\":");
     sb_json_str(&sb, client_ip ? client_ip : "");
     SB_LIT(&sb, "}");
-    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error", "{\"ip\":\"\"}", 9);
     free(sb.data);
 }
 
@@ -669,7 +691,11 @@ static void handle_api_ssh_exec_one(int client_fd, const char *body)
     }
     SB_LIT(&sb, "}");
 
-    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"error\":\"out of memory\",\"exit_code\":-1,\"output\":\"\"}", 51);
     free(sb.data);
     if (result) ssh_batch_free(result);
 }
@@ -693,14 +719,19 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
     int timeout = json_get_int(body, "timeout", 0);
     if (!user[0]) strcpy(user, "root");
 
-    /* 提取命令数组 */
-    char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
+    /* 提取命令数组（堆分配，避免 1000×2048=2MB 栈压力） */
+    char (*cmd_bufs)[CMD_BUF_SIZE] = calloc(MAX_CMD_COUNT, CMD_BUF_SIZE);
+    if (!cmd_bufs) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"error\":\"out of memory\"}", 24); return;
+    }
     char *cmd_ptrs[MAX_CMD_COUNT];
     for (int i = 0; i < MAX_CMD_COUNT; i++) cmd_ptrs[i] = cmd_bufs[i];
 
     int cmd_count = json_get_str_array(body, "commands",
                                         cmd_ptrs, MAX_CMD_COUNT, CMD_BUF_SIZE);
     if (cmd_count <= 0) {
+        free(cmd_bufs);
         send_json(client_fd, 400, "Bad Request",
                   "{\"error\":\"no commands\"}", 22); return;
     }
@@ -732,9 +763,14 @@ static void handle_api_ssh_exec(int client_fd, const char *body)
     }
     SB_LIT(&sb, "]}");
 
-    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"error\":\"out of memory\",\"results\":[]}", 38);
 
     free(sb.data);
+    free(cmd_bufs);
     if (result) ssh_batch_free(result);
 }
 
@@ -814,12 +850,17 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     int pty_debug    = json_get_int(body, "pty_debug",  0);
     if (!user[0]) strcpy(user, "root");
 
-    char  cmd_bufs[MAX_CMD_COUNT][CMD_BUF_SIZE];
+    char (*cmd_bufs)[CMD_BUF_SIZE] = calloc(MAX_CMD_COUNT, CMD_BUF_SIZE);
+    if (!cmd_bufs) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"error\":\"out of memory\"}", 24); return;
+    }
     char *cmd_ptrs[MAX_CMD_COUNT];
     for (int i = 0; i < MAX_CMD_COUNT; i++) cmd_ptrs[i] = cmd_bufs[i];
     int cmd_count = json_get_str_array(body, "commands",
                                         cmd_ptrs, MAX_CMD_COUNT, CMD_BUF_SIZE);
     if (cmd_count <= 0) {
+        free(cmd_bufs);
         send_json(client_fd, 400, "Bad Request",
                   "{\"error\":\"no commands\"}", 22); return;
     }
@@ -892,6 +933,7 @@ static void handle_api_ssh_exec_stream(int client_fd, const char *body)
     }
     if (sb.data) { sse_write_json(client_fd, sb.data); free(sb.data); }
     free(partial_buf);
+    free(cmd_bufs);
 }
 
 /* ================================================================
@@ -1735,7 +1777,10 @@ static void handle_api_procs(int client_fd, const char *query, int include_ports
     g_procs_cache_key[sizeof(g_procs_cache_key) - 1] = '\0';
     pthread_mutex_unlock(&g_procs_json_mtx);
 
-    send_json(client_fd, 200, "OK", sb.data ? sb.data : "{\"procs\":[]}", sb.len);
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error", "{\"procs\":[]}", 12);
     free(sb.data);
     free(tcp_map);
 }
@@ -1868,7 +1913,10 @@ static void handle_api_monitor(int client_fd)
     pthread_mutex_unlock(&g_monitor_json_mtx);
     pthread_mutex_unlock(&g_monitor_update_mtx);
 
-    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error", "{}", 2);
     free(sb.data);
 }
 

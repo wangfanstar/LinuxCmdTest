@@ -3,7 +3,7 @@
 
 #include <stddef.h>  /* size_t */
 
-#define SSH_MAX_CMDS     256
+#define SSH_MAX_CMDS     1000
 #define SSH_OUTPUT_MAX   (2 * 1024 * 1024)   /* 单条命令输出上限 2MB（大段 show 配置） */
 
 typedef struct {

@@ -1477,7 +1477,7 @@ void ssh_session_exec_stream(const char *host, int port,
         }
 
 net_done:
-        if (in_pipe[1] >= 0) { close(in_pipe[1]); in_pipe[1] = -1; }
+        if (in_pipe[1] >= 0) { close(in_pipe[1]); in_pipe[1] = -1; session_stdin_set(-1); }
         free(accum);
         accum = NULL;
         goto stream_drain;
@@ -1647,7 +1647,14 @@ stream_drain:
     }
     close(out_pipe[0]);
     session_pid_set((pid_t)-1);
-    waitpid(pid, NULL, 0);
+    session_stdin_set(-1);
+    /* 使用 WNOHANG 检查 SSH 子进程是否已退出；
+     * 网络设备模式下 SSH 连接不会因关闭 stdin 而立即退出（设备仍保持 SSH 会话），
+     * 直接 waitpid(0) 会永远阻塞。先 WNOHANG 探测，未退出则 killpg+wait。 */
+    if (waitpid(pid, NULL, WNOHANG) == 0) {
+        killpg(pid, SIGKILL);
+        waitpid(pid, NULL, 0);
+    }
     if (out_timed_out) *out_timed_out = timed_out;
 
 cleanup:

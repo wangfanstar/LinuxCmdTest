@@ -662,8 +662,9 @@ body.edit-mode .cmd-output { cursor: text; }
 .compare-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: stretch;
 }
-.compare-pane { border-right: 1px solid var(--border); }
+.compare-pane { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 .compare-pane:last-child { border-right: none; }
 .compare-label {
   font-size: 11px;
@@ -677,7 +678,7 @@ body.edit-mode .cmd-output { cursor: text; }
 }
 .compare-pane.pass .compare-label { color: var(--green); background: #1a3a2428; }
 .compare-pane.fail .compare-label { color: var(--red);   background: #3d0a0a28; }
-.compare-pane .cmd-output { max-height: 300px; }
+.compare-pane .cmd-output { flex: 1; max-height: 300px; overflow-y: auto; }
 .compare-label-with-modes {
   display: flex;
   align-items: center;
@@ -714,7 +715,6 @@ body.edit-mode .cmd-output { cursor: text; }
 /* ── 匹配徽章 ── */
 .match-pass { color: var(--green); font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .match-fail { color: var(--red);   font-size: 11px; font-weight: 700; flex-shrink: 0; }
-#btn-match-mode.exact { background: #2d1f6e; border-color: var(--purple); color: var(--purple); }
 #btn-toggle-compare        { background: #1f3a6e; border-color: var(--accent); color: var(--accent); }
 #btn-toggle-compare.off    { background: var(--bg); border-color: var(--border); color: var(--dim); }
 
@@ -1240,7 +1240,6 @@ body.edit-mode .cmd-output { cursor: text; }
   <main>
     <div class="report-toolbar">
       <span class="report-toolbar-title" id="report-title">执行结果将在此显示</span>
-      <button id="btn-match-mode" title="切换精确/模糊匹配模式">模糊匹配</button>
       <input type="file" id="expected-import-input" accept=".json" style="display:none">
       <label for="expected-import-input" class="btn-xs" style="line-height:1.8" title="导入预期结果 JSON 文件">导入预期</label>
       <button id="btn-export-expected" title="将当前报告导出为预期结果">导出预期</button>
@@ -2725,9 +2724,10 @@ function buildReportHTML() {
     .cmd-notes{padding:8px 14px;font-size:12px;color:#c9d1d9;background:#1c2128;border-top:1px solid #30363d}
     .cmd-notes:empty{display:none}
     .cmd-notes:not(:empty)::before{content:"备注  ";font-weight:600;color:#58a6ff}
-    .compare-body{display:grid;grid-template-columns:1fr 1fr}
-    .compare-pane{border-right:1px solid #30363d}
+    .compare-body{display:grid;grid-template-columns:1fr 1fr;align-items:stretch}
+    .compare-pane{border-right:1px solid #30363d;display:flex;flex-direction:column}
     .compare-pane:last-child{border-right:none}
+    .compare-pane .cmd-output{flex:1;max-height:300px;overflow-y:auto}
     .compare-label{font-size:11px;font-weight:600;text-transform:uppercase;padding:4px 14px;background:#1c2128;border-bottom:1px solid #30363d;color:#8b949e}
     .compare-pane.pass .compare-label{color:#3fb950;background:#1a3a2428}
     .compare-pane.fail .compare-label{color:#f85149;background:#3d0a0a28}
@@ -2951,7 +2951,6 @@ let showCompare = true;   // 是否显示比对视图（加载预期后默认开
 
 const expectedBar      = document.getElementById('expected-bar');
 const expectedBarInfo  = document.getElementById('expected-bar-info');
-const btnMatchMode     = document.getElementById('btn-match-mode');
 const btnToggleCompare = document.getElementById('btn-toggle-compare');
 
 /* 导出预期：将当前报告序列化为 JSON */
@@ -2966,15 +2965,20 @@ function exportExpected() {
   }
   const host = document.getElementById('f-host').value.trim() || 'unknown';
   /* 始终从原始 out-${idx} 读取（compare 模式下该元素被隐藏但内容完整） */
-  const items = blocks.map((blk, idx) => ({
-    cmd:    (function(){ var _e = blk.querySelector('.cmd-text'); return _e ? (_e.textContent || '').trim() : ''; })(),
-    output: (function(){ var _e = document.getElementById('out-' + idx); return _e ? _e.textContent : ''; })(),
-    marker: (function() {
-      var ex = expectedData && expectedData.commands[idx];
-      var m = ex && ex.marker;
-      return (m === 'fuzzy' || m === 'ignore') ? m : '';
-    })()
-  }));
+  const items = blocks.map((blk, idx) => {
+    var seqEl = blk.querySelector('.cmd-rpt-seq');
+    var seq   = seqEl ? seqEl.textContent.trim() : String(idx + 1);
+    var ex    = expectedData && expectedData.commands[idx];
+    var marker = ex && (ex.marker === 'fuzzy' || ex.marker === 'ignore') ? ex.marker : '';
+    var ignoreHash = ex ? (ex.ignoreHash !== false) : true;
+    return {
+      seq:        seq,
+      cmd:        (function(){ var _e = blk.querySelector('.cmd-text'); return _e ? (_e.textContent || '').trim() : ''; })(),
+      output:     (function(){ var _e = document.getElementById('out-' + idx); return _e ? _e.textContent : ''; })(),
+      marker:     marker,
+      ignoreHash: ignoreHash,
+    };
+  });
   const payload = { version: 1, host, exportedAt: new Date().toISOString(), commands: items };
   const json     = JSON.stringify(payload, null, 2);
   const filename = `ssh-expected-${host}-${Date.now()}.json`;
@@ -2995,13 +2999,19 @@ document.getElementById('expected-import-input').addEventListener('change', func
       if (!Array.isArray(data.commands)) throw new Error('格式错误：缺少 commands 数组');
       data.commands = data.commands.map(function(c) {
         if (typeof c === 'string')
-          return { cmd: c, output: '', marker: '' };
+          return { cmd: c, output: '', marker: '', ignoreHash: true };
         var cmd = String(c.cmd != null ? c.cmd : '');
         var output = c.output != null ? c.output : '';
         var marker = c.marker;
         if (marker !== 'fuzzy' && marker !== 'ignore') marker = '';
-        return { cmd: cmd, output: output, marker: marker };
+        var ignoreHash = c.ignoreHash !== false;
+        var seq = c.seq != null ? String(c.seq) : null;
+        return { seq: seq, cmd: cmd, output: output, marker: marker, ignoreHash: ignoreHash };
       });
+      /* 构建 seq → 下标映射，用于 refreshComparison 按序号匹配 */
+      var _seqMap = new Map();
+      data.commands.forEach(function(c, i) { if (c.seq != null) _seqMap.set(c.seq, i); });
+      data._seqMap = _seqMap;
       expectedData = data;
       showCompare  = true;
       btnToggleCompare.textContent = '对比视图';
@@ -3040,15 +3050,6 @@ btnToggleCompare.addEventListener('click', () => {
   if (report.querySelector('.cmd-block')) refreshComparison();
 });
 
-/* 匹配模式切换 */
-btnMatchMode.addEventListener('click', () => {
-  matchExact = !matchExact;
-  btnMatchMode.textContent = matchExact ? '精确匹配' : '模糊匹配';
-  btnMatchMode.classList.toggle('exact', matchExact);
-  if (report.querySelector('.cmd-block')) refreshComparison();
-  if (window._saveState) window._saveState();
-});
-
 /* 过滤掉以 # 开头的行（忽略注释/回显行） */
 function filterHashLines(s) {
   return s.split('\n').filter(l => !l.trimStart().startsWith('#')).join('\n');
@@ -3084,7 +3085,13 @@ function refreshComparison() {
     /* 无预期数据或视图切换为单结果：直接返回（原始输出已恢复显示） */
     if (!expectedData || !showCompare) return;
 
-    const exp = expectedData.commands[idx];
+    /* 按序号匹配：优先用 _seqMap，fallback 用 DOM 下标 */
+    const seqEl  = blk.querySelector('.cmd-rpt-seq');
+    const seqKey = seqEl ? seqEl.textContent.trim() : null;
+    const expIdx = (seqKey && expectedData._seqMap && expectedData._seqMap.has(seqKey))
+                   ? expectedData._seqMap.get(seqKey)
+                   : idx;
+    const exp = expectedData.commands[expIdx];
     if (!exp) return;
 
     const actual    = outEl.textContent;
@@ -3110,15 +3117,16 @@ function refreshComparison() {
     cmp.className   = 'compare-body';
     const act  = (m) => (expMarker === m ? ' cmp-mode-active' : '');
     const hashCls = ignoreHash ? ' cmp-hash-active' : '';
+    const seqAttr = seqKey != null ? ` data-cmp-seq="${esc(seqKey)}"` : '';
     cmp.innerHTML =
       `<div class="compare-pane ${skipCompare ? '' : passed ? 'pass' : 'fail'}">` +
         `<div class="compare-label compare-label-with-modes">` +
           `<span>实际输出</span>` +
-          `<span class="cmp-mode-btns" title="比对规则写入预期 JSON 的 marker；= 跟随工具栏精确/模糊">` +
-            `<button type="button" class="cmp-mode-btn${act('')}" data-cmp-idx="${idx}" data-mode="">=</button>` +
-            `<button type="button" class="cmp-mode-btn${act('fuzzy')}" data-cmp-idx="${idx}" data-mode="fuzzy">~</button>` +
-            `<button type="button" class="cmp-mode-btn${act('ignore')}" data-cmp-idx="${idx}" data-mode="ignore">!</button>` +
-            `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}" data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
+          `<span class="cmp-mode-btns" title="比对规则写入预期 JSON 的 marker；= 模糊匹配">` +
+            `<button type="button" class="cmp-mode-btn${act('')}" data-cmp-idx="${idx}"${seqAttr} data-mode="">=</button>` +
+            `<button type="button" class="cmp-mode-btn${act('fuzzy')}" data-cmp-idx="${idx}"${seqAttr} data-mode="fuzzy">~</button>` +
+            `<button type="button" class="cmp-mode-btn${act('ignore')}" data-cmp-idx="${idx}"${seqAttr} data-mode="ignore">!</button>` +
+            `<button type="button" class="cmp-mode-btn${hashCls}" data-cmp-idx="${idx}"${seqAttr} data-action="hash" title="忽略以 # 开头的行不参与比对（当前：${ignoreHash ? '开' : '关'}）">#</button>` +
           `</span>` +
         `</div>` +
         `<pre class="cmd-output" data-cmp="${idx}">${esc(actual)}</pre>` +
@@ -3149,17 +3157,21 @@ report.addEventListener('click', function (ev) {
   const btn = ev.target.closest('.cmp-mode-btn');
   if (!btn || !expectedData) return;
   ev.preventDefault();
-  const idx = parseInt(btn.getAttribute('data-cmp-idx'), 10);
-  if (Number.isNaN(idx) || idx < 0 || !expectedData.commands[idx]) return;
+  /* 优先按 seq 找到预期下标，fallback 用 DOM idx */
+  const seq = btn.getAttribute('data-cmp-seq');
+  let expIdx = (seq && expectedData._seqMap && expectedData._seqMap.has(seq))
+               ? expectedData._seqMap.get(seq)
+               : parseInt(btn.getAttribute('data-cmp-idx'), 10);
+  if (Number.isNaN(expIdx) || expIdx < 0 || !expectedData.commands[expIdx]) return;
 
   if (btn.getAttribute('data-action') === 'hash') {
     /* # 按钮：切换忽略 # 行（默认 true，点击取反） */
-    const cur = expectedData.commands[idx].ignoreHash !== false;
-    expectedData.commands[idx].ignoreHash = !cur;
+    const cur = expectedData.commands[expIdx].ignoreHash !== false;
+    expectedData.commands[expIdx].ignoreHash = !cur;
   } else {
     /* = / ~ / ! 按钮：切换 marker */
     const mode = btn.getAttribute('data-mode') || '';
-    expectedData.commands[idx].marker = (mode === 'fuzzy' || mode === 'ignore') ? mode : '';
+    expectedData.commands[expIdx].marker = (mode === 'fuzzy' || mode === 'ignore') ? mode : '';
   }
   if (window._saveState) window._saveState();
   refreshComparison();
@@ -3468,7 +3480,6 @@ function flash(el, msg) {
         if (o.noSeq) row.noSeq = true;
         return row;
       }),
-      matchExact: matchExact,
     };
     if (report.innerHTML) state.report = { html: report.innerHTML, title: reportTitle.textContent };
     if (expectedData)     state.expected = expectedData;
@@ -3568,16 +3579,15 @@ function flash(el, msg) {
         setReportNotesAlwaysEditable();
       }
 
-      /* 匹配模式 */
-      if (state.matchExact != null) {
-        matchExact = state.matchExact;
-        btnMatchMode.textContent = matchExact ? '精确匹配' : '模糊匹配';
-        btnMatchMode.classList.toggle('exact', matchExact);
-      }
-
       /* 预期数据 */
       if (state.expected) {
         expectedData = state.expected;
+        /* 重建 _seqMap（Map 不能 JSON 序列化，恢复时重建） */
+        var _sm = new Map();
+        if (Array.isArray(expectedData.commands)) {
+          expectedData.commands.forEach(function(c, i) { if (c && c.seq != null) _sm.set(String(c.seq), i); });
+        }
+        expectedData._seqMap = _sm;
         showCompare  = true;
         btnToggleCompare.textContent = '对比视图';
         btnToggleCompare.classList.remove('off');

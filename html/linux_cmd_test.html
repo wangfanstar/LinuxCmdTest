@@ -396,6 +396,43 @@ main {
 }
 #btn-edit.active { background: #1f3a6e; border-color: var(--accent); color: var(--accent); }
 
+/* 报告备注：嵌在执行报告终端框（.rpt-ssh-body）底部 */
+#report .rpt-global-remark-edit {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #30363d;
+}
+#report .rpt-global-remark-edit > label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.02em;
+}
+#report #report-global-remark {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 56px;
+  max-height: 180px;
+  resize: vertical;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--text);
+  background: rgba(13, 17, 23, 0.65);
+  border: 1px solid #30363d;
+  border-radius: 6px;
+}
+#report #report-global-remark::placeholder { color: #6e7681; }
+#report #report-global-remark:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .report-body {
   flex: 1;
   overflow-y: auto;
@@ -1287,12 +1324,13 @@ body.edit-mode .cmd-output { cursor: text; }
   box-shadow: 0 20px 60px rgba(0,0,0,.6);
 }
 .io-dlg-header { display:flex; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border); }
-.io-dlg-header h3 { font-size:15px; color:#f0f6fc; flex:1; font-weight:600; margin:0; }
-.io-dlg-body { padding:16px 20px 8px; display:flex; flex-direction:column; gap:12px; }
-.io-chk-row { display:flex; align-items:center; gap:10px; font-size:13px; cursor:pointer; user-select:none; color:var(--text); }
+.io-dlg-header h3 { font-size:15px; color:#f0f6fc; flex:1; font-weight:600; margin:0; line-height:1.45; }
+.io-dlg-body { padding:18px 20px 10px; display:flex; flex-direction:column; gap:20px; }
+.io-dlg-body > div { display:flex; flex-direction:column; gap:8px; }
+.io-chk-row { display:flex; align-items:center; gap:10px; font-size:13px; line-height:1.6; cursor:pointer; user-select:none; color:var(--text); }
 .io-chk-row input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
-.io-chk-desc { font-size:11px; color:var(--dim); margin-left:25px; margin-top:-6px; }
-.io-dlg-footer { padding:12px 20px 16px; display:flex; justify-content:flex-end; gap:8px; }
+.io-chk-desc { font-size:12px; color:var(--dim); margin-left:25px; line-height:1.55; margin-top:0; }
+.io-dlg-footer { padding:14px 20px 18px; display:flex; justify-content:flex-end; gap:8px; }
 </style>
 </head>
 <body>
@@ -1496,7 +1534,7 @@ body.edit-mode .cmd-output { cursor: text; }
         <li>点击 <strong>⚡ 测试连接</strong> 验证 SSH 连接是否正常</li>
         <li>点击 <strong>▶ 执行</strong> 后命令逐条流式执行；可用 <strong>暂停 / 恢复</strong> 控制是否继续接收结果（不中断远端已发起的命令）</li>
         <li>右侧报告区展示每条命令的输出和退出码，可折叠查看</li>
-        <li>每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
+        <li>执行报告<strong>终端窗口内底部</strong>的<strong>报告备注</strong>用于整份说明/结论；每条命令下方的<strong>备注</strong>在执行过程中即可点击输入；「<strong>编辑报告</strong>」用于修改命令输出正文</li>
         <li>「<strong>↓ 下载</strong>」在浏览器本地下载报告；「<strong>💾 存档</strong>」打开确认框：默认文件名为 <code>时间_客户端IP_SSH用户名.html</code>；确认后写入服务器 <code>html/report/&lt;SSH用户名目录&gt;/&lt;服务器年月&gt;/</code>（用户名由左侧「用户名」净化；年月为<strong>服务器</strong>本地 <code>YYYYMM</code>）。报告工具栏「<strong>导入预期</strong>」旁：<strong>清空配置</strong>、<strong>读档配置</strong>、<strong>存档配置</strong>（与「💾 存档」报告类似，弹窗可改文件名后写入同目录规则下的 <code>.json</code>；读档从该用户目录列出并加载）。客户端 IP 来自 <code>/api/client-info</code>；访问链接使用地址栏 Web 服务器（与 SSH 目标无关）</li>
         <li>「<strong>📂 报告库</strong>」打开 <code>reports.html</code>，按月份浏览已存档的 HTML 报告</li>
       </ol>
@@ -2584,6 +2622,7 @@ function buildReportSshTerminalHeader(host, port, user, ts, summaryInnerHtml) {
     `<div class="rpt-ssh-line rpt-ssh-stats-detail" id="rpt-stats-detail">` +
     `<div id="rpt-exec-stats" class="rpt-exec-stats" aria-live="polite"></div>` +
     `</div>` +
+    buildReportRemarkEditorHtml() +
     `</div></div>`
   );
 }
@@ -2592,6 +2631,7 @@ function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
   placeholder.style.display = 'none';
   report.style.display = 'block';
   const ts = new Date().toLocaleString('zh-CN', { hour12: false });
+  const preservedRemark = getReportGlobalRemark();
 
   let html = buildReportSshTerminalHeader(host, port, user, ts,
     `<span class="badge-ok" style="opacity:.5">正在执行…</span>`);
@@ -2620,6 +2660,8 @@ function renderReportSkeleton({ host, port, user, commands, cmdSeqLabels }) {
   });
 
   report.innerHTML = html;
+  const grEl = document.getElementById('report-global-remark');
+  if (grEl) grEl.value = preservedRemark;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
   setReportNotesAlwaysEditable();
   updateReportExecStats();
@@ -2833,6 +2875,7 @@ function renderReport({ host, port, user, results }) {
   const sumHtml =
     `<span class="badge-ok">✓ ${okN} 成功</span>` +
     (failN > 0 ? ` <span class="badge-err">✗ ${failN} 失败</span>` : '');
+  const preservedRemark = getReportGlobalRemark();
   let html = buildReportSshTerminalHeader(host, port, user, ts, sumHtml);
 
   const cmdSeqLabels = getReportCmdSeqLabels();
@@ -2862,6 +2905,8 @@ function renderReport({ host, port, user, results }) {
   });
 
   report.innerHTML = html;
+  const grEl2 = document.getElementById('report-global-remark');
+  if (grEl2) grEl2.value = preservedRemark;
   reportTitle.textContent = `报告 · ${host} · ${ts}`;
   setReportNotesAlwaysEditable();
 
@@ -3329,6 +3374,7 @@ function buildReportHTML() {
     })
   };
   if (typeof expectedData !== 'undefined' && expectedData) cfgObj.expected = expectedData;
+  cfgObj.reportRemark = getReportGlobalRemark();
   const cfgJson    = JSON.stringify(cfgObj, null, 2);
   const cfgB64     = btoa(unescape(encodeURIComponent(cfgJson)));
   const cfgDataURI = 'data:application/json;charset=utf-8;base64,' + cfgB64;
@@ -3430,6 +3476,9 @@ function buildReportHTML() {
     .cmp-mode-btn[data-mode="ignore"]:not(.cmp-mode-active),
     .cmp-mode-btn[data-action="hash"]:not(.cmp-hash-active){display:none!important}
     .cmp-mode-btns:not(:has(.cmp-mode-active)):not(:has(.cmp-hash-active)){display:none!important}
+    .rpt-global-remark{margin:0 0 20px;padding:12px 14px;background:#161b22;border:1px solid #30363d;border-radius:8px}
+    .rpt-global-remark-hd{font-size:12px;font-weight:600;color:#58a6ff;margin-bottom:8px}
+    .rpt-global-remark-body{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;line-height:1.55;color:#c9d1d9}
   `;
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -3456,7 +3505,8 @@ function _rptDl(){
 <body>
 <h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">Linux 命令行测试报告</h1>
 ${attachBtn}
-${report.innerHTML}
+${buildReportRemarkExportBlock()}
+${cloneReportInnerHtmlWithoutRemarkEditor(report.innerHTML)}
 </body>
 </html>`;
 }
@@ -3508,6 +3558,7 @@ function buildCurrentCfgObject() {
     auto_exit:  true,
     user:     document.getElementById('f-user').value.trim(),
     pass:     document.getElementById('f-pass').value,
+    reportRemark: getReportGlobalRemark(),
     commands: getCommandListItems().map(o => {
       const row = o.marker === 'ctrlc' ? { cmd: o.cmd, marker: 'ctrlc' } : { cmd: o.cmd };
       if (o.noSeq) row.skipSeq = true;
@@ -3588,6 +3639,10 @@ function applyImportedCfg(cfg, label) {
     }
     syncShowExpectedButton();
   }
+  if (cfg.reportRemark !== undefined) {
+    const gr = document.getElementById('report-global-remark');
+    if (gr) gr.value = String(cfg.reportRemark != null ? cfg.reportRemark : '');
+  }
   /* 批量 addCmd 曾将焦点移到命令行时，部分浏览器会清空未由用户直接输入的密码，需再次写入 */
   applyImportedPasswordField(cfg);
   const pwImp = readPasswordFromImportedCfg(cfg);
@@ -3613,6 +3668,7 @@ document.getElementById('btn-cfg-export').addEventListener('click', () => {
     if (sel.conn) {
       obj.host = base.host; obj.port = base.port; obj.timeout = base.timeout;
       obj.auto_exit = base.auto_exit; obj.user = base.user; obj.pass = base.pass;
+      obj.reportRemark = base.reportRemark != null ? String(base.reportRemark) : '';
     }
     if (sel.cmds) { obj.commands = base.commands; }
     if (sel.exp && report.querySelector('.cmd-block')) { obj.expected = buildExpectedObject(); }
@@ -3789,6 +3845,8 @@ document.getElementById('btn-clear-workspace').addEventListener('click', () => {
   showCompare = true;
   btnToggleCompare.textContent = '对比视图';
   btnToggleCompare.classList.remove('off');
+  const grClear = document.getElementById('report-global-remark');
+  if (grClear) grClear.value = '';
   execStatus.textContent = '已清空';
   execStatus.style.color = 'var(--dim)';
   try { localStorage.removeItem('lct_v1'); } catch (_) {}
@@ -3848,6 +3906,10 @@ function applyImportedCfgPartial(cfg, label, sel) {
     if (expSrc && expSrc.commands.length > 0) {
       try { applyExpectedData(expSrc, `随配置（${label}，${expSrc.commands.length} 条）`); } catch (_) {}
     }
+  }
+  if (sel.conn && cfg.reportRemark !== undefined) {
+    const gr = document.getElementById('report-global-remark');
+    if (gr) gr.value = String(cfg.reportRemark != null ? cfg.reportRemark : '');
   }
   const pwImp = readPasswordFromImportedCfg(cfg);
   execStatus.textContent =
@@ -4250,6 +4312,53 @@ function esc(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/** 嵌入 #report 终端框内的整份报告备注（与每条命令下的备注不同） */
+function getReportGlobalRemark() {
+  const el = document.getElementById('report-global-remark');
+  return el ? String(el.value || '') : '';
+}
+
+/** 终端框内可编辑备注区 HTML（插入 rpt-ssh-body 底部） */
+function buildReportRemarkEditorHtml() {
+  return (
+    '<div class="rpt-global-remark-edit">' +
+    '<label for="report-global-remark">报告备注</label>' +
+    '<textarea id="report-global-remark" rows="3" spellcheck="false" ' +
+    'placeholder="可填写本次执行的说明、结论等（会写入下载/存档的 HTML、导出 JSON 与读档配置）"></textarea>' +
+    '</div>'
+  );
+}
+
+/** 旧版存档或恢复的报告 HTML 中若无备注框则补挂（在 .rpt-ssh-body 末尾） */
+function ensureReportGlobalRemarkEditor() {
+  if (document.getElementById('report-global-remark')) return;
+  const body = report.querySelector('#rpt-header .rpt-ssh-body');
+  if (!body) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = buildReportRemarkEditorHtml();
+  const node = wrap.firstElementChild;
+  if (node) body.appendChild(node);
+}
+
+/** 导出/预览 HTML：去掉可编辑备注区，避免重复且防止内嵌 textarea */
+function cloneReportInnerHtmlWithoutRemarkEditor(innerHtml) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = innerHtml || '';
+  tmp.querySelectorAll('.rpt-global-remark-edit').forEach(function (el) { el.remove(); });
+  return tmp.innerHTML;
+}
+
+/** 导出 HTML 时在正文前插入的备注块（已转义） */
+function buildReportRemarkExportBlock() {
+  const t = getReportGlobalRemark().trim();
+  if (!t) return '';
+  return (
+    '<div class="rpt-global-remark" role="note">' +
+    '<div class="rpt-global-remark-hd">报告备注</div>' +
+    '<pre class="rpt-global-remark-body">' + esc(t) + '</pre></div>'
+  );
+}
+
 /* 将 ANSI 转义序列转为带颜色的 HTML（用于 pre.cmd-output） */
 function ansiToHtml(str) {
   /* 标准 16 色：前景色 30-37 / 90-97，背景色 40-47 / 100-107 */
@@ -4545,6 +4654,8 @@ function flash(el, msg) {
         return row;
       }),
     };
+    const _gr = document.getElementById('report-global-remark');
+    if (_gr) state.reportRemark = _gr.value;
     if (report.innerHTML) state.report = { html: report.innerHTML, title: reportTitle.textContent };
     if (expectedData)     state.expected = expectedData;
     try {
@@ -4642,6 +4753,11 @@ function flash(el, msg) {
           if (exitEl) { exitEl.className = 'exit-pending'; exitEl.textContent = '中断'; }
         });
         setReportNotesAlwaysEditable();
+        ensureReportGlobalRemarkEditor();
+      }
+      if (state.reportRemark !== undefined) {
+        const _grR = document.getElementById('report-global-remark');
+        if (_grR) _grR.value = String(state.reportRemark);
       }
 
       /* 预期数据 */

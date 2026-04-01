@@ -2721,7 +2721,18 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     /* 解析请求行 */
     char method[16] = {0}, path[2048] = {0}, version[16] = {0};
+    char path_qs[2048]; /* 含 ?query 的原始路径（供 list-ssh-configs / procs 等） */
     sscanf(req_buf, "%15s %2047s %15s", method, path, version);
+    strncpy(path_qs, path, sizeof(path_qs) - 1);
+    path_qs[sizeof(path_qs) - 1] = '\0';
+    {
+        char *qm = strchr(path, '?');
+        if (qm)
+            *qm = '\0';
+        qm = strchr(path, '#');
+        if (qm)
+            *qm = '\0';
+    }
 
     /* 高频轮询接口不写日志，避免无谓 I/O */
     int is_poll_api = (strncmp(path, "/api/monitor", 12) == 0 ||
@@ -2867,7 +2878,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
     if (strncmp(path, "/api/list-ssh-configs", 21) == 0) {
         const char *rest = path + 21;
         if (*rest == '\0' || *rest == '?') {
-            handle_api_list_ssh_configs(client_fd, path);
+            handle_api_list_ssh_configs(client_fd, path_qs);
             goto done;
         }
     }
@@ -2886,7 +2897,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         (path[10] == '\0' || path[10] == '?')) {
         /* 解析 ?q= 参数 */
         const char *q = "";
-        const char *qs = strchr(path, '?');
+        const char *qs = strchr(path_qs, '?');
         char query_buf[128] = "";
         int include_ports = 0;
         if (qs && strstr(qs, "ports=1")) include_ports = 1;
@@ -2917,7 +2928,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
     if (strncmp(path, "/api/port", 9) == 0 &&
         (path[9] == '\0' || path[9] == '?')) {
         int port_num = 0;
-        const char *qs = strchr(path, '?');
+        const char *qs = strchr(path_qs, '?');
         if (qs) {
             const char *pp = strstr(qs, "port=");
             if (pp) port_num = atoi(pp + 5);

@@ -9,7 +9,9 @@
 | SSH 命令行测试 | 输入 SSH 连接信息，批量执行命令，生成可编辑 HTML 报告 |
 | 预期结果比对 | 导入预期结果 JSON，与实际执行输出并列对比，自动判断通过/不符 |
 | 命令匹配标记 | 每条命令可单独设置：默认 `=` / 模糊 `~` / 忽略 `!` |
-| 配置导入导出 | SSH 连接配置与命令列表可保存为 JSON 文件复用 |
+| 配置导入导出 | SSH 连接配置与命令列表可保存为 JSON 文件复用；可选字段 `reportRemark`（整份报告备注） |
+| 报告存档与列表 | 执行结果可存档到 `html/report/`；`reports.html` 浏览 HTML/JSON，支持筛选、排序、删除 |
+| 域段解析 | `TableParse.html`：Length/Range 解析 hex/dec/bin，嵌套域段与 JSON 配置 |
 | 日志查看器 | 实时查看服务器日志，支持级别过滤、关键字搜索、本地文件上传 |
 
 ## 快速开始
@@ -54,9 +56,11 @@ make
 │   ├── threadpool.c/h      # 线程池（生产者-消费者，循环队列）
 │   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
 ├── html/
-│   ├── index.html          # 工具导航首页
+│   ├── index.html           # 工具导航首页
 │   ├── linux_cmd_test.html  # SSH 命令行测试主页面
-│   └── logviewer.html      # 日志查看器
+│   ├── reports.html         # 已存档报告列表（调用 /api/reports）
+│   ├── TableParse.html      # 域段解析工具
+│   └── logviewer.html       # 日志查看器
 ├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
 ├── Makefile
 └── README.md
@@ -70,7 +74,19 @@ make
 2. 添加要执行的命令（支持预设模板、文件导入）
 3. 点击 **⚡ 测试连接** 验证连接可用性
 4. 点击 **▶ 执行** 批量执行，右侧生成报告
-5. 点击 **↓ 下载** 将报告保存为独立 HTML 文件
+5. 点击 **↓ 下载** 将报告保存为独立 HTML 文件  
+6. 执行报告**终端窗口底部**可填写**报告备注**（与每条命令下的备注不同）；会写入下载/存档 HTML、导出 JSON、服务器配置 JSON 及浏览器本地恢复状态
+
+### 报告存档目录与接口
+
+存档默认写入 **`html/report/<SSH用户名>/<服务器年月 YYYYMM>/`**（兼容旧路径 `html/report/<YYYYMM>/`）。
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/reports` | GET | JSON：`groups[]` 含 `legacy`、`user`、`ym`、`files[]`（`name`、`kind` 为 html 或 json、`mtime`、`size`） |
+| `/api/delete-report` | POST | JSON：`legacy`、`ym`、`name`；非 legacy 时必填 `user`；删除上述目录下对应文件 |
+
+前端 **`reports.html`**：按类型筛选（全部 / 仅 HTML / 仅 JSON）、组内按文件名或修改时间排序、打开链接与删除。
 
 ### 命令匹配标记
 
@@ -131,6 +147,11 @@ make clean      # 清除构建产物
 | `-t <threads>` | 工作线程数 | CPU 核数 × 1.5 |
 | `-q <size>` | 任务队列长度 | `128` |
 | `-l <dir>` | 日志目录 | `logs/` |
+
+## HTTP 路由说明
+
+解析请求行后，**路径中 `?` 与 `#` 之后会被截断**再用于静态文件路径与多数 API 匹配（例如 `/api/reports`、`.html` 页面），避免带缓存参数时 404。  
+仍依赖查询串的接口（如 `/api/list-ssh-configs?user=`、`/api/procs?`、`/api/port?`）在服务端使用**保留查询的完整路径**解析参数。
 
 ## 平台
 

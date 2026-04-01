@@ -33,7 +33,7 @@ main.c
 
 **threadpool.c**：生产者-消费者模型。固定大小循环队列；`not_empty` / `not_full` 两个条件变量控制阻塞；`shutdown` 标志让所有工作线程在队列排空后退出。
 
-**http_handler.c**：仅支持 GET。解析请求行，构造 `html/<path>` 文件路径，检查 `..` 路径遍历，读文件后通过 MIME 表选类型输出 HTTP 响应。404 返回内联 HTML。
+**http_handler.c**：GET 提供静态文件（`html/<path>`）与只读 JSON API；POST 处理 `/api/ssh-exec*`、`/api/save-report`、`/api/save-config`、`/api/delete-report` 等。解析请求行后去掉 path 中的 `?` / `#` 后缀再匹配路由与静态路径；需查询串的 GET（如 `list-ssh-configs`、`procs`、`port`）使用保留查询的副本解析。报告列表见 `GET /api/reports`，存档目录 `html/report/`（`http_handler.c` 内扫描与校验）。
 
 **log.c**：全局互斥锁保护文件句柄；单文件写满 100 MB 后自动切换到下一序号（`server_N.log`）；超过 10 个文件时将最旧的删除后整体前移序号（rotate_files）。使用 `_IONBF` 关闭用户空间缓冲。
 

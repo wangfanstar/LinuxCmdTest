@@ -18,9 +18,12 @@ header h1{font-size:1.1rem;font-weight:600;color:#f0f6fc}
 main{max-width:960px;margin:0 auto}
 .btn-refresh{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:.75rem;padding:5px 12px;cursor:pointer;margin-left:8px}
 .btn-refresh:hover{border-color:#58a6ff;color:#58a6ff}
-.filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:.75rem;color:#8b949e}
+.filters{display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap;font-size:.75rem;color:#8b949e}
+.filters .fv{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 .filters label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
 .filters input{accent-color:#58a6ff}
+.filters select{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.75rem;padding:5px 10px;cursor:pointer;max-width:200px}
+.filters select:hover,.filters select:focus{border-color:#58a6ff;outline:none}
 .month-block{background:#161b22;border:1px solid #21262d;border-radius:10px;margin-bottom:16px;overflow:hidden}
 .month-hd{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:#58a6ff;font-weight:600;padding:12px 16px;background:#1c2128;border-bottom:1px solid #21262d}
 .file-list{list-style:none}
@@ -44,8 +47,19 @@ main{max-width:960px;margin:0 auto}
   <button type="button" class="btn-refresh" id="btn-refresh" title="重新加载列表">↻ 刷新</button>
   <div class="header-right">
     <div class="filters" id="filters">
-      <label><input type="checkbox" id="chk-html" checked> 显示 HTML</label>
-      <label><input type="checkbox" id="chk-json" checked> 显示 JSON</label>
+      <span class="fv"><span>类型</span>
+        <select id="filter-kind" title="按扩展名筛选列表">
+          <option value="all" selected>全部（HTML + JSON）</option>
+          <option value="html">仅 HTML</option>
+          <option value="json">仅 JSON</option>
+        </select>
+      </span>
+      <span class="fv"><span>排序</span>
+        <select id="sort-by" title="每组内文件顺序">
+          <option value="mtime" selected>按修改时间（新→旧）</option>
+          <option value="name">按文件名（A→Z）</option>
+        </select>
+      </span>
     </div>
     <span id="status"></span>
   </div>
@@ -79,12 +93,33 @@ function groupTitle(g) {
   if (g.legacy) return ym + ' · 旧路径（无用户目录）';
   return (g.user || '—') + ' / ' + ym;
 }
-function kindVisible(kind) {
-  const showHtml = document.getElementById('chk-html').checked;
-  const showJson = document.getElementById('chk-json').checked;
+function kindPassesFilter(kind) {
+  const mode = (document.getElementById('filter-kind') || {}).value || 'all';
   const k = (kind || 'html').toLowerCase();
-  if (k === 'json') return showJson;
-  return showHtml;
+  if (mode === 'json') return k === 'json';
+  if (mode === 'html') return k !== 'json';
+  return true;
+}
+function cmpReportName(a, b) {
+  const sa = String(a || '');
+  const sb = String(b || '');
+  try {
+    return sa.localeCompare(sb, 'zh-CN', { sensitivity: 'base', numeric: true });
+  } catch (e) {
+    return sa.localeCompare(sb);
+  }
+}
+function sortFilesInPlace(files) {
+  const sortBy = (document.getElementById('sort-by') || {}).value || 'mtime';
+  files.sort(function (a, b) {
+    if (sortBy === 'name') {
+      return cmpReportName(a.name, b.name);
+    }
+    var ma = Number(a.mtime) || 0;
+    var mb = Number(b.mtime) || 0;
+    return mb - ma;
+  });
+  return files;
 }
 let reportsCache = null;
 function renderReportsFromCache() {
@@ -96,7 +131,7 @@ function renderReportsFromCache() {
   let n = 0;
   let html = '';
   for (const g of groups) {
-    const files = (g.files || []).filter(function (f) { return kindVisible(f.kind); });
+    const files = sortFilesInPlace((g.files || []).filter(function (f) { return kindPassesFilter(f.kind); }));
     if (!files.length) continue;
     n += files.length;
     html += '<section class="month-block"><div class="month-hd">' + esc(groupTitle(g)) + ' · ' + files.length + ' 个文件</div><ul class="file-list">';
@@ -123,7 +158,7 @@ function renderReportsFromCache() {
       main.innerHTML = '<div class="empty">暂无存档报告。<br><br>在 <a href="/linux_cmd_test.html" style="color:#58a6ff">Linux 命令行测试</a> 执行后使用「💾 存档」保存到 <code>html/report/&lt;SSH用户名&gt;/年月/</code></div>';
       st.textContent = '0 个分组';
     } else {
-      main.innerHTML = '<div class="empty">当前筛选下没有可显示的文件。请勾选「显示 HTML」或「显示 JSON」。</div>';
+      main.innerHTML = '<div class="empty">当前筛选下没有可显示的文件。请将「类型」改为「全部」或切换为另一种扩展名。</div>';
       st.textContent = groups.length + ' 个分组 · 筛选后 0 条';
     }
   } else {
@@ -170,7 +205,14 @@ async function loadReports() {
       st.className = 'ok';
       return;
     }
-    renderReportsFromCache();
+    try {
+      renderReportsFromCache();
+    } catch (err) {
+      reportsCache = null;
+      main.innerHTML = '<div class="empty err">渲染列表失败：' + esc(err.message || String(err)) + '</div>';
+      st.textContent = '渲染失败';
+      st.className = 'err';
+    }
   } catch (e) {
     reportsCache = null;
     main.innerHTML = '<div class="empty err">加载失败：' + esc(e.message || String(e)) + '</div>';
@@ -179,10 +221,10 @@ async function loadReports() {
   }
 }
 document.getElementById('btn-refresh').addEventListener('click', loadReports);
-document.getElementById('chk-html').addEventListener('change', function () {
+document.getElementById('filter-kind').addEventListener('change', function () {
   if (reportsCache) renderReportsFromCache();
 });
-document.getElementById('chk-json').addEventListener('change', function () {
+document.getElementById('sort-by').addEventListener('change', function () {
   if (reportsCache) renderReportsFromCache();
 });
 document.getElementById('main').addEventListener('click', function (e) {

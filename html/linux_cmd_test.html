@@ -2656,14 +2656,10 @@ function buildReportHTML() {
   const b64        = btoa(unescape(encodeURIComponent(txtContent)));
   const txtDataURI = 'data:text/plain;charset=utf-8;base64,' + b64;
 
-  /* ── 报告内嵌自下载按钮（onclick 直接序列化当前 DOM） ── */
+  /* ── 报告内嵌自下载按钮（由报告内 <script> 函数驱动，避免复杂内联 onclick） ── */
+  const selfDlFilename = `cmd-report-${tsStr}.html`;
   const selfDlBtn =
-    `<button onclick="(function(){` +
-      `var a=document.createElement('a');` +
-      `a.download='cmd-report-${tsStr}.html';` +
-      `a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));` +
-      `document.body.appendChild(a);a.click();document.body.removeChild(a);` +
-    `})()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;` +
+    `<button onclick="_rptDl()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;` +
     `background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#58a6ff;` +
     `font-size:12px;cursor:pointer;font-family:inherit">` +
     `↓ 下载本报告 HTML</button>`;
@@ -2742,6 +2738,21 @@ function buildReportHTML() {
 <meta charset="UTF-8">
 <title>Linux 命令行测试报告</title>
 <style>${styles}</style>
+<script>
+function _rptDl(){
+  try {
+    var h=document.documentElement.outerHTML;
+    var b=new Blob([h],{type:'text/html;charset=utf-8'});
+    var u=URL.createObjectURL(b);
+    var a=document.createElement('a');
+    a.href=u; a.download='${selfDlFilename}';
+    a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u);},1000);
+  } catch(e){ alert('下载失败: '+e.message); }
+}
+</script>
 </head>
 <body>
 <h1 style="font-size:18px;color:#f0f6fc;margin-bottom:20px">Linux 命令行测试报告</h1>

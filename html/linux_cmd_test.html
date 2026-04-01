@@ -2756,6 +2756,11 @@ function buildReportHTML() {
     .compare-label.compare-col-a.pass{color:#3fb950;background:#1a3a2428}
     .compare-label.compare-col-a.fail{color:#f85149;background:#3d0a0a28}
     .compare-body>.cmd-output{max-height:300px;overflow-y:auto}
+    /* 导出/预览/存档报告：仅显示已打开的比对开关；页面内交互区仍显示全部按钮 */
+    .cmp-mode-btn[data-action="spaces"]:not(.cmp-mode-active),
+    .cmp-mode-btn[data-mode="ignore"]:not(.cmp-mode-active),
+    .cmp-mode-btn[data-action="hash"]:not(.cmp-hash-active){display:none!important}
+    .cmp-mode-btns:not(:has(.cmp-mode-active)):not(:has(.cmp-hash-active)){display:none!important}
   `;
   return `<!DOCTYPE html>
 <html lang="zh-CN">

@@ -80,7 +80,23 @@ prepare_dirs() {
 cmd_build() {
     info "开始编译..."
     cd "${SCRIPT_DIR}"
-    make 2>&1 | sed 's/^/  /'
+
+    # 清除旧产物（含旧名称二进制），确保全量重链接到正确路径
+    make clean 2>&1 | sed 's/^/  /'
+
+    # 全量编译
+    if ! make 2>&1 | sed 's/^/  /'; then
+        die "编译失败，请检查上方错误信息"
+    fi
+
+    # 验证目标二进制是否在预期位置
+    if [[ ! -x "${BIN}" ]]; then
+        error "编译完成，但未在预期路径找到可执行文件: ${BIN}"
+        error "Makefile 实际输出："
+        ls -lh "${SCRIPT_DIR}/bin/" 2>/dev/null | sed 's/^/  /' || true
+        die "请确认 Makefile 中 TARGET 变量指向 bin/simplewebserver"
+    fi
+
     ok "编译完成: ${BIN}"
 }
 

@@ -5,7 +5,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Build & Run
 
 ```bash
-make              # 编译（输出 bin/simpleserver）
+make              # 编译（输出 bin/simplewebserver）
 make run          # 编译后以默认端口 8881 运行
 make clean        # 清除 obj/ 和 bin/
 make debug        # 带 -g -O0 的调试构建
@@ -15,7 +15,7 @@ make memcheck     # Valgrind 内存检查（需先 make debug）
 自定义启动：
 
 ```bash
-./bin/simpleserver -p 9000 -t 8 -q 256 -l /tmp/logs
+./bin/simplewebserver -p 9000 -t 8 -q 256 -l /tmp/logs
 ```
 
 ## 架构概览

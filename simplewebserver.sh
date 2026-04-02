@@ -14,8 +14,8 @@ set -euo pipefail
 
 # ── 路径配置 ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="${SCRIPT_DIR}/bin/simpleserver"
-PID_FILE="${SCRIPT_DIR}/simpleserver.pid"
+BIN="${SCRIPT_DIR}/bin/simplewebserver"
+PID_FILE="${SCRIPT_DIR}/simplewebserver.pid"
 LOG_DIR="${SCRIPT_DIR}/logs"
 HTML_DIR="${SCRIPT_DIR}/html"
 NOHUP_OUT="${LOG_DIR}/nohup.out"
@@ -81,7 +81,7 @@ cmd_start() {
 
     prepare_dirs
 
-    # 解析额外参数（透传给 simpleserver）
+    # 解析额外参数（透传给 simplewebserver）
     local extra_args=()
     while [[ $# -gt 0 ]]; do
         extra_args+=("$1")

@@ -22,7 +22,7 @@
 make
 ```
 
-产出：`bin/simpleserver`
+产出：`bin/simplewebserver`
 
 ### 启动 / 停止
 

@@ -6,12 +6,12 @@
 #
 # Env vars (with defaults):
 #   TEST_PORT   port to run the server on   (default: 18881)
-#   SERVER_BIN  path to the compiled binary (default: ./bin/simpleserver)
+#   SERVER_BIN  path to the compiled binary (default: ./bin/simplewebserver)
 
 set -euo pipefail
 
 PORT="${TEST_PORT:-18881}"
-BIN="${SERVER_BIN:-./bin/simpleserver}"
+BIN="${SERVER_BIN:-./bin/simplewebserver}"
 BASE="http://127.0.0.1:${PORT}"
 
 PASS=0

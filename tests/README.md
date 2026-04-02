@@ -188,7 +188,7 @@ gcc -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE -Isrc -Itests \
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `TEST_PORT` | `18881` | 服务器监听端口（避免与 8881 冲突） |
-| `SERVER_BIN` | `./bin/simpleserver` | 服务器二进制路径 |
+| `SERVER_BIN` | `./bin/simplewebserver` | 服务器二进制路径 |
 
 **覆盖的端点**
 

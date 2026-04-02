@@ -10,7 +10,7 @@ LDFLAGS = -lpthread
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
-TARGET  = $(BIN_DIR)/simpleserver
+TARGET  = $(BIN_DIR)/simplewebserver
 
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/log.c  \

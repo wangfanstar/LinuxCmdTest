@@ -3044,6 +3044,18 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    /* /logs/<file> — 直接从真实 logs 目录（与 html/ 同级）读取，
+     * 无需在 html/ 下创建软链接。
+     * ".." 已在上方统一拦截，此处无路径穿越风险。 */
+    if (strncmp(path, "/logs/", 6) == 0 && path[6] != '\0') {
+        char filepath[2048];
+        snprintf(filepath, sizeof(filepath), "logs/%s", path + 6);
+        if (send_file(client_fd, filepath) < 0)
+            send_response(client_fd, 404, "Not Found",
+                          "<h1>404 Not Found</h1>");
+        goto done;
+    }
+
     {
         char filepath[2048];
         if (strcmp(path, "/") == 0)

@@ -49,13 +49,14 @@ owned_by_me() {
     [[ "${proc_user}" == "$(id -un)" ]]
 }
 
-# 确保必要目录存在，并创建日志目录到 html 的软链接（供浏览器访问）
+# 确保必要目录存在；/logs/ 路由由服务器直接映射到 logs/ 目录，无需软链接
 prepare_dirs() {
     mkdir -p "${LOG_DIR}" "${HTML_DIR}"
+    # 清除旧版软链接（如有），避免出现两个 logs 入口
     local link="${HTML_DIR}/logs"
-    if [[ ! -L "${link}" ]]; then
-        ln -s "${LOG_DIR}" "${link}"
-        info "创建软链接: html/logs -> ../logs"
+    if [[ -L "${link}" ]]; then
+        rm -f "${link}"
+        info "已移除旧软链接: html/logs（日志现由 /logs/ 路由直接提供）"
     fi
 }
 

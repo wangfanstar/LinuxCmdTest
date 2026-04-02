@@ -2,6 +2,9 @@
 #  simplewebserver Makefile
 # ============================================================
 
+# 明确指定默认目标，防止 test-build 等测试目标因排在前面而被 make 误选为默认
+.DEFAULT_GOAL := all
+
 CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE \
           -Isrc

@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  simplewebserver 管理脚本
-#  用法: ./simplewebserver.sh {start|stop|restart|status|build} [选项]
 #
-#  start 支持的选项（均为可选）：
+#  用法: ./simplewebserver.sh <命令> [选项]
+#
+#  命令:
+#    build              仅编译，生成 bin/simplewebserver
+#    start  [选项]      后台启动（二进制不存在时自动编译）
+#    stop               停止服务器
+#    restart [选项]     重新编译并重启服务器
+#    status             查看运行状态与最近日志
+#    help               显示此帮助
+#
+#  start / restart 选项（均为可选）：
 #    -p <port>      监听端口         (默认: 8881)
 #    -t <threads>   工作线程数       (默认: 自动)
 #    -q <size>      任务队列长度     (默认: 128)
 #    -l <dir>       日志目录         (默认: logs)
+#
+#  典型流程:
+#    首次部署:  ./simplewebserver.sh start          # 自动编译后启动
+#    更新代码:  ./simplewebserver.sh restart         # 重编译并重启
+#    查看状态:  ./simplewebserver.sh status
+#    停止服务:  ./simplewebserver.sh stop
 # =============================================================================
 
 set -euo pipefail
@@ -76,8 +91,11 @@ cmd_start() {
         return 0
     fi
 
-    # 检查二进制文件
-    [[ -x "${BIN}" ]] || die "未找到可执行文件 ${BIN}，请先执行: ./simplewebserver.sh build"
+    # 二进制不存在时自动编译
+    if [[ ! -x "${BIN}" ]]; then
+        info "未找到可执行文件，自动编译..."
+        cmd_build
+    fi
 
     prepare_dirs
 
@@ -152,7 +170,7 @@ cmd_stop() {
 cmd_restart() {
     info "重启服务器..."
     cmd_stop
-    cmd_build
+    cmd_build        # 重启时始终重新编译
     cmd_start "$@"
 }
 
@@ -192,24 +210,28 @@ cmd_usage() {
 ${BOLD}用法: ./simplewebserver.sh <命令> [选项]${RESET}
 
 命令:
-  build              编译服务器
-  start  [选项]      在后台启动服务器
+  build              仅编译，生成 bin/simplewebserver
+  start  [选项]      后台启动（二进制不存在时自动编译）
   stop               停止服务器
-  restart [选项]     重启服务器
+  restart [选项]     重新编译并重启服务器
   status             查看运行状态与最近日志
+  help               显示此帮助
 
 start / restart 选项:
   -p <port>          监听端口       (默认: 8881)
-  -t <threads>       工作线程数     (默认: 自动)
+  -t <threads>       工作线程数     (默认: 自动，CPU 核数 × 1.5)
   -q <size>          任务队列长度   (默认: 128)
   -l <dir>           日志目录       (默认: logs)
 
-示例:
-  ./simplewebserver.sh build
-  ./simplewebserver.sh start -p 9000 -t 8
-  ./simplewebserver.sh status
-  ./simplewebserver.sh restart -p 9000
-  ./simplewebserver.sh stop
+典型流程:
+  首次部署   ./simplewebserver.sh start            # 自动编译后启动
+  指定端口   ./simplewebserver.sh start -p 9000
+  更新代码   ./simplewebserver.sh restart          # 重编译并重启
+  查看状态   ./simplewebserver.sh status
+  停止服务   ./simplewebserver.sh stop
+
+二进制路径: ${BIN}
+日志目录:   ${LOG_DIR}
 EOF
 }
 

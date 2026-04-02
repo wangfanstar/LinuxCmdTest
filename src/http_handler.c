@@ -609,6 +609,27 @@ static void sanitize_config_basename(char *name)
     }
 }
 
+/* 供 save_report 使用；完整定义见后文 */
+static int dir_name_is_yyyymm(const char *name);
+static int report_html_basename_ok(const char *name);
+static int report_json_basename_ok(const char *name);
+
+/* 创建 report/<YYYYMM>/（旧路径布局） */
+static int mkdir_report_legacy_ym(char *dirpath, size_t dcap, const char *yyyymm)
+{
+    char tmp[512];
+
+    if (!yyyymm || strlen(yyyymm) != 6)
+        return -1;
+    snprintf(tmp, sizeof(tmp), "%s/report", WEB_ROOT);
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+        return -1;
+    snprintf(dirpath, dcap, "%s/report/%s", WEB_ROOT, yyyymm);
+    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST)
+        return -1;
+    return 0;
+}
+
 /* 创建 report/<user>/<YYYYMM>/ ，返回最终目录路径于 dirpath */
 static int mkdir_report_user_ym(char *dirpath, size_t dcap,
                                   const char *user_sanitized, const char *yyyymm)
@@ -629,12 +650,21 @@ static int mkdir_report_user_ym(char *dirpath, size_t dcap,
     return 0;
 }
 
-/*  POST /api/save-report — HTML 写入 WEB_ROOT/report/<user>/YYYYMM/   */
+/*  POST /api/save-report — HTML/JSON 写入 report 目录
+ *  默认：服务器当月 WEB_ROOT/report/<user>/YYYYMM/
+ *  可选头：X-Report-YYYYMM（六位年月）、X-Report-Legacy: 1|true（旧路径 report/YM/）、
+ *          X-Report-Kind: json（显式按 JSON；否则若解码后文件名以 .json 结尾也按 JSON，避免
+ *          自定义头丢失时 sanitize_report_basename 把 foo.json 改成 foo.json.html） */
 static void handle_api_save_report(int client_fd, const char *req_headers,
                                    const char *body, size_t body_len)
 {
     char filename[256];
     char userdir[128];
+    char kind_hdr[32];
+    char legacy_hdr[32];
+    char ym_hdr[16];
+    int  is_json   = 0;
+    int  legacy_mode = 0;
 
     if (http_header_value(req_headers, "X-Report-Filename", filename,
                           sizeof(filename)) != 0 || filename[0] == '\0') {
@@ -644,36 +674,110 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
     }
 
     url_decode_report_fn(filename);
-    sanitize_report_basename(filename);
 
-    if (http_header_value(req_headers, "X-Report-User", userdir,
-                          sizeof(userdir)) != 0 || userdir[0] == '\0')
-        strncpy(userdir, "root", sizeof(userdir));
-    else
-        url_decode_report_fn(userdir);
-    userdir[sizeof(userdir) - 1] = '\0';
-    sanitize_report_user_dir(userdir, sizeof(userdir));
+    if (http_header_value(req_headers, "X-Report-Kind", kind_hdr,
+                          sizeof(kind_hdr)) == 0 &&
+        strcasecmp(kind_hdr, "json") == 0)
+        is_json = 1;
+    if (!is_json) {
+        size_t fl = strlen(filename);
+        if (fl >= 5 && strcasecmp(filename + fl - 5, ".json") == 0)
+            is_json = 1;
+    }
 
-    time_t     now = time(NULL);
-    struct tm  tm_local;
-    if (localtime_r(&now, &tm_local) == NULL) {
-        send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"time\"}", 28);
-        return;
+    if (is_json) {
+        sanitize_report_archive_name(filename);
+        if (filename[0] == '\0') {
+            strncpy(filename, "upload.json", sizeof(filename));
+            filename[sizeof(filename) - 1] = '\0';
+        }
+        {
+            size_t len = strlen(filename);
+            if (len > 200) {
+                filename[200] = '\0';
+                len = 200;
+            }
+            if (len < 6 || strcasecmp(filename + len - 5, ".json") != 0) {
+                if (len + 6 < sizeof(filename))
+                    memcpy(filename + len, ".json", 6);
+            }
+        }
+        if (!report_json_basename_ok(filename)) {
+            send_json(client_fd, 400, "Bad Request",
+                      "{\"ok\":false,\"error\":\"invalid json filename\"}", 42);
+            return;
+        }
+    } else {
+        sanitize_report_basename(filename);
+        if (!report_html_basename_ok(filename)) {
+            send_json(client_fd, 400, "Bad Request",
+                      "{\"ok\":false,\"error\":\"invalid html filename\"}", 42);
+            return;
+        }
+    }
+
+    if (http_header_value(req_headers, "X-Report-Legacy", legacy_hdr,
+                          sizeof(legacy_hdr)) == 0 &&
+        (legacy_hdr[0] == '1' ||
+         strcasecmp(legacy_hdr, "true") == 0))
+        legacy_mode = 1;
+
+    userdir[0] = '\0';
+    if (!legacy_mode) {
+        if (http_header_value(req_headers, "X-Report-User", userdir,
+                              sizeof(userdir)) != 0 || userdir[0] == '\0')
+            strncpy(userdir, "root", sizeof(userdir));
+        else
+            url_decode_report_fn(userdir);
+        userdir[sizeof(userdir) - 1] = '\0';
+        sanitize_report_user_dir(userdir, sizeof(userdir));
     }
 
     char yyyymm[16];
-    if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
-        send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"strftime\"}", 32);
-        return;
+    if (http_header_value(req_headers, "X-Report-YYYYMM", ym_hdr,
+                          sizeof(ym_hdr)) == 0 && ym_hdr[0] != '\0') {
+        url_decode_report_fn(ym_hdr);
+        if (!dir_name_is_yyyymm(ym_hdr)) {
+            send_json(client_fd, 400, "Bad Request",
+                      "{\"ok\":false,\"error\":\"invalid X-Report-YYYYMM\"}", 44);
+            return;
+        }
+        strncpy(yyyymm, ym_hdr, sizeof(yyyymm));
+        yyyymm[sizeof(yyyymm) - 1] = '\0';
+    } else {
+        time_t     now = time(NULL);
+        struct tm  tm_local;
+        if (localtime_r(&now, &tm_local) == NULL) {
+            send_json(client_fd, 500, "Internal Server Error",
+                      "{\"ok\":false,\"error\":\"time\"}", 28);
+            return;
+        }
+        if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
+            send_json(client_fd, 500, "Internal Server Error",
+                      "{\"ok\":false,\"error\":\"strftime\"}", 32);
+            return;
+        }
     }
 
     char dirpath[512];
-    if (mkdir_report_user_ym(dirpath, sizeof(dirpath), userdir, yyyymm) != 0) {
-        send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"mkdir\"}", 30);
-        return;
+    char prefix[512];
+
+    if (legacy_mode) {
+        if (mkdir_report_legacy_ym(dirpath, sizeof(dirpath), yyyymm) != 0) {
+            send_json(client_fd, 500, "Internal Server Error",
+                      "{\"ok\":false,\"error\":\"mkdir\"}", 30);
+            return;
+        }
+        snprintf(prefix, sizeof(prefix), "%s/report/%s/", WEB_ROOT, yyyymm);
+    } else {
+        if (mkdir_report_user_ym(dirpath, sizeof(dirpath), userdir, yyyymm) !=
+            0) {
+            send_json(client_fd, 500, "Internal Server Error",
+                      "{\"ok\":false,\"error\":\"mkdir\"}", 30);
+            return;
+        }
+        snprintf(prefix, sizeof(prefix), "%s/report/%s/%s/", WEB_ROOT, userdir,
+                 yyyymm);
     }
 
     char filepath[640];
@@ -684,9 +788,6 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
         return;
     }
 
-    char prefix[512];
-    snprintf(prefix, sizeof(prefix), "%s/report/%s/%s/", WEB_ROOT, userdir,
-             yyyymm);
     if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
         send_json(client_fd, 400, "Bad Request",
                   "{\"ok\":false,\"error\":\"bad path\"}", 33);
@@ -712,9 +813,15 @@ static void handle_api_save_report(int client_fd, const char *req_headers,
     fclose(fp);
 
     char resp[768];
-    int  rl = snprintf(resp, sizeof(resp),
-                       "{\"ok\":true,\"path\":\"report/%s/%s/%s\"}",
-                       userdir, yyyymm, filename);
+    int  rl;
+    if (legacy_mode)
+        rl = snprintf(resp, sizeof(resp),
+                      "{\"ok\":true,\"path\":\"report/%s/%s\"}", yyyymm,
+                      filename);
+    else
+        rl = snprintf(resp, sizeof(resp),
+                      "{\"ok\":true,\"path\":\"report/%s/%s/%s\"}", userdir,
+                      yyyymm, filename);
     if (rl < 0 || (size_t)rl >= sizeof(resp)) {
         send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
     } else {

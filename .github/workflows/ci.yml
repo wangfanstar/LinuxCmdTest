@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  build-and-test:
+    name: Build & Test (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Install dependencies ─────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc make curl valgrind
+
+      # ── Build server ─────────────────────────────────────────────
+      - name: Build (release)
+        run: make all
+
+      # ── Build test binaries ──────────────────────────────────────
+      - name: Build test binaries
+        run: make test-build
+
+      # ── Unit tests ───────────────────────────────────────────────
+      - name: Unit tests
+        run: make test-unit
+
+      # ── Integration tests ────────────────────────────────────────
+      - name: Integration tests
+        run: make test-integration
+
+      # ── Optional: Valgrind memory check on unit tests ────────────
+      - name: Valgrind – test_log
+        if: ${{ !cancelled() }}
+        run: |
+          make debug
+          make test-build-debug
+          valgrind --error-exitcode=1 \
+                   --leak-check=full \
+                   --show-leak-kinds=all \
+                   --track-origins=yes \
+                   --quiet \
+                   tests/test_log_dbg
+
+      - name: Valgrind – test_threadpool
+        if: ${{ !cancelled() }}
+        run: |
+          valgrind --error-exitcode=1 \
+                   --leak-check=full \
+                   --show-leak-kinds=all \
+                   --track-origins=yes \
+                   --quiet \
+                   tests/test_threadpool_dbg
+
+      - name: Valgrind – test_helpers
+        if: ${{ !cancelled() }}
+        run: |
+          valgrind --error-exitcode=1 \
+                   --leak-check=full \
+                   --show-leak-kinds=all \
+                   --track-origins=yes \
+                   --quiet \
+                   tests/test_helpers_dbg
+
+      # ── Upload test logs on failure ──────────────────────────────
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: /tmp/wfserver_test_http_logs/
+          if-no-files-found: ignore

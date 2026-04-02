@@ -69,22 +69,23 @@ aside {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* 允许「预设模板」下拉层越过本列边界，避免被裁切（仍靠 #cmd-list 自身滚动） */
+  overflow: visible;
 }
 .sidebar-body {
   flex: 1;
-  overflow-y: hidden;
+  min-height: 0;
+  overflow: visible;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 0;
 }
 /* 命令集合区块填满剩余空间，避免底部留白 */
 .sidebar-body > .form-section:last-child {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -266,8 +267,10 @@ button:hover { background: var(--surface2); border-color: var(--accent); }
   border: 1px solid var(--border);
   border-radius: 8px;
   min-width: 200px;
-  z-index: 50;
-  overflow: hidden;
+  z-index: 180;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 #preset-menu.show { display: block; }

@@ -21,6 +21,74 @@ SRCS = $(SRC_DIR)/main.c \
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # ──────────────────────────────────────────────
+#  测试
+# ──────────────────────────────────────────────
+TEST_DIR  = tests
+TCFLAGS   = -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE -Isrc -Itests
+TLDFLAGS  = -lpthread
+DBGFLAGS  = -g -O0 -DDEBUG
+
+# Release test binaries
+TEST_LOG        = $(TEST_DIR)/test_log
+TEST_TP         = $(TEST_DIR)/test_threadpool
+TEST_HELPERS    = $(TEST_DIR)/test_helpers
+
+# Debug test binaries (for valgrind)
+TEST_LOG_DBG     = $(TEST_DIR)/test_log_dbg
+TEST_TP_DBG      = $(TEST_DIR)/test_threadpool_dbg
+TEST_HELPERS_DBG = $(TEST_DIR)/test_helpers_dbg
+
+.PHONY: test test-build test-unit test-integration \
+        test-build-debug clean-tests
+
+## Build all test binaries (release)
+test-build: $(TEST_LOG) $(TEST_TP) $(TEST_HELPERS)
+
+## Build all test binaries (debug, for valgrind)
+test-build-debug: $(TEST_LOG_DBG) $(TEST_TP_DBG) $(TEST_HELPERS_DBG)
+
+$(TEST_LOG): $(TEST_DIR)/test_log.c $(SRC_DIR)/log.c
+	$(CC) $(TCFLAGS) -o $@ $^ $(TLDFLAGS)
+
+$(TEST_TP): $(TEST_DIR)/test_threadpool.c $(SRC_DIR)/threadpool.c $(SRC_DIR)/log.c
+	$(CC) $(TCFLAGS) -o $@ $^ $(TLDFLAGS)
+
+# test_helpers.c #includes http_handler.c directly — do NOT also link it
+$(TEST_HELPERS): $(TEST_DIR)/test_helpers.c
+	$(CC) $(TCFLAGS) -Wno-unused-function -o $@ $< $(TLDFLAGS)
+
+$(TEST_LOG_DBG): $(TEST_DIR)/test_log.c $(SRC_DIR)/log.c
+	$(CC) $(TCFLAGS) $(DBGFLAGS) -o $@ $^ $(TLDFLAGS)
+
+$(TEST_TP_DBG): $(TEST_DIR)/test_threadpool.c $(SRC_DIR)/threadpool.c $(SRC_DIR)/log.c
+	$(CC) $(TCFLAGS) $(DBGFLAGS) -o $@ $^ $(TLDFLAGS)
+
+$(TEST_HELPERS_DBG): $(TEST_DIR)/test_helpers.c
+	$(CC) $(TCFLAGS) $(DBGFLAGS) -Wno-unused-function -o $@ $< $(TLDFLAGS)
+
+## Run unit tests only
+test-unit: test-build
+	@echo "=== Unit Tests ==="; \
+	rc=0; \
+	for t in $(TEST_LOG) $(TEST_TP) $(TEST_HELPERS); do \
+	    echo; $$t || rc=1; \
+	done; \
+	exit $$rc
+
+## Run integration tests only (starts server on TEST_PORT, default 18881)
+test-integration: all
+	@bash $(TEST_DIR)/test_http_api.sh
+
+## Run all tests (unit + integration)
+test: test-build all
+	@bash $(TEST_DIR)/run_tests.sh all
+
+## Clean test binaries
+clean-tests:
+	rm -f $(TEST_DIR)/test_log $(TEST_DIR)/test_threadpool $(TEST_DIR)/test_helpers \
+	      $(TEST_DIR)/test_log_dbg $(TEST_DIR)/test_threadpool_dbg $(TEST_DIR)/test_helpers_dbg
+
+# ──────────────────────────────────────────────
 #  默认目标
 # ──────────────────────────────────────────────
 .PHONY: all clean run debug memcheck init
@@ -62,6 +130,6 @@ memcheck: debug
 # ──────────────────────────────────────────────
 #  清理
 # ──────────────────────────────────────────────
-clean:
+clean: clean-tests
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 	@echo "Cleaned."

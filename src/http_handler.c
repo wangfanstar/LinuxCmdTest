@@ -3044,6 +3044,47 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    /* GET /api/log-files — 返回 logs/ 目录下所有 .log 文件名列表（按名排序）。
+     * 替代旧方案（前端逐个 HEAD 探测），一次请求即可填充下拉列表。 */
+    if (strcmp(path, "/api/log-files") == 0) {
+        strbuf_t sb = {0};
+        SB_LIT(&sb, "{\"ok\":true,\"files\":[");
+        DIR *ld = opendir("logs");
+        if (ld) {
+            /* 收集文件名 */
+            char names[LOG_MAX_FILES + 2][64];
+            int  nc = 0;
+            struct dirent *de;
+            while ((de = readdir(ld)) != NULL && nc < LOG_MAX_FILES) {
+                const char *n  = de->d_name;
+                size_t      nl = strlen(n);
+                if (nl > 4 && strcmp(n + nl - 4, ".log") == 0) {
+                    strncpy(names[nc], n, 63);
+                    names[nc][63] = '\0';
+                    nc++;
+                }
+            }
+            closedir(ld);
+            /* 按名称升序排列（server_0 < server_1 < …） */
+            for (int i = 0; i < nc - 1; i++)
+                for (int j = 0; j < nc - i - 1; j++)
+                    if (strcmp(names[j], names[j + 1]) > 0) {
+                        char tmp[64];
+                        memcpy(tmp,        names[j],     64);
+                        memcpy(names[j],   names[j + 1], 64);
+                        memcpy(names[j+1], tmp,          64);
+                    }
+            for (int i = 0; i < nc; i++) {
+                if (i) SB_LIT(&sb, ",");
+                sb_json_str(&sb, names[i]);
+            }
+        }
+        SB_LIT(&sb, "]}");
+        if (sb.data) { send_json(client_fd, 200, "OK", sb.data, sb.len); free(sb.data); }
+        else send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false}", 12);
+        goto done;
+    }
+
     /* /logs/<file> — 直接从真实 logs 目录（与 html/ 同级）读取，
      * 无需在 html/ 下创建软链接。
      * ".." 已在上方统一拦截，此处无路径穿越风险。 */

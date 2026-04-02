@@ -299,20 +299,24 @@ const STATUS_DOT   = document.getElementById('status-dot');
 
 async function probeLogs() {
   FILE_SELECT.innerHTML = '';
-  const found = [];
-  // 探测最多 10 个文件，从最新到最旧
-  for (let i = 9; i >= 0; i--) {
-    try {
-      const r = await fetch(`/logs/server_${i}.log`, { method: 'HEAD', cache: 'no-store' });
-      if (r.ok) found.push(`server_${i}.log`);
-    } catch (_) { /* 忽略 */ }
-  }
-  if (found.length === 0) {
+  let files = [];
+  try {
+    const r = await fetch('/api/log-files', { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.ok && Array.isArray(data.files)) {
+        // 服务端返回升序（server_0…），反转后最新在前
+        files = data.files.slice().reverse();
+      }
+    }
+  } catch (_) { /* 网络异常忽略 */ }
+
+  if (files.length === 0) {
     FILE_SELECT.innerHTML = '<option value="">（无日志文件）</option>';
     setBadge('暂无日志', true);
     return;
   }
-  found.forEach((f, idx) => {
+  files.forEach((f, idx) => {
     const opt = document.createElement('option');
     opt.value = `/logs/${f}`;
     opt.textContent = f + (idx === 0 ? '  ← 最新' : '');

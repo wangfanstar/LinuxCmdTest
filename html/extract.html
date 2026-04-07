@@ -187,6 +187,26 @@
   .download-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   .download-row input { max-width: 260px; }
   .download-row label { font-size: 0.85em; color: #bac2de; white-space: nowrap; }
+
+  /* 折叠按钮 */
+  .collapse-btn {
+    margin-left: auto; padding: 1px 8px; border-radius: 3px;
+    border: 1px solid #45475a; background: #1e1e2e;
+    color: #a6adc8; cursor: pointer; font-size: 0.82em;
+    font-family: inherit; line-height: 1.4; transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .collapse-btn:hover { background: #313244; color: #cdd6f4; border-color: #6c7086; }
+  .collapsible-body { overflow: hidden; transition: opacity 0.2s; }
+  .collapsible-body.hidden { display: none; }
+
+  /* 侧边栏折叠态 */
+  .help-sidebar.collapsed { width: auto; min-width: 0; }
+  .help-sidebar.collapsed .help-sidebar-title { border-bottom: none; }
+
+  /* 面板标题含折叠按钮时 */
+  .panel-title-row { display: flex; align-items: center; margin-bottom: 10px; }
+  .panel-title-row .panel-title { margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -199,9 +219,12 @@
 <div class="layout-body">
 
 <!-- 帮助侧边栏 -->
-<div class="help-sidebar">
-  <div class="help-sidebar-title"><span>?</span><span>使用说明</span></div>
-  <div class="help-body">
+<div class="help-sidebar collapsed" id="help-sidebar">
+  <div class="help-sidebar-title" style="cursor:pointer" onclick="toggleHelp()">
+    <span>?</span><span>使用说明</span>
+    <button class="collapse-btn" id="help-toggle" onclick="event.stopPropagation();toggleHelp()">▶</button>
+  </div>
+  <div class="help-body collapsible-body hidden" id="help-body">
     <div class="help-grid">
 
       <!-- 基本流程 -->
@@ -306,9 +329,11 @@
   <!-- 路径加载 -->
   <div class="path-block">
     <div class="path-tabs">
-      <button class="path-tab active" id="tab-url"   onclick="switchTab('url')">🌐 网络地址（URL）</button>
-      <button class="path-tab"        id="tab-local" onclick="switchTab('local')">💾 本地路径</button>
+      <button class="path-tab" id="tab-url"   onclick="switchTab('url')">🌐 网络地址（URL）</button>
+      <button class="path-tab" id="tab-local" onclick="switchTab('local')">💾 本地路径</button>
+      <button class="collapse-btn" id="path-toggle" onclick="togglePathBlock()" style="margin-left:auto">▶</button>
     </div>
+  <div class="collapsible-body hidden" id="path-block-body">
 
     <!-- URL 输入 -->
     <div id="pane-url">
@@ -329,6 +354,7 @@
     </div>
 
     <div id="path-status"></div>
+  </div><!-- /path-block-body -->
   </div>
 
   <div id="file-list"></div>
@@ -350,8 +376,12 @@
 
   <!-- 排除关键词 -->
   <div class="exclude-block">
-    <div class="exclude-label">⊘ 排除关键词（含该词的行将从结果中剔除）</div>
-    <div class="search-row">
+    <div class="exclude-label" style="cursor:pointer" onclick="toggleExclude()">
+      <span>⊘ 排除关键词（含该词的行将从结果中剔除）</span>
+      <button class="collapse-btn" id="exclude-toggle" onclick="event.stopPropagation();toggleExclude()" style="margin-left:auto">▶</button>
+    </div>
+    <div class="collapsible-body hidden" id="exclude-body">
+    <div class="search-row" style="margin-top:6px">
       <input type="text" id="exclude-input" placeholder="输入要排除的字符串，按 Enter 添加..." spellcheck="false">
       <button class="btn-danger" onclick="addExclude()" style="white-space:nowrap">+ 排除</button>
       <button class="btn-neutral" onclick="clearExcludes()" style="white-space:nowrap">清除</button>
@@ -366,6 +396,7 @@
       </span>
     </div>
     <div id="exclude-tags" class="tags-row"><span class="hint-empty">暂无排除词</span></div>
+    </div><!-- /exclude-body -->
   </div>
 
   <!-- 多词匹配模式 -->
@@ -462,6 +493,13 @@ let currentTab = 'url';
 
 function switchTab(tab) {
   currentTab = tab;
+  // 点击 tab 时自动展开路径加载区
+  const body = document.getElementById('path-block-body');
+  const btn  = document.getElementById('path-toggle');
+  if (body.classList.contains('hidden')) {
+    body.classList.remove('hidden');
+    btn.textContent = '▼';
+  }
   document.getElementById('pane-url').style.display   = tab === 'url'   ? '' : 'none';
   document.getElementById('pane-local').style.display = tab === 'local' ? '' : 'none';
   document.getElementById('tab-url').classList.toggle('active',   tab === 'url');
@@ -609,6 +647,13 @@ function renderPatternTags() {
 
 // ─── 排除关键词管理 ──────────────────────────────────────────
 function addExclude() {
+  // 添加排除词时自动展开排除区
+  const excBody = document.getElementById('exclude-body');
+  const excBtn  = document.getElementById('exclude-toggle');
+  if (excBody.classList.contains('hidden')) {
+    excBody.classList.remove('hidden');
+    excBtn.textContent = '▼';
+  }
   const input = document.getElementById('exclude-input');
   const raw   = input.value.trim();
   if (!raw) return;
@@ -833,6 +878,30 @@ document.getElementById('exclude-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' &&  e.ctrlKey) { e.preventDefault(); doSearch(); }
 });
 
+
+// ─── 折叠/展开 ────────────────────────────────────────────────
+function toggleHelp() {
+  const sidebar = document.getElementById('help-sidebar');
+  const body    = document.getElementById('help-body');
+  const btn     = document.getElementById('help-toggle');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  body.classList.toggle('hidden', collapsed);
+  btn.textContent = collapsed ? '▶' : '▼';
+}
+
+function togglePathBlock() {
+  const body = document.getElementById('path-block-body');
+  const btn  = document.getElementById('path-toggle');
+  const hidden = body.classList.toggle('hidden');
+  btn.textContent = hidden ? '▶' : '▼';
+}
+
+function toggleExclude() {
+  const body = document.getElementById('exclude-body');
+  const btn  = document.getElementById('exclude-toggle');
+  const hidden = body.classList.toggle('hidden');
+  btn.textContent = hidden ? '▶' : '▼';
+}
 
 </script>
 </div><!-- /main-content -->

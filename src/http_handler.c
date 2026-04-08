@@ -1465,6 +1465,51 @@ static void handle_api_list_all_configs(int client_fd)
     }
 }
 
+/* GET /api/list-register-files — 递归列出 html/register/ 下所有 .xml/.json 文件，
+ * 返回相对于 register/ 的路径数组，供前端直接选择加载。                          */
+static void scan_register_dir(const char *dir_path, const char *rel_prefix,
+                               strbuf_t *sb, int *first)
+{
+    DIR *d = opendir(dir_path);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char full[1024];
+        snprintf(full, sizeof(full), "%s/%s", dir_path, de->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0) continue;
+        char rel[512];
+        if (rel_prefix[0])
+            snprintf(rel, sizeof(rel), "%s/%s", rel_prefix, de->d_name);
+        else
+            snprintf(rel, sizeof(rel), "%s", de->d_name);
+        if (S_ISDIR(st.st_mode)) {
+            scan_register_dir(full, rel, sb, first);
+        } else if (S_ISREG(st.st_mode)) {
+            size_t nl = strlen(de->d_name);
+            int ok = (nl > 4 && strcasecmp(de->d_name + nl - 4, ".xml")  == 0) ||
+                     (nl > 5 && strcasecmp(de->d_name + nl - 5, ".json") == 0);
+            if (!ok) continue;
+            if (!*first) SB_LIT(sb, ",");
+            *first = 0;
+            sb_json_str(sb, rel);
+        }
+    }
+    closedir(d);
+}
+
+static void handle_api_list_register_files(int client_fd)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"files\":[");
+    int first = 1;
+    scan_register_dir(WEB_ROOT "/register", "", &sb, &first);
+    SB_LIT(&sb, "]}");
+    if (sb.data) { send_json(client_fd, 200, "OK", sb.data, sb.len); free(sb.data); }
+    else send_json(client_fd, 200, "OK", "{\"ok\":true,\"files\":[]}", 22);
+}
+
 /* GET /api/client-info — TCP 对端 IPv4（浏览器所在机器），供存档默认名与链接预览 */
 static void handle_api_client_info(int client_fd, const char *client_ip)
 {
@@ -2992,6 +3037,11 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/list-all-configs") == 0) {
         handle_api_list_all_configs(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/list-register-files") == 0) {
+        handle_api_list_register_files(client_fd);
         goto done;
     }
 

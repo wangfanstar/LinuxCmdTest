@@ -1703,64 +1703,26 @@ function netScan() {
   footer.style.display = 'none';
   _netFileList = [];
 
-  _netScanDir(_netRootUrl, _netRootUrl, [], function(results) {
-    _netFileList = results;
-    _renderNetFileList();
-  }, function(err) {
-    body.innerHTML = '<div style="color:#ff9090;font-size:0.82rem;text-align:center;padding:20px 0;">扫描失败：' + escHtml(err) + '<br><span style="color:#7a8ba8;font-size:0.75rem;">请确认服务器已开启目录列表</span></div>';
-  });
-}
-
-// 递归扫描目录，rootUrl 用于计算显示路径
-function _netScanDir(dirUrl, rootUrl, accumulated, onDone, onError) {
-  fetch(dirUrl)
+  fetch('/api/list-register-files')
     .then(function(resp) {
-      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + dirUrl);
-      return resp.text();
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
     })
-    .then(function(html) {
-      // 收集文件链接
-      var fileRe = /href="([^"#?][^"]*\.(xml|json))"/gi;
-      var dirRe  = /href="([^"#?.][^"]*\/)"/gi;
-      var m, files = [], dirs = [];
-
-      while ((m = fileRe.exec(html)) !== null) {
-        var href = m[1];
-        if (href.indexOf('://') !== -1 || href.charAt(0) === '/') continue;
-        if (href.indexOf('/') !== -1) continue; // 只取当前层文件名
-        files.push(href);
-      }
-      // 去重
-      var seen = {};
-      files = files.filter(function(f) { if (seen[f]) return false; seen[f] = true; return true; });
-
-      files.forEach(function(name) {
-        var ext = name.split('.').pop().toLowerCase();
-        var rel = dirUrl.slice(rootUrl.length) + name; // 相对于 register/ 的路径
-        accumulated.push({ name: name, displayPath: rel, baseUrl: dirUrl, ext: ext, type: ext === 'json' ? 'json' : 'xml' });
+    .then(function(data) {
+      if (!data.ok || !data.files) throw new Error('接口返回异常');
+      _netFileList = data.files.map(function(relPath) {
+        var name = relPath.split('/').pop();
+        var ext  = name.split('.').pop().toLowerCase();
+        // baseUrl = register/ + 子目录前缀（若有）
+        var slash = relPath.lastIndexOf('/');
+        var dir   = slash >= 0 ? relPath.slice(0, slash + 1) : '';
+        return { name: name, displayPath: relPath, baseUrl: _netRootUrl + dir, ext: ext, type: ext === 'json' ? 'json' : 'xml' };
       });
-
-      // 收集子目录链接
-      while ((m = dirRe.exec(html)) !== null) {
-        var href = m[1];
-        if (href === '../' || href === './' || href.charAt(0) === '/' || href.indexOf('://') !== -1) continue;
-        dirs.push(dirUrl + href);
-      }
-
-      if (!dirs.length) { onDone(accumulated); return; }
-
-      var pending = dirs.length;
-      dirs.forEach(function(sub) {
-        _netScanDir(sub, rootUrl, accumulated, function() {
-          pending--;
-          if (pending === 0) onDone(accumulated);
-        }, function() {
-          pending--;
-          if (pending === 0) onDone(accumulated);
-        });
-      });
+      _renderNetFileList();
     })
-    .catch(function(e) { onError(e.message); });
+    .catch(function(e) {
+      body.innerHTML = '<div style="color:#ff9090;font-size:0.82rem;text-align:center;padding:20px 0;">扫描失败：' + escHtml(e.message) + '</div>';
+    });
 }
 
 function _renderNetFileList() {

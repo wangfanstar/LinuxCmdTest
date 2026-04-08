@@ -310,11 +310,11 @@ body {
 <!-- 工具栏 -->
 <div class="toolbar">
   <input class="search-box" id="search-input" type="text" placeholder="搜索文件名…" oninput="renderContent()">
-  <button class="btn btn-primary" onclick="triggerUpload()">⬆ 上传文件</button>
+  <label class="btn btn-primary" for="upload-input" style="cursor:pointer;">⬆ 上传文件</label>
+  <input type="file" id="upload-input" multiple accept=".xml,.json" style="display:none" onchange="doUpload(this.files)">
   <button class="btn btn-secondary" onclick="openNewDirModal()">＋ 新建文件夹</button>
   <button class="btn btn-secondary" onclick="refreshAll()">↺ 刷新</button>
   <span class="status-msg" id="status-msg"></span>
-  <input type="file" id="upload-input" multiple accept=".xml,.json" style="display:none" onchange="doUpload(this.files)">
 </div>
 
 <!-- 主体 -->
@@ -578,10 +578,6 @@ function deleteFile(relPath) {
 }
 
 // ── 上传 ─────────────────────────────────────────────────
-function triggerUpload() {
-  document.getElementById('upload-input').click();
-}
-
 function doUpload(files) {
   if (!files || !files.length) return;
   var bar = document.getElementById('upload-bar');

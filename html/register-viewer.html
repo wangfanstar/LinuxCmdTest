@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寄存器查看器</title>
+<style id="col-style">
+/* 列宽由 JS 动态写入 */
+</style>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:      #4a90e2;
+  --blue-dark: #2d6fc4;
+  --green:     #27ae60;
+  --orange:    #e67e22;
+  --red:       #e74c3c;
+  --gray:      #6c757d;
+  --bg:        #f0f2f5;
+  --card:      #ffffff;
+  --border:    #dde3ed;
+  --text:      #2c3e50;
+  --muted:     #7f8c9a;
+  --sidebar-w: 260px;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ══════════════════════════════════════
+   顶栏
+══════════════════════════════════════ */
+.topbar {
+  flex-shrink: 0;
+  background: #1a2035;
+  color: #fff;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 100;
+}
+.topbar h1 { font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
+.topbar .db-info { font-size: 0.78rem; color: #aab; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ══════════════════════════════════════
+   主体：左侧栏 + 右侧内容
+══════════════════════════════════════ */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 45px);
+}
+
+/* ── 左侧固定面板 ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: #1e2740;
+  color: #c8d0e0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid #2d3a54;
+}
+
+.sidebar-section {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid #2d3a54;
+}
+.sidebar-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #7a8ba8;
+  margin-bottom: 10px;
+}
+
+/* 上传拖拽区（侧边简化版） */
+.drop-zone {
+  border: 2px dashed #3a4e70;
+  border-radius: 8px;
+  padding: 16px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  font-size: 0.82rem;
+  color: #7a8ba8;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--blue);
+  background: rgba(74,144,226,.08);
+  color: #aac2f0;
+}
+.drop-zone .dz-icon { font-size: 1.6rem; margin-bottom: 6px; }
+.drop-zone .dz-hint { font-size: 0.75rem; margin-top: 4px; color: #556; }
+
+/* file input 由各自 label 内联控制，不在此全局隐藏 */
+
+/* 文件列表 */
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 14px;
+}
+.file-list::-webkit-scrollbar { width: 4px; }
+.file-list::-webkit-scrollbar-thumb { background: #3a4e70; border-radius: 4px; }
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+  background: #27334d;
+  border: 1px solid #324060;
+  overflow: hidden;
+}
+.file-item .fi-icon { flex-shrink: 0; font-size: 0.9rem; }
+.file-item .fi-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c8d0e0;
+}
+.file-item .fi-badge {
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.fi-badge.xml  { background: #2d5fa6; color: #a8c7ff; }
+.fi-badge.json { background: #2a6645; color: #7cdba0; }
+.file-item .fi-remove {
+  flex-shrink: 0;
+  color: #5a6a80;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  transition: color .15s;
+}
+.file-item .fi-remove:hover { color: var(--red); }
+
+.file-list-empty {
+  text-align: center;
+  color: #3f5070;
+  font-size: 0.78rem;
+  padding: 20px 0;
+}
+
+/* 侧边按钮区 */
+.sidebar-btns {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #2d3a54;
+}
+
+.btn-parse {
+  width: 100%;
+  padding: 10px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-parse:hover { background: var(--blue-dark); }
+.btn-parse:active { transform: scale(0.98); }
+.btn-parse:disabled { background: #2d3a54; color: #5a6a80; cursor: default; }
+
+.btn-side {
+  width: 100%;
+  padding: 7px;
+  background: #27334d;
+  color: #aab;
+  border: 1px solid #3a4e70;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.btn-side:hover { background: #2f3f5c; color: #c8d0e0; }
+
+/* 侧边统计 */
+.sidebar-stats {
+  padding: 10px 14px;
+  border-bottom: 1px solid #2d3a54;
+  display: none;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sidebar-stats.visible { display: flex; }
+.s-stat {
+  flex: 1;
+  min-width: 50px;
+  background: #27334d;
+  border: 1px solid #324060;
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: center;
+  font-size: 0.7rem;
+  color: #7a8ba8;
+}
+.s-stat strong { display: block; font-size: 1.05rem; color: #7ab8ff; }
+
+/* ══════════════════════════════════════
+   右侧内容区
+══════════════════════════════════════ */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar-thumb { background: #c8d0e0; border-radius: 4px; }
+
+/* 工具栏 */
+#toolbar {
+  display: none;
+  padding: 12px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+#toolbar.visible { display: flex; }
+
+.search-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+.search-wrap input {
+  width: 100%;
+  padding: 7px 12px 7px 34px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  outline: none;
+  background: var(--bg);
+}
+.search-wrap input:focus { border-color: var(--blue); background: #fff; }
+.search-icon {
+  position: absolute; left: 10px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted); pointer-events: none; font-size: 0.85rem;
+}
+
+select {
+  padding: 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  background: var(--bg);
+  outline: none;
+  cursor: pointer;
+}
+select:focus { border-color: var(--blue); }
+
+.btn-toolbar {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  background: var(--blue);
+  color: #fff;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-toolbar:hover { opacity: .88; }
+.btn-toolbar.secondary { background: var(--gray); }
+.btn-toolbar.success   { background: var(--green); }
+.btn-toolbar.danger    { background: var(--red); }
+
+/* 类型过滤条 */
+.type-filter-bar {
+  flex-basis: 100%;          /* 独占一行 */
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.type-filter-label {
+  font-size: 0.78rem; color: var(--muted); white-space: nowrap; font-weight: 600;
+}
+.type-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 12px 4px 8px; border-radius: 999px;
+  border: 1.5px solid transparent;
+  cursor: pointer; user-select: none;
+  font-size: 0.8rem; font-weight: 600;
+  transition: opacity .15s, filter .15s;
+}
+.type-pill input[type="checkbox"] { width: 13px; height: 13px; cursor: pointer; margin: 0; }
+.type-pill.tt-reg  { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+.type-pill.tt-reg  input { accent-color: #0369a1; }
+.type-pill.tt-ind  { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.type-pill.tt-ind  input { accent-color: #059669; }
+.type-pill.tt-sram { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+.type-pill.tt-sram input { accent-color: #7c3aed; }
+.type-pill.pill-off { opacity: 0.35; filter: grayscale(0.7); }
+
+.toggle-wrap {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.82rem; color: var(--text);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+.toggle-wrap input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); }
+#result-count { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+
+/* 选中导出条 */
+#select-bar {
+  display: none;
+  padding: 8px 16px;
+  background: #e8f0fb;
+  border-bottom: 1px solid #bdd4f5;
+  flex-shrink: 0;
+}
+#select-bar.visible { display: block; }
+.select-bar-inner {
+  display: flex; align-items: center;
+  gap: 10px; flex-wrap: wrap;
+  font-size: 0.85rem; color: #1d4ed8;
+}
+
+/* 主内容 */
+#main {
+  flex: 1;
+  padding: 14px 16px 40px;
+}
+
+/* 欢迎提示（无数据时） */
+#welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+  color: var(--muted);
+  text-align: center;
+  padding: 40px;
+}
+#welcome .w-icon { font-size: 3rem; margin-bottom: 14px; }
+#welcome h2 { font-size: 1.1rem; color: #aab; margin-bottom: 8px; }
+#welcome p  { font-size: 0.85rem; color: #7a8ba8; }
+
+/* 解析中遮罩 */
+#loading {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  gap: 10px;
+}
+#loading.visible { display: flex; }
+.spinner {
+  width: 20px; height: 20px;
+  border: 3px solid #dde3ed;
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 表格表头 */
+.tbl-header {
+  display: grid;
+  /* grid-template-columns 由 JS col-style 动态控制 */
+  gap: 0;
+  padding: 7px 14px;
+  background: #eef2f8;
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #3a4a5c;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  align-items: center;
+  margin-bottom: 0;
+}
+.tbl-header .th-chk {
+  display: flex; align-items: center; justify-content: center;
+}
+.tbl-header .th-chk input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); }
+
+/* 列宽拖动手柄 */
+.tbl-header span { position: relative; overflow: visible; }
+.col-rh {
+  position: absolute; right: -3px; top: 0; bottom: 0; width: 7px;
+  cursor: col-resize; z-index: 30; background: transparent;
+}
+.col-rh::after {
+  content: ''; position: absolute; left: 3px; top: 20%; bottom: 20%; width: 2px;
+  background: #c8d0db; border-radius: 1px; transition: background .15s;
+}
+.col-rh:hover::after, .col-rh.rh-active::after { background: var(--blue); }
+
+/* 寄存器卡片 */
+.reg-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: none;
+  overflow: hidden;
+  transition: box-shadow .15s;
+}
+.reg-card:last-child { border-radius: 0 0 8px 8px; }
+.reg-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); z-index: 1; position: relative; }
+
+.reg-header {
+  display: grid;
+  /* grid-template-columns 由 JS col-style 动态控制 */
+  align-items: center;
+  gap: 0;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.reg-header:hover { background: #f7f9fc; }
+
+.reg-header .chk-wrap {
+  display: flex; align-items: center; justify-content: center; cursor: default;
+}
+.reg-header .chk-wrap input[type="checkbox"] {
+  width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue);
+}
+
+.col-idx   { color: var(--muted); font-size: 0.75rem; text-align: center; }
+.col-name  { font-weight: 600; color: #1a2035; font-family: "Consolas", monospace; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.col-addr  { font-family: "Consolas", monospace; font-size: 0.78rem; color: #6b4eaa; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-desc  { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.col-block { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-toggle {
+  text-align: right; font-size: 0.72rem; color: var(--blue);
+  display: flex; align-items: center; justify-content: flex-end; gap: 3px;
+}
+.toggle-arrow { transition: transform .2s; display: inline-block; }
+.reg-card.open .toggle-arrow { transform: rotate(180deg); }
+
+/* 展开内容 */
+.reg-body { display: none; border-top: 1px solid var(--border); }
+.reg-card.open .reg-body { display: block; }
+
+.reg-meta {
+  padding: 8px 16px;
+  background: #fafbfd;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-size: 0.78rem; color: var(--muted);
+}
+.reg-meta span strong { color: var(--text); }
+.reg-full-desc {
+  padding: 6px 16px 10px;
+  background: #fafbfd;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem; color: #555;
+  white-space: pre-wrap; line-height: 1.6;
+}
+
+/* 字段表 */
+.fields-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.fields-table th {
+  background: #eef2f8;
+  padding: 6px 12px;
+  text-align: left; font-weight: 600; color: #3a4a5c;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.fields-table td { padding: 6px 12px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+.fields-table tr:last-child td { border-bottom: none; }
+.fields-table tr:hover td { background: #f7f9fc; }
+
+/* Reserved 行样式 */
+.fields-table tr.row-reserved td            { background: #fdf6ec; color: #888; }
+.fields-table tr.row-reserved:hover td      { background: #faecd8; }
+.fields-table tr.row-reserved .field-name-cell { color: #b07030; font-style: italic; font-weight: 500; }
+.fields-table tr.row-reserved .bit-range   { color: #b07030; }
+.fields-table tr.row-reserved .reset-val   { color: #999; }
+.fields-table tr.row-reserved .field-desc  { color: #aaa; font-style: italic; }
+
+/* 隐藏保留位：在 reg-list 加 hide-reserved class 即可 */
+#reg-list.hide-reserved tr.row-reserved { display: none; }
+
+/* 保留位数量提示 */
+.rsv-note { color: #b07030; margin-left: 3px; font-size: 0.7rem; }
+
+.bit-range     { font-family: "Consolas", monospace; font-weight: 600; color: #444; white-space: nowrap; }
+.field-name-cell { font-family: "Consolas", monospace; font-weight: 600; color: #1a2035; }
+.reset-val     { font-family: "Consolas", monospace; color: #6b4eaa; }
+.field-desc    { color: #555; line-height: 1.5; white-space: pre-wrap; }
+
+/* 徽章 */
+.badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
+.badge-RW  { background: #dbeafe; color: #1d4ed8; }
+.badge-R,
+.badge-RO  { background: #dcfce7; color: #15803d; }
+.badge-W,
+.badge-WO  { background: #fef3c7; color: #b45309; }
+.badge-WC  { background: #ffe4e6; color: #be123c; }
+.badge-RSV { background: #fde8c8; color: #9a5a00; }
+.badge-default { background: #f1f5f9; color: #64748b; }
+.badge-SRAM { background: #ede9fe; color: #5b21b6; }
+.badge-REG  { background: #e0f2fe; color: #0369a1; }
+.badge-IND  { background: #d1fae5; color: #065f46; }
+
+/* 三种类型卡片左边框色 */
+.reg-card.sram-card     { border-left: 3px solid #7c3aed; }
+.reg-card.indirect-card { border-left: 3px solid #059669; }
+.sram-meta-row { display: flex; gap: 16px; flex-wrap: wrap; padding: 6px 16px 8px; background: #f5f3ff; border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+.sram-meta-row span { color: #555; }
+.sram-meta-row strong { color: #3b1e8f; }
+.sram-access { display: inline-flex; gap: 4px; }
+.sram-access .acc-on  { background: #d1fae5; color: #065f46; padding: 1px 6px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; }
+.sram-access .acc-off { background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; text-decoration: line-through; opacity: .6; }
+
+mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* 分页 */
+#pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 16px 0; flex-wrap: wrap; }
+.page-btn { padding: 5px 11px; border: 1.5px solid var(--border); border-radius: 5px; background: var(--card); cursor: pointer; font-size: 0.82rem; transition: all .15s; }
+.page-btn:hover { border-color: var(--blue); color: var(--blue); }
+.page-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.page-btn:disabled { opacity: .4; cursor: default; }
+
+#empty-state { display: none; text-align: center; padding: 60px 20px; color: var(--muted); }
+#empty-state.visible { display: block; }
+
+@media (max-width: 860px) {
+  :root { --sidebar-w: 220px; }
+  .reg-header, .tbl-header { grid-template-columns: 28px 28px 1fr 90px 28px; }
+  .col-desc, .col-block, .th-desc, .th-block { display: none; }
+}
+@media (max-width: 600px) {
+  .layout { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; height: auto; max-height: 280px; flex-direction: row; flex-wrap: wrap; }
+  .content { height: auto; overflow: visible; }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <h1>⚙ 寄存器查看器</h1>
+  <div class="db-info" id="db-info">在左侧添加文件后点击「开始解析」</div>
+  <a href="index.html" style="font-size:13px;color:#8b949e;text-decoration:none;margin-left:16px;white-space:nowrap;" title="返回首页">← 返回首页</a>
+</div>
+
+<div class="layout">
+
+  <!-- ══ 左侧固定面板 ══ -->
+  <aside class="sidebar">
+
+    <!-- 拖拽上传区 -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">添加文件</div>
+      <div class="drop-zone" id="drop-zone" onclick="pickFiles('xml')">
+        <div class="dz-icon">📂</div>
+        <div>拖拽文件到此处（推荐）</div>
+        <div class="dz-hint">支持 XML / JSON · 点击选择文件需稍等片刻</div>
+      </div>
+    </div>
+
+    <!-- 选择类型按钮 -->
+    <div class="sidebar-section" style="display:flex;gap:8px;padding-top:8px;padding-bottom:8px;">
+      <button class="btn-side" style="flex:1;" onclick="pickFiles('xml')">＋ XML</button>
+      <button class="btn-side" style="flex:1;color:#7cdba0;border-color:#2a6645;" onclick="pickFiles('json')">＋ JSON</button>
+    </div>
+
+    <!-- 文件列表 -->
+    <div class="file-list" id="file-list">
+      <div class="file-list-empty" id="file-list-empty">尚未添加文件</div>
+    </div>
+
+    <!-- 解析后统计 -->
+    <div class="sidebar-stats" id="sidebar-stats">
+      <div class="s-stat"><strong id="s-regs">0</strong>寄存器</div>
+      <div class="s-stat"><strong id="s-fields">0</strong>字段</div>
+      <div class="s-stat"><strong id="s-blocks">0</strong>Block</div>
+    </div>
+
+    <!-- 解析错误提示 -->
+    <div id="parse-error-bar" style="display:none;margin:0 14px 8px;padding:8px 10px;background:#4a2020;color:#ffaaaa;border-radius:6px;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;"></div>
+
+    <!-- 操作按钮 -->
+    <div class="sidebar-btns">
+      <button class="btn-parse" id="btn-parse" onclick="startParse()" disabled>
+        ▶ 开始解析
+      </button>
+      <button class="btn-side" onclick="pickFolder()">📁 加载文件夹</button>
+      <button class="btn-side" onclick="netScan()">🌐 网络加载</button>
+      <button class="btn-side" onclick="clearAll()">🗑 清空全部</button>
+    </div>
+
+  </aside>
+
+  <!-- ══ 右侧内容区 ══ -->
+  <div class="content">
+
+    <!-- 工具栏（解析后显示） -->
+    <div id="toolbar">
+      <!-- 第一行：类型过滤 -->
+      <div class="type-filter-bar">
+        <span class="type-filter-label">显示类型：</span>
+        <label class="type-pill tt-reg" id="pill-reg">
+          <input type="checkbox" id="ft-reg" checked onchange="onTypeFilter()">
+          <span>直接寄存器</span>
+        </label>
+        <label class="type-pill tt-ind" id="pill-ind">
+          <input type="checkbox" id="ft-ind" checked onchange="onTypeFilter()">
+          <span>间接寄存器</span>
+        </label>
+        <label class="type-pill tt-sram" id="pill-sram">
+          <input type="checkbox" id="ft-sram" checked onchange="onTypeFilter()">
+          <span>SRAM</span>
+        </label>
+      </div>
+      <!-- 第二行：搜索 + 其他过滤 -->
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="搜索寄存器名、地址、描述、字段名…" oninput="doFilter()">
+      </div>
+      <select id="filter-block" onchange="doFilter()">
+        <option value="">全部 Block</option>
+      </select>
+      <select id="filter-perm" onchange="doFilter()">
+        <option value="">全部权限</option>
+        <option value="RW">RW</option>
+        <option value="R">R / RO</option>
+        <option value="W">W / WO</option>
+        <option value="WC">WC</option>
+      </select>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="show-reserved" checked onchange="doFilter()">
+        显示保留位
+      </label>
+      <button class="btn-toolbar secondary" onclick="expandAll()">全部展开</button>
+      <button class="btn-toolbar secondary" onclick="collapseAll()">全部折叠</button>
+      <span id="result-count"></span>
+    </div>
+
+    <!-- 选中导出条 -->
+    <div id="select-bar">
+      <div class="select-bar-inner">
+        <span id="select-count">已选 0 个</span>
+        <button class="btn-toolbar success" onclick="exportSelected()">⬇ 导出选中 JSON</button>
+        <button class="btn-toolbar secondary" onclick="exportAll()">⬇ 导出全部结果</button>
+        <button class="btn-toolbar danger" onclick="clearSelection()">取消选择</button>
+      </div>
+    </div>
+
+    <!-- 主区域 -->
+    <div id="main">
+      <!-- 欢迎状态 -->
+      <div id="welcome">
+        <div class="w-icon">📋</div>
+        <h2>尚无数据</h2>
+        <p>在左侧添加 XML 或 JSON 文件，<br>然后点击「开始解析」</p>
+      </div>
+
+      <!-- 解析中 -->
+      <div id="loading">
+        <div class="spinner"></div>
+        正在解析文件，请稍候…
+      </div>
+
+      <!-- 表格 -->
+      <div id="tbl-header-wrap" style="display:none;">
+        <div class="tbl-header" id="tbl-header">
+          <span>#</span>
+          <span class="th-chk"><input type="checkbox" id="chk-all" onchange="toggleSelectAll(this.checked)" title="全选/取消"></span>
+          <span>寄存器名称<div class="col-rh" data-col="2" title="拖动调整列宽"></div></span>
+          <span>地址<div class="col-rh" data-col="3" title="拖动调整列宽"></div></span>
+          <span class="th-desc">描述<div class="col-rh" data-col="4" title="拖动调整列宽"></div></span>
+          <span class="th-block">Block<div class="col-rh" data-col="5" title="拖动调整列宽"></div></span>
+          <span></span>
+        </div>
+      </div>
+      <div id="reg-list"></div>
+      <div id="pagination"></div>
+      <div id="empty-state">
+        <div style="font-size:2rem;">🔎</div>
+        <div style="margin-top:8px;">没有匹配的寄存器</div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /layout -->
+
+<script>
+var NS = 'http://registerdb.gt.com';
+var PAGE_SIZE = 50;
+
+// 待解析的文件队列
+var pendingFiles = [];   // { file, type }
+
+var allRegisters = [];
+var filtered     = [];
+var selected     = new Set();
+var currentPage  = 1;
+var dbInfos      = [];
+var uidCounter   = 0;
+
+// ── 工具函数 ──────────────────────────────────────────────
+function gtext(el, tag) {
+  var c = el.getElementsByTagNameNS(NS, tag)[0];
+  return c ? c.textContent.trim() : '';
+}
+function toHex(decStr) {
+  var n = parseInt(decStr, 10);
+  if (isNaN(n)) return decStr || '—';
+  var h = n.toString(16).toUpperCase();
+  while (h.length < 8) h = '0' + h;
+  return '0x' + h;
+}
+function toHexShort(decStr) {
+  var n = parseInt(decStr, 10);
+  return isNaN(n) ? (decStr || '0') : '0x' + n.toString(16).toUpperCase();
+}
+function isReserved(name) { return /^(RESERVED|RSVD|RSV)/i.test(name || ''); }
+
+// 自动填充未分配的位域为 RSVD（64bit 寄存器中的空隙位）
+function fillReservedGaps(fields, regWidth) {
+  if (!fields.length) {
+    // 全部未定义，整个寄存器都是 RSVD
+    return [{
+      name: 'RSVD' + (regWidth-1) + '_0', endBit: regWidth-1, startBit: 0,
+      width: regWidth, perm: 'RO', resetVal: '0', desc: '', reserved: true
+    }];
+  }
+  // 按 startBit 升序排列，找间隙
+  var sorted = fields.slice().sort(function(a,b){ return a.startBit - b.startBit; });
+  var result = [];
+  var nextBit = 0;
+  for (var i = 0; i < sorted.length; i++) {
+    var f = sorted[i];
+    var fStart = f.startBit;
+    var fEnd   = f.endBit;
+    if (fStart > nextBit) {
+      // 在 nextBit .. fStart-1 有空隙
+      var gs = nextBit, ge = fStart - 1;
+      result.push({
+        name: (ge === gs ? ('RSVD' + ge) : ('RSVD' + ge + '_' + gs)),
+        endBit: ge, startBit: gs, width: ge - gs + 1,
+        perm: 'RO', resetVal: '0', desc: '', reserved: true
+      });
+    }
+    result.push(f);
+    nextBit = fEnd + 1;
+  }
+  // 最高位之上到 regWidth-1 的空隙
+  if (nextBit <= regWidth - 1) {
+    var gs2 = nextBit, ge2 = regWidth - 1;
+    result.push({
+      name: (ge2 === gs2 ? ('RSVD' + ge2) : ('RSVD' + ge2 + '_' + gs2)),
+      endBit: ge2, startBit: gs2, width: ge2 - gs2 + 1,
+      perm: 'RO', resetVal: '0', desc: '', reserved: true
+    });
+  }
+  // 按 startBit 升序（从低位到高位展示）
+  result.sort(function(a,b){ return a.startBit - b.startBit; });
+  return result;
+}
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function hl(text, q) {
+  if (!q || !text) return escHtml(text);
+  var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return escHtml(text).replace(re, '<mark>$1</mark>');
+}
+function badgeClass(perm, fieldName) {
+  if (isReserved(fieldName)) return 'badge-RSV';
+  if (!perm) return 'badge-default';
+  var p = perm.toUpperCase();
+  if (p === 'RW') return 'badge-RW';
+  if (p === 'R' || p === 'RO') return 'badge-R';
+  if (p === 'W' || p === 'WO') return 'badge-W';
+  if (p === 'WC') return 'badge-WC';
+  return 'badge-default';
+}
+
+// ── 文件队列管理 ──────────────────────────────────────────
+function addFiles(files, type) {
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var dup = false;
+    for (var j = 0; j < pendingFiles.length; j++) {
+      if (pendingFiles[j].file.name === f.name && pendingFiles[j].file.size === f.size) { dup = true; break; }
+    }
+    if (!dup) pendingFiles.push({ file: f, type: type, parsed: false });
+  }
+  renderFileList();
+  document.getElementById('btn-parse').disabled = pendingFiles.length === 0;
+}
+
+function removeFile(idx) {
+  pendingFiles.splice(idx, 1);
+  renderFileList();
+  document.getElementById('btn-parse').disabled = pendingFiles.length === 0;
+}
+
+function renderFileList() {
+  var list  = document.getElementById('file-list');
+  var empty = document.getElementById('file-list-empty');
+  if (!pendingFiles.length) {
+    empty.style.display = '';
+    var old = list.querySelectorAll('.file-item');
+    for (var i = 0; i < old.length; i++) old[i].remove();
+    return;
+  }
+  empty.style.display = 'none';
+  var old2 = list.querySelectorAll('.file-item');
+  for (var j = 0; j < old2.length; j++) old2[j].remove();
+
+  for (var k = 0; k < pendingFiles.length; k++) {
+    var p = pendingFiles[k];
+    var parsed = p.parsed || false;
+    var div = document.createElement('div');
+    div.className = 'file-item' + (parsed ? ' parsed' : '');
+    div.innerHTML = '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
+      + '<span class="fi-name" title="' + escHtml(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
+      + (parsed ? '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>'
+                : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
+      + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
+    list.appendChild(div);
+  }
+}
+
+// ── 解析 ─────────────────────────────────────────────────
+function startParse() {
+  if (!pendingFiles.length) return;
+
+  // 清空旧结果
+  allRegisters = []; filtered = []; selected = new Set(); dbInfos = []; uidCounter = 0;
+  document.getElementById('reg-list').innerHTML = '';
+  document.getElementById('pagination').innerHTML = '';
+  document.getElementById('tbl-header-wrap').style.display = 'none';
+  document.getElementById('toolbar').classList.remove('visible');
+  document.getElementById('select-bar').classList.remove('visible');
+  document.getElementById('sidebar-stats').classList.remove('visible');
+  document.getElementById('empty-state').classList.remove('visible');
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('loading').classList.add('visible');
+  document.getElementById('btn-parse').disabled = true;
+  var eb = document.getElementById('parse-error-bar');
+  if (eb) { eb.style.display = 'none'; eb.textContent = ''; }
+
+  var filesToParse = pendingFiles.slice(); // 快照，防止异步期间被修改
+  var pending = filesToParse.length;
+  var newRegs = [];
+  var errors  = [];
+
+  function onFileRead(text, fname, ftype) {
+    try {
+      var regs = ftype === 'json'
+        ? parseImportedJSON(text, fname)
+        : parseXML(text, fname);
+      for (var i = 0; i < regs.length; i++) newRegs.push(regs[i]);
+    } catch (err) {
+      errors.push(fname + ': ' + err.message);
+    }
+    pending--;
+    if (pending === 0) {
+      if (errors.length) showParseError(errors.join('\n'));
+      finishLoad(newRegs);
+    }
+  }
+
+  for (var i = 0; i < filesToParse.length; i++) {
+    (function(entry) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        onFileRead(e.target.result, entry.file.name, entry.type);
+      };
+      reader.onerror = function() {
+        errors.push(entry.file.name + ': 文件读取失败');
+        pending--;
+        if (pending === 0) {
+          if (errors.length) showParseError(errors.join('\n'));
+          finishLoad(newRegs);
+        }
+      };
+      reader.readAsText(entry.file, 'UTF-8');
+    })(filesToParse[i]);
+  }
+}
+
+function showParseError(msg) {
+  var bar = document.getElementById('parse-error-bar');
+  if (bar) { bar.textContent = '解析错误：' + msg; bar.style.display = 'block'; }
+}
+
+// ── 解析单个 Register 元素（REG / INDIRECT 共用）─────────────
+function parseRegElement(reg, blockName, subName, filename, entryType) {
+  var addrDec   = gtext(reg, 'Register_Address');
+  var addrHex   = toHex(addrDec);
+  var copiesStr = gtext(reg, 'Copies_Number');
+  var copiesNum = parseInt(copiesStr, 10) || 1;
+  var addrRange = '';
+  if (copiesNum > 1) {
+    var addrEnd = parseInt(addrDec, 10) + copiesNum - 1;
+    addrRange = addrHex + ' ~ ' + toHex(String(addrEnd));
+  }
+
+  var fieldsListEl = reg.getElementsByTagNameNS(NS, 'Fields_List')[0];
+  var fields = [];
+  if (fieldsListEl) {
+    var fNodes = fieldsListEl.getElementsByTagNameNS(NS, 'Field');
+    for (var fi = 0; fi < fNodes.length; fi++) {
+      var f = fNodes[fi];
+      var endBit   = parseInt(gtext(f, 'End_Bit'), 10);
+      var startBit = parseInt(gtext(f, 'Start_Bit'), 10);
+      var fname    = gtext(f, 'Field_Name');
+      fields.push({
+        name: fname, endBit: endBit, startBit: startBit,
+        width: endBit - startBit + 1,
+        perm: gtext(f, 'Premission'), resetVal: gtext(f, 'Reset_Val'),
+        desc: gtext(f, 'Description') || gtext(f, 'Internal_Description'),
+        reserved: isReserved(fname)
+      });
+    }
+    var maxBit = 0;
+    for (var mi = 0; mi < fields.length; mi++) { if (fields[mi].endBit > maxBit) maxBit = fields[mi].endBit; }
+    fields = fillReservedGaps(fields, 64);
+  }
+
+  var regName   = gtext(reg, 'Name');
+  var shortDesc = gtext(reg, 'Short_Description');
+
+  var searchParts = [blockName, subName, regName, addrDec, addrHex, shortDesc, entryType];
+  for (var si = 0; si < fields.length; si++) { searchParts.push(fields[si].name + ' ' + fields[si].desc); }
+
+  var permSet = {}, permsArr = [];
+  for (var pi = 0; pi < fields.length; pi++) {
+    var p = (fields[pi].perm || '').toUpperCase();
+    if (!permSet[p]) { permSet[p] = true; permsArr.push(p); }
+  }
+
+  return {
+    uid: ++uidCounter, blockName: blockName, subName: subName, filename: filename,
+    regName: regName, entryType: entryType,
+    addrDec: addrDec, addrHex: addrHex, addrRange: addrRange,
+    shortDesc: shortDesc, fullDesc: gtext(reg, 'Full_Description'),
+    resetOn: gtext(reg, 'Reset_On'), ztlMode: gtext(reg, 'ZTL_Mode'), copies: copiesStr,
+    fields: fields, _search: searchParts.join(' ').toLowerCase(), _perms: permsArr
+  };
+}
+
+// ── 解析 XML ─────────────────────────────────────────────
+function parseXML(text, filename) {
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(text, 'application/xml');
+  var dbName = gtext(doc.documentElement, 'DBName');
+  if (dbName) dbInfos.push(dbName + ' (' + filename + ')');
+
+  var blocks = doc.getElementsByTagNameNS(NS, 'Block');
+  var result = [];
+
+  for (var bi = 0; bi < blocks.length; bi++) {
+    var block = blocks[bi];
+    var blockName = gtext(block, 'Name');
+    var subName   = gtext(block, 'Sub_Name');
+
+    // ── 直接寄存器 ──
+    var regListEl = block.getElementsByTagNameNS(NS, 'Registers_List')[0];
+    if (regListEl) {
+      var regs = regListEl.getElementsByTagNameNS(NS, 'Register');
+      for (var ri = 0; ri < regs.length; ri++) {
+        result.push(parseRegElement(regs[ri], blockName, subName, filename, 'reg'));
+      }
+    }
+
+    // ── 间接寄存器 ──
+    var indListEl = block.getElementsByTagNameNS(NS, 'Indirect_Registers_List')[0];
+    if (indListEl) {
+      var indRegs = indListEl.getElementsByTagNameNS(NS, 'Register');
+      for (var ii = 0; ii < indRegs.length; ii++) {
+        result.push(parseRegElement(indRegs[ii], blockName, subName, filename, 'indirect'));
+      }
+    }
+
+    // ── 解析 SRAM ──────────────────────────────────────────
+    var sramsListEl = block.getElementsByTagNameNS(NS, 'Srams_List')[0];
+    if (sramsListEl) {
+      var srams = sramsListEl.getElementsByTagNameNS(NS, 'Sram');
+      for (var sri = 0; sri < srams.length; sri++) {
+        var sram = srams[sri];
+        var sramName  = gtext(sram, 'Name');
+        var sramId    = gtext(sram, 'Sram_Id');
+        var numLines  = gtext(sram, 'Number_Of_Lines');
+        var lineSize  = gtext(sram, 'Line_Size');
+        var readable  = gtext(sram, 'Readable');
+        var writable  = gtext(sram, 'Writable');
+        var modifiable= gtext(sram, 'Modifiable');
+        var sCopiesStr= gtext(sram, 'Copies_Number');
+        var sCopiesNum= parseInt(sCopiesStr, 10) || 1;
+        var sShortDesc= gtext(sram, 'Short_Description');
+
+        // 解析字段（与 Register 相同结构）
+        var sFieldsListEl = sram.getElementsByTagNameNS(NS, 'Fields_List')[0];
+        var sFields = [];
+        if (sFieldsListEl) {
+          var sfNodes = sFieldsListEl.getElementsByTagNameNS(NS, 'Field');
+          for (var sfi = 0; sfi < sfNodes.length; sfi++) {
+            var sf = sfNodes[sfi];
+            var sfEndBit   = parseInt(gtext(sf, 'End_Bit'), 10);
+            var sfStartBit = parseInt(gtext(sf, 'Start_Bit'), 10);
+            var sfName     = gtext(sf, 'Field_Name');
+            sFields.push({
+              name:     sfName,
+              endBit:   sfEndBit,
+              startBit: sfStartBit,
+              width:    sfEndBit - sfStartBit + 1,
+              perm:     gtext(sf, 'Premission'),
+              resetVal: gtext(sf, 'Reset_Val'),
+              desc:     gtext(sf, 'Description') || gtext(sf, 'Internal_Description'),
+              reserved: isReserved(sfName)
+            });
+          }
+        }
+        // 用 Line_Size 确定位宽，填充 RSVD 空隙
+        var lineSizeN = parseInt(lineSize, 10) || 0;
+        var sMaxBit = 0;
+        for (var smi = 0; smi < sFields.length; smi++) { if (sFields[smi].endBit > sMaxBit) sMaxBit = sFields[smi].endBit; }
+        var sRegW = lineSizeN > 0 ? lineSizeN : (sMaxBit + 1);
+        if (sRegW > 0) sFields = fillReservedGaps(sFields, sRegW);
+
+        // 地址列显示 SRAM ID，格式 0x0 ~ 0x7
+        var sIdNum = parseInt(sramId, 10) || 0;
+        var sAddrHex = '0x' + sIdNum.toString(16);
+        var sAddrRange = '';
+        if (sCopiesNum > 1) {
+          sAddrRange = '0x' + sIdNum.toString(16) + ' ~ 0x' + (sIdNum + sCopiesNum - 1).toString(16);
+        }
+
+        // 搜索字符串
+        var sSearchParts = [blockName, subName, sramName, sramId, sShortDesc, 'sram'];
+        for (var ssi = 0; ssi < sFields.length; ssi++) {
+          sSearchParts.push(sFields[ssi].name + ' ' + sFields[ssi].desc);
+        }
+
+        result.push({
+          uid:       ++uidCounter,
+          blockName: blockName,
+          subName:   subName,
+          filename:  filename,
+          regName:   sramName,
+          entryType: 'sram',
+          addrDec:   sramId,
+          addrHex:   sAddrHex,
+          addrRange: sAddrRange,
+          shortDesc: sShortDesc,
+          fullDesc:  gtext(sram, 'Full_Description'),
+          resetOn:   gtext(sram, 'Reset_On'),
+          ztlMode:   gtext(sram, 'ZTL_Mode'),
+          copies:    sCopiesStr,
+          // SRAM 专属
+          numLines:  numLines,
+          lineSize:  lineSize,
+          readable:  readable,
+          writable:  writable,
+          modifiable:modifiable,
+          fields:    sFields,
+          _search:   sSearchParts.join(' ').toLowerCase(),
+          _perms:    []
+        });
+      }
+    }
+  }
+  return result;
+}
+
+// ── 解析导入 JSON ─────────────────────────────────────────
+function parseImportedJSON(text, filename) {
+  var arr = JSON.parse(text);
+  if (!Array.isArray(arr)) throw new Error('应为 JSON 数组');
+  var result = [];
+  for (var i = 0; i < arr.length; i++) {
+    var r = arr[i];
+    var uid = ++uidCounter;
+    var rawFields = r.fields || [];
+    var fields = [];
+    for (var j = 0; j < rawFields.length; j++) {
+      var f = rawFields[j];
+      var fname = f.name || '';
+      fields.push({
+        name:     fname,
+        endBit:   (f.endBit   != null) ? f.endBit   : (parseInt((f.bits||'').replace(/\[(\d+).*/,'$1'),10)||0),
+        startBit: (f.startBit != null) ? f.startBit : (parseInt((f.bits||'').replace(/.*:(\d+)\]/,'$1'),10)||0),
+        width:    f.width || 1,
+        perm:     f.permission || f.perm || '',
+        resetVal: f.resetValue || f.resetVal || '0',
+        desc:     f.description || f.desc || '',
+        reserved: isReserved(fname)
+      });
+    }
+    // 补全 RSVD 空隙
+    var maxBit2 = 0;
+    for (var mi2 = 0; mi2 < fields.length; mi2++) { if (fields[mi2].endBit > maxBit2) maxBit2 = fields[mi2].endBit; }
+    var regW2 = maxBit2 <= 7 ? 8 : maxBit2 <= 15 ? 16 : maxBit2 <= 31 ? 32 : 64;
+    fields = fillReservedGaps(fields, regW2);
+
+    var addrHex = r.address || r.addrHex || '0x00000000';
+    var addrDec = String(parseInt((addrHex||'0x0').replace(/0x/i,''),16)||0);
+    var copiesStr = String(r.copies || '1');
+    var copiesNum = parseInt(copiesStr, 10) || 1;
+    var addrRange = '';
+    if (copiesNum > 1) {
+      var addrEnd2 = parseInt(addrDec, 10) + copiesNum - 1;
+      addrRange = addrHex + ' ~ ' + toHex(String(addrEnd2));
+    }
+
+    var searchParts2 = [r.blockName, r.subName, r.regName||r.name, addrHex,
+                        r.shortDesc||r.description];
+    for (var si2 = 0; si2 < fields.length; si2++) {
+      searchParts2.push(fields[si2].name + ' ' + fields[si2].desc);
+    }
+
+    var permSet2 = {};
+    var permsArr2 = [];
+    for (var pi2 = 0; pi2 < fields.length; pi2++) {
+      var p2 = (fields[pi2].perm || '').toUpperCase();
+      if (!permSet2[p2]) { permSet2[p2] = true; permsArr2.push(p2); }
+    }
+
+    result.push({
+      uid:       uid,
+      blockName: r.blockName || '',
+      subName:   r.subName || '',
+      filename:  r._source || filename,
+      regName:   r.regName || r.name || '',
+      entryType: r.entryType || 'reg',
+      addrDec:   addrDec,
+      addrHex:   addrHex,
+      addrRange: addrRange,
+      shortDesc: r.shortDesc || r.description || '',
+      fullDesc:  r.fullDesc || '',
+      resetOn:   r.resetOn || '',
+      ztlMode:   r.ztlMode || '',
+      copies:    copiesStr,
+      numLines:  r.numLines || '',
+      lineSize:  r.lineSize || '',
+      readable:  r.readable || '',
+      writable:  r.writable || '',
+      modifiable:r.modifiable || '',
+      fields:    fields,
+      _search:   searchParts2.join(' ').toLowerCase(),
+      _perms:    permsArr2
+    });
+  }
+  return result;
+}
+
+// ── 加载完成 ─────────────────────────────────────────────
+function finishLoad(newRegs) {
+  allRegisters = newRegs;   // 直接替换，不累加
+  document.getElementById('loading').classList.remove('visible');
+
+  var totalFields = 0;
+  var totalRsvd = 0;
+  var sramCount = 0;
+  var indCount  = 0;
+  var blockKeySet = {};
+  var blockNames = [];
+  var blockNameSet = {};
+  for (var i = 0; i < allRegisters.length; i++) {
+    var r = allRegisters[i];
+    if (r.entryType === 'sram')     sramCount++;
+    if (r.entryType === 'indirect') indCount++;
+    totalFields += r.fields.length;
+    for (var j = 0; j < r.fields.length; j++) {
+      if (r.fields[j].reserved) totalRsvd++;
+    }
+    var bk = r.blockName + '/' + r.subName;
+    if (!blockKeySet[bk]) blockKeySet[bk] = true;
+    if (!blockNameSet[r.blockName]) {
+      blockNameSet[r.blockName] = true;
+      blockNames.push(r.blockName);
+    }
+  }
+  var blockCount = Object.keys(blockKeySet).length;
+
+  document.getElementById('s-regs').textContent   = allRegisters.length;
+  document.getElementById('s-fields').textContent = totalFields;
+  document.getElementById('s-blocks').textContent = blockCount;
+  document.getElementById('sidebar-stats').classList.add('visible');
+  var regCount = allRegisters.length - sramCount - indCount;
+  document.getElementById('db-info').textContent  = dbInfos.join(' · ') ||
+    ('REG ' + regCount + '  IND ' + indCount + '  SRAM ' + sramCount + '  保留位 ' + totalRsvd + ' 个');
+
+  document.getElementById('toolbar').classList.add('visible');
+  document.getElementById('tbl-header-wrap').style.display = '';
+
+  var sel = document.getElementById('filter-block');
+  sel.innerHTML = '<option value="">全部 Block</option>';
+  blockNames.sort();
+  for (var bi = 0; bi < blockNames.length; bi++) {
+    var opt = document.createElement('option');
+    opt.value = blockNames[bi];
+    opt.textContent = blockNames[bi];
+    sel.appendChild(opt);
+  }
+
+  // 解析完成：文件列表保留并标记已解析，按钮禁用（添加新文件后自动启用）
+  for (var pi = 0; pi < pendingFiles.length; pi++) pendingFiles[pi].parsed = true;
+  renderFileList();
+  document.getElementById('btn-parse').disabled = true;
+  doFilter();
+}
+
+// ── 搜索 & 过滤 ──────────────────────────────────────────
+// 类型勾选变化时：更新 pill 样式，再过滤
+function onTypeFilter() {
+  var pills = [
+    { id: 'pill-reg',  chk: 'ft-reg'  },
+    { id: 'pill-ind',  chk: 'ft-ind'  },
+    { id: 'pill-sram', chk: 'ft-sram' }
+  ];
+  for (var i = 0; i < pills.length; i++) {
+    var pill = document.getElementById(pills[i].id);
+    var chk  = document.getElementById(pills[i].chk);
+    if (pill && chk) {
+      if (chk.checked) pill.classList.remove('pill-off');
+      else             pill.classList.add('pill-off');
+    }
+  }
+  doFilter();
+}
+
+function doFilter() {
+  var q     = document.getElementById('search-input').value.trim().toLowerCase();
+  var blk   = document.getElementById('filter-block').value;
+  var perm  = document.getElementById('filter-perm').value.toUpperCase();
+  var ftReg  = document.getElementById('ft-reg').checked;
+  var ftInd  = document.getElementById('ft-ind').checked;
+  var ftSram = document.getElementById('ft-sram').checked;
+  var showR  = document.getElementById('show-reserved').checked;
+
+  filtered = allRegisters.filter(function(r) {
+    var et = r.entryType || 'reg';
+    if (et === 'reg'      && !ftReg)  return false;
+    if (et === 'indirect' && !ftInd)  return false;
+    if (et === 'sram'     && !ftSram) return false;
+    if (blk  && r.blockName !== blk) return false;
+    if (perm && r.entryType !== 'sram') {
+      var ok = perm==='R' ? r._perms.some(function(p){return p==='R'||p==='RO';})
+             : perm==='W' ? r._perms.some(function(p){return p==='W'||p==='WO';})
+             : r._perms.indexOf(perm) !== -1;
+      if (!ok) return false;
+    }
+    if (q && r._search.indexOf(q) === -1) return false;
+    return true;
+  });
+
+  // CSS 控制保留位显示/隐藏，无需过滤数据
+  var regList = document.getElementById('reg-list');
+  if (showR) {
+    regList.classList.remove('hide-reserved');
+  } else {
+    regList.classList.add('hide-reserved');
+  }
+
+  currentPage = 1;
+  var rsvTotal = allRegisters.reduce(function(s,r){ return s + r.fields.filter(function(f){return f.reserved;}).length; }, 0);
+  document.getElementById('result-count').textContent =
+    filtered.length + ' / ' + allRegisters.length + ' 条（保留位字段 ' + rsvTotal + ' 个）';
+
+  updateSelectBar();
+  renderPage();
+}
+
+// ── 渲染 ─────────────────────────────────────────────────
+function renderPage() {
+  var list  = document.getElementById('reg-list');
+  var empty = document.getElementById('empty-state');
+  var q = document.getElementById('search-input').value.trim();
+
+  // 每次渲染后立即同步保留位显示状态
+  var showR = document.getElementById('show-reserved').checked;
+  if (showR) {
+    list.classList.remove('hide-reserved');
+  } else {
+    list.classList.add('hide-reserved');
+  }
+
+  if (!filtered.length) {
+    list.innerHTML = '';
+    empty.classList.add('visible');
+    renderPagination();
+    return;
+  }
+  empty.classList.remove('visible');
+
+  var start = (currentPage-1)*PAGE_SIZE;
+  var page  = filtered.slice(start, start+PAGE_SIZE);
+
+  var cards = [];
+  for (var ci = 0; ci < page.length; ci++) {
+    cards.push(buildCard(page[ci], start+ci+1, q));
+  }
+  list.innerHTML = cards.join('');
+
+  var headers = list.querySelectorAll('.reg-header');
+  for (var hi = 0; hi < headers.length; hi++) {
+    (function(h) {
+      h.addEventListener('click', function(ev) {
+        if (ev.target.type === 'checkbox') return;
+        var card = h.parentNode;
+        while (card && !card.classList.contains('reg-card')) card = card.parentNode;
+        if (card) card.classList.toggle('open');
+      });
+    })(headers[hi]);
+  }
+  var chkBoxes = list.querySelectorAll('.reg-chk');
+  for (var ki = 0; ki < chkBoxes.length; ki++) {
+    (function(chk) {
+      chk.addEventListener('change', function() {
+        var uid = Number(chk.dataset.uid);
+        if (chk.checked) selected.add(uid); else selected.delete(uid);
+        updateSelectBar(); syncHeaderCheckbox();
+      });
+      chk.checked = selected.has(Number(chk.dataset.uid));
+    })(chkBoxes[ki]);
+  }
+
+  syncHeaderCheckbox();
+  renderPagination();
+}
+
+function buildCard(r, idx, q) {
+  var sf = r.fields;   // 始终渲染全部字段，显示/隐藏由 CSS 控制
+  var fieldRows = sf.map(function(f) {
+    var bits = f.endBit === f.startBit ? '[' + f.startBit + ']' : '[' + f.startBit + ':' + f.endBit + ']';
+    var bc   = badgeClass(f.perm, f.name);
+    var rc   = f.reserved ? ' class="row-reserved"' : '';
+    var descDisplay = (f.reserved && !f.desc)
+      ? '<span style="color:#bbb;font-style:italic;">保留位，软件勿修改</span>'
+      : hl(f.desc, q);
+    var permLabel = f.reserved
+      ? '<span class="badge badge-RSV">RSV</span>'
+      : '<span class="badge ' + bc + '">' + (escHtml(f.perm) || '—') + '</span>';
+    return '<tr' + rc + '>'
+      + '<td class="field-name-cell">' + hl(f.name, q) + '</td>'
+      + '<td class="bit-range">' + bits + '</td>'
+      + '<td style="text-align:center;">' + f.width + '</td>'
+      + '<td>' + permLabel + '</td>'
+      + '<td class="reset-val">' + toHexShort(f.resetVal) + '</td>'
+      + '<td class="field-desc">' + descDisplay + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var isSram = (r.entryType === 'sram');
+
+  // ── 通用元信息 ──
+  var metaParts = [];
+  if (r.resetOn) metaParts.push('<span><strong>Reset:</strong> ' + escHtml(r.resetOn) + '</span>');
+  if (r.ztlMode) metaParts.push('<span><strong>ZTL:</strong> ' + escHtml(r.ztlMode) + '</span>');
+  if (!isSram && r.copies && r.copies !== '1') metaParts.push('<span><strong>Copies:</strong> ' + escHtml(r.copies) + '</span>');
+  if (!isSram && r.addrRange) metaParts.push('<span><strong>地址范围:</strong> ' + escHtml(r.addrRange) + '</span>');
+  metaParts.push('<span><strong>Block:</strong> ' + escHtml(r.blockName) + ' / ' + escHtml(r.subName) + '</span>');
+  metaParts.push('<span><strong>来源:</strong> ' + escHtml(r.filename) + '</span>');
+  var meta = metaParts.join('');
+
+  // ── SRAM 专属信息行 ──
+  var sramMetaBlock = '';
+  if (isSram) {
+    var accHtml = '<span class="sram-access">'
+      + '<span class="' + (r.readable   === 'true' ? 'acc-on' : 'acc-off') + '">R</span>'
+      + '<span class="' + (r.writable   === 'true' ? 'acc-on' : 'acc-off') + '">W</span>'
+      + '<span class="' + (r.modifiable === 'true' ? 'acc-on' : 'acc-off') + '">M</span>'
+      + '</span>';
+    var sramCopies = (parseInt(r.copies, 10) || 1) > 1
+      ? '<span><strong>副本数:</strong> ' + escHtml(r.copies) + '</span>' : '';
+    sramMetaBlock = '<div class="sram-meta-row">'
+      + '<span><strong>深度:</strong> ' + escHtml(r.numLines) + ' 行</span>'
+      + '<span><strong>位宽:</strong> ' + escHtml(r.lineSize) + ' bit</span>'
+      + '<span><strong>访问:</strong> ' + accHtml + '</span>'
+      + sramCopies
+      + '</div>';
+  }
+
+  var fullDescBlock = (r.fullDesc && r.fullDesc !== r.shortDesc)
+    ? '<div class="reg-full-desc">' + hl(r.fullDesc, q) + '</div>' : '';
+
+  var rsvCnt = 0;
+  for (var rci = 0; rci < r.fields.length; rci++) { if (r.fields[rci].reserved) rsvCnt++; }
+  var rsvNote = rsvCnt ? '<span class="rsv-note">(含' + rsvCnt + '保留)</span>' : '';
+
+  var isIndirect = (r.entryType === 'indirect');
+  var typeBadge = isSram     ? '<span class="badge badge-SRAM" style="margin-right:4px;">SRAM</span>'
+                : isIndirect ? '<span class="badge badge-IND"  style="margin-right:4px;">IND</span>'
+                : '';
+  var addrDisplay = isSram
+    ? ('<span style="font-size:0.72rem;color:#7c3aed;">' + escHtml(r.addrRange || r.addrHex) + '</span>')
+    : (r.addrRange ? escHtml(r.addrRange) : hl(r.addrHex, q));
+
+  var cardClass = isSram     ? 'reg-card sram-card'
+                : isIndirect ? 'reg-card indirect-card'
+                : 'reg-card';
+
+  return '<div class="' + cardClass + '">'
+    + '<div class="reg-header">'
+    + '<span class="col-idx">' + idx + '</span>'
+    + '<span class="chk-wrap"><input type="checkbox" class="reg-chk" data-uid="' + r.uid + '"></span>'
+    + '<span class="col-name" title="' + escHtml(r.regName) + '">' + typeBadge + hl(r.regName, q) + '</span>'
+    + '<span class="col-addr" title="' + escHtml(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
+    + '<span class="col-desc" title="' + escHtml(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
+    + '<span class="col-block" title="' + escHtml(r.blockName) + '">' + escHtml(r.subName || r.blockName) + '</span>'
+    + '<span class="col-toggle">' + sf.length + '字段' + rsvNote + '<span class="toggle-arrow">▼</span></span>'
+    + '</div>'
+    + '<div class="reg-body">'
+    + sramMetaBlock
+    + '<div class="reg-meta">' + meta + '</div>'
+    + fullDescBlock
+    + '<table class="fields-table"><thead><tr>'
+    + '<th>字段名</th><th>位域</th><th style="text-align:center;">宽度</th>'
+    + '<th>访问</th><th>复位值</th><th>描述</th>'
+    + '</tr></thead><tbody>' + fieldRows + '</tbody></table>'
+    + '</div></div>';
+}
+
+// ── 全选 ─────────────────────────────────────────────────
+function toggleSelectAll(checked) {
+  var start=(currentPage-1)*PAGE_SIZE;
+  var pg=filtered.slice(start,start+PAGE_SIZE);
+  for(var i=0;i<pg.length;i++){ if(checked) selected.add(pg[i].uid); else selected.delete(pg[i].uid); }
+  var chks=document.querySelectorAll('.reg-chk');
+  for(var j=0;j<chks.length;j++) chks[j].checked=selected.has(Number(chks[j].dataset.uid));
+  updateSelectBar();
+}
+function syncHeaderCheckbox() {
+  var start=(currentPage-1)*PAGE_SIZE;
+  var pg=filtered.slice(start,start+PAGE_SIZE);
+  var el=document.getElementById('chk-all'); if(!el)return;
+  var allSel=pg.length>0;
+  var anySel=false;
+  for(var i=0;i<pg.length;i++){
+    if(!selected.has(pg[i].uid)) allSel=false;
+    else anySel=true;
+  }
+  el.checked=allSel;
+  el.indeterminate=!allSel&&anySel;
+}
+function clearSelection() {
+  selected.clear();
+  var chks=document.querySelectorAll('.reg-chk');
+  for(var i=0;i<chks.length;i++) chks[i].checked=false;
+  syncHeaderCheckbox(); updateSelectBar();
+}
+function updateSelectBar() {
+  document.getElementById('select-count').textContent='已选 '+selected.size+' 个';
+  var vis=filtered.length>0||selected.size>0;
+  if(vis) document.getElementById('select-bar').classList.add('visible');
+  else document.getElementById('select-bar').classList.remove('visible');
+}
+
+// ── JSON 导出 ─────────────────────────────────────────────
+function buildExportData(regs) {
+  var out = [];
+  for (var i = 0; i < regs.length; i++) {
+    var r = regs[i];
+    var fout = [];
+    for (var j = 0; j < r.fields.length; j++) {
+      var f = r.fields[j];
+      var bits = f.endBit === f.startBit ? '[' + f.startBit + ']' : '[' + f.startBit + ':' + f.endBit + ']';
+      fout.push({
+        name: f.name, bits: bits,
+        endBit: f.endBit, startBit: f.startBit, width: f.width,
+        permission: f.perm, resetValue: toHexShort(f.resetVal),
+        description: f.desc, reserved: f.reserved
+      });
+    }
+    var entry = {
+      entryType: r.entryType || 'reg',
+      blockName: r.blockName, subName: r.subName, regName: r.regName,
+      address: r.addrHex, addrRange: r.addrRange || '',
+      shortDesc: r.shortDesc, fullDesc: r.fullDesc,
+      resetOn: r.resetOn, ztlMode: r.ztlMode, copies: r.copies, _source: r.filename,
+      fields: fout
+    };
+    if (r.entryType === 'sram') {
+      entry.numLines  = r.numLines;
+      entry.lineSize  = r.lineSize;
+      entry.readable  = r.readable;
+      entry.writable  = r.writable;
+      entry.modifiable= r.modifiable;
+    }
+    out.push(entry);
+  }
+  return out;
+}
+function dlJSON(data, name) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+function exportSelected() {
+  if (!selected.size) { alert('请先勾选'); return; }
+  var sel = [];
+  for (var i = 0; i < allRegisters.length; i++) { if (selected.has(allRegisters[i].uid)) sel.push(allRegisters[i]); }
+  dlJSON(buildExportData(sel), 'registers_' + selected.size + '.json');
+}
+function exportAll() {
+  if (!filtered.length) return;
+  dlJSON(buildExportData(filtered), 'registers_all_' + filtered.length + '.json');
+}
+
+// ── 分页 ─────────────────────────────────────────────────
+function renderPagination() {
+  var total = Math.ceil(filtered.length / PAGE_SIZE);
+  var pg = document.getElementById('pagination');
+  if (total <= 1) { pg.innerHTML = ''; return; }
+  var html = '<button class="page-btn" onclick="goPage(' + (currentPage-1) + ')"' + (currentPage===1?' disabled':'') + '>‹</button>';
+  // build range of pages to show
+  var pset = {}, pkeys = [];
+  var candidates = [1, total, currentPage, currentPage-1, currentPage+1];
+  for (var ci = 0; ci < candidates.length; ci++) {
+    var cp = candidates[ci];
+    if (cp >= 1 && cp <= total && !pset[cp]) { pset[cp] = true; pkeys.push(cp); }
+  }
+  pkeys.sort(function(a,b){return a-b;});
+  var prev = null;
+  for (var pi = 0; pi < pkeys.length; pi++) {
+    var p = pkeys[pi];
+    if (prev !== null && p - prev > 1) html += '<span style="color:var(--muted)">…</span>';
+    html += '<button class="page-btn' + (p===currentPage?' active':'') + '" onclick="goPage(' + p + ')">' + p + '</button>';
+    prev = p;
+  }
+  html += '<button class="page-btn" onclick="goPage(' + (currentPage+1) + ')"' + (currentPage===total?' disabled':'') + '>›</button>';
+  html += '<span style="font-size:.82rem;color:var(--muted)">第' + currentPage + '/' + total + '页</span>';
+  pg.innerHTML = html;
+}
+function goPage(p) {
+  var total = Math.ceil(filtered.length / PAGE_SIZE);
+  if (p < 1 || p > total) return;
+  currentPage = p; renderPage();
+  document.querySelector('.content').scrollTo({top:0,behavior:'smooth'});
+}
+function expandAll() {
+  var cards = document.querySelectorAll('.reg-card');
+  for (var i = 0; i < cards.length; i++) cards[i].classList.add('open');
+}
+function collapseAll() {
+  var cards = document.querySelectorAll('.reg-card');
+  for (var i = 0; i < cards.length; i++) cards[i].classList.remove('open');
+}
+
+// ── 清空 ─────────────────────────────────────────────────
+function clearAll() {
+  pendingFiles=[]; allRegisters=[]; filtered=[]; selected.clear(); dbInfos=[]; uidCounter=0;
+  renderFileList();
+  document.getElementById('btn-parse').disabled=true;
+  document.getElementById('reg-list').innerHTML='';
+  document.getElementById('pagination').innerHTML='';
+  document.getElementById('toolbar').classList.remove('visible');
+  document.getElementById('select-bar').classList.remove('visible');
+  document.getElementById('tbl-header-wrap').style.display='none';
+  document.getElementById('empty-state').classList.remove('visible');
+  document.getElementById('sidebar-stats').classList.remove('visible');
+  document.getElementById('welcome').style.display='';
+  document.getElementById('db-info').textContent='在左侧添加文件后点击「开始解析」';
+  document.getElementById('filter-block').innerHTML='<option value="">全部 Block</option>';
+  document.getElementById('filter-perm').value='';
+  document.getElementById('ft-reg').checked  = true;
+  document.getElementById('ft-ind').checked  = true;
+  document.getElementById('ft-sram').checked = true;
+  document.getElementById('pill-reg').classList.remove('pill-off');
+  document.getElementById('pill-ind').classList.remove('pill-off');
+  document.getElementById('pill-sram').classList.remove('pill-off');
+  document.getElementById('search-input').value='';
+}
+
+// ── 文件选择（使用预创建的持久 input，避免每次动态创建的卡顿）──────
+var _xmlInput    = null;
+var _jsonInput   = null;
+var _folderInput = null;
+
+function initFileInputs() {
+  var style = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
+
+  _xmlInput = document.createElement('input');
+  _xmlInput.type     = 'file';
+  _xmlInput.multiple = true;
+  _xmlInput.accept   = '.xml';
+  _xmlInput.style.cssText = style;
+  _xmlInput.onchange = function() {
+    if (_xmlInput.files && _xmlInput.files.length) {
+      addFiles(Array.prototype.slice.call(_xmlInput.files), 'xml');
+      _xmlInput.value = '';
+    }
+  };
+  document.body.appendChild(_xmlInput);
+
+  _jsonInput = document.createElement('input');
+  _jsonInput.type     = 'file';
+  _jsonInput.multiple = true;
+  _jsonInput.accept   = '.json';
+  _jsonInput.style.cssText = style;
+  _jsonInput.onchange = function() {
+    if (_jsonInput.files && _jsonInput.files.length) {
+      addFiles(Array.prototype.slice.call(_jsonInput.files), 'json');
+      _jsonInput.value = '';
+    }
+  };
+  document.body.appendChild(_jsonInput);
+
+  _folderInput = document.createElement('input');
+  _folderInput.type = 'file';
+  _folderInput.multiple = true;
+  _folderInput.setAttribute('webkitdirectory', '');
+  _folderInput.style.cssText = style;
+  _folderInput.onchange = function() {
+    if (!_folderInput.files || !_folderInput.files.length) return;
+    var all = Array.prototype.slice.call(_folderInput.files);
+    var xf = all.filter(function(f) { return f.name.toLowerCase().endsWith('.xml'); });
+    var jf = all.filter(function(f) { return f.name.toLowerCase().endsWith('.json'); });
+    if (xf.length) addFiles(xf, 'xml');
+    if (jf.length) addFiles(jf, 'json');
+    _folderInput.value = '';
+  };
+  document.body.appendChild(_folderInput);
+}
+
+function pickFiles(type) {
+  // 立即给按钮反馈，让用户知道点击已响应
+  var btns = document.querySelectorAll('.btn-side, .drop-zone');
+  for (var i = 0; i < btns.length; i++) btns[i].style.opacity = '0.5';
+
+  var inp = type === 'json' ? _jsonInput : _xmlInput;
+
+  // requestAnimationFrame 让浏览器先渲染上面的 UI 变化，再打开对话框
+  requestAnimationFrame(function() {
+    inp.click();
+    // 对话框关闭（同步阻塞结束）后恢复样式
+    for (var i = 0; i < btns.length; i++) btns[i].style.opacity = '';
+  });
+}
+
+function pickFolder() {
+  var btns = document.querySelectorAll('.btn-side, .drop-zone');
+  for (var i = 0; i < btns.length; i++) btns[i].style.opacity = '0.5';
+  requestAnimationFrame(function() {
+    _folderInput.click();
+    for (var i = 0; i < btns.length; i++) btns[i].style.opacity = '';
+  });
+}
+
+// ── 网络路径扫描加载（弹窗选择）──────────────────────────
+var _netFileList = [];   // [{name, displayPath, baseUrl, ext, type}]
+var _netRootUrl  = 'register/';
+
+function netScan() {
+  var body   = document.getElementById('net-modal-body');
+  var footer = document.getElementById('net-modal-footer');
+  document.getElementById('net-modal-overlay').style.display = 'flex';
+  body.innerHTML = '<div style="color:#7a8ba8;font-size:0.82rem;text-align:center;padding:20px 0;">正在扫描 register 文件夹…</div>';
+  footer.style.display = 'none';
+  _netFileList = [];
+
+  _netScanDir(_netRootUrl, _netRootUrl, [], function(results) {
+    _netFileList = results;
+    _renderNetFileList();
+  }, function(err) {
+    body.innerHTML = '<div style="color:#ff9090;font-size:0.82rem;text-align:center;padding:20px 0;">扫描失败：' + escHtml(err) + '<br><span style="color:#7a8ba8;font-size:0.75rem;">请确认服务器已开启目录列表</span></div>';
+  });
+}
+
+// 递归扫描目录，rootUrl 用于计算显示路径
+function _netScanDir(dirUrl, rootUrl, accumulated, onDone, onError) {
+  fetch(dirUrl)
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + dirUrl);
+      return resp.text();
+    })
+    .then(function(html) {
+      // 收集文件链接
+      var fileRe = /href="([^"#?][^"]*\.(xml|json))"/gi;
+      var dirRe  = /href="([^"#?.][^"]*\/)"/gi;
+      var m, files = [], dirs = [];
+
+      while ((m = fileRe.exec(html)) !== null) {
+        var href = m[1];
+        if (href.indexOf('://') !== -1 || href.charAt(0) === '/') continue;
+        if (href.indexOf('/') !== -1) continue; // 只取当前层文件名
+        files.push(href);
+      }
+      // 去重
+      var seen = {};
+      files = files.filter(function(f) { if (seen[f]) return false; seen[f] = true; return true; });
+
+      files.forEach(function(name) {
+        var ext = name.split('.').pop().toLowerCase();
+        var rel = dirUrl.slice(rootUrl.length) + name; // 相对于 register/ 的路径
+        accumulated.push({ name: name, displayPath: rel, baseUrl: dirUrl, ext: ext, type: ext === 'json' ? 'json' : 'xml' });
+      });
+
+      // 收集子目录链接
+      while ((m = dirRe.exec(html)) !== null) {
+        var href = m[1];
+        if (href === '../' || href === './' || href.charAt(0) === '/' || href.indexOf('://') !== -1) continue;
+        dirs.push(dirUrl + href);
+      }
+
+      if (!dirs.length) { onDone(accumulated); return; }
+
+      var pending = dirs.length;
+      dirs.forEach(function(sub) {
+        _netScanDir(sub, rootUrl, accumulated, function() {
+          pending--;
+          if (pending === 0) onDone(accumulated);
+        }, function() {
+          pending--;
+          if (pending === 0) onDone(accumulated);
+        });
+      });
+    })
+    .catch(function(e) { onError(e.message); });
+}
+
+function _renderNetFileList() {
+  var body   = document.getElementById('net-modal-body');
+  var footer = document.getElementById('net-modal-footer');
+
+  if (!_netFileList.length) {
+    body.innerHTML = '<div style="color:#ff9090;font-size:0.82rem;text-align:center;padding:20px 0;">未找到 XML/JSON 文件<br><span style="color:#7a8ba8;font-size:0.75rem;">请确认服务器已开启目录列表</span></div>';
+    return;
+  }
+
+  var html2 = '<div style="font-size:0.75rem;color:#7a8ba8;margin-bottom:10px;">找到 ' + _netFileList.length + ' 个文件，选择要加载的：</div>';
+  for (var i = 0; i < _netFileList.length; i++) {
+    var f    = _netFileList[i];
+    var icon = f.type === 'json' ? '📄' : '🗂';
+    var col  = f.type === 'json' ? '#7cdba0' : '#7ab8ff';
+    html2 += '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:5px;cursor:pointer;font-size:0.82rem;color:#c8d0e0;" onmouseover="this.style.background=\'#27334d\'" onmouseout="this.style.background=\'\'">'
+           + '<input type="checkbox" class="net-file-chk" data-idx="' + i + '" style="width:14px;height:14px;accent-color:#4a90e2;cursor:pointer;">'
+           + '<span>' + icon + '</span>'
+           + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escHtml(f.displayPath) + '">' + escHtml(f.displayPath) + '</span>'
+           + '<span style="font-size:0.7rem;color:' + col + ';font-weight:600;">' + f.ext.toUpperCase() + '</span>'
+           + '</label>';
+  }
+  body.innerHTML = html2;
+  footer.style.display = 'flex';
+}
+
+function netModalClose() {
+  document.getElementById('net-modal-overlay').style.display = 'none';
+}
+
+function netModalSelectAll(val) {
+  var chks = document.querySelectorAll('.net-file-chk');
+  for (var i = 0; i < chks.length; i++) chks[i].checked = val;
+}
+
+function netModalLoad() {
+  var chks = document.querySelectorAll('.net-file-chk');
+  var selected = [];
+  for (var i = 0; i < chks.length; i++) {
+    if (chks[i].checked) {
+      var idx = parseInt(chks[i].getAttribute('data-idx'), 10);
+      selected.push(_netFileList[idx]);
+    }
+  }
+  if (!selected.length) return;
+
+  var btn    = document.getElementById('net-modal-load-btn');
+  var footer = document.getElementById('net-modal-footer');
+  btn.disabled = true;
+  btn.textContent = '加载中…';
+
+  var done = 0; var added = 0; var errors = [];
+
+  selected.forEach(function(f) {
+    fetch(f.baseUrl + f.name)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.blob();
+      })
+      .then(function(blob) {
+        var file = new File([blob], f.name, { type: 'text/plain' });
+        addFiles([file], f.type);
+        added++;
+      })
+      .catch(function(e) {
+        errors.push(f.name + ': ' + e.message);
+      })
+      .then(function() {
+        done++;
+        if (done === selected.length) {
+          netModalClose();
+          btn.disabled = false;
+          btn.textContent = '加载选中';
+        }
+      });
+  });
+}
+
+initFileInputs();
+
+// ── 列宽调整 ─────────────────────────────────────────────
+// colWidths: [#, chk, name, addr, desc(null=1fr), block, toggle]
+var colWidths = [36, 32, 200, 160, null, 90, 60];
+var _rhDragging = null;   // 正在拖动的列索引
+var _rhStartX   = 0;
+var _rhStartW   = 0;
+
+function applyColWidths() {
+  var tpl = colWidths.map(function(w){ return w === null ? '1fr' : w + 'px'; }).join(' ');
+  document.getElementById('col-style').textContent =
+    '.tbl-header,.reg-header{grid-template-columns:' + tpl + ';}';
+}
+
+function initColResize() {
+  applyColWidths();
+  var handles = document.querySelectorAll('.col-rh');
+  for (var i = 0; i < handles.length; i++) {
+    (function(h) {
+      h.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var col = parseInt(h.getAttribute('data-col'), 10);
+        _rhDragging = col;
+        _rhStartX = e.clientX;
+        // 若当前是 1fr，先测量实际像素宽度
+        if (colWidths[col] === null) {
+          var spans = document.querySelectorAll('#tbl-header span');
+          _rhStartW = spans[col] ? spans[col].offsetWidth : 200;
+          colWidths[col] = _rhStartW;
+        } else {
+          _rhStartW = colWidths[col];
+        }
+        h.classList.add('rh-active');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+    })(handles[i]);
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    if (_rhDragging === null) return;
+    var dx = e.clientX - _rhStartX;
+    colWidths[_rhDragging] = Math.max(50, _rhStartW + dx);
+    applyColWidths();
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (_rhDragging !== null) {
+      var handles2 = document.querySelectorAll('.col-rh');
+      for (var i = 0; i < handles2.length; i++) handles2[i].classList.remove('rh-active');
+      _rhDragging = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+}
+
+initColResize();
+
+// ── 拖拽绑定 ─────────────────────────────────────────────
+var dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', function(){ dz.classList.remove('drag-over'); });
+dz.addEventListener('drop', function(e){
+  e.preventDefault(); dz.classList.remove('drag-over');
+  var all = Array.prototype.slice.call(e.dataTransfer.files);
+  var xf = all.filter(function(f){ return f.name.endsWith('.xml'); });
+  var jf = all.filter(function(f){ return f.name.endsWith('.json'); });
+  if(xf.length) addFiles(xf,'xml');
+  if(jf.length) addFiles(jf,'json');
+});
+</script>
+
+<!-- 网络加载弹窗 -->
+<div id="net-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;">
+  <div id="net-modal" style="background:#1e2740;border:1px solid #3a4e70;border-radius:10px;width:460px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+    <!-- 标题栏 -->
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #2d3a54;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:600;color:#c8d0e0;font-size:0.9rem;">📂 从 register 文件夹选择</span>
+      <button onclick="netModalClose()" style="background:none;border:none;color:#7a8ba8;font-size:1.1rem;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+    </div>
+    <!-- 文件列表 -->
+    <div id="net-modal-body" style="flex:1;overflow-y:auto;padding:12px 16px;">
+      <div style="color:#7a8ba8;font-size:0.82rem;text-align:center;padding:20px 0;">正在扫描…</div>
+    </div>
+    <!-- 底部操作 -->
+    <div id="net-modal-footer" style="display:none;padding:10px 16px 14px;border-top:1px solid #2d3a54;display:none;gap:8px;justify-content:flex-end;">
+      <button onclick="netModalSelectAll(true)"  style="padding:5px 10px;background:#27334d;color:#aab;border:1px solid #3a4e70;border-radius:5px;font-size:0.78rem;cursor:pointer;">全选</button>
+      <button onclick="netModalSelectAll(false)" style="padding:5px 10px;background:#27334d;color:#aab;border:1px solid #3a4e70;border-radius:5px;font-size:0.78rem;cursor:pointer;">全不选</button>
+      <button id="net-modal-load-btn" onclick="netModalLoad()" style="padding:5px 14px;background:#4a90e2;color:#fff;border:none;border-radius:5px;font-size:0.82rem;font-weight:600;cursor:pointer;">加载选中</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

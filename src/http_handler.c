@@ -1510,6 +1510,172 @@ static void handle_api_list_register_files(int client_fd)
     else send_json(client_fd, 200, "OK", "{\"ok\":true,\"files\":[]}", 22);
 }
 
+/* GET /api/list-register-dirs — 递归列出 html/register/ 下所有子目录路径 */
+static void scan_register_subdirs(const char *dir_path, const char *rel_prefix,
+                                  strbuf_t *sb, int *first)
+{
+    DIR *d = opendir(dir_path);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char full[1024];
+        snprintf(full, sizeof(full), "%s/%s", dir_path, de->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+        char rel[512];
+        if (rel_prefix[0])
+            snprintf(rel, sizeof(rel), "%s/%s", rel_prefix, de->d_name);
+        else
+            snprintf(rel, sizeof(rel), "%s", de->d_name);
+        if (!*first) SB_LIT(sb, ",");
+        *first = 0;
+        sb_json_str(sb, rel);
+        scan_register_subdirs(full, rel, sb, first);
+    }
+    closedir(d);
+}
+
+static void handle_api_list_register_dirs(int client_fd)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"dirs\":[");
+    int first = 1;
+    scan_register_subdirs(WEB_ROOT "/register", "", &sb, &first);
+    SB_LIT(&sb, "]}");
+    if (sb.data) { send_json(client_fd, 200, "OK", sb.data, sb.len); free(sb.data); }
+    else send_json(client_fd, 200, "OK", "{\"ok\":true,\"dirs\":[]}", 21);
+}
+
+/* 工具：递归创建目录 */
+static int mkdir_p(const char *path)
+{
+    char tmp[1024];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    size_t len = strlen(tmp);
+    if (len && tmp[len - 1] == '/') tmp[len - 1] = '\0';
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+            *p = '/';
+        }
+    }
+    return (mkdir(tmp, 0755) != 0 && errno != EEXIST) ? -1 : 0;
+}
+
+/* 工具：验证子目录路径安全（无 .. / 绝对路径） */
+static int register_subdir_safe(const char *s)
+{
+    if (!s || !*s) return 1;           /* 空串 = 根目录，允许 */
+    if (s[0] == '/' || s[0] == '.') return 0;
+    const char *p = s;
+    while (*p) {
+        const char *slash = strchr(p, '/');
+        size_t clen = slash ? (size_t)(slash - p) : strlen(p);
+        if (clen == 0) return 0;
+        if (clen == 2 && p[0] == '.' && p[1] == '.') return 0;
+        if (clen == 1 && p[0] == '.') return 0;
+        p = slash ? slash + 1 : p + clen;
+    }
+    return 1;
+}
+
+/* 工具：验证文件名安全（无路径分隔符，必须以 .json/.xml 结尾） */
+static int register_filename_safe(const char *fn)
+{
+    if (!fn || !*fn || fn[0] == '.') return 0;
+    if (strchr(fn, '/') || strchr(fn, '\\') || strchr(fn, ':')) return 0;
+    size_t l = strlen(fn);
+    return (l > 5 && strcasecmp(fn + l - 5, ".json") == 0) ||
+           (l > 4 && strcasecmp(fn + l - 4, ".xml")  == 0);
+}
+
+/* POST /api/save-register-file
+ * Headers: X-Register-Subdir (可为空，表示根目录), X-Register-Filename
+ * Body:    文件内容（JSON/XML）
+ * 写入 html/register/<subdir>/<filename>                                 */
+static void handle_api_save_register_file(int client_fd, const char *req_headers,
+                                          const char *body, size_t body_len)
+{
+    char subdir[256]   = "";
+    char filename[256] = "";
+
+    /* 子目录（可选） */
+    http_header_value(req_headers, "X-Register-Subdir", subdir, sizeof(subdir));
+    url_decode_report_fn(subdir);
+
+    /* 文件名（必填） */
+    if (http_header_value(req_headers, "X-Register-Filename",
+                          filename, sizeof(filename)) != 0 || !filename[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing X-Register-Filename\"}", 51);
+        return;
+    }
+    url_decode_report_fn(filename);
+
+    if (!register_subdir_safe(subdir)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid subdir\"}", 38);
+        return;
+    }
+    if (!register_filename_safe(filename)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid filename\"}", 40);
+        return;
+    }
+
+    /* 构建目录路径并创建 */
+    char dirpath[1024];
+    if (subdir[0])
+        snprintf(dirpath, sizeof(dirpath), WEB_ROOT "/register/%s", subdir);
+    else
+        snprintf(dirpath, sizeof(dirpath), WEB_ROOT "/register");
+
+    if (mkdir_p(dirpath) != 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"mkdir\"}", 30);
+        return;
+    }
+
+    /* 构建文件路径并校验前缀防路径穿越 */
+    char filepath[1280];
+    int fn = snprintf(filepath, sizeof(filepath), "%s/%s", dirpath, filename);
+    if (fn < 0 || (size_t)fn >= sizeof(filepath)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"path too long\"}", 38);
+        return;
+    }
+    char prefix[512];
+    snprintf(prefix, sizeof(prefix), WEB_ROOT "/register/");
+    if (strncmp(filepath, prefix, strlen(prefix)) != 0) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"bad path\"}", 33);
+        return;
+    }
+
+    FILE *fp = fopen(filepath, "wb");
+    if (!fp) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"open file\"}", 35);
+        return;
+    }
+    if (body_len > 0 && fwrite(body, 1, body_len, fp) != body_len) {
+        fclose(fp); unlink(filepath);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write\"}", 30);
+        return;
+    }
+    fclose(fp);
+
+    /* 返回保存的相对路径 */
+    char resp[640];
+    const char *relpath = filepath + strlen(WEB_ROOT) + 1; /* skip "html/" */
+    int rl = snprintf(resp, sizeof(resp), "{\"ok\":true,\"path\":\"%s\"}", relpath);
+    send_json(client_fd, 200, "OK", resp, (size_t)(rl > 0 ? rl : 11));
+    LOG_INFO("save_register  %s  (%zu bytes)", filepath, body_len);
+}
+
 /* GET /api/client-info — TCP 对端 IPv4（浏览器所在机器），供存档默认名与链接预览 */
 static void handle_api_client_info(int client_fd, const char *client_ip)
 {
@@ -2990,6 +3156,14 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 send_json(client_fd, 400, "Bad Request",
                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
             }
+        } else if (strcmp(path, "/api/save-register-file") == 0) {
+            if (body)
+                handle_api_save_register_file(client_fd, req_buf, body,
+                                              (size_t)content_length);
+            else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
+            }
         } else if (strcmp(path, "/api/delete-report") == 0) {
             if (body)
                 handle_api_delete_report(client_fd, body);
@@ -3042,6 +3216,11 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/list-register-files") == 0) {
         handle_api_list_register_files(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/list-register-dirs") == 0) {
+        handle_api_list_register_dirs(client_fd);
         goto done;
     }
 

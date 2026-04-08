@@ -688,6 +688,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <div id="select-bar">
       <div class="select-bar-inner">
         <span id="select-count">已选 0 个</span>
+        <button class="btn-toolbar" onclick="saveSelectedToRegister()">💾 存档选中</button>
         <button class="btn-toolbar success" onclick="exportSelected()">⬇ 导出选中 JSON</button>
         <button class="btn-toolbar secondary" onclick="exportAll()">⬇ 导出全部结果</button>
         <button class="btn-toolbar danger" onclick="clearSelection()">取消选择</button>
@@ -1863,6 +1864,109 @@ function initColResize() {
 
 initColResize();
 
+// ── 存档选中寄存器到 register 文件夹 ─────────────────────────
+function saveSelectedToRegister() {
+  if (!selected.size) { alert('请先勾选寄存器'); return; }
+  var overlay = document.getElementById('save-reg-overlay');
+  var body    = document.getElementById('save-reg-body');
+  var fnInput = document.getElementById('save-reg-filename');
+  overlay.style.display = 'flex';
+  body.innerHTML = '<div style="color:#7a8ba8;font-size:0.82rem;text-align:center;padding:16px 0;">正在获取文件夹列表…</div>';
+
+  // 默认文件名
+  var now = new Date();
+  var ymd = now.getFullYear() +
+    ('0' + (now.getMonth() + 1)).slice(-2) +
+    ('0' + now.getDate()).slice(-2);
+  fnInput.value = 'registers_' + ymd + '_' + selected.size + '.json';
+
+  fetch('/api/list-register-dirs')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var dirs = data.dirs || [];
+      var html = '<div style="margin-bottom:12px;">'
+               + '<label style="display:block;font-size:0.8rem;color:#8b949e;margin-bottom:5px;">目标文件夹</label>'
+               + '<select id="save-reg-dir" onchange="onSaveRegDirChange()" style="width:100%;background:#151e30;border:1px solid #3a4e70;border-radius:5px;color:#c8d0e0;font-size:0.82rem;padding:6px 8px;outline:none;">'
+               + '<option value="">register/（根目录）</option>';
+      for (var i = 0; i < dirs.length; i++) {
+        html += '<option value="' + escHtml(dirs[i]) + '">register/' + escHtml(dirs[i]) + '</option>';
+      }
+      html += '<option value="__new__">＋ 新建子文件夹…</option>'
+            + '</select></div>'
+            + '<div id="save-reg-newdir-wrap" style="display:none;margin-bottom:4px;">'
+            + '<label style="display:block;font-size:0.8rem;color:#8b949e;margin-bottom:5px;">新文件夹名称</label>'
+            + '<input id="save-reg-newdir" type="text" placeholder="例：chip_A" spellcheck="false"'
+            + ' style="width:100%;background:#151e30;border:1px solid #3a4e70;border-radius:5px;color:#c8d0e0;font-size:0.82rem;padding:6px 8px;outline:none;">'
+            + '</div>';
+      body.innerHTML = html;
+    })
+    .catch(function() {
+      body.innerHTML = '<div style="color:#ff9090;font-size:0.82rem;text-align:center;padding:16px 0;">获取文件夹列表失败</div>';
+    });
+}
+
+function onSaveRegDirChange() {
+  var sel  = document.getElementById('save-reg-dir');
+  var wrap = document.getElementById('save-reg-newdir-wrap');
+  if (wrap) wrap.style.display = (sel && sel.value === '__new__') ? 'block' : 'none';
+}
+
+function saveRegModalClose() {
+  document.getElementById('save-reg-overlay').style.display = 'none';
+}
+
+function doSaveRegister() {
+  var dirSel  = document.getElementById('save-reg-dir');
+  var fnInput = document.getElementById('save-reg-filename');
+  var saveBtn = document.getElementById('save-reg-btn');
+  if (!dirSel || !fnInput) return;
+
+  var subdir   = dirSel.value;
+  var filename = (fnInput.value || '').trim();
+
+  if (subdir === '__new__') {
+    var nd = document.getElementById('save-reg-newdir');
+    subdir = nd ? (nd.value || '').trim() : '';
+    if (!subdir) { alert('请输入文件夹名称'); return; }
+  }
+  if (!filename) { alert('请输入文件名'); return; }
+  if (!filename.endsWith('.json') && !filename.endsWith('.xml'))
+    filename = fnInput.value = filename + '.json';
+
+  var sel = [];
+  for (var i = 0; i < allRegisters.length; i++)
+    if (selected.has(allRegisters[i].uid)) sel.push(allRegisters[i]);
+
+  var content = JSON.stringify(buildExportData(sel), null, 2);
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = '存档中…';
+
+  fetch('/api/save-register-file', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Register-Subdir': subdir,
+      'X-Register-Filename': filename
+    },
+    body: content
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      saveRegModalClose();
+      alert('已存档到：' + data.path);
+    } else {
+      alert('存档失败：' + (data.error || '未知错误'));
+    }
+  })
+  .catch(function(e) { alert('请求失败：' + e.message); })
+  .then(function() {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '存档';
+  });
+}
+
 // ── 拖拽绑定 ─────────────────────────────────────────────
 var dz = document.getElementById('drop-zone');
 dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
@@ -1894,6 +1998,31 @@ dz.addEventListener('drop', function(e){
       <button onclick="netModalSelectAll(true)"  style="padding:5px 10px;background:#27334d;color:#aab;border:1px solid #3a4e70;border-radius:5px;font-size:0.78rem;cursor:pointer;">全选</button>
       <button onclick="netModalSelectAll(false)" style="padding:5px 10px;background:#27334d;color:#aab;border:1px solid #3a4e70;border-radius:5px;font-size:0.78rem;cursor:pointer;">全不选</button>
       <button id="net-modal-load-btn" onclick="netModalLoad()" style="padding:5px 14px;background:#4a90e2;color:#fff;border:none;border-radius:5px;font-size:0.82rem;font-weight:600;cursor:pointer;">加载选中</button>
+    </div>
+  </div>
+</div>
+<!-- 存档选中寄存器弹窗 -->
+<div id="save-reg-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#1e2740;border:1px solid #3a4e70;border-radius:10px;width:400px;max-width:92vw;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+    <!-- 标题栏 -->
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #2d3a54;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:600;color:#c8d0e0;font-size:0.9rem;">💾 存档选中寄存器</span>
+      <button onclick="saveRegModalClose()" style="background:none;border:none;color:#7a8ba8;font-size:1.1rem;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+    </div>
+    <!-- 内容区 -->
+    <div style="padding:16px;">
+      <div id="save-reg-body"></div>
+      <div style="margin-top:12px;">
+        <label style="display:block;font-size:0.8rem;color:#8b949e;margin-bottom:5px;">文件名</label>
+        <input id="save-reg-filename" type="text" spellcheck="false"
+          style="width:100%;background:#151e30;border:1px solid #3a4e70;border-radius:5px;color:#c8d0e0;font-size:0.82rem;padding:6px 8px;outline:none;"
+          onfocus="this.style.borderColor='#4a90e2'" onblur="this.style.borderColor='#3a4e70'">
+      </div>
+    </div>
+    <!-- 底部操作 -->
+    <div style="padding:10px 16px 14px;border-top:1px solid #2d3a54;display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="saveRegModalClose()" style="padding:6px 14px;background:#27334d;color:#aab;border:1px solid #3a4e70;border-radius:5px;font-size:0.82rem;cursor:pointer;">取消</button>
+      <button id="save-reg-btn" onclick="doSaveRegister()" style="padding:6px 16px;background:#4a90e2;color:#fff;border:none;border-radius:5px;font-size:0.82rem;font-weight:600;cursor:pointer;">存档</button>
     </div>
   </div>
 </div>

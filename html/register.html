@@ -449,30 +449,45 @@ function renderContent() {
     return inDir && match;
   });
 
-  // 若在根目录但有子目录筛选，仅显示当前层文件
-  if (curDir !== '') {
-    files = files.filter(function(f) { return f.dir === curDir; });
-  }
+  // 仅显示当前层文件
+  files = files.filter(function(f) { return f.dir === curDir; });
+
+  // 当前层的直接子目录
+  var subdirs = q ? [] : getImmediateSubdirs(curDir);
 
   var grid  = document.getElementById('file-grid');
   var empty = document.getElementById('empty-tip');
 
-  if (!files.length) {
+  if (!files.length && !subdirs.length) {
     grid.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
 
-  grid.innerHTML = files.map(function(f) {
+  var dirCards = subdirs.map(function(d) {
+    var name = d.split('/').pop();
+    return '<div class="file-card" id="dir-card-' + escAttr(d) + '">'
+         + '<span class="file-icon">📂</span>'
+         + '<div class="file-info">'
+         +   '<div class="file-name" id="dname-' + escAttr(d) + '">' + escHtml(name) + '</div>'
+         +   '<div class="file-meta">文件夹</div>'
+         + '</div>'
+         + '<div class="file-actions">'
+         +   '<button class="icon-btn" title="进入" onclick="selectDir(\'' + escAttr(d) + '\')">▶</button>'
+         +   '<button class="icon-btn" title="重命名" onclick="startRenameDir(\'' + escAttr(d) + '\')">✏</button>'
+         +   '<button class="icon-btn del" title="删除" onclick="deleteDir(\'' + escAttr(d) + '\')">🗑</button>'
+         + '</div>'
+         + '</div>';
+  });
+
+  var fileCards = files.map(function(f) {
     var icon = f.ext === 'json' ? '📄' : '🗂';
     var badge = '<span class="ext-badge ext-' + f.ext + '">' + f.ext.toUpperCase() + '</span>';
-    var subLabel = (curDir === '' && f.dir) ? '<div class="file-meta">📂 ' + escHtml(f.dir) + '</div>' : '';
     return '<div class="file-card" id="card-' + escAttr(f.relPath) + '">'
          + '<span class="file-icon">' + icon + '</span>'
          + '<div class="file-info">'
          +   '<div class="file-name" id="fname-' + escAttr(f.relPath) + '">' + escHtml(f.name) + '</div>'
-         +   subLabel
          + '</div>'
          + badge
          + '<div class="file-actions">'
@@ -481,7 +496,17 @@ function renderContent() {
          +   '<button class="icon-btn del" title="删除" onclick="deleteFile(\'' + escAttr(f.relPath) + '\')">🗑</button>'
          + '</div>'
          + '</div>';
-  }).join('');
+  });
+
+  grid.innerHTML = dirCards.concat(fileCards).join('');
+}
+
+function getImmediateSubdirs(parentDir) {
+  return allDirs.filter(function(d) {
+    if (parentDir === '') return d.indexOf('/') === -1;
+    return d.startsWith(parentDir + '/') &&
+           d.slice(parentDir.length + 1).indexOf('/') === -1;
+  });
 }
 
 // ── 重命名 ────────────────────────────────────────────────
@@ -558,6 +583,96 @@ function confirmRename() {
 function cancelRename() {
   _renamingPath = null;
   renderContent();
+}
+
+// ── 文件夹重命名 ──────────────────────────────────────────
+var _renamingDir = null;
+function startRenameDir(dirPath) {
+  if (_renamingDir) cancelRenameDir();
+  if (_renamingPath) cancelRename();
+  _renamingDir = dirPath;
+
+  var card  = document.getElementById('dir-card-' + dirPath);
+  if (!card) return;
+  card.classList.add('renaming');
+
+  var nameEl = document.getElementById('dname-' + dirPath);
+  var name = dirPath.split('/').pop();
+  var inp = document.createElement('input');
+  inp.className = 'file-name-input';
+  inp.value = name;
+  inp.id = 'rename-dir-inp';
+  inp.onkeydown = function(e) {
+    if (e.key === 'Enter') confirmRenameDir();
+    if (e.key === 'Escape') cancelRenameDir();
+  };
+  nameEl.replaceWith(inp);
+  inp.focus(); inp.select();
+
+  var acts = card.querySelector('.file-actions');
+  acts.innerHTML =
+    '<button class="icon-btn confirm" title="确认" onclick="confirmRenameDir()">✓</button>' +
+    '<button class="icon-btn cancel"  title="取消" onclick="cancelRenameDir()">✕</button>';
+}
+
+function confirmRenameDir() {
+  if (!_renamingDir) return;
+  var inp = document.getElementById('rename-dir-inp');
+  if (!inp) return;
+  var newName = inp.value.trim();
+  if (!newName) { inp.focus(); return; }
+
+  var oldName = _renamingDir.split('/').pop();
+  if (newName === oldName) { cancelRenameDir(); return; }
+
+  var parent = _renamingDir.includes('/') ? _renamingDir.slice(0, _renamingDir.lastIndexOf('/')) : '';
+  var toPath = parent ? parent + '/' + newName : newName;
+
+  setStatus('重命名中…');
+  fetch('/api/rename-register-dir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: _renamingDir, to: toPath })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      setStatus('重命名成功');
+      _renamingDir = null;
+      if (curDir === _renamingDir || curDir.startsWith(_renamingDir + '/'))
+        curDir = toPath;
+      refreshAll();
+    } else {
+      setStatus('重命名失败：' + (data.error || ''));
+      cancelRenameDir();
+    }
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); cancelRenameDir(); });
+}
+
+function cancelRenameDir() {
+  _renamingDir = null;
+  renderContent();
+}
+
+// ── 文件夹删除 ────────────────────────────────────────────
+function deleteDir(dirPath) {
+  if (!confirm('确定删除文件夹 ' + dirPath + ' 及其所有内容？')) return;
+  setStatus('删除中…');
+  fetch('/api/delete-register-dir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: dirPath })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      setStatus('已删除');
+      if (curDir === dirPath || curDir.startsWith(dirPath + '/')) curDir = '';
+      refreshAll();
+    } else setStatus('删除失败：' + (data.error || ''));
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
 // ── 删除 ─────────────────────────────────────────────────

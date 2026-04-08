@@ -1695,6 +1695,81 @@ static int register_relpath_safe(const char *p)
     return 1;
 }
 
+/* 工具：递归删除目录 */
+static int rmdir_r(const char *path)
+{
+    DIR *d = opendir(path);
+    if (!d) return unlink(path) == 0 ? 0 : -1;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char sub[1024];
+        snprintf(sub, sizeof(sub), "%s/%s", path, de->d_name);
+        struct stat st;
+        if (stat(sub, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) rmdir_r(sub);
+        else unlink(sub);
+    }
+    closedir(d);
+    return rmdir(path);
+}
+
+/* POST /api/rename-register-dir
+ * Body: {"from":"olddir","to":"newdir"}，路径相对于 html/register/          */
+static void handle_api_rename_register_dir(int client_fd, const char *body)
+{
+    char from_rel[512] = "", to_rel[512] = "";
+    if (json_get_str(body, "from", from_rel, sizeof(from_rel)) < 0 || !from_rel[0] ||
+        json_get_str(body, "to",   to_rel,   sizeof(to_rel))   < 0 || !to_rel[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing from/to\"}", 40);
+        return;
+    }
+    if (!register_subdir_safe(from_rel) || !register_subdir_safe(to_rel)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid path\"}", 37);
+        return;
+    }
+    char from_full[1024], to_full[1024];
+    snprintf(from_full, sizeof(from_full), WEB_ROOT "/register/%s", from_rel);
+    snprintf(to_full,   sizeof(to_full),   WEB_ROOT "/register/%s", to_rel);
+    if (rename(from_full, to_full) != 0) {
+        char err[128];
+        snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"%s\"}", strerror(errno));
+        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        return;
+    }
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    LOG_INFO("rename_register_dir  %s -> %s", from_full, to_full);
+}
+
+/* POST /api/delete-register-dir
+ * Body: {"path":"dirname"}，路径相对于 html/register/，递归删除              */
+static void handle_api_delete_register_dir(int client_fd, const char *body)
+{
+    char rel[512] = "";
+    if (json_get_str(body, "path", rel, sizeof(rel)) < 0 || !rel[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing path\"}", 37);
+        return;
+    }
+    if (!register_subdir_safe(rel)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid path\"}", 37);
+        return;
+    }
+    char full[1024];
+    snprintf(full, sizeof(full), WEB_ROOT "/register/%s", rel);
+    if (rmdir_r(full) != 0) {
+        char err[128];
+        snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"%s\"}", strerror(errno));
+        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        return;
+    }
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    LOG_INFO("delete_register_dir  %s", full);
+}
+
 /* POST /api/rename-register-file
  * Body: {"from":"old/path.xml","to":"new/path.xml"}
  * 两个路径均相对于 html/register/                                           */
@@ -3255,6 +3330,14 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/delete-register-file") == 0) {
             if (body) handle_api_delete_register_file(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/rename-register-dir") == 0) {
+            if (body) handle_api_rename_register_dir(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/delete-register-dir") == 0) {
+            if (body) handle_api_delete_register_dir(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/delete-report") == 0) {

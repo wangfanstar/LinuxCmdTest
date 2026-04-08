@@ -477,8 +477,8 @@ function renderContent() {
          + badge
          + '<div class="file-actions">'
          +   '<a class="icon-btn" href="/register/' + encodeURI(f.relPath) + '" download title="下载">⬇</a>'
-         +   '<button class="icon-btn" title="重命名" onclick="startRename(' + JSON.stringify(f.relPath) + ')">✏</button>'
-         +   '<button class="icon-btn del" title="删除" onclick="deleteFile(' + JSON.stringify(f.relPath) + ')">🗑</button>'
+         +   '<button class="icon-btn" title="重命名" onclick="startRename(\'' + escAttr(f.relPath) + '\')">✏</button>'
+         +   '<button class="icon-btn del" title="删除" onclick="deleteFile(\'' + escAttr(f.relPath) + '\')">🗑</button>'
          + '</div>'
          + '</div>';
   }).join('');

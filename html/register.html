@@ -362,6 +362,7 @@ body {
   <div class="content">
     <!-- 路径 + 选中操作条 -->
     <div class="content-head">
+      <button id="btn-up" onclick="goUp()" title="返回上级" style="display:none;background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.85rem;padding:4px 8px;border-radius:5px;margin-right:4px;white-space:nowrap;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='none'">↑ 上级</button>
       <div class="path-bar" id="path-bar">register/</div>
       <div class="sel-bar" id="sel-bar">
         <span class="sel-count" id="sel-count">已选 0 项</span>
@@ -478,11 +479,18 @@ function selectDir(dir) {
   renderContent();
 }
 
+function goUp() {
+  if (!curDir) return;
+  var slash = curDir.lastIndexOf('/');
+  selectDir(slash >= 0 ? curDir.slice(0, slash) : '');
+}
+
 // ── 渲染列表 ──────────────────────────────────────────────
 function renderContent() {
   var q = (document.getElementById('search-input').value || '').trim().toLowerCase();
   var bar = document.getElementById('path-bar');
   bar.innerHTML = 'register/' + (curDir ? '<span>/' + escHtml(curDir) + '</span>' : '');
+  document.getElementById('btn-up').style.display = curDir ? '' : 'none';
 
   var files   = allFiles.filter(function(f) {
     return f.dir === curDir && (!q || f.name.toLowerCase().includes(q));

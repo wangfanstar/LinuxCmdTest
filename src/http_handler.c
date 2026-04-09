@@ -3232,7 +3232,8 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
         long max_body_allowed = MAX_BODY_SIZE;
         if (strcmp(path, "/api/save-report") == 0 ||
-            strcmp(path, "/api/save-config") == 0)
+            strcmp(path, "/api/save-config") == 0 ||
+            strcmp(path, "/api/save-register-file") == 0)
             max_body_allowed = SAVE_REPORT_MAX_BODY;
 
         char *body = NULL;

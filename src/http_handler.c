@@ -1855,7 +1855,7 @@ static void handle_api_client_info(int client_fd, const char *client_ip)
 /* ------------------------------------------------------------------ */
 
 #define MAX_BODY_SIZE        (64 * 1024)
-#define SAVE_REPORT_MAX_BODY (5 * 1024 * 1024) /* POST /api/save-report 正文上限 */
+#define SAVE_REPORT_MAX_BODY (50 * 1024 * 1024) /* POST /api/save-report 正文上限 */
 #define MAX_CMD_COUNT  SSH_MAX_CMDS
 #define CMD_BUF_SIZE   2048
 

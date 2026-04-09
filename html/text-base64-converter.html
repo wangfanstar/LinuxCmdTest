@@ -362,16 +362,21 @@
   function copyText(areaId, statusId) {
     const val = document.getElementById(areaId).value;
     if (!val) { showStatus(statusId, 'error', '没有可复制的内容。'); return; }
-    navigator.clipboard.writeText(val).then(() => {
-      showStatus(statusId, 'success', '已复制到剪贴板！');
-    }).catch(() => {
+    function fallback() {
       const ta = document.getElementById(areaId);
       ta.removeAttribute('readonly');
       ta.select();
       document.execCommand('copy');
       ta.setAttribute('readonly', true);
       showStatus(statusId, 'success', '已复制到剪贴板！');
-    });
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(() => {
+        showStatus(statusId, 'success', '已复制到剪贴板！');
+      }).catch(fallback);
+    } else {
+      fallback();
+    }
   }
 
   // ── 下载 ──────────────────────────────────────────────────

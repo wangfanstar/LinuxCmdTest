@@ -17,7 +17,6 @@
   --accent:  #4a90e2;
   --green:   #3fb950;
   --red:     #f85149;
-  --yellow:  #d29922;
 }
 body {
   background: var(--bg);
@@ -55,7 +54,7 @@ body {
   flex-wrap: wrap;
 }
 .search-box {
-  flex: 1; min-width: 200px; max-width: 360px;
+  flex: 1; min-width: 180px; max-width: 320px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -84,7 +83,7 @@ body {
 .btn-danger   { background: #3a1a1a; color: var(--red); border: 1px solid #5a2a2a; }
 .status-msg { font-size: 0.8rem; color: var(--dim); }
 
-/* ── 主体布局 ── */
+/* ── 主体 ── */
 .layout {
   display: flex;
   flex: 1;
@@ -94,7 +93,7 @@ body {
 
 /* ── 左侧目录树 ── */
 .sidebar {
-  width: 220px;
+  width: 210px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -117,6 +116,7 @@ body {
   color: var(--text);
   border-left: 2px solid transparent;
   transition: background .1s;
+  user-select: none;
 }
 .tree-node:hover { background: rgba(255,255,255,.04); }
 .tree-node.active {
@@ -124,92 +124,129 @@ body {
   border-left-color: var(--accent);
   color: #f0f6fc;
 }
-.tree-node .icon { font-size: 0.9rem; }
 
-/* ── 右侧文件列表 ── */
+/* ── 右侧内容 ── */
 .content {
   flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
-.path-bar {
-  font-size: 0.82rem;
-  color: var(--dim);
-  margin-bottom: 14px;
-}
-.path-bar span { color: var(--text); }
 
-/* 文件卡片网格 */
-.file-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px;
-}
-.file-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
+/* 路径 + 选中条 */
+.content-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: border-color .15s;
-}
-.file-card:hover { border-color: #3a4e70; }
-.file-card.renaming { border-color: var(--accent); }
-.file-icon {
-  font-size: 1.3rem;
+  gap: 12px;
   flex-shrink: 0;
 }
-.file-info { flex: 1; min-width: 0; }
-.file-name {
+.path-bar { font-size: 0.82rem; color: var(--dim); flex: 1; }
+.path-bar span { color: var(--text); }
+.sel-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+.sel-bar.visible { display: flex; }
+.sel-count { color: var(--accent); font-weight: 600; }
+
+/* ── 列表 ── */
+.file-list { flex: 1; overflow-y: auto; }
+
+.list-header, .list-row {
+  display: grid;
+  grid-template-columns: 36px 24px 1fr 70px 120px;
+  align-items: center;
+  gap: 0;
+  padding: 0 10px;
+}
+.list-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--dim);
+  height: 36px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  user-select: none;
+}
+.list-row {
+  border-bottom: 1px solid rgba(48,54,61,.5);
+  height: 42px;
+  transition: background .1s;
+}
+.list-row:hover { background: rgba(255,255,255,.03); }
+.list-row.selected { background: rgba(74,144,226,.08); }
+.list-row.renaming { background: rgba(74,144,226,.12); }
+
+.col-chk  { display: flex; align-items: center; justify-content: center; }
+.col-chk input[type="checkbox"] {
+  width: 14px; height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.col-icon { font-size: 1rem; }
+.col-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 8px;
+}
+.name-text {
   font-size: 0.85rem;
-  font-weight: 600;
   color: #f0f6fc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
 }
-.file-name-input {
-  width: 100%;
+.name-text.clickable { cursor: pointer; color: var(--accent); }
+.name-text.clickable:hover { text-decoration: underline; }
+.name-input {
+  flex: 1;
   background: var(--bg);
   border: 1px solid var(--accent);
   border-radius: 4px;
   color: #f0f6fc;
-  font-size: 0.85rem;
-  padding: 2px 6px;
+  font-size: 0.84rem;
+  padding: 2px 7px;
   outline: none;
 }
-.file-meta {
-  font-size: 0.72rem;
-  color: var(--dim);
-  margin-top: 2px;
-}
+.col-type { font-size: 0.75rem; color: var(--dim); }
 .ext-badge {
   font-size: 0.65rem;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 2px 6px;
   border-radius: 3px;
-  flex-shrink: 0;
+  display: inline-block;
 }
 .ext-xml  { background: #1f3a6e; color: #7ab8ff; }
 .ext-json { background: #1a3a24; color: #7cdba0; }
-.file-actions {
+.ext-dir  { background: #2d2a1a; color: #d29922; }
+.col-actions {
   display: flex;
-  gap: 4px;
-  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
 }
 .icon-btn {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 4px 7px;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--dim);
   transition: background .1s, color .1s;
 }
-.icon-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+.icon-btn:hover { background: rgba(255,255,255,.07); color: var(--text); }
 .icon-btn.confirm { color: var(--green); }
 .icon-btn.cancel  { color: var(--red); }
 .icon-btn.del     { color: var(--red); }
@@ -218,10 +255,10 @@ body {
   text-align: center;
   color: var(--dim);
   font-size: 0.85rem;
-  padding: 40px 0;
+  padding: 48px 0;
 }
 
-/* ── 上传进度 overlay ── */
+/* ── 上传进度 ── */
 .upload-bar {
   display: none;
   position: fixed;
@@ -237,7 +274,7 @@ body {
   min-width: 220px;
 }
 
-/* ── 新建文件夹弹窗 ── */
+/* ── 弹窗 ── */
 .modal-overlay {
   display: none;
   position: fixed;
@@ -288,13 +325,9 @@ body {
 }
 .field-input:focus { border-color: var(--accent); }
 .close-btn {
-  background: none;
-  border: none;
-  color: var(--dim);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
+  background: none; border: none;
+  color: var(--dim); font-size: 1.1rem;
+  cursor: pointer; padding: 0 4px; line-height: 1;
 }
 </style>
 </head>
@@ -320,16 +353,35 @@ body {
 <!-- 主体 -->
 <div class="layout">
   <!-- 目录树 -->
-  <div class="sidebar" id="sidebar">
+  <div class="sidebar">
     <div class="tree-label">文件夹</div>
     <div id="tree-root"></div>
   </div>
 
   <!-- 文件内容 -->
   <div class="content">
-    <div class="path-bar" id="path-bar">register/</div>
-    <div class="file-grid" id="file-grid"></div>
-    <div class="empty-tip" id="empty-tip" style="display:none">该文件夹为空</div>
+    <!-- 路径 + 选中操作条 -->
+    <div class="content-head">
+      <div class="path-bar" id="path-bar">register/</div>
+      <div class="sel-bar" id="sel-bar">
+        <span class="sel-count" id="sel-count">已选 0 项</span>
+        <button class="btn btn-danger" onclick="deleteSelected()">🗑 删除选中</button>
+        <button class="btn btn-secondary" onclick="clearSelection()">取消</button>
+      </div>
+    </div>
+
+    <!-- 列表 -->
+    <div class="file-list" id="file-list">
+      <div class="list-header">
+        <div class="col-chk"><input type="checkbox" id="chk-all" onchange="toggleSelectAll(this.checked)" title="全选/取消"></div>
+        <div></div>
+        <div>名称</div>
+        <div>类型</div>
+        <div style="text-align:right;">操作</div>
+      </div>
+      <div id="list-body"></div>
+      <div class="empty-tip" id="empty-tip" style="display:none">该文件夹为空</div>
+    </div>
   </div>
 </div>
 
@@ -361,14 +413,13 @@ body {
 
 <script>
 // ── 状态 ──────────────────────────────────────────────────
-var allFiles  = [];   // [{relPath, dir, name, ext}]
-var allDirs   = [];   // 相对路径字符串数组
-var curDir    = '';   // 当前选中目录（相对于 register/，空=根）
+var allFiles  = [];
+var allDirs   = [];
+var curDir    = '';
+var selectedItems = new Set();  // 'f:relPath' | 'd:dirPath'
 
 // ── 初始化 ────────────────────────────────────────────────
-function init() {
-  refreshAll();
-}
+function init() { refreshAll(); }
 
 function refreshAll() {
   setStatus('加载中…');
@@ -387,118 +438,112 @@ function refreshAll() {
       };
     });
     allDirs = dirsData.dirs || [];
+    selectedItems.clear();
     renderTree();
     renderContent();
     setStatus('');
-  }).catch(function(e) {
-    setStatus('加载失败：' + e.message);
-  });
+  }).catch(function(e) { setStatus('加载失败：' + e.message); });
 }
 
 // ── 目录树 ────────────────────────────────────────────────
 function renderTree() {
   var root = document.getElementById('tree-root');
-
-  // 构建目录层级
-  var tree = {};   // 子目录 map
+  var tree = {};
   allDirs.forEach(function(d) {
-    var parts = d.split('/');
-    var cur = tree;
-    parts.forEach(function(p) {
-      if (!cur[p]) cur[p] = {};
-      cur = cur[p];
-    });
+    var parts = d.split('/'), cur = tree;
+    parts.forEach(function(p) { if (!cur[p]) cur[p] = {}; cur = cur[p]; });
   });
-
   function renderSubtree(node, prefix, depth) {
     var h = '';
     Object.keys(node).sort().forEach(function(name) {
       var path = prefix ? prefix + '/' + name : name;
-      var indent = depth * 14;
       h += '<div class="tree-node' + (curDir === path ? ' active' : '') + '" '
          + 'onclick="selectDir(\'' + escAttr(path) + '\')" '
-         + 'style="padding-left:' + (16 + indent) + 'px;">'
-         + '<span class="icon">📂</span>' + escHtml(name) + '</div>';
+         + 'style="padding-left:' + (16 + depth * 14) + 'px;">'
+         + '📂 ' + escHtml(name) + '</div>';
       h += renderSubtree(node[name], path, depth + 1);
     });
     return h;
   }
-
-  html = '<div class="tree-node' + (curDir === '' ? ' active' : '') + '" onclick="selectDir(\'\')">'
-       + '<span class="icon">📁</span>register/</div>'
-       + renderSubtree(tree, '', 0);
-
-  root.innerHTML = html;
+  root.innerHTML =
+    '<div class="tree-node' + (curDir === '' ? ' active' : '') + '" onclick="selectDir(\'\')">'
+    + '📁 register/</div>'
+    + renderSubtree(tree, '', 0);
 }
 
 function selectDir(dir) {
   curDir = dir;
+  selectedItems.clear();
   renderTree();
   renderContent();
 }
 
-// ── 文件列表 ──────────────────────────────────────────────
+// ── 渲染列表 ──────────────────────────────────────────────
 function renderContent() {
-  var q   = (document.getElementById('search-input').value || '').trim().toLowerCase();
+  var q = (document.getElementById('search-input').value || '').trim().toLowerCase();
   var bar = document.getElementById('path-bar');
   bar.innerHTML = 'register/' + (curDir ? '<span>/' + escHtml(curDir) + '</span>' : '');
 
-  var files = allFiles.filter(function(f) {
-    var inDir = curDir === '' ? true : (f.dir === curDir || f.dir.startsWith(curDir + '/'));
-    var match = !q || f.name.toLowerCase().includes(q);
-    return inDir && match;
+  var files   = allFiles.filter(function(f) {
+    return f.dir === curDir && (!q || f.name.toLowerCase().includes(q));
   });
-
-  // 仅显示当前层文件
-  files = files.filter(function(f) { return f.dir === curDir; });
-
-  // 当前层的直接子目录
   var subdirs = q ? [] : getImmediateSubdirs(curDir);
-
-  var grid  = document.getElementById('file-grid');
-  var empty = document.getElementById('empty-tip');
+  var body    = document.getElementById('list-body');
+  var empty   = document.getElementById('empty-tip');
 
   if (!files.length && !subdirs.length) {
-    grid.innerHTML = '';
+    body.innerHTML = '';
     empty.style.display = 'block';
+    updateSelBar();
     return;
   }
   empty.style.display = 'none';
 
-  var dirCards = subdirs.map(function(d) {
+  var rows = '';
+
+  // 文件夹行
+  subdirs.forEach(function(d) {
     var name = d.split('/').pop();
-    return '<div class="file-card" id="dir-card-' + escAttr(d) + '">'
-         + '<span class="file-icon">📂</span>'
-         + '<div class="file-info">'
-         +   '<div class="file-name" id="dname-' + escAttr(d) + '">' + escHtml(name) + '</div>'
-         +   '<div class="file-meta">文件夹</div>'
-         + '</div>'
-         + '<div class="file-actions">'
-         +   '<button class="icon-btn" title="进入" onclick="selectDir(\'' + escAttr(d) + '\')">▶</button>'
-         +   '<button class="icon-btn" title="重命名" onclick="startRenameDir(\'' + escAttr(d) + '\')">✏</button>'
-         +   '<button class="icon-btn del" title="删除" onclick="deleteDir(\'' + escAttr(d) + '\')">🗑</button>'
-         + '</div>'
-         + '</div>';
+    var key  = 'd:' + d;
+    var chk  = selectedItems.has(key);
+    rows += '<div class="list-row' + (chk ? ' selected' : '') + '" id="row-' + escAttr(key) + '">'
+          + '<div class="col-chk"><input type="checkbox" class="row-chk" data-key="' + escAttr(key) + '"'
+          + (chk ? ' checked' : '') + ' onchange="toggleItem(\'' + escAttr(key) + '\',this.checked)"></div>'
+          + '<div class="col-icon">📂</div>'
+          + '<div class="col-name">'
+          +   '<span class="name-text clickable" id="dname-' + escAttr(d) + '" onclick="selectDir(\'' + escAttr(d) + '\')">' + escHtml(name) + '</span>'
+          + '</div>'
+          + '<div class="col-type"><span class="ext-badge ext-dir">DIR</span></div>'
+          + '<div class="col-actions">'
+          +   '<button class="icon-btn" title="重命名" onclick="startRenameDir(\'' + escAttr(d) + '\')">✏</button>'
+          +   '<button class="icon-btn del" title="删除" onclick="deleteDir(\'' + escAttr(d) + '\')">🗑</button>'
+          + '</div>'
+          + '</div>';
   });
 
-  var fileCards = files.map(function(f) {
+  // 文件行
+  files.forEach(function(f) {
+    var key  = 'f:' + f.relPath;
+    var chk  = selectedItems.has(key);
     var icon = f.ext === 'json' ? '📄' : '🗂';
-    var badge = '<span class="ext-badge ext-' + f.ext + '">' + f.ext.toUpperCase() + '</span>';
-    return '<div class="file-card" id="card-' + escAttr(f.relPath) + '">'
-         + '<span class="file-icon">' + icon + '</span>'
-         + '<div class="file-info">'
-         +   '<div class="file-name" id="fname-' + escAttr(f.relPath) + '">' + escHtml(f.name) + '</div>'
-         + '</div>'
-         + badge
-         + '<div class="file-actions">'
-         +   '<a class="icon-btn" href="/register/' + encodeURI(f.relPath) + '" download title="下载">⬇</a>'
-         +   '<button class="icon-btn" title="重命名" onclick="startRename(\'' + escAttr(f.relPath) + '\')">✏</button>'
-         +   '<button class="icon-btn del" title="删除" onclick="deleteFile(\'' + escAttr(f.relPath) + '\')">🗑</button>'
-         + '</div>'
-         + '</div>';
+    rows += '<div class="list-row' + (chk ? ' selected' : '') + '" id="row-' + escAttr(key) + '">'
+          + '<div class="col-chk"><input type="checkbox" class="row-chk" data-key="' + escAttr(key) + '"'
+          + (chk ? ' checked' : '') + ' onchange="toggleItem(\'' + escAttr(key) + '\',this.checked)"></div>'
+          + '<div class="col-icon">' + icon + '</div>'
+          + '<div class="col-name">'
+          +   '<span class="name-text" id="fname-' + escAttr(f.relPath) + '">' + escHtml(f.name) + '</span>'
+          + '</div>'
+          + '<div class="col-type"><span class="ext-badge ext-' + f.ext + '">' + f.ext.toUpperCase() + '</span></div>'
+          + '<div class="col-actions">'
+          +   '<a class="icon-btn" href="/register/' + encodeURI(f.relPath) + '" download title="下载">⬇</a>'
+          +   '<button class="icon-btn" title="重命名" onclick="startRename(\'' + escAttr(f.relPath) + '\')">✏</button>'
+          +   '<button class="icon-btn del" title="删除" onclick="deleteFile(\'' + escAttr(f.relPath) + '\')">🗑</button>'
+          + '</div>'
+          + '</div>';
   });
 
-  grid.innerHTML = dirCards.concat(fileCards).join('');
+  body.innerHTML = rows;
+  updateSelBar();
 }
 
 function getImmediateSubdirs(parentDir) {
@@ -509,22 +554,108 @@ function getImmediateSubdirs(parentDir) {
   });
 }
 
-// ── 重命名 ────────────────────────────────────────────────
+// ── 选中逻辑 ──────────────────────────────────────────────
+function toggleItem(key, checked) {
+  if (checked) selectedItems.add(key); else selectedItems.delete(key);
+  var row = document.getElementById('row-' + key);
+  if (row) row.classList.toggle('selected', checked);
+  updateSelBar();
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.row-chk').forEach(function(chk) {
+    var key = chk.dataset.key;
+    chk.checked = checked;
+    if (checked) selectedItems.add(key); else selectedItems.delete(key);
+    var row = document.getElementById('row-' + key);
+    if (row) row.classList.toggle('selected', checked);
+  });
+  updateSelBar();
+}
+
+function clearSelection() {
+  selectedItems.clear();
+  document.querySelectorAll('.row-chk').forEach(function(chk) { chk.checked = false; });
+  document.querySelectorAll('.list-row').forEach(function(r) { r.classList.remove('selected'); });
+  updateSelBar();
+}
+
+function updateSelBar() {
+  var n   = selectedItems.size;
+  var bar = document.getElementById('sel-bar');
+  document.getElementById('sel-count').textContent = '已选 ' + n + ' 项';
+  bar.classList.toggle('visible', n > 0);
+
+  // 全选复选框状态
+  var chks = document.querySelectorAll('.row-chk');
+  var allChk = document.getElementById('chk-all');
+  if (allChk && chks.length) {
+    var allChecked  = Array.prototype.every.call(chks, function(c){ return c.checked; });
+    var someChecked = Array.prototype.some.call(chks,  function(c){ return c.checked; });
+    allChk.checked       = allChecked;
+    allChk.indeterminate = !allChecked && someChecked;
+  }
+}
+
+// ── 批量删除 ──────────────────────────────────────────────
+function deleteSelected() {
+  if (!selectedItems.size) return;
+  var keys = Array.from(selectedItems);
+  var names = keys.map(function(k) { return k.slice(2); }).join('\n');
+  if (!confirm('确定删除以下 ' + keys.length + ' 项？\n\n' + names)) return;
+
+  setStatus('删除中…');
+  var done = 0, failed = 0;
+
+  keys.forEach(function(key) {
+    var isDir = key.charAt(0) === 'd';
+    var path  = key.slice(2);
+    var api   = isDir ? '/api/delete-register-dir' : '/api/delete-register-file';
+    fetch(api, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: path })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (!data.ok) failed++;
+      done++;
+      if (done === keys.length) {
+        setStatus(failed ? failed + ' 项删除失败' : '已删除 ' + done + ' 项');
+        // 若当前目录被删则退到根
+        keys.forEach(function(k) {
+          if (k.charAt(0) === 'd') {
+            var p = k.slice(2);
+            if (curDir === p || curDir.startsWith(p + '/')) curDir = '';
+          }
+        });
+        refreshAll();
+      }
+    })
+    .catch(function() {
+      failed++; done++;
+      if (done === keys.length) { setStatus(failed + ' 项删除失败'); refreshAll(); }
+    });
+  });
+}
+
+// ── 文件重命名 ────────────────────────────────────────────
 var _renamingPath = null;
 function startRename(relPath) {
   if (_renamingPath) cancelRename();
+  if (_renamingDir)  cancelRenameDir();
   _renamingPath = relPath;
 
   var f = allFiles.find(function(x){ return x.relPath === relPath; });
   if (!f) return;
-
-  var card = document.getElementById('card-' + relPath);
-  if (!card) return;
-  card.classList.add('renaming');
+  var key = 'f:' + relPath;
+  var row = document.getElementById('row-' + key);
+  if (!row) return;
+  row.classList.add('renaming');
 
   var nameEl = document.getElementById('fname-' + relPath);
   var inp = document.createElement('input');
-  inp.className = 'file-name-input';
+  inp.className = 'name-input';
   inp.value = f.name;
   inp.id = 'rename-inp';
   inp.onkeydown = function(e) {
@@ -532,14 +663,12 @@ function startRename(relPath) {
     if (e.key === 'Escape') cancelRename();
   };
   nameEl.replaceWith(inp);
-  inp.focus();
-  inp.select();
+  inp.focus(); inp.select();
 
-  // 替换操作按钮为确认/取消
-  var acts = card.querySelector('.file-actions');
+  var acts = row.querySelector('.col-actions');
   acts.innerHTML =
-    '<button class="icon-btn confirm" title="确认" onclick="confirmRename()">✓</button>' +
-    '<button class="icon-btn cancel"  title="取消" onclick="cancelRename()">✕</button>';
+    '<button class="icon-btn confirm" onclick="confirmRename()">✓</button>' +
+    '<button class="icon-btn cancel"  onclick="cancelRename()">✕</button>';
 }
 
 function confirmRename() {
@@ -548,18 +677,10 @@ function confirmRename() {
   if (!inp) return;
   var newName = inp.value.trim();
   if (!newName) { inp.focus(); return; }
-
   var f = allFiles.find(function(x){ return x.relPath === _renamingPath; });
-  if (!f) { cancelRename(); return; }
-
-  if (newName === f.name) { cancelRename(); return; }
-
-  // 确保新文件名有合法扩展名
-  if (!newName.endsWith('.json') && !newName.endsWith('.xml'))
-    newName = newName + '.' + f.ext;
-
+  if (!f || newName === f.name) { cancelRename(); return; }
+  if (!newName.endsWith('.json') && !newName.endsWith('.xml')) newName += '.' + f.ext;
   var toPath = f.dir ? f.dir + '/' + newName : newName;
-
   setStatus('重命名中…');
   fetch('/api/rename-register-file', {
     method: 'POST',
@@ -568,38 +689,29 @@ function confirmRename() {
   })
   .then(function(r){ return r.json(); })
   .then(function(data) {
-    if (data.ok) {
-      setStatus('重命名成功');
-      _renamingPath = null;
-      refreshAll();
-    } else {
-      setStatus('重命名失败：' + (data.error || ''));
-      cancelRename();
-    }
+    if (data.ok) { setStatus('重命名成功'); _renamingPath = null; refreshAll(); }
+    else { setStatus('重命名失败：' + (data.error || '')); cancelRename(); }
   })
   .catch(function(e) { setStatus('请求失败：' + e.message); cancelRename(); });
 }
 
-function cancelRename() {
-  _renamingPath = null;
-  renderContent();
-}
+function cancelRename() { _renamingPath = null; renderContent(); }
 
 // ── 文件夹重命名 ──────────────────────────────────────────
 var _renamingDir = null;
 function startRenameDir(dirPath) {
-  if (_renamingDir) cancelRenameDir();
+  if (_renamingDir)  cancelRenameDir();
   if (_renamingPath) cancelRename();
   _renamingDir = dirPath;
-
-  var card  = document.getElementById('dir-card-' + dirPath);
-  if (!card) return;
-  card.classList.add('renaming');
+  var key = 'd:' + dirPath;
+  var row = document.getElementById('row-' + key);
+  if (!row) return;
+  row.classList.add('renaming');
 
   var nameEl = document.getElementById('dname-' + dirPath);
   var name = dirPath.split('/').pop();
   var inp = document.createElement('input');
-  inp.className = 'file-name-input';
+  inp.className = 'name-input';
   inp.value = name;
   inp.id = 'rename-dir-inp';
   inp.onkeydown = function(e) {
@@ -609,10 +721,10 @@ function startRenameDir(dirPath) {
   nameEl.replaceWith(inp);
   inp.focus(); inp.select();
 
-  var acts = card.querySelector('.file-actions');
+  var acts = row.querySelector('.col-actions');
   acts.innerHTML =
-    '<button class="icon-btn confirm" title="确认" onclick="confirmRenameDir()">✓</button>' +
-    '<button class="icon-btn cancel"  title="取消" onclick="cancelRenameDir()">✕</button>';
+    '<button class="icon-btn confirm" onclick="confirmRenameDir()">✓</button>' +
+    '<button class="icon-btn cancel"  onclick="cancelRenameDir()">✕</button>';
 }
 
 function confirmRenameDir() {
@@ -621,13 +733,10 @@ function confirmRenameDir() {
   if (!inp) return;
   var newName = inp.value.trim();
   if (!newName) { inp.focus(); return; }
-
   var oldName = _renamingDir.split('/').pop();
   if (newName === oldName) { cancelRenameDir(); return; }
-
   var parent = _renamingDir.includes('/') ? _renamingDir.slice(0, _renamingDir.lastIndexOf('/')) : '';
   var toPath = parent ? parent + '/' + newName : newName;
-
   setStatus('重命名中…');
   fetch('/api/rename-register-dir', {
     method: 'POST',
@@ -638,24 +747,33 @@ function confirmRenameDir() {
   .then(function(data) {
     if (data.ok) {
       setStatus('重命名成功');
+      if (curDir === _renamingDir || curDir.startsWith(_renamingDir + '/')) curDir = toPath;
       _renamingDir = null;
-      if (curDir === _renamingDir || curDir.startsWith(_renamingDir + '/'))
-        curDir = toPath;
       refreshAll();
-    } else {
-      setStatus('重命名失败：' + (data.error || ''));
-      cancelRenameDir();
-    }
+    } else { setStatus('重命名失败：' + (data.error || '')); cancelRenameDir(); }
   })
   .catch(function(e){ setStatus('请求失败：' + e.message); cancelRenameDir(); });
 }
 
-function cancelRenameDir() {
-  _renamingDir = null;
-  renderContent();
+function cancelRenameDir() { _renamingDir = null; renderContent(); }
+
+// ── 单项删除 ──────────────────────────────────────────────
+function deleteFile(relPath) {
+  if (!confirm('确定删除 ' + relPath + '？')) return;
+  setStatus('删除中…');
+  fetch('/api/delete-register-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: relPath })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.ok) { setStatus('已删除'); refreshAll(); }
+    else setStatus('删除失败：' + (data.error || ''));
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-// ── 文件夹删除 ────────────────────────────────────────────
 function deleteDir(dirPath) {
   if (!confirm('确定删除文件夹 ' + dirPath + ' 及其所有内容？')) return;
   setStatus('删除中…');
@@ -675,34 +793,15 @@ function deleteDir(dirPath) {
   .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-// ── 删除 ─────────────────────────────────────────────────
-function deleteFile(relPath) {
-  if (!confirm('确定删除 ' + relPath + '？')) return;
-  setStatus('删除中…');
-  fetch('/api/delete-register-file', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: relPath })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data) {
-    if (data.ok) { setStatus('已删除'); refreshAll(); }
-    else setStatus('删除失败：' + (data.error || ''));
-  })
-  .catch(function(e){ setStatus('请求失败：' + e.message); });
-}
-
 // ── 上传 ─────────────────────────────────────────────────
 function doUpload(files) {
   if (!files || !files.length) return;
   var bar = document.getElementById('upload-bar');
   var total = files.length, done = 0, failed = 0;
   bar.style.display = 'block';
-
   Array.prototype.forEach.call(files, function(file) {
     var ext = file.name.split('.').pop().toLowerCase();
     if (ext !== 'xml' && ext !== 'json') { done++; failed++; updateBar(); return; }
-
     var reader = new FileReader();
     reader.onload = function(e) {
       fetch('/api/save-register-file', {
@@ -715,23 +814,17 @@ function doUpload(files) {
         body: e.target.result
       })
       .then(function(r){ return r.json(); })
-      .then(function(data) {
-        done++;
-        if (!data.ok) failed++;
-        updateBar();
-      })
+      .then(function(data) { done++; if (!data.ok) failed++; updateBar(); })
       .catch(function() { done++; failed++; updateBar(); });
     };
     reader.readAsText(file, 'UTF-8');
   });
-
   function updateBar() {
     bar.textContent = '上传中… ' + done + '/' + total + (failed ? '（' + failed + ' 个失败）' : '');
     if (done >= total) {
       setTimeout(function() { bar.style.display = 'none'; }, 2000);
-      refreshAll();
-      // 重置 input 以允许重新选择同名文件
       document.getElementById('upload-input').value = '';
+      refreshAll();
     }
   }
 }
@@ -743,11 +836,8 @@ function openNewDirModal() {
   allDirs.forEach(function(d) {
     sel.innerHTML += '<option value="' + escAttr(d) + '">' + escHtml('register/' + d) + '</option>';
   });
-  // 默认选中当前目录
-  if (curDir) {
-    for (var i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === curDir) { sel.selectedIndex = i; break; }
-    }
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === curDir) { sel.selectedIndex = i; break; }
   }
   document.getElementById('newdir-name').value = '';
   document.getElementById('newdir-modal').classList.add('open');
@@ -756,48 +846,29 @@ function openNewDirModal() {
 function closeNewDirModal() {
   document.getElementById('newdir-modal').classList.remove('open');
 }
-
 function doCreateDir() {
-  var parent  = document.getElementById('newdir-parent').value.trim();
-  var name    = document.getElementById('newdir-name').value.trim();
+  var parent = document.getElementById('newdir-parent').value.trim();
+  var name   = document.getElementById('newdir-name').value.trim();
   if (!name) { document.getElementById('newdir-name').focus(); return; }
-
-  var subdir   = parent ? parent + '/' + name : name;
-  var filename = '.gitkeep';   // 创建占位文件使目录在服务器端存在
-
+  var subdir = parent ? parent + '/' + name : name;
   fetch('/api/save-register-file', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain',
-      'X-Register-Subdir': subdir,
-      'X-Register-Filename': 'placeholder.json'
-    },
+    headers: { 'Content-Type': 'application/json', 'X-Register-Subdir': subdir, 'X-Register-Filename': 'placeholder.json' },
     body: '[]'
   })
   .then(function(r){ return r.json(); })
   .then(function(data) {
     closeNewDirModal();
-    if (data.ok) {
-      setStatus('文件夹 ' + subdir + ' 已创建');
-      refreshAll();
-      selectDir(subdir);
-    } else {
-      setStatus('创建失败：' + (data.error || ''));
-    }
+    if (data.ok) { setStatus('文件夹已创建'); refreshAll(); selectDir(subdir); }
+    else setStatus('创建失败：' + (data.error || ''));
   })
   .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-// ── 工具函数 ──────────────────────────────────────────────
-function setStatus(msg) {
-  document.getElementById('status-msg').textContent = msg;
-}
-function escHtml(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function escAttr(s) {
-  return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+// ── 工具 ─────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return (s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 init();
 </script>

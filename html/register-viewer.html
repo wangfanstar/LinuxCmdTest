@@ -1130,21 +1130,27 @@ function parseImportedJSON(text, filename) {
     for (var j = 0; j < rawFields.length; j++) {
       var f = rawFields[j];
       var fname = f.name || '';
+      // bits 格式为 [startBit:endBit]，如 [0:31]；endBit 是第二个数字，startBit 是第一个数字
+      var bitsStr = f.bits || '';
+      var parsedEnd   = (f.endBit   != null) ? f.endBit   : (parseInt(bitsStr.replace(/.*:(\d+)\]/,'$1'),10)||0);
+      var parsedStart = (f.startBit != null) ? f.startBit : (parseInt(bitsStr.replace(/\[(\d+).*/,'$1'),10)||0);
       fields.push({
         name:     fname,
-        endBit:   (f.endBit   != null) ? f.endBit   : (parseInt((f.bits||'').replace(/\[(\d+).*/,'$1'),10)||0),
-        startBit: (f.startBit != null) ? f.startBit : (parseInt((f.bits||'').replace(/.*:(\d+)\]/,'$1'),10)||0),
-        width:    f.width || 1,
+        endBit:   parsedEnd,
+        startBit: parsedStart,
+        width:    f.width || (parsedEnd - parsedStart + 1),
         perm:     f.permission || f.perm || '',
         resetVal: f.resetValue || f.resetVal || '0',
         desc:     f.description || f.desc || '',
         reserved: isReserved(fname)
       });
     }
-    // 补全 RSVD 空隙
+    // 补全 RSVD 空隙：SRAM 使用 lineSize 确定寄存器宽度，普通/间接寄存器使用 64
     var maxBit2 = 0;
     for (var mi2 = 0; mi2 < fields.length; mi2++) { if (fields[mi2].endBit > maxBit2) maxBit2 = fields[mi2].endBit; }
-    var regW2 = maxBit2 <= 7 ? 8 : maxBit2 <= 15 ? 16 : maxBit2 <= 31 ? 32 : 64;
+    var isSram2 = (r.entryType === 'sram');
+    var lineSizeN2 = isSram2 ? (parseInt(r.lineSize, 10) || 0) : 0;
+    var regW2 = lineSizeN2 > 0 ? lineSizeN2 : 64;
     fields = fillReservedGaps(fields, regW2);
 
     var addrHex = r.address || r.addrHex || '0x00000000';

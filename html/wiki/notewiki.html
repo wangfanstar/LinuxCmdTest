@@ -703,7 +703,7 @@ function md2html(src) {
     var para=[];
     while(i<lines.length){
       var l=lines[i];
-      if(!l.trim()||/^[#>-*+]/.test(l)||/^\d+\./.test(l)||/^[-*_]{3,}$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
+      if(!l.trim()||/^[#>*+\-]/.test(l)||/^\d+\./.test(l)||/^[-*_]{3,}$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
       para.push(il(l)); i++;
     }
     if(para.length) out+='<p>'+para.join('<br>')+'</p>\n';

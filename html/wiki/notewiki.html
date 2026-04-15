@@ -258,6 +258,28 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   </div>
 </div>
 
+<!-- 新建文章 modal -->
+<div class="modal-overlay" id="modal-newarticle">
+  <div class="modal-box">
+    <div class="modal-head">✚ 新建文章<button class="modal-close" onclick="closeNewArticleModal()">✕</button></div>
+    <div class="modal-body">
+      <label class="field-label">文章标题 <span style="color:var(--red)">*</span></label>
+      <input id="na-title" class="field-input" type="text" placeholder="请输入文章标题" spellcheck="false"
+             oninput="onNATitleInput()" onkeydown="if(event.key==='Enter')document.getElementById('na-filename').focus()">
+      <label class="field-label">链接文件名（留空自动生成）</label>
+      <input id="na-filename" class="field-input" type="text" placeholder="a-z 0-9 _ - （留空自动生成）" spellcheck="false"
+             oninput="onNAFilenameInput()" onkeydown="if(event.key==='Enter')doNewArticle()">
+      <div id="na-filename-tip" style="font-size:.72rem;color:var(--red);margin-top:-6px;margin-bottom:8px;display:none"></div>
+      <label class="field-label">所属分类</label>
+      <select id="na-category" class="field-input"></select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeNewArticleModal()">取消</button>
+      <button class="btn btn-primary" onclick="doNewArticle()">进入编辑</button>
+    </div>
+  </div>
+</div>
+
 <!-- 右键菜单 -->
 <div class="ctx-menu" id="ctx-menu">
   <div class="ctx-item" id="ctx-rename-item" onclick="ctxDoRename()">✏ 重命名</div>
@@ -468,17 +490,65 @@ function openArticle(id) {
 
 // ── Edit ─────────────────────────────────────────────────────────────
 function newArticle() {
+  /* 填充分类下拉 */
+  var sel = document.getElementById('na-category');
+  sel.innerHTML = '<option value="">📁 根目录</option>';
+  S.categories.forEach(function(c){
+    var opt = document.createElement('option');
+    opt.value = c; opt.textContent = '📂 '+c; sel.appendChild(opt);
+  });
+  sel.value = S.curCat || '';
+  /* 清空输入 */
+  document.getElementById('na-title').value = '';
+  document.getElementById('na-filename').value = '';
+  document.getElementById('na-filename').removeAttribute('data-manual');
+  hideTip();
+  document.getElementById('modal-newarticle').classList.add('open');
+  setTimeout(function(){ document.getElementById('na-title').focus(); }, 50);
+}
+function closeNewArticleModal(){ document.getElementById('modal-newarticle').classList.remove('open'); }
+
+function onNATitleInput() {
+  var inp = document.getElementById('na-filename');
+  if (inp.getAttribute('data-manual')) return;
+  inp.value = slugifyFilename(document.getElementById('na-title').value);
+  validateNAFilename();
+}
+function onNAFilenameInput() {
+  document.getElementById('na-filename').setAttribute('data-manual','1');
+  validateNAFilename();
+}
+function hideTip(){ document.getElementById('na-filename-tip').style.display='none'; }
+function showTip(msg){
+  var t=document.getElementById('na-filename-tip');
+  t.textContent=msg; t.style.display='block';
+}
+function validateNAFilename() {
+  var fn = document.getElementById('na-filename').value.trim();
+  if (!fn) { hideTip(); return true; }
+  if (!/^[a-z0-9_-]+$/.test(fn)) { showTip('只能含小写字母、数字、_ 和 -'); return false; }
+  if (S.articles.some(function(a){ return a.id===fn; })) { showTip('文件名「'+fn+'」已存在'); return false; }
+  hideTip(); return true;
+}
+function doNewArticle() {
+  var title = document.getElementById('na-title').value.trim();
+  if (!title) { document.getElementById('na-title').focus(); return; }
+  if (!validateNAFilename()) { document.getElementById('na-filename').focus(); return; }
+  var fn  = document.getElementById('na-filename').value.trim();
+  var cat = document.getElementById('na-category').value;
+  closeNewArticleModal();
+  /* 进入编辑器，带入 modal 填写的值 */
   S.editId = null;
   S.editIsNew = true;
-  document.getElementById('edit-title').value = '';
+  document.getElementById('edit-title').value = title;
   document.getElementById('edit-textarea').value = '';
-  var fn = document.getElementById('edit-filename');
-  fn.value = ''; delete fn.dataset.manual; fn.style.display = '';
-  populateCatSelect(S.curCat || '');
+  var fnEl = document.getElementById('edit-filename');
+  fnEl.value = fn; fnEl.style.display = 'none'; /* 已在 modal 确认，折叠不占位 */
+  populateCatSelect(cat);
   showPane('edit');
   setViewMode(S.viewMode);
   updatePreview();
-  setTimeout(function(){ document.getElementById('edit-title').focus(); }, 50);
+  setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
 function editCurrent() {
@@ -980,6 +1050,7 @@ document.addEventListener('keydown', function(e){
     e.preventDefault(); saveArticle();
   }
   if (e.key==='Escape'){
+    if(document.getElementById('modal-newarticle').classList.contains('open')) closeNewArticleModal();
     if(document.getElementById('modal-newcat').classList.contains('open')) closeNewCatModal();
     if(document.getElementById('modal-rename').classList.contains('open')) closeRenameModal();
     document.getElementById('ctx-menu').classList.remove('open');
@@ -987,6 +1058,9 @@ document.addEventListener('keydown', function(e){
 });
 
 // close modals on overlay click
+document.getElementById('modal-newarticle').addEventListener('click', function(e){
+  if(e.target===this) closeNewArticleModal();
+});
 document.getElementById('modal-newcat').addEventListener('click', function(e){
   if(e.target===this) closeNewCatModal();
 });

@@ -1850,6 +1850,553 @@ static void handle_api_client_info(int client_fd, const char *client_ip)
     free(sb.data);
 }
 
+/* ================================================================== */
+/*  Wiki API                                                           */
+/* ================================================================== */
+
+#define WIKI_ROOT    WEB_ROOT "/wiki"
+#define WIKI_MD_DB   WIKI_ROOT "/md_db"
+#define WIKI_UPLOADS WIKI_ROOT "/uploads"
+
+/* 动态提取 JSON 字符串字段（调用方 free） */
+static char *json_get_str_alloc(const char *json, const char *key)
+{
+    char search[128];
+    snprintf(search, sizeof(search), "\"%s\"", key);
+    const char *p = strstr(json, search);
+    if (!p) return NULL;
+    p += strlen(search);
+    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '\n' || *p == '\r') p++;
+    if (*p != '"') return NULL;
+    p++;
+    size_t len = 0;
+    const char *q = p;
+    while (*q && *q != '"') { if (*q == '\\') { q++; if (!*q) break; } len++; q++; }
+    char *out = malloc(len + 1);
+    if (!out) return NULL;
+    size_t i = 0;
+    while (*p && *p != '"') {
+        if (*p == '\\') {
+            p++; if (!*p) break;
+            switch (*p) {
+                case 'n': out[i++] = '\n'; break;
+                case 'r': out[i++] = '\r'; break;
+                case 't': out[i++] = '\t'; break;
+                default:  out[i++] = *p;   break;
+            }
+        } else { out[i++] = *p; }
+        p++;
+    }
+    out[i] = '\0';
+    return out;
+}
+
+static void wiki_gen_id(char *buf, size_t sz)
+{
+    time_t t = time(NULL);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    unsigned long tid = (unsigned long)pthread_self() & 0xFFFF;
+    snprintf(buf, sz, "note_%04d%02d%02d_%02d%02d%02d_%04lx",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec, tid);
+}
+
+static void wiki_now_iso(char *buf, size_t sz)
+{
+    time_t t = time(NULL);
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    strftime(buf, sz, "%Y-%m-%dT%H:%M:%SZ", &tm);
+}
+
+static int wiki_upload_safe(const char *fn)
+{
+    if (!fn || !fn[0] || fn[0] == '.') return 0;
+    if (strchr(fn, '/') || strchr(fn, '\\') || strchr(fn, ':')) return 0;
+    const char *dot = strrchr(fn, '.');
+    if (!dot) return 0;
+    static const char *exts[] = {
+        ".jpg",".jpeg",".png",".gif",".svg",".webp",
+        ".pdf",".txt",".md",".zip",".tar",".gz",NULL
+    };
+    for (int i = 0; exts[i]; i++)
+        if (strcasecmp(dot, exts[i]) == 0) return 1;
+    return 0;
+}
+
+static void wiki_ensure_dirs(void)
+{
+    mkdir_p(WIKI_MD_DB);
+    mkdir_p(WIKI_UPLOADS);
+}
+
+/* 写 HTML 实体编码 */
+static void wiki_fhtml(FILE *fp, const char *s)
+{
+    for (; *s; s++) {
+        switch (*s) {
+            case '&': fputs("&amp;", fp); break;
+            case '<': fputs("&lt;",  fp); break;
+            case '>': fputs("&gt;",  fp); break;
+            case '"': fputs("&quot;",fp); break;
+            default:  fputc(*s, fp);      break;
+        }
+    }
+}
+
+/* 写渲染后的独立 HTML 文件 */
+static int wiki_write_html_file(const char *filepath,
+    const char *title, const char *category,
+    const char *updated, const char *html_body)
+{
+    FILE *fp = fopen(filepath, "wb");
+    if (!fp) return -1;
+    fputs("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
+          "<meta charset=\"UTF-8\">\n"
+          "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+          "<title>", fp);
+    wiki_fhtml(fp, title);
+    fputs(" - NoteWiki</title>\n"
+          "<style>\n"
+          "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n"
+          "body{font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+               "background:#0d1117;color:#c9d1d9;line-height:1.7;padding:0 0 60px}\n"
+          "nav{background:#161b22;border-bottom:1px solid #30363d;"
+              "padding:10px 24px;font-size:.85rem}\n"
+          "nav a{color:#4a90e2;text-decoration:none}\n"
+          "article{max-width:840px;margin:0 auto;padding:32px 20px}\n"
+          "h1.at{font-size:1.75rem;color:#f0f6fc;margin-bottom:6px}\n"
+          ".am{font-size:.75rem;color:#8b949e;padding-bottom:14px;"
+              "border-bottom:1px solid #30363d;margin-bottom:24px}\n"
+          ".ab h1,.ab h2,.ab h3,.ab h4{color:#f0f6fc;margin:1.3em 0 .5em}\n"
+          ".ab p{margin:.7em 0}\n"
+          ".ab pre{background:#161b22;border:1px solid #30363d;border-radius:6px;"
+                  "padding:12px;overflow-x:auto;margin:1em 0}\n"
+          ".ab code{font-family:monospace;font-size:.88em}\n"
+          ".ab pre code{color:#c9d1d9}\n"
+          ".ab :not(pre)>code{background:#1e2740;padding:1px 5px;"
+                             "border-radius:3px;color:#7ab8ff}\n"
+          ".ab blockquote{border-left:3px solid #4a90e2;padding:.3em 1em;"
+                         "color:#8b949e;margin:1em 0}\n"
+          ".ab table{border-collapse:collapse;width:100%;margin:1em 0}\n"
+          ".ab th,.ab td{border:1px solid #30363d;padding:6px 10px;text-align:left}\n"
+          ".ab th{background:#161b22;font-weight:600;color:#f0f6fc}\n"
+          ".ab img{max-width:100%;border-radius:4px}\n"
+          ".ab ul,.ab ol{padding-left:1.5em;margin:.5em 0}\n"
+          ".ab a{color:#4a90e2}\n"
+          ".ab hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}\n"
+          "</style>\n</head>\n<body>\n<nav>"
+          "<a href=\"/wiki/notewiki.html\">← NoteWiki</a>", fp);
+    if (category && category[0]) {
+        fputs(" / ", fp); wiki_fhtml(fp, category);
+    }
+    fputs("</nav>\n<article>\n<h1 class=\"at\">", fp);
+    wiki_fhtml(fp, title);
+    fputs("</h1>\n<div class=\"am\">更新：", fp);
+    fputs(updated, fp);
+    fputs("</div>\n<div class=\"ab\">\n", fp);
+    if (html_body) fputs(html_body, fp);
+    fputs("\n</div>\n</article>\n</body>\n</html>\n", fp);
+    fclose(fp);
+    return 0;
+}
+
+/* GET /api/wiki-list */
+static void handle_api_wiki_list(int client_fd)
+{
+    wiki_ensure_dirs();
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"articles\":[");
+    int first = 1;
+    DIR *d = opendir(WIKI_MD_DB);
+    if (d) {
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL) {
+            size_t nl = strlen(de->d_name);
+            if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
+            char path[768];
+            snprintf(path, sizeof(path), "%s/%s", WIKI_MD_DB, de->d_name);
+            FILE *fp = fopen(path, "r");
+            if (!fp) continue;
+            char line[4096] = {0};
+            int ok = (fgets(line, sizeof(line), fp) != NULL);
+            fclose(fp);
+            if (!ok || strncmp(line, "<!--META ", 9) != 0) continue;
+            char *end = strstr(line, "-->");
+            if (!end) continue;
+            *end = '\0';
+            const char *mj = line + 9;
+            char id[128]={0},title[512]={0},cat[512]={0},cre[64]={0},upd[64]={0};
+            json_get_str(mj,"id",id,sizeof(id));
+            json_get_str(mj,"title",title,sizeof(title));
+            json_get_str(mj,"category",cat,sizeof(cat));
+            json_get_str(mj,"created",cre,sizeof(cre));
+            json_get_str(mj,"updated",upd,sizeof(upd));
+            if (!id[0]) continue;
+            if (!first) SB_LIT(&sb, ",");
+            first = 0;
+            SB_LIT(&sb,"{\"id\":"); sb_json_str(&sb,id);
+            SB_LIT(&sb,",\"title\":"); sb_json_str(&sb,title);
+            SB_LIT(&sb,",\"category\":"); sb_json_str(&sb,cat);
+            SB_LIT(&sb,",\"created\":"); sb_json_str(&sb,cre);
+            SB_LIT(&sb,",\"updated\":"); sb_json_str(&sb,upd);
+            SB_LIT(&sb,"}");
+        }
+        closedir(d);
+    }
+    SB_LIT(&sb, "]}");
+    if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else send_json(client_fd, 200, "OK", "{\"articles\":[]}", 15);
+    free(sb.data);
+}
+
+/* GET /api/wiki-read?id=xxx */
+static void handle_api_wiki_read(int client_fd, const char *path_qs)
+{
+    char id[128] = {0};
+    const char *qs = strchr(path_qs, '?');
+    if (qs) {
+        const char *p = strstr(qs, "id=");
+        if (p) { p += 3; size_t j=0; while(*p&&*p!='&'&&j<sizeof(id)-1) id[j++]=*p++; }
+    }
+    if (!id[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing id\"}",33); return; }
+    for (size_t i=0;id[i];i++) {
+        unsigned char c=(unsigned char)id[i];
+        if (!isalnum(c)&&c!='_'&&c!='-') {
+            send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid id\"}",33); return;
+        }
+    }
+    char path[768];
+    snprintf(path, sizeof(path), "%s/%s.md", WIKI_MD_DB, id);
+    FILE *fp = fopen(path, "r");
+    if (!fp) { send_json(client_fd,404,"Not Found","{\"ok\":false,\"error\":\"not found\"}",32); return; }
+    char line[4096]; fgets(line, sizeof(line), fp); /* skip META */
+    strbuf_t body = {0};
+    char buf[8192]; size_t nr;
+    while ((nr = fread(buf,1,sizeof(buf),fp)) > 0) sb_append(&body,buf,nr);
+    fclose(fp);
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"content\":");
+    sb_json_str(&sb, body.data ? body.data : "");
+    SB_LIT(&sb, "}");
+    free(body.data);
+    if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
+    else send_json(client_fd,500,"Internal Server Error","{\"ok\":false}",12);
+    free(sb.data);
+}
+
+/* POST /api/wiki-save */
+static void handle_api_wiki_save(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char id[128]={0}, title[512]={0}, cat[512]={0}, created[64]={0};
+    json_get_str(body,"id",id,sizeof(id));
+    json_get_str(body,"title",title,sizeof(title));
+    json_get_str(body,"category",cat,sizeof(cat));
+    json_get_str(body,"created",created,sizeof(created));
+    if (!title[0]) {
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing title\"}",38); return;
+    }
+    if (!register_subdir_safe(cat)) {
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid category\"}",41); return;
+    }
+    /* validate existing id */
+    if (id[0]) {
+        for (size_t i=0;id[i];i++) {
+            unsigned char c=(unsigned char)id[i];
+            if (!isalnum(c)&&c!='_'&&c!='-') {
+                send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid id\"}",33); return;
+            }
+        }
+    } else {
+        wiki_gen_id(id, sizeof(id));
+    }
+    char now[64]; wiki_now_iso(now, sizeof(now));
+    if (!created[0]) strncpy(created, now, sizeof(created)-1);
+
+    char *content = json_get_str_alloc(body, "content");
+    char *html    = json_get_str_alloc(body, "html");
+    if (!content || !html) {
+        free(content); free(html);
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing content/html\"}",45); return;
+    }
+
+    /* write .md */
+    char md_path[768];
+    snprintf(md_path, sizeof(md_path), "%s/%s.md", WIKI_MD_DB, id);
+    FILE *fp = fopen(md_path, "wb");
+    if (!fp) { free(content); free(html);
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write md\"}",33); return; }
+    /* META line */
+    strbuf_t meta = {0};
+    SB_LIT(&meta, "<!--META ");
+    SB_LIT(&meta,"{\"id\":"); sb_json_str(&meta,id);
+    SB_LIT(&meta,",\"title\":"); sb_json_str(&meta,title);
+    SB_LIT(&meta,",\"category\":"); sb_json_str(&meta,cat);
+    SB_LIT(&meta,",\"created\":"); sb_json_str(&meta,created);
+    SB_LIT(&meta,",\"updated\":"); sb_json_str(&meta,now);
+    SB_LIT(&meta, "}-->\n");
+    if (meta.data) fwrite(meta.data,1,meta.len,fp);
+    fwrite(content,1,strlen(content),fp);
+    fclose(fp);
+    free(meta.data); free(content);
+
+    /* create category dir and write .html */
+    char html_path[1024];
+    if (cat[0]) {
+        char cat_dir[768];
+        snprintf(cat_dir, sizeof(cat_dir), "%s/%s", WIKI_ROOT, cat);
+        mkdir_p(cat_dir);
+        snprintf(html_path, sizeof(html_path), "%s/%s/%s.html", WIKI_ROOT, cat, id);
+    } else {
+        snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
+    }
+    wiki_write_html_file(html_path, title, cat, now, html);
+    free(html);
+
+    /* build URL */
+    const char *rel = html_path + strlen(WEB_ROOT) + 1;
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"id\":"); sb_json_str(&sb, id);
+    SB_LIT(&sb, ",\"url\":\"/"); sb_append(&sb, rel, strlen(rel)); SB_LIT(&sb, "\"}");
+    if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
+    else send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    free(sb.data);
+    LOG_INFO("wiki_save id=%s html=%s", id, html_path);
+}
+
+/* POST /api/wiki-delete */
+static void handle_api_wiki_delete(int client_fd, const char *body)
+{
+    char id[128]={0}; json_get_str(body,"id",id,sizeof(id));
+    if (!id[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing id\"}",34); return; }
+    for (size_t i=0;id[i];i++) {
+        unsigned char c=(unsigned char)id[i];
+        if (!isalnum(c)&&c!='_'&&c!='-') {
+            send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid id\"}",33); return;
+        }
+    }
+    /* read category from META */
+    char cat[512]={0};
+    char md_path[768]; snprintf(md_path,sizeof(md_path),"%s/%s.md",WIKI_MD_DB,id);
+    FILE *fp = fopen(md_path,"r");
+    if (fp) {
+        char line[4096]={0}; fgets(line,sizeof(line),fp); fclose(fp);
+        if (strncmp(line,"<!--META ",9)==0) {
+            char *end=strstr(line,"-->");
+            if (end) { *end='\0'; json_get_str(line+9,"category",cat,sizeof(cat)); }
+        }
+    }
+    unlink(md_path);
+    char html_path[1024];
+    if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
+    else         snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
+    unlink(html_path);
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    LOG_INFO("wiki_delete id=%s",id);
+}
+
+/* POST /api/wiki-mkdir */
+static void handle_api_wiki_mkdir(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char path[512]={0}; json_get_str(body,"path",path,sizeof(path));
+    if (!path[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing path\"}",37); return; }
+    if (!register_subdir_safe(path)) {
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid path\"}",37); return;
+    }
+    char full[1024]; snprintf(full,sizeof(full),"%s/%s",WIKI_ROOT,path);
+    if (mkdir_p(full)!=0 && errno!=EEXIST) {
+        char err[128]; snprintf(err,sizeof(err),"{\"ok\":false,\"error\":\"%s\"}",strerror(errno));
+        send_json(client_fd,500,"Internal Server Error",err,strlen(err)); return;
+    }
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+}
+
+/* POST /api/wiki-upload */
+static void handle_api_wiki_upload(int client_fd, const char *req_headers,
+                                   const char *body, size_t body_len)
+{
+    wiki_ensure_dirs();
+    char filename[256]={0};
+    http_header_value(req_headers,"X-Wiki-Filename",filename,sizeof(filename));
+    url_decode_report_fn(filename);
+    if (!filename[0]) {
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing filename\"}",41); return;
+    }
+    if (!wiki_upload_safe(filename)) {
+        send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid filename\"}",42); return;
+    }
+    char filepath[768]; snprintf(filepath,sizeof(filepath),"%s/%s",WIKI_UPLOADS,filename);
+    FILE *fp = fopen(filepath,"wb");
+    if (!fp) { send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"open\"}",29); return; }
+    if (body_len>0) fwrite(body,1,body_len,fp);
+    fclose(fp);
+    strbuf_t sb={0};
+    SB_LIT(&sb,"{\"ok\":true,\"url\":\"/wiki/uploads/");
+    sb_append(&sb,filename,strlen(filename));
+    SB_LIT(&sb,"\"}");
+    if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
+    else send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    free(sb.data);
+    LOG_INFO("wiki_upload %s (%zu bytes)",filepath,body_len);
+}
+
+/* ------------------------------------------------------------------ */
+/*  POST /api/svn-log  (本地调用 svn log --xml -v)                    */
+/* ------------------------------------------------------------------ */
+
+static int svn_url_safe(const char *s)
+{
+    for (const char *p = s; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (!isalnum(c) && !strchr("/:.-_~%@?=&+", (int)c)) return 0;
+    }
+    return 1;
+}
+
+static int svn_simple_safe(const char *s)
+{
+    for (const char *p = s; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (!isalnum(c) && c != '-' && c != '_' && c != '.') return 0;
+    }
+    return 1;
+}
+
+static int svn_date_safe(const char *s)
+{
+    if (strlen(s) != 10) return 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 4 || i == 7) { if (s[i] != '-') return 0; }
+        else { if (!isdigit((unsigned char)s[i])) return 0; }
+    }
+    return 1;
+}
+
+static void handle_api_svn_log(int client_fd, const char *body)
+{
+    char url[1024] = {0}, user[128] = {0}, pass[512] = {0};
+    char author[128] = {0}, date_from[32] = {0}, date_to[32] = {0};
+    int  limit = 500;
+
+    json_get_str(body, "url",       url,       sizeof(url));
+    json_get_str(body, "user",      user,      sizeof(user));
+    json_api_get_pass(body,         pass,      sizeof(pass));
+    json_get_str(body, "author",    author,    sizeof(author));
+    json_get_str(body, "date_from", date_from, sizeof(date_from));
+    json_get_str(body, "date_to",   date_to,   sizeof(date_to));
+    limit = json_get_int(body, "limit", 500);
+    if (limit <= 0 || limit > 5000) limit = 500;
+
+    if (!url[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing url\"}", 37); return;
+    }
+    if (!svn_url_safe(url)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid url\"}", 36); return;
+    }
+    if (user[0] && !svn_simple_safe(user)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid user\"}", 37); return;
+    }
+    if (author[0] && !svn_simple_safe(author)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid author\"}", 39); return;
+    }
+    if (date_from[0] && !svn_date_safe(date_from)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid date_from\"}", 42); return;
+    }
+    if (date_to[0] && !svn_date_safe(date_to)) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid date_to\"}", 40); return;
+    }
+
+    char limit_str[32];
+    snprintf(limit_str, sizeof(limit_str), "%d", limit);
+
+    char rev_arg[80] = {0};
+    if (date_from[0] || date_to[0]) {
+        const char *f = date_from[0] ? date_from : "1970-01-01";
+        if (date_to[0])
+            snprintf(rev_arg, sizeof(rev_arg), "{%s}:{%s}", f, date_to);
+        else
+            snprintf(rev_arg, sizeof(rev_arg), "{%s}:HEAD", f);
+    }
+
+    const char *argv[32];
+    int ai = 0;
+    argv[ai++] = "svn";
+    argv[ai++] = "log";
+    argv[ai++] = "--xml";
+    argv[ai++] = "-v";
+    argv[ai++] = "--no-auth-cache";
+    argv[ai++] = "--non-interactive";
+    if (user[0]) { argv[ai++] = "--username"; argv[ai++] = user; }
+    if (pass[0]) { argv[ai++] = "--password"; argv[ai++] = pass; }
+    argv[ai++] = "--limit";
+    argv[ai++] = limit_str;
+    if (rev_arg[0]) { argv[ai++] = "-r"; argv[ai++] = rev_arg; }
+    argv[ai++] = url;
+    argv[ai]   = NULL;
+
+    int pfd[2];
+    if (pipe(pfd) < 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"pipe failed\"}", 36); return;
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(pfd[0]); close(pfd[1]);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"fork failed\"}", 36); return;
+    }
+    if (pid == 0) {
+        close(pfd[0]);
+        dup2(pfd[1], STDOUT_FILENO);
+        dup2(pfd[1], STDERR_FILENO);
+        close(pfd[1]);
+        execvp("svn", (char *const *)argv);
+        fprintf(stderr, "execvp svn failed: %s\n", strerror(errno));
+        _exit(127);
+    }
+
+    close(pfd[1]);
+    strbuf_t out = {0};
+    char rbuf[8192];
+    ssize_t rn;
+    while ((rn = read(pfd[0], rbuf, sizeof(rbuf))) > 0)
+        sb_append(&out, rbuf, (size_t)rn);
+    close(pfd[0]);
+
+    int wstatus = 0;
+    waitpid(pid, &wstatus, 0);
+    int exit_code = WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1;
+
+    strbuf_t sb = {0};
+    if (exit_code == 0) {
+        SB_LIT(&sb, "{\"ok\":true,\"xml\":");
+        sb_json_str(&sb, out.data ? out.data : "");
+        SB_LIT(&sb, "}");
+    } else {
+        SB_LIT(&sb, "{\"ok\":false,\"error\":");
+        sb_json_str(&sb, out.data ? out.data : "svn exited with error");
+        sb_appendf(&sb, ",\"exit_code\":%d}", exit_code);
+    }
+    free(out.data);
+
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"out of memory\"}", 38);
+    free(sb.data);
+}
+
 /* ------------------------------------------------------------------ */
 /*  POST /api/ssh-exec-one  (单条命令，实时响应)                       */
 /* ------------------------------------------------------------------ */
@@ -3233,7 +3780,9 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         long max_body_allowed = MAX_BODY_SIZE;
         if (strcmp(path, "/api/save-report") == 0 ||
             strcmp(path, "/api/save-config") == 0 ||
-            strcmp(path, "/api/save-register-file") == 0)
+            strcmp(path, "/api/save-register-file") == 0 ||
+            strcmp(path, "/api/wiki-save") == 0 ||
+            strcmp(path, "/api/wiki-upload") == 0)
             max_body_allowed = SAVE_REPORT_MAX_BODY;
 
         char *body = NULL;
@@ -3347,6 +3896,27 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
             else
                 send_json(client_fd, 400, "Bad Request",
                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/svn-log") == 0) {
+            if (body) handle_api_svn_log(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-save") == 0) {
+            if (body) handle_api_wiki_save(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-delete") == 0) {
+            if (body) handle_api_wiki_delete(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-mkdir") == 0) {
+            if (body) handle_api_wiki_mkdir(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-upload") == 0) {
+            if (body) handle_api_wiki_upload(client_fd, req_buf, body,
+                                             (size_t)content_length);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -3388,6 +3958,17 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/list-all-configs") == 0) {
         handle_api_list_all_configs(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-list") == 0) {
+        handle_api_wiki_list(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/wiki-read", 14) == 0 &&
+        (path[14] == '\0' || path[14] == '?')) {
+        handle_api_wiki_read(client_fd, path_qs);
         goto done;
     }
 

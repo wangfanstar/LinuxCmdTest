@@ -259,6 +259,7 @@ var S = {
   articles: [],
   categories: [],
   curId: null,
+  curCat: null,
   editId: null,
   editIsNew: false,
   viewMode: 'split'   // split | edit | prev
@@ -270,7 +271,10 @@ function init() { refreshAll(); }
 function refreshAll() {
   setStatus('加载中…');
   fetch('/api/wiki-list')
-    .then(function(r){return r.json();})
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(data){
       S.articles = data.articles || [];
       S.categories = buildCats(S.articles);
@@ -278,7 +282,7 @@ function refreshAll() {
       setStatus('共 ' + S.articles.length + ' 篇文章');
       document.getElementById('status-count').textContent = S.articles.length + ' 篇';
     })
-    .catch(function(e){ setStatus('加载失败：'+e.message); });
+    .catch(function(e){ setStatus('加载失败：'+e.message); renderTree(); });
 }
 
 function buildCats(arts) {
@@ -385,10 +389,11 @@ function newArticle() {
   S.editIsNew = true;
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-textarea').value = '';
-  populateCatSelect(S.curCat||'');
+  populateCatSelect(S.curCat || '');
   showPane('edit');
+  setViewMode(S.viewMode);
   updatePreview();
-  document.getElementById('edit-title').focus();
+  setTimeout(function(){ document.getElementById('edit-title').focus(); }, 50);
 }
 
 function editCurrent() {
@@ -400,6 +405,7 @@ function editCurrent() {
   document.getElementById('edit-title').value = meta.title||'';
   populateCatSelect(meta.category||'');
   showPane('edit');
+  setViewMode(S.viewMode);
   document.getElementById('edit-textarea').value = '加载中…';
 
   fetch('/api/wiki-read?id='+encodeURIComponent(S.curId))
@@ -617,9 +623,17 @@ function setViewMode(mode) {
 
 // ── Pane switching ────────────────────────────────────────────────────
 function showPane(name) {
-  document.getElementById('pane-welcome').style.display = name==='welcome'?'flex':'none';
-  document.getElementById('pane-view').style.display    = name==='view'?'flex':'none';
-  document.getElementById('pane-edit').style.display    = name==='edit'?'flex':'none';
+  var pw = document.getElementById('pane-welcome');
+  var pv = document.getElementById('pane-view');
+  var pe = document.getElementById('pane-edit');
+  pw.style.display = (name === 'welcome') ? 'flex' : 'none';
+  pv.style.display = (name === 'view')    ? 'flex' : 'none';
+  pe.style.display = (name === 'edit')    ? 'flex' : 'none';
+  if (name === 'edit') {
+    pe.style.flex           = '1';
+    pe.style.flexDirection  = 'column';
+    pe.style.overflow       = 'hidden';
+  }
 }
 
 // ── Markdown Renderer ─────────────────────────────────────────────────

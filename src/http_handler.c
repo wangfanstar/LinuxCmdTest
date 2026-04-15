@@ -1930,6 +1930,24 @@ static void wiki_ensure_dirs(void)
 {
     mkdir_p(WIKI_MD_DB);
     mkdir_p(WIKI_UPLOADS);
+    /* 兼容旧数据：扫描 .md 文件的 category 字段，在 WIKI_MD_DB 下补建子目录 */
+    DIR *d = opendir(WIKI_MD_DB);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        size_t nl = strlen(de->d_name);
+        if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
+        char mp[768]; snprintf(mp, sizeof(mp), "%s/%s", WIKI_MD_DB, de->d_name);
+        FILE *fp = fopen(mp, "r"); if (!fp) continue;
+        char line[4096]={0}; fgets(line, sizeof(line), fp); fclose(fp);
+        if (strncmp(line, "<!--META ", 9) != 0) continue;
+        char *end = strstr(line, "-->"); if (!end) continue; *end = '\0';
+        char cat[512]={0}; json_get_str(line+9, "category", cat, sizeof(cat));
+        if (!cat[0]) continue;
+        char catdir[1024]; snprintf(catdir, sizeof(catdir), "%s/%s", WIKI_MD_DB, cat);
+        mkdir_p(catdir);
+    }
+    closedir(d);
 }
 
 /* 写 HTML 实体编码 */

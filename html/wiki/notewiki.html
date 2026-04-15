@@ -130,6 +130,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .field-label{font-size:.75rem;color:var(--dim);margin-bottom:4px;display:block}
 .field-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.82rem;padding:6px 8px;outline:none;margin-bottom:10px}
 .field-input:focus{border-color:var(--accent)}
+
+/* context menu */
+.ctx-menu{position:fixed;z-index:9999;background:var(--surf2);border:1px solid var(--border2);border-radius:6px;padding:4px 0;min-width:130px;box-shadow:0 6px 20px rgba(0,0,0,.55);display:none}
+.ctx-menu.open{display:block}
+.ctx-item{padding:6px 14px;font-size:.8rem;color:var(--text);cursor:pointer;white-space:nowrap;user-select:none}
+.ctx-item:hover{background:rgba(255,255,255,.07)}
+.ctx-item.danger{color:var(--red)}
+.ctx-sep{height:1px;background:var(--border);margin:3px 0}
 </style>
 </head>
 <body>
@@ -179,6 +187,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div id="pane-edit" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="edit-top">
         <input type="text" id="edit-title" placeholder="文章标题…" spellcheck="false">
+        <input type="text" id="edit-filename" placeholder="链接文件名（a-z 0-9 _ -）" title="保存为 .md/.html 的文件名，留空自动生成" spellcheck="false" style="display:none;max-width:200px">
         <select id="edit-category"><option value="">📁 根目录</option></select>
         <div class="view-toggle">
           <button class="vt-btn on" id="vt-split" onclick="setViewMode('split')" title="分屏">⊞</button>
@@ -249,6 +258,29 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   </div>
 </div>
 
+<!-- 右键菜单 -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" id="ctx-rename-item" onclick="ctxDoRename()">✏ 重命名</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="ctxDoDelete()">🗑 删除</div>
+</div>
+
+<!-- 重命名 modal -->
+<div class="modal-overlay" id="modal-rename">
+  <div class="modal-box">
+    <div class="modal-head">✏ 重命名<button class="modal-close" onclick="closeRenameModal()">✕</button></div>
+    <div class="modal-body">
+      <label class="field-label" id="rename-label">新名称</label>
+      <input id="rename-input" class="field-input" type="text" spellcheck="false"
+             onkeydown="if(event.key==='Enter')doRename()">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeRenameModal()">取消</button>
+      <button class="btn btn-primary" onclick="doRename()">确定</button>
+    </div>
+  </div>
+</div>
+
 <!-- 上传图片 input -->
 <input type="file" id="img-file-input" accept="image/*,.pdf,.txt,.zip,.gz"
        style="display:none" onchange="doUploadFile(this.files[0])">
@@ -278,6 +310,11 @@ function refreshAll() {
     .then(function(data){
       S.articles = data.articles || [];
       S.categories = buildCats(S.articles);
+      // 合并服务端返回的目录列表（包含空目录）
+      (data.categories || []).forEach(function(c){
+        if(c && S.categories.indexOf(c)===-1) S.categories.push(c);
+      });
+      S.categories.sort();
       renderTree();
       setStatus('共 ' + S.articles.length + ' 篇文章');
       document.getElementById('status-count').textContent = S.articles.length + ' 篇';
@@ -307,44 +344,90 @@ function renderTree() {
     bycat[c].push(a);
   });
 
+  // include empty categories (e.g. just created, no articles yet)
+  S.categories.forEach(function(c){ if(!(c in bycat)) bycat[c]=[]; });
+
   // sort each bucket by updated desc
   Object.keys(bycat).forEach(function(c){
     bycat[c].sort(function(a,b){ return (b.updated||'').localeCompare(a.updated||''); });
   });
 
-  var cats = Object.keys(bycat).sort();
   var html = '';
 
   // root articles first
-  if (bycat['']) {
+  if (bycat[''] && bycat[''].length) {
     html += catSection('', bycat[''], true);
   }
 
-  // categories
-  cats.filter(Boolean).forEach(function(c){
-    html += catSection(c, bycat[c], false);
-  });
+  // categories (hierarchical)
+  html += renderCatChildren(bycat, '', 0);
 
   document.getElementById('sb-tree').innerHTML = html || '<div style="padding:16px;font-size:.78rem;color:var(--dim)">暂无文章</div>';
 }
 
+// root-only flat section
 function catSection(cat, arts, isRoot) {
   var key = cat||'__root__';
-  var open = (treeExpanded[key] !== false); // default open
-  var label = isRoot ? '根目录' : cat.split('/').pop();
-  var icon = isRoot ? '📁' : '📂';
-  var h = '<div class="tree-cat'+(S.curCat===cat?' active-cat':'')+'" onclick="toggleCat(\''+esc(key)+'\')">'
+  var open = (treeExpanded[key] !== false);
+  var h = '<div class="tree-cat'+(S.curCat===cat?' active-cat':'')+'" '
+        + 'data-type="cat" data-cat="" '
+        + 'onclick="toggleCat(\''+esc(key)+'\')">'
         + '<span class="tree-cat-arrow'+(open?' open':'')+'">▶</span>'
-        + icon+' <span class="tree-cat-name">'+escH(label)+'</span>'
+        + '📁 <span class="tree-cat-name">根目录</span>'
         + '<span style="font-size:.68rem;color:var(--dim);margin-left:4px">'+arts.length+'</span>'
         + '</div>';
   if (open) {
     arts.forEach(function(a){
-      h += '<div class="tree-art'+(S.curId===a.id?' active':'')+'" onclick="openArticle(\''+esc(a.id)+'\')">'
+      h += '<div class="tree-art'+(S.curId===a.id?' active':'')+'" '
+         + 'data-type="art" data-id="'+escH(a.id)+'" '
+         + 'onclick="openArticle(\''+esc(a.id)+'\')">'
          + '<span class="tree-art-icon">📄</span>'
          + '<span class="tree-art-title">'+escH(a.title||'(无标题)')+'</span>'
          + '</div>';
     });
+  }
+  return h;
+}
+
+// render direct children of parentPath at the given depth
+function renderCatChildren(bycat, parentPath, depth) {
+  var prefix = parentPath ? parentPath + '/' : '';
+  var children = Object.keys(bycat).filter(Boolean).filter(function(c) {
+    if (!c.startsWith(prefix)) return false;
+    var rest = c.slice(prefix.length);
+    return rest.length > 0 && rest.indexOf('/') === -1;
+  }).sort();
+  var h = '';
+  children.forEach(function(cat) { h += catSectionTree(cat, bycat, depth); });
+  return h;
+}
+
+// render one category node with its articles and sub-categories recursively
+function catSectionTree(cat, bycat, depth) {
+  var arts = bycat[cat] || [];
+  var key = cat;
+  var open = (treeExpanded[key] !== false);
+  var label = cat.split('/').pop();
+  var indent = depth * 14;
+  var h = '<div class="tree-cat'+(S.curCat===cat?' active-cat':'')+'" '
+        + 'data-type="cat" data-cat="'+escH(cat)+'" '
+        + 'style="padding-left:'+(10+indent)+'px" '
+        + 'onclick="toggleCat(\''+esc(key)+'\')">'
+        + '<span class="tree-cat-arrow'+(open?' open':'')+'">▶</span>'
+        + '📂 <span class="tree-cat-name">'+escH(label)+'</span>'
+        + '<span style="font-size:.68rem;color:var(--dim);margin-left:4px">'+arts.length+'</span>'
+        + '</div>';
+  if (open) {
+    arts.forEach(function(a){
+      h += '<div class="tree-art'+(S.curId===a.id?' active':'')+'" '
+         + 'data-type="art" data-id="'+escH(a.id)+'" '
+         + 'style="padding-left:'+(22+indent)+'px" '
+         + 'onclick="openArticle(\''+esc(a.id)+'\')">'
+         + '<span class="tree-art-icon">📄</span>'
+         + '<span class="tree-art-title">'+escH(a.title||'(无标题)')+'</span>'
+         + '</div>';
+    });
+    h += renderCatChildren(bycat, cat, depth + 1);
   }
   return h;
 }
@@ -389,6 +472,8 @@ function newArticle() {
   S.editIsNew = true;
   document.getElementById('edit-title').value = '';
   document.getElementById('edit-textarea').value = '';
+  var fn = document.getElementById('edit-filename');
+  fn.value = ''; delete fn.dataset.manual; fn.style.display = '';
   populateCatSelect(S.curCat || '');
   showPane('edit');
   setViewMode(S.viewMode);
@@ -403,6 +488,7 @@ function editCurrent() {
   S.editId = S.curId;
   S.editIsNew = false;
   document.getElementById('edit-title').value = meta.title||'';
+  document.getElementById('edit-filename').style.display = 'none';
   populateCatSelect(meta.category||'');
   showPane('edit');
   setViewMode(S.viewMode);
@@ -439,6 +525,23 @@ function saveArticle() {
   var content = document.getElementById('edit-textarea').value;
   if (!title) { document.getElementById('edit-title').focus(); setStatus('请输入标题'); return; }
 
+  /* 新建时处理自定义文件名 */
+  var useId = S.editId || '';
+  if (S.editIsNew) {
+    var fn = document.getElementById('edit-filename').value.trim();
+    if (fn) {
+      if (!/^[a-z0-9_-]+$/.test(fn)) {
+        setStatus('文件名只能含小写字母、数字、_ 和 -');
+        document.getElementById('edit-filename').focus(); return;
+      }
+      if (S.articles.some(function(a){ return a.id === fn; })) {
+        setStatus('文件名「'+fn+'」已存在，请修改');
+        document.getElementById('edit-filename').focus(); return;
+      }
+      useId = fn;
+    }
+  }
+
   var html = md2html(content);
   var meta = S.editId ? S.articles.find(function(a){return a.id===S.editId;}) : null;
 
@@ -447,7 +550,7 @@ function saveArticle() {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
-      id: S.editId||'',
+      id: useId,
       title: title,
       category: cat,
       content: content,
@@ -509,10 +612,145 @@ function doCreateCat() {
     body:JSON.stringify({path:path})})
   .then(function(r){return r.json();})
   .then(function(data){
-    closeNewCatModal();
-    if(data.ok){ setStatus('分类已创建'); refreshAll(); }
-    else setStatus('创建失败：'+(data.error||''));
+    if(data.ok){
+      setStatus('分类已创建');
+      if(S.categories.indexOf(path)===-1){ S.categories.push(path); S.categories.sort(); }
+      closeNewCatModal();
+      renderTree();
+    } else {
+      setStatus('创建失败：'+(data.error||''));
+    }
   });
+}
+
+// ── 链接文件名自动补全（新建时从标题生成） ────────────────────────────
+function slugifyFilename(s) {
+  return (s||'').toLowerCase().replace(/[^a-z0-9_-]/g,'_').replace(/_+/g,'_')
+                .replace(/^_|_$/g,'').substring(0,80);
+}
+document.getElementById('edit-title').addEventListener('input', function(){
+  if (!S.editIsNew) return;
+  var fn = document.getElementById('edit-filename');
+  if (fn.dataset.manual) return;
+  fn.value = slugifyFilename(this.value);
+});
+document.getElementById('edit-filename').addEventListener('input', function(){
+  this.dataset.manual = '1';
+});
+
+// ── 右键菜单 ─────────────────────────────────────────────────────────
+var ctxTarget = null;
+
+document.getElementById('sb-tree').addEventListener('contextmenu', function(e){
+  var artEl = e.target.closest('[data-type="art"]');
+  var catEl = e.target.closest('[data-type="cat"]');
+  if (artEl) {
+    e.preventDefault();
+    var id = artEl.getAttribute('data-id');
+    var meta = S.articles.find(function(a){ return a.id===id; });
+    ctxTarget = { type:'art', id:id, title: meta ? meta.title : id };
+    showCtxMenu(e);
+  } else if (catEl) {
+    var cat = catEl.getAttribute('data-cat');
+    if (!cat) return;           /* 根目录不显示菜单 */
+    e.preventDefault();
+    ctxTarget = { type:'cat', cat:cat };
+    document.getElementById('ctx-rename-item').textContent = '✏ 重命名目录';
+    showCtxMenu(e);
+  }
+});
+
+function showCtxMenu(e) {
+  var menu = document.getElementById('ctx-menu');
+  document.getElementById('ctx-rename-item').textContent =
+    ctxTarget.type==='art' ? '✏ 重命名文章' : '✏ 重命名目录';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top  = e.clientY + 'px';
+  menu.classList.add('open');
+}
+
+document.addEventListener('click', function(e){
+  if (!e.target.closest('#ctx-menu'))
+    document.getElementById('ctx-menu').classList.remove('open');
+});
+
+function ctxDoRename() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  if (!ctxTarget) return;
+  document.getElementById('rename-label').textContent =
+    ctxTarget.type==='art' ? '文章标题' : '目录名称（仅最后一段）';
+  document.getElementById('rename-input').value =
+    ctxTarget.type==='art' ? (ctxTarget.title||'') : (ctxTarget.cat.split('/').pop()||'');
+  document.getElementById('modal-rename').classList.add('open');
+  setTimeout(function(){ var i=document.getElementById('rename-input'); i.select(); i.focus(); }, 50);
+}
+function closeRenameModal(){ document.getElementById('modal-rename').classList.remove('open'); }
+
+function doRename() {
+  var val = document.getElementById('rename-input').value.trim();
+  if (!val) { document.getElementById('rename-input').focus(); return; }
+  closeRenameModal();
+  if (!ctxTarget) return;
+  if (ctxTarget.type === 'art') {
+    setStatus('重命名中…');
+    fetch('/api/wiki-rename-article', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: ctxTarget.id, title: val })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if (data.ok) { setStatus('重命名成功'); refreshAll(); }
+      else setStatus('重命名失败：'+(data.error||''));
+    })
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
+  } else {
+    setStatus('重命名中…');
+    fetch('/api/wiki-rename-cat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ old_path: ctxTarget.cat, new_name: val })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if (data.ok) { setStatus('重命名成功'); refreshAll(); }
+      else setStatus('重命名失败：'+(data.error||''));
+    })
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
+  }
+}
+
+function ctxDoDelete() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  if (!ctxTarget) return;
+  if (ctxTarget.type === 'art') {
+    var name = ctxTarget.title || ctxTarget.id;
+    if (!confirm('确定删除文章「'+name+'」？')) return;
+    setStatus('删除中…');
+    fetch('/api/wiki-delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: ctxTarget.id })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if (data.ok) {
+        if (S.curId===ctxTarget.id) { S.curId=null; showPane('welcome'); }
+        refreshAll(); setStatus('已删除');
+      } else setStatus('删除失败：'+(data.error||''));
+    })
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
+  } else {
+    if (!confirm('确定删除目录「'+ctxTarget.cat+'」？\n（目录内有文章时将拒绝删除）')) return;
+    setStatus('删除中…');
+    fetch('/api/wiki-delete-cat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ path: ctxTarget.cat })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if (data.ok) { refreshAll(); setStatus('目录已删除'); }
+      else setStatus('删除失败：'+(data.error||''));
+    })
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
+  }
 }
 
 // ── Upload Image ──────────────────────────────────────────────────────
@@ -743,12 +981,17 @@ document.addEventListener('keydown', function(e){
   }
   if (e.key==='Escape'){
     if(document.getElementById('modal-newcat').classList.contains('open')) closeNewCatModal();
+    if(document.getElementById('modal-rename').classList.contains('open')) closeRenameModal();
+    document.getElementById('ctx-menu').classList.remove('open');
   }
 });
 
 // close modals on overlay click
 document.getElementById('modal-newcat').addEventListener('click', function(e){
   if(e.target===this) closeNewCatModal();
+});
+document.getElementById('modal-rename').addEventListener('click', function(e){
+  if(e.target===this) closeRenameModal();
 });
 
 init();

@@ -2003,6 +2003,38 @@ static int wiki_write_html_file(const char *filepath,
     return 0;
 }
 
+/* 递归收集 WIKI_MD_DB 内的子目录路径（代表用户分类），写入 JSON 字符串数组 */
+static void wiki_collect_dirs(strbuf_t *sb, const char *base,
+                               const char *rel, int *pfirst)
+{
+    char full[1024];
+    if (rel[0])
+        snprintf(full, sizeof(full), "%s/%s", base, rel);
+    else
+        snprintf(full, sizeof(full), "%s", base);
+
+    DIR *d = opendir(full);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;        /* 跳过隐藏项 */
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", full, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+        char relpath[512];
+        if (rel[0])
+            snprintf(relpath, sizeof(relpath), "%s/%s", rel, de->d_name);
+        else
+            snprintf(relpath, sizeof(relpath), "%s", de->d_name);
+        if (!*pfirst) SB_LIT(sb, ",");
+        *pfirst = 0;
+        sb_json_str(sb, relpath);
+        wiki_collect_dirs(sb, base, relpath, pfirst); /* 递归子目录 */
+    }
+    closedir(d);
+}
+
 /* GET /api/wiki-list */
 static void handle_api_wiki_list(int client_fd)
 {
@@ -2046,9 +2078,13 @@ static void handle_api_wiki_list(int client_fd)
         }
         closedir(d);
     }
+    /* 附加用户分类目录列表（含空目录） */
+    SB_LIT(&sb, "],\"categories\":[");
+    int firstcat = 1;
+    wiki_collect_dirs(&sb, WIKI_MD_DB, "", &firstcat);
     SB_LIT(&sb, "]}");
     if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
-    else send_json(client_fd, 200, "OK", "{\"articles\":[]}", 15);
+    else send_json(client_fd, 200, "OK", "{\"articles\":[],\"categories\":[]}", 30);
     free(sb.data);
 }
 
@@ -2112,6 +2148,14 @@ static void handle_api_wiki_save(int client_fd, const char *body)
         }
     } else {
         wiki_gen_id(id, sizeof(id));
+    }
+    /* 新建文章且指定了自定义 id 时，检测文件名重复 */
+    if (id[0] && !created[0]) {
+        char chk[768]; snprintf(chk, sizeof(chk), "%s/%s.md", WIKI_MD_DB, id);
+        FILE *chkf = fopen(chk, "r");
+        if (chkf) { fclose(chkf);
+            send_json(client_fd, 409, "Conflict",
+                      "{\"ok\":false,\"error\":\"duplicate\"}", 31); return; }
     }
     char now[64]; wiki_now_iso(now, sizeof(now));
     if (!created[0]) strncpy(created, now, sizeof(created)-1);
@@ -2198,6 +2242,257 @@ static void handle_api_wiki_delete(int client_fd, const char *body)
     LOG_INFO("wiki_delete id=%s",id);
 }
 
+/* 递归删除目录（空目录及其子目录） */
+static void rmdir_recursive(const char *path)
+{
+    DIR *d = opendir(path);
+    if (!d) { rmdir(path); return; }
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
+        struct stat st;
+        if (stat(child, &st) == 0 && S_ISDIR(st.st_mode))
+            rmdir_recursive(child);
+        else
+            unlink(child);
+    }
+    closedir(d);
+    rmdir(path);
+}
+
+/* POST /api/wiki-rename-article — 重命名文章标题，同步更新 .md META 和 .html */
+static void handle_api_wiki_rename_article(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char id[128]={0}, new_title[512]={0};
+    json_get_str(body, "id",    id,        sizeof(id));
+    json_get_str(body, "title", new_title, sizeof(new_title));
+    if (!id[0] || !new_title[0]) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"missing id/title\"}",40); return;
+    }
+    for (size_t i=0; id[i]; i++) {
+        unsigned char c=(unsigned char)id[i];
+        if (!isalnum(c)&&c!='_'&&c!='-') {
+            send_json(client_fd,400,"Bad Request",
+                      "{\"ok\":false,\"error\":\"invalid id\"}",33); return;
+        }
+    }
+    /* 读取原 .md 文件 */
+    char md_path[768];
+    snprintf(md_path, sizeof(md_path), "%s/%s.md", WIKI_MD_DB, id);
+    FILE *fp = fopen(md_path, "r");
+    if (!fp) {
+        send_json(client_fd,404,"Not Found",
+                  "{\"ok\":false,\"error\":\"not found\"}",32); return;
+    }
+    char meta_line[4096]={0};
+    fgets(meta_line, sizeof(meta_line), fp);
+    strbuf_t cbuf={0};
+    char buf[8192]; size_t nr;
+    while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&cbuf,buf,nr);
+    fclose(fp);
+
+    /* 解析旧 META */
+    char cat[512]={0}, created[64]={0}, updated[64]={0};
+    if (strncmp(meta_line,"<!--META ",9)==0) {
+        char *end=strstr(meta_line,"-->");
+        if (end) { *end='\0'; const char *mj=meta_line+9;
+            json_get_str(mj,"category",cat,sizeof(cat));
+            json_get_str(mj,"created",created,sizeof(created));
+            json_get_str(mj,"updated",updated,sizeof(updated)); }
+    }
+    char now[64]; wiki_now_iso(now, sizeof(now));
+
+    /* 重写 .md（新标题） */
+    fp = fopen(md_path, "wb");
+    if (!fp) { free(cbuf.data);
+        send_json(client_fd,500,"Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write md\"}",33); return; }
+    strbuf_t mb={0};
+    SB_LIT(&mb,"<!--META ");
+    SB_LIT(&mb,"{\"id\":"); sb_json_str(&mb,id);
+    SB_LIT(&mb,",\"title\":"); sb_json_str(&mb,new_title);
+    SB_LIT(&mb,",\"category\":"); sb_json_str(&mb,cat);
+    SB_LIT(&mb,",\"created\":"); sb_json_str(&mb,created);
+    SB_LIT(&mb,",\"updated\":"); sb_json_str(&mb,now);
+    SB_LIT(&mb,"}-->\n");
+    if (mb.data) fwrite(mb.data,1,mb.len,fp);
+    if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
+    fclose(fp);
+    free(mb.data);
+
+    /* 读取现有 .html 的 body 部分，重写（更新标题和时间） */
+    char html_path[1024];
+    if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
+    else         snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
+
+    strbuf_t hfull={0}, hbody={0};
+    fp = fopen(html_path,"r");
+    if (fp) {
+        char hbuf[8192]; size_t hnr;
+        while ((hnr=fread(hbuf,1,sizeof(hbuf),fp))>0) sb_append(&hfull,hbuf,hnr);
+        fclose(fp);
+    }
+    if (hfull.data) {
+        const char *ab_open = "<div class=\"ab\">\n";
+        const char *marker  = strstr(hfull.data, ab_open);
+        if (marker) {
+            const char *start = marker + strlen(ab_open);
+            const char *end   = strstr(start, "\n</div>\n</article>");
+            if (end) sb_append(&hbody, start, (size_t)(end - start));
+        }
+    }
+    free(hfull.data); free(cbuf.data);
+    wiki_write_html_file(html_path, new_title, cat, now,
+                         hbody.data ? hbody.data : "");
+    free(hbody.data);
+
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    LOG_INFO("wiki_rename_article id=%s new_title=%s", id, new_title);
+}
+
+/* POST /api/wiki-rename-cat — 重命名目录（最后一段），更新所有相关 .md META */
+static void handle_api_wiki_rename_cat(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char old_path[512]={0}, new_name[256]={0};
+    json_get_str(body, "old_path", old_path, sizeof(old_path));
+    json_get_str(body, "new_name", new_name, sizeof(new_name));
+    if (!old_path[0] || !new_name[0]) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"missing params\"}",38); return;
+    }
+    if (!register_subdir_safe(old_path) || !register_subdir_safe(new_name)) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid path\"}",37); return;
+    }
+    /* 计算新路径（替换最后一段） */
+    char new_path[512]={0};
+    const char *slash = strrchr(old_path, '/');
+    if (slash)
+        snprintf(new_path,sizeof(new_path),"%.*s/%s",(int)(slash-old_path),old_path,new_name);
+    else
+        snprintf(new_path,sizeof(new_path),"%s",new_name);
+
+    /* 检查新路径不存在 */
+    char new_full_root[1024], old_full_root[1024];
+    snprintf(old_full_root,sizeof(old_full_root),"%s/%s",WIKI_ROOT,old_path);
+    snprintf(new_full_root,sizeof(new_full_root),"%s/%s",WIKI_ROOT,new_path);
+    struct stat st;
+    if (stat(new_full_root,&st)==0) {
+        send_json(client_fd,409,"Conflict",
+                  "{\"ok\":false,\"error\":\"already exists\"}",38); return;
+    }
+    /* 重命名 WIKI_ROOT 目录 */
+    if (rename(old_full_root,new_full_root)!=0 && errno!=ENOENT) {
+        char err[128]; snprintf(err,sizeof(err),"{\"ok\":false,\"error\":\"%s\"}",strerror(errno));
+        send_json(client_fd,500,"Internal Server Error",err,strlen(err)); return;
+    }
+    /* 重命名 WIKI_MD_DB 目录 */
+    char old_full_md[1024], new_full_md[1024];
+    snprintf(old_full_md,sizeof(old_full_md),"%s/%s",WIKI_MD_DB,old_path);
+    snprintf(new_full_md,sizeof(new_full_md),"%s/%s",WIKI_MD_DB,new_path);
+    rename(old_full_md,new_full_md); /* 目录不存在时忽略错误 */
+
+    /* 扫描所有 .md 文件，更新匹配 old_path 的 category 字段 */
+    size_t old_len = strlen(old_path);
+    DIR *d = opendir(WIKI_MD_DB);
+    if (d) {
+        struct dirent *de;
+        while ((de=readdir(d))!=NULL) {
+            size_t nl=strlen(de->d_name);
+            if (nl<4||strcmp(de->d_name+nl-3,".md")!=0) continue;
+            char md_path[768];
+            snprintf(md_path,sizeof(md_path),"%s/%s",WIKI_MD_DB,de->d_name);
+            FILE *fp=fopen(md_path,"r"); if (!fp) continue;
+            char ml[4096]={0}; fgets(ml,sizeof(ml),fp);
+            strbuf_t cbuf={0}; char tbuf[8192]; size_t nr;
+            while ((nr=fread(tbuf,1,sizeof(tbuf),fp))>0) sb_append(&cbuf,tbuf,nr);
+            fclose(fp);
+            if (strncmp(ml,"<!--META ",9)!=0) { free(cbuf.data); continue; }
+            char *end=strstr(ml,"-->"); if (!end) { free(cbuf.data); continue; }
+            *end='\0'; const char *mj=ml+9;
+            char aid[128]={0},atitle[512]={0},acat[512]={0},acre[64]={0},aupd[64]={0};
+            json_get_str(mj,"id",aid,sizeof(aid));
+            json_get_str(mj,"title",atitle,sizeof(atitle));
+            json_get_str(mj,"category",acat,sizeof(acat));
+            json_get_str(mj,"created",acre,sizeof(acre));
+            json_get_str(mj,"updated",aupd,sizeof(aupd));
+            /* 检查 category 是否匹配 */
+            char new_cat[512]={0};
+            if (strcmp(acat,old_path)==0) {
+                snprintf(new_cat,sizeof(new_cat),"%s",new_path);
+            } else if (strncmp(acat,old_path,old_len)==0 && acat[old_len]=='/') {
+                snprintf(new_cat,sizeof(new_cat),"%s%s",new_path,acat+old_len);
+            } else { free(cbuf.data); continue; }
+            /* 重写 .md */
+            fp=fopen(md_path,"wb"); if (!fp) { free(cbuf.data); continue; }
+            strbuf_t mb={0};
+            SB_LIT(&mb,"<!--META ");
+            SB_LIT(&mb,"{\"id\":"); sb_json_str(&mb,aid);
+            SB_LIT(&mb,",\"title\":"); sb_json_str(&mb,atitle);
+            SB_LIT(&mb,",\"category\":"); sb_json_str(&mb,new_cat);
+            SB_LIT(&mb,",\"created\":"); sb_json_str(&mb,acre);
+            SB_LIT(&mb,",\"updated\":"); sb_json_str(&mb,aupd);
+            SB_LIT(&mb,"}-->\n");
+            if (mb.data) fwrite(mb.data,1,mb.len,fp);
+            if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
+            fclose(fp); free(mb.data); free(cbuf.data);
+        }
+        closedir(d);
+    }
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    LOG_INFO("wiki_rename_cat old=%s new=%s", old_path, new_path);
+}
+
+/* POST /api/wiki-delete-cat — 删除空目录 */
+static void handle_api_wiki_delete_cat(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char path[512]={0};
+    json_get_str(body,"path",path,sizeof(path));
+    if (!path[0]) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"missing path\"}",37); return;
+    }
+    if (!register_subdir_safe(path)) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"invalid path\"}",37); return;
+    }
+    /* 检查是否有文章引用该目录（含子目录） */
+    size_t plen=strlen(path);
+    DIR *d=opendir(WIKI_MD_DB);
+    if (d) {
+        struct dirent *de;
+        while ((de=readdir(d))!=NULL) {
+            size_t nl=strlen(de->d_name);
+            if (nl<4||strcmp(de->d_name+nl-3,".md")!=0) continue;
+            char mp[768]; snprintf(mp,sizeof(mp),"%s/%s",WIKI_MD_DB,de->d_name);
+            FILE *fp=fopen(mp,"r"); if (!fp) continue;
+            char ml[4096]={0}; fgets(ml,sizeof(ml),fp); fclose(fp);
+            if (strncmp(ml,"<!--META ",9)!=0) continue;
+            char *end=strstr(ml,"-->"); if (!end) continue; *end='\0';
+            char cat[512]={0}; json_get_str(ml+9,"category",cat,sizeof(cat));
+            if (strcmp(cat,path)==0||(strncmp(cat,path,plen)==0&&cat[plen]=='/')) {
+                closedir(d);
+                send_json(client_fd,409,"Conflict",
+                          "{\"ok\":false,\"error\":\"not empty\"}", 30); return;
+            }
+        }
+        closedir(d);
+    }
+    char full_root[1024], full_md[1024];
+    snprintf(full_root,sizeof(full_root),"%s/%s",WIKI_ROOT,path);
+    snprintf(full_md,  sizeof(full_md),  "%s/%s",WIKI_MD_DB,path);
+    rmdir_recursive(full_md);
+    rmdir_recursive(full_root);
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    LOG_INFO("wiki_delete_cat path=%s", path);
+}
+
 /* POST /api/wiki-mkdir */
 static void handle_api_wiki_mkdir(int client_fd, const char *body)
 {
@@ -2212,6 +2507,9 @@ static void handle_api_wiki_mkdir(int client_fd, const char *body)
         char err[128]; snprintf(err,sizeof(err),"{\"ok\":false,\"error\":\"%s\"}",strerror(errno));
         send_json(client_fd,500,"Internal Server Error",err,strlen(err)); return;
     }
+    /* 在 md_db 下同步建子目录，用于 wiki-list 扫描持久化空分类 */
+    char full_md[1024]; snprintf(full_md,sizeof(full_md),"%s/%s",WIKI_MD_DB,path);
+    mkdir_p(full_md);
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
 }
 
@@ -3907,6 +4205,18 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-delete") == 0) {
             if (body) handle_api_wiki_delete(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-rename-article") == 0) {
+            if (body) handle_api_wiki_rename_article(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-rename-cat") == 0) {
+            if (body) handle_api_wiki_rename_cat(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-delete-cat") == 0) {
+            if (body) handle_api_wiki_delete_cat(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-mkdir") == 0) {

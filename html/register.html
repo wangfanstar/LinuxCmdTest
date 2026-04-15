@@ -329,6 +329,31 @@ body {
   color: var(--dim); font-size: 1.1rem;
   cursor: pointer; padding: 0 4px; line-height: 1;
 }
+
+/* ── 右键菜单 ── */
+.ctx-menu {
+  display: none;
+  position: fixed;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  z-index: 9998;
+  min-width: 160px;
+}
+.ctx-menu.open { display: block; }
+.ctx-item {
+  padding: 7px 16px;
+  font-size: 0.83rem;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctx-item:hover { background: rgba(255,255,255,.06); }
+.ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
 </style>
 </head>
 <body>
@@ -366,6 +391,7 @@ body {
       <div class="path-bar" id="path-bar">register/</div>
       <div class="sel-bar" id="sel-bar">
         <span class="sel-count" id="sel-count">已选 0 项</span>
+        <button class="btn btn-secondary" onclick="downloadSelected()">⬇ 批量下载</button>
         <button class="btn btn-danger" onclick="deleteSelected()">🗑 删除选中</button>
         <button class="btn btn-secondary" onclick="clearSelection()">取消</button>
       </div>
@@ -388,6 +414,13 @@ body {
 
 <!-- 上传进度条 -->
 <div class="upload-bar" id="upload-bar"></div>
+
+<!-- 右键菜单 -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" onclick="ctxOpenTab()">🔗 在新标签页中打开</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="ctxDownload()">⬇ 下载</div>
+</div>
 
 <!-- 新建文件夹弹窗 -->
 <div class="modal-overlay" id="newdir-modal">
@@ -534,7 +567,8 @@ function renderContent() {
     var key  = 'f:' + f.relPath;
     var chk  = selectedItems.has(key);
     var icon = f.ext === 'json' ? '📄' : '🗂';
-    rows += '<div class="list-row' + (chk ? ' selected' : '') + '" id="row-' + escAttr(key) + '">'
+    rows += '<div class="list-row' + (chk ? ' selected' : '') + '" id="row-' + escAttr(key) + '"'
+          + ' oncontextmenu="showCtxMenu(event,\'' + escAttr(f.relPath) + '\')">'
           + '<div class="col-chk"><input type="checkbox" class="row-chk" data-key="' + escAttr(key) + '"'
           + (chk ? ' checked' : '') + ' onchange="toggleItem(\'' + escAttr(key) + '\',this.checked)"></div>'
           + '<div class="col-icon">' + icon + '</div>'
@@ -872,6 +906,70 @@ function doCreateDir() {
   })
   .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
+
+// ── 批量下载 ──────────────────────────────────────────────
+function downloadSelected() {
+  var fileKeys = Array.from(selectedItems).filter(function(k) { return k.charAt(0) === 'f'; });
+  if (!fileKeys.length) { setStatus('未选中任何文件'); return; }
+  fileKeys.forEach(function(key, i) {
+    var relPath = key.slice(2);
+    setTimeout(function() {
+      var a = document.createElement('a');
+      a.href = '/register/' + encodeURI(relPath);
+      a.download = relPath.split('/').pop();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 300);
+  });
+  setStatus('开始下载 ' + fileKeys.length + ' 个文件…');
+}
+
+// ── 右键菜单 ──────────────────────────────────────────────
+var _ctxFile = null;
+
+function showCtxMenu(e, relPath) {
+  e.preventDefault();
+  e.stopPropagation();
+  _ctxFile = relPath;
+  var menu = document.getElementById('ctx-menu');
+  menu.classList.add('open');
+  menu.style.left = e.clientX + 'px';
+  menu.style.top  = e.clientY + 'px';
+  // 防止超出视口
+  var rect = menu.getBoundingClientRect();
+  if (rect.right  > window.innerWidth)  menu.style.left = (e.clientX - rect.width)  + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top  = (e.clientY - rect.height) + 'px';
+}
+
+function hideCtxMenu() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  _ctxFile = null;
+}
+
+function ctxOpenTab() {
+  if (!_ctxFile) return;
+  window.open('/register/' + encodeURI(_ctxFile), '_blank');
+  hideCtxMenu();
+}
+
+function ctxDownload() {
+  if (!_ctxFile) return;
+  var a = document.createElement('a');
+  a.href = '/register/' + encodeURI(_ctxFile);
+  a.download = _ctxFile.split('/').pop();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  hideCtxMenu();
+}
+
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('ctx-menu').contains(e.target)) hideCtxMenu();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') hideCtxMenu();
+});
 
 // ── 工具 ─────────────────────────────────────────────────
 function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }

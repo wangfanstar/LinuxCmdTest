@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVN 日志查询</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --surface2:#1e2740;
+  --border:  #30363d;
+  --border2: #2d3a54;
+  --text:    #c9d1d9;
+  --dim:     #8b949e;
+  --accent:  #4a90e2;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --yellow:  #d29922;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 顶栏 ── */
+.topbar {
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.topbar h1 { font-size: 1rem; font-weight: 700; color: #f0f6fc; }
+.topbar-sep { flex: 1; }
+.topbar a { font-size: 13px; color: var(--dim); text-decoration: none; }
+.topbar a:hover { color: var(--text); }
+
+/* ── 查询面板 ── */
+.query-panel {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+}
+.panel-title {
+  font-size: 0.78rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-title:hover { color: var(--text); }
+.panel-body { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.panel-body.collapsed { display: none; }
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 0.75rem; color: var(--dim); }
+.field input, .field select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  outline: none;
+  min-width: 160px;
+}
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field input[type="password"] { letter-spacing: .1em; }
+
+.btn {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: opacity .15s;
+}
+.btn:hover { opacity: .85; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary  { background: var(--accent); color: #fff; }
+.btn-secondary{ background: #27334d; color: var(--text); border: 1px solid var(--border2); }
+.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+/* ── 过滤栏 ── */
+.filter-bar {
+  padding: 8px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.filter-bar label { font-size: 0.78rem; color: var(--dim); white-space: nowrap; }
+.filter-bar input, .filter-bar select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  outline: none;
+}
+.filter-bar input:focus, .filter-bar select:focus { border-color: var(--accent); }
+.author-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 420px;
+  max-width: 680px;
+  max-height: 128px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+}
+.author-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.author-checklist::-webkit-scrollbar { width: 8px; height: 8px; }
+.author-checklist::-webkit-scrollbar-thumb { background: #3a4556; border-radius: 4px; }
+.author-checklist::-webkit-scrollbar-track { background: transparent; }
+.author-empty { color: var(--dim); font-size: 0.75rem; }
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+}
+.group-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text);
+  cursor: pointer;
+}
+@media (max-width: 1200px) {
+  .author-checklist { min-width: 320px; max-width: 100%; }
+}
+.filter-sep { flex: 1; }
+.status-msg { font-size: 0.8rem; color: var(--dim); }
+.tab-bar { display: flex; gap: 4px; }
+.tab-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+}
+.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── 主体 ── */
+.main-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.view { flex: 1; overflow-y: auto; display: none; }
+.view.active { display: block; }
+
+/* ── 明细视图 ── */
+.rev-block {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+}
+.rev-block:hover { background: rgba(255,255,255,.02); }
+.rev-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.rev-num { font-size: 0.78rem; font-weight: 700; color: var(--accent); min-width: 70px; }
+.rev-author {
+  font-size: 0.8rem; font-weight: 600; color: #f0f6fc;
+  background: #1e2740; padding: 1px 8px; border-radius: 10px;
+}
+.rev-date { font-size: 0.78rem; color: var(--dim); }
+.rev-msg {
+  font-size: 0.82rem; color: var(--text);
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 80px; overflow: hidden;
+  margin-bottom: 6px;
+  padding: 4px 0;
+}
+.rev-msg.expanded { max-height: none; }
+.msg-toggle {
+  font-size: 0.72rem; color: var(--accent); cursor: pointer; margin-bottom: 6px;
+}
+.msg-toggle:hover { text-decoration: underline; }
+.paths-list { display: flex; flex-direction: column; gap: 2px; }
+.path-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; font-family: monospace;
+  color: var(--dim);
+  padding: 1px 0;
+}
+.path-action {
+  font-size: 0.68rem; font-weight: 700;
+  padding: 1px 5px; border-radius: 3px;
+  min-width: 20px; text-align: center;
+}
+.act-M { background: #1a3a6e; color: #7ab8ff; }
+.act-A { background: #1a3a24; color: #7cdba0; }
+.act-D { background: #3a1a1a; color: #f85149; }
+.act-R { background: #2d2a1a; color: #d29922; }
+.act-? { background: #2a2a2a; color: #8b949e; }
+.path-name { color: var(--text); }
+
+/* ── 汇总视图 ── */
+.sum-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.sum-table th, .sum-table td {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid rgba(48,54,61,.5);
+}
+.sum-table th {
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+}
+.sum-table th { position: sticky; }
+.sum-table td { overflow: hidden; text-overflow: ellipsis; }
+.sum-head-cell { position: relative; padding-right: 14px; }
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+.col-resizer:hover { background: rgba(74, 144, 226, 0.25); }
+.sum-table.resizing { cursor: col-resize; }
+.sum-table.resizing * { user-select: none !important; }
+.sum-col-idx { width: 6%; }
+.sum-col-key { width: 22%; }
+.sum-col-sub { width: 24%; }
+.sum-col-fcnt { width: 10%; }
+.sum-col-cnt { width: 10%; }
+.sum-col-tail { width: 28%; }
+.sum-col-idx, .sum-col-fcnt, .sum-col-cnt { text-align: right; }
+.sum-sub, .sum-tail { color: var(--dim); }
+.sum-sub { font-family: monospace; word-break: break-all; }
+.sum-tail { word-break: break-all; }
+.sum-fcnt { color: var(--accent); font-weight: 600; text-align: right; }
+.sum-idx { color: var(--dim); text-align: right; }
+.sum-acts { white-space: normal; }
+.sum-path { word-break: break-all; }
+.deleted-box {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid #3a1a1a;
+  border-radius: 6px;
+  background: rgba(248, 81, 73, 0.08);
+}
+.deleted-title {
+  font-size: 0.78rem;
+  color: #ffb3ad;
+  margin-bottom: 6px;
+}
+.deleted-list {
+  max-height: 120px;
+  overflow: auto;
+  font-family: monospace;
+  font-size: 0.76rem;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.sum-table th:hover { color: var(--text); }
+.sum-table th.sort-asc::after  { content: " ▲"; }
+.sum-table th.sort-desc::after { content: " ▼"; }
+.sum-table tr:hover td { background: rgba(255,255,255,.02); }
+.sum-path { font-family: monospace; color: var(--text); word-break: break-all; }
+.sum-cnt  { color: var(--accent); font-weight: 600; text-align: right; min-width: 50px; }
+.sum-acts { font-size: 0.72rem; color: var(--dim); }
+.sum-authors { font-size: 0.75rem; color: var(--dim); }
+
+/* ── 空/加载 ── */
+.empty-tip {
+  text-align: center; color: var(--dim); font-size: 0.85rem; padding: 60px 0;
+}
+.loading-tip {
+  text-align: center; color: var(--accent); font-size: 0.85rem; padding: 60px 0;
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <h1>🔍 SVN 日志查询</h1>
+  <div class="topbar-sep"></div>
+  <a href="index.html">← 返回首页</a>
+</div>
+
+<!-- 查询参数面板 -->
+<div class="query-panel">
+  <div class="panel-title" onclick="togglePanel()">
+    <span id="panel-arrow">▼</span> 查询参数
+  </div>
+  <div class="panel-body" id="panel-body">
+    <div class="field" style="flex:2;min-width:240px;">
+      <label>SVN 仓库路径（URL）</label>
+      <input id="q-url" type="text" placeholder="http://svn.example.com/repo/trunk" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>用户名</label>
+      <input id="q-user" type="text" placeholder="svnuser" autocomplete="username" spellcheck="false" style="min-width:120px;">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input id="q-pass" type="password" placeholder="••••••••" autocomplete="current-password" style="min-width:120px;">
+    </div>
+    <div class="field">
+      <label>作者（为空查全部）</label>
+      <input id="q-author" type="text" placeholder="username" spellcheck="false" style="min-width:120px;">
+    </div>
+    <div class="field">
+      <label>起始日期</label>
+      <input id="q-from" type="date">
+    </div>
+    <div class="field">
+      <label>截止日期</label>
+      <input id="q-to" type="date">
+    </div>
+    <div class="field">
+      <label>最多条数</label>
+      <select id="q-limit">
+        <option value="100">100</option>
+        <option value="200">200</option>
+        <option value="500">500</option>
+        <option value="1000">1000</option>
+        <option value="2000">2000</option>
+        <option value="5000" selected>5000</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="doQuery()" id="btn-query">🔍 查询</button>
+    <button class="btn btn-secondary" onclick="clearForm()">✕ 清空</button>
+  </div>
+</div>
+
+<!-- 过滤栏 -->
+<div class="filter-bar">
+  <label>再筛选：</label>
+  <label>作者</label>
+  <div id="f-author-list" class="author-checklist">
+    <span class="author-empty">全部</span>
+  </div>
+  <button class="btn btn-secondary btn-sm" onclick="setAllAuthors(true)">全选作者</button>
+  <button class="btn btn-secondary btn-sm" onclick="setAllAuthors(false)">清空作者</button>
+  <label>关键字</label>
+  <input id="f-keyword" type="text" placeholder="路径 / 提交说明…" oninput="applyFilter()" style="min-width:180px;">
+  <label>汇总分组</label>
+  <div class="group-toggle" role="radiogroup" aria-label="汇总分组">
+    <label><input type="radio" id="sum-group-path" name="sum-group" value="path" checked onchange="setSummaryMode('path')"> 按文件</label>
+    <label><input type="radio" id="sum-group-author" name="sum-group" value="author" onchange="setSummaryMode('author')"> 按作者</label>
+  </div>
+  <div class="filter-sep"></div>
+  <span class="status-msg" id="status-msg"></span>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-detail" onclick="switchTab('detail')">明细</button>
+    <button class="tab-btn"        id="tab-summary" onclick="switchTab('summary')">文件汇总</button>
+  </div>
+  <button class="btn btn-secondary btn-sm" onclick="copyResult()">📋 复制结果</button>
+  <button class="btn btn-secondary btn-sm" onclick="exportCsv()">⬇ 导出 CSV</button>
+</div>
+
+<!-- 主体 -->
+<div class="main-area">
+  <!-- 明细视图 -->
+  <div class="view active" id="view-detail">
+    <div class="empty-tip" id="detail-empty">请在上方输入参数后点击「查询」</div>
+  </div>
+  <!-- 汇总视图 -->
+  <div class="view" id="view-summary">
+    <div class="status-msg" id="sum-stats" style="padding:8px 12px;">总文件数：0</div>
+    <div class="deleted-box" id="sum-deleted-box" style="display:none;">
+      <div class="deleted-title" id="sum-deleted-title">删除文件（0）</div>
+      <div class="deleted-list" id="sum-deleted-list"></div>
+    </div>
+    <table class="sum-table">
+      <colgroup>
+        <col id="sum-col-idx" class="sum-col-idx">
+        <col id="sum-col-key" class="sum-col-key">
+        <col id="sum-col-fcnt" class="sum-col-fcnt">
+        <col id="sum-col-sub" class="sum-col-sub">
+        <col id="sum-col-cnt" class="sum-col-cnt">
+        <col id="sum-col-tail" class="sum-col-tail">
+      </colgroup>
+      <thead>
+        <tr>
+          <th id="sum-th-idx" class="sum-head-cell">序号</th>
+          <th id="sum-th-key" class="sum-head-cell" onclick="sortSummary('path')">文件路径</th>
+          <th id="sum-th-fcnt" class="sum-head-cell" onclick="sortSummary('fcnt')">文件数</th>
+          <th id="sum-th-sub" class="sum-head-cell" onclick="sortSummary('sub')">操作</th>
+          <th id="sum-th-cnt" class="sum-head-cell" onclick="sortSummary('cnt')">变更次数</th>
+          <th id="sum-th-tail" class="sum-head-cell" onclick="sortSummary('acts')">涉及作者</th>
+        </tr>
+      </thead>
+      <tbody id="sum-body"></tbody>
+    </table>
+    <div class="empty-tip" id="summary-empty" style="display:none">无数据</div>
+  </div>
+</div>
+
+<script>
+// ── 状态 ──────────────────────────────────────────────────────────────
+var allEntries   = [];   // 原始解析后的 logentry 数组
+var filteredEntries = []; // 经过 filter 后的数组
+var curTab = 'detail';
+var summarySort = { col: 'cnt', asc: false };
+var panelOpen = true;
+var authorColorMap = {};
+
+// ── 持久化 ────────────────────────────────────────────────────────────
+function saveForm() {
+  var toEl = document.getElementById('q-to');
+  var toVal = toEl && toEl.dataset.autoDefault === '1' ? '' : document.getElementById('q-to').value;
+  var o = {
+    url:    document.getElementById('q-url').value,
+    user:   document.getElementById('q-user').value,
+    author: document.getElementById('q-author').value,
+    from:   document.getElementById('q-from').value,
+    to:     toVal,
+    limit:  document.getElementById('q-limit').value
+  };
+  try { localStorage.setItem('svntools_form', JSON.stringify(o)); } catch(e){}
+}
+
+function loadForm() {
+  try {
+    var s = localStorage.getItem('svntools_form');
+    if (!s) return;
+    var o = JSON.parse(s);
+    if (o.url)    document.getElementById('q-url').value    = o.url;
+    if (o.user)   document.getElementById('q-user').value   = o.user;
+    if (o.author) document.getElementById('q-author').value = o.author;
+    if (o.from)   document.getElementById('q-from').value   = o.from;
+    // 兼容旧版本：若仅恢复到“今天”且没有起始日期，按默认值处理，不作为过滤条件
+    if (o.to && !(o.to === getTodayLocalDateStr() && !o.from))
+      document.getElementById('q-to').value = o.to;
+    // 兼容旧默认值：历史上默认 500，这里升级为 5000
+    if (o.limit && o.limit !== '500') document.getElementById('q-limit').value = o.limit;
+    else document.getElementById('q-limit').value = '5000';
+  } catch(e){}
+}
+
+function clearForm() {
+  ['q-url','q-user','q-pass','q-author','q-from','q-to'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  setDefaultToDate();
+  document.getElementById('q-limit').value = '5000';
+  try { localStorage.removeItem('svntools_form'); } catch(e){}
+}
+
+// ── 面板折叠 ─────────────────────────────────────────────────────────
+function togglePanel() {
+  panelOpen = !panelOpen;
+  document.getElementById('panel-body').classList.toggle('collapsed', !panelOpen);
+  document.getElementById('panel-arrow').textContent = panelOpen ? '▼' : '▶';
+}
+
+// ── 查询 ──────────────────────────────────────────────────────────────
+function doQuery() {
+  var rawUrl = document.getElementById('q-url').value.trim();
+  var url    = normalizeSvnUrl(rawUrl);
+  var user   = document.getElementById('q-user').value.trim();
+  var pass   = document.getElementById('q-pass').value;
+  var authorInput = document.getElementById('q-author').value.trim();
+  var authorList = parseAuthorInput(authorInput);
+  var fromEl = document.getElementById('q-from');
+  var toEl   = document.getElementById('q-to');
+  var from   = fromEl.value;
+  var to     = toEl.value;
+  var limit  = parseInt(document.getElementById('q-limit').value, 10) || 5000;
+
+  if (!url) { setStatus('请输入 SVN 路径'); return; }
+  if (!looksLikeSvnRepoUrl(url)) {
+    setStatus('请输入 SVN 仓库 URL（不要使用 Web 浏览页面地址）');
+    showError('URL 看起来不是 SVN 仓库地址，请使用仓库根/分支目录 URL（例如 trunk、branches/xxx），不要使用 !svn 或网页参数地址。');
+    return;
+  }
+  if (url !== rawUrl) {
+    document.getElementById('q-url').value = url;
+  }
+  saveForm();
+
+  var btn = document.getElementById('btn-query');
+  btn.disabled = true;
+  setStatus('查询中…');
+  showLoading();
+
+  var reqBody = {
+    url: url,
+    user: user,
+    pass: pass,
+    limit: limit
+  };
+  // 后端 svn log 的 author 参数是单值；多作者在前端通过复选过滤实现
+  if (authorList.length === 1) reqBody.author = authorList[0];
+  // 时间为空时不传该字段，按后端默认逻辑查询全部时间
+  if (from) reqBody.date_from = from;
+  // q-to 允许默认显示今天，但在用户未主动选择日期时不作为过滤条件提交
+  if (to && toEl.dataset.autoDefault !== '1') reqBody.date_to = to;
+
+  fetch('/api/svn-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reqBody)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    if (!data.ok) {
+      var friendlyErr = formatSvnError(data.error || '未知错误');
+      setStatus('错误：' + friendlyErr);
+      showError(friendlyErr);
+      return;
+    }
+    allEntries = parseSvnXml(data.xml || '');
+    buildAuthorFilter();
+    applyQueryAuthorFilter(authorList);
+    applyFilter();
+    setStatus('共 ' + allEntries.length + ' 条记录');
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    setStatus('请求失败：' + e.message);
+    showError(e.message);
+  });
+}
+
+function getTodayLocalDateStr() {
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = String(now.getMonth() + 1).padStart(2, '0');
+  var d = String(now.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
+}
+
+function normalizeSvnUrl(url) {
+  var s = String(url || '').trim();
+  if (!s) return '';
+  s = s.replace(/[?#].*$/, '');
+  // 常见错误：从浏览器复制了带 !svn 的内部访问路径
+  s = s.replace(/\/!svn\/.*$/i, '');
+  s = s.replace(/\/+$/, '');
+  return s;
+}
+
+function looksLikeSvnRepoUrl(url) {
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (/\/!svn\//i.test(url)) return false;
+  return true;
+}
+
+function setDefaultToDate() {
+  var toEl = document.getElementById('q-to');
+  if (!toEl) return;
+  toEl.value = getTodayLocalDateStr();
+  toEl.dataset.autoDefault = '1';
+}
+
+function setupDatePickers() {
+  ['q-from', 'q-to'].forEach(function(id) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    var openPicker = function() {
+      if (typeof input.showPicker === 'function') {
+        try { input.showPicker(); } catch (e) {}
+      }
+    };
+    input.addEventListener('click', openPicker);
+    input.addEventListener('focus', openPicker);
+    input.addEventListener('input', function() {
+      input.dataset.autoDefault = '0';
+    });
+    input.addEventListener('change', function() {
+      input.dataset.autoDefault = '0';
+    });
+  });
+}
+
+// ── SVN XML 解析 ──────────────────────────────────────────────────────
+function parseSvnXml(xmlStr) {
+  var entries = [];
+  if (!xmlStr) return entries;
+  var parser = new DOMParser();
+  var doc;
+  try { doc = parser.parseFromString(xmlStr, 'application/xml'); } catch(e){ return entries; }
+  var logentries = doc.querySelectorAll('logentry');
+  logentries.forEach(function(el) {
+    var rev    = el.getAttribute('revision') || '';
+    var author = (el.querySelector('author') || {}).textContent || '';
+    var date   = (el.querySelector('date')   || {}).textContent || '';
+    var msg    = (el.querySelector('msg')    || {}).textContent || '';
+    var paths  = [];
+    el.querySelectorAll('path').forEach(function(p) {
+      paths.push({
+        action: p.getAttribute('action') || '?',
+        kind:   p.getAttribute('kind')   || '',
+        path:   p.textContent || ''
+      });
+    });
+    entries.push({ rev: rev, author: author, date: date, msg: msg, paths: paths });
+  });
+  return entries;
+}
+
+function hashString(str) {
+  var h = 0;
+  for (var i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function getAuthorColor(author) {
+  var key = String(author || '(空作者)');
+  if (authorColorMap[key]) return authorColorMap[key];
+  var hue = hashString(key) % 360;
+  // 深色主题下可读的配色
+  authorColorMap[key] = {
+    bg: 'hsl(' + hue + ' 45% 22%)',
+    border: 'hsl(' + hue + ' 55% 42%)',
+    text: 'hsl(' + hue + ' 88% 86%)'
+  };
+  return authorColorMap[key];
+}
+
+function parseAuthorInput(input) {
+  if (!input) return [];
+  var uniq = {};
+  String(input).split(/[\s,;，；]+/).forEach(function(name) {
+    var n = name.trim();
+    if (n) uniq[n] = true;
+  });
+  return Object.keys(uniq);
+}
+
+function sortAuthorNames(names) {
+  return names.slice().sort(function(a, b) {
+    return String(a).localeCompare(String(b), 'zh-Hans-CN', {
+      numeric: true,
+      sensitivity: 'base'
+    });
+  });
+}
+
+// ── 作者过滤（多选） ───────────────────────────────────────────────────
+function getSelectedAuthors() {
+  var wrap = document.getElementById('f-author-list');
+  if (!wrap) return [];
+  var names = [];
+  wrap.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    if (cb.checked) names.push(cb.value);
+  });
+  return names;
+}
+
+function setAllAuthors(checked, silent) {
+  var wrap = document.getElementById('f-author-list');
+  if (!wrap) return;
+  wrap.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    cb.checked = !!checked;
+  });
+  if (!silent) applyFilter();
+}
+
+function buildAuthorFilter() {
+  var authors = {};
+  allEntries.forEach(function(e){ authors[e.author] = true; });
+  var wrap = document.getElementById('f-author-list');
+  var prevSelected = getSelectedAuthors();
+  wrap.innerHTML = '';
+  var names = sortAuthorNames(Object.keys(authors));
+  if (!names.length) {
+    wrap.innerHTML = '<span class="author-empty">全部</span>';
+    return;
+  }
+  names.forEach(function(a, idx) {
+    var checked = prevSelected.length ? prevSelected.includes(a) : true;
+    var id = 'f-author-item-' + idx;
+    var label = document.createElement('label');
+    label.className = 'author-item';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = id;
+    cb.value = a;
+    cb.checked = checked;
+    var text = document.createElement('span');
+    text.textContent = a;
+    label.appendChild(cb);
+    label.appendChild(text);
+    wrap.appendChild(label);
+  });
+  wrap.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    cb.addEventListener('change', applyFilter);
+  });
+}
+
+function applyQueryAuthorFilter(authors) {
+  var wrap = document.getElementById('f-author-list');
+  if (!wrap) return;
+  var selected = Array.isArray(authors) ? authors : parseAuthorInput(authors);
+  if (!selected.length) { setAllAuthors(true, true); return; }
+  var matchedCount = 0;
+  wrap.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    var matched = selected.includes(cb.value);
+    cb.checked = matched;
+    if (matched) matchedCount++;
+  });
+  if (!matchedCount) {
+    setAllAuthors(true, true);
+    setStatus('查询成功，但结果中无作者：' + selected.join(' '));
+  }
+}
+
+// ── 过滤 ─────────────────────────────────────────────────────────────
+function applyFilter() {
+  var selectedAuthors = getSelectedAuthors();
+  var fKeyword = (document.getElementById('f-keyword').value || '').trim().toLowerCase();
+
+  filteredEntries = allEntries.filter(function(e) {
+    if (selectedAuthors.length && !selectedAuthors.includes(e.author)) return false;
+    if (fKeyword) {
+      var inMsg  = e.msg.toLowerCase().includes(fKeyword);
+      var inPath = e.paths.some(function(p){ return p.path.toLowerCase().includes(fKeyword); });
+      if (!inMsg && !inPath) return false;
+    }
+    return true;
+  });
+
+  setStatus('共 ' + allEntries.length + ' 条，显示 ' + filteredEntries.length + ' 条');
+  renderDetail();
+  renderSummary();
+}
+
+// ── 明细渲染 ─────────────────────────────────────────────────────────
+function renderDetail() {
+  var container = document.getElementById('view-detail');
+  var empty = document.getElementById('detail-empty');
+  if (!empty) {
+    empty = document.createElement('div');
+    empty.className = 'empty-tip';
+    empty.id = 'detail-empty';
+  }
+  if (!filteredEntries.length) {
+    container.innerHTML = '';
+    container.appendChild(empty);
+    empty.textContent = allEntries.length ? '无匹配结果' : '请在上方输入参数后点击「查询」';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var fKeyword = (document.getElementById('f-keyword').value || '').trim().toLowerCase();
+  var html = '';
+  filteredEntries.forEach(function(e, idx) {
+    var dateStr = e.date ? e.date.replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '';
+    var msgFull = escHtml(e.msg.trim());
+    var msgLines = e.msg.trim().split('\n');
+    var msgShort = msgLines.slice(0, 3).join('\n');
+    var needToggle = msgLines.length > 3 || e.msg.length > 200;
+    var msgDisplay = needToggle ? escHtml(msgShort) : msgFull;
+
+    var authorColor = getAuthorColor(e.author);
+    html += '<div class="rev-block">';
+    html += '<div class="rev-header">';
+    html += '<span class="rev-num">r' + escHtml(e.rev) + '</span>';
+    html += '<span class="rev-author" style="background:' + authorColor.bg + ';border:1px solid ' + authorColor.border + ';color:' + authorColor.text + ';">' + escHtml(e.author) + '</span>';
+    html += '<span class="rev-date">' + escHtml(dateStr) + '</span>';
+    html += '</div>';
+    html += '<div class="rev-msg" id="msg-' + idx + '">' + msgDisplay + '</div>';
+    if (needToggle) {
+      html += '<div class="msg-toggle" onclick="toggleMsg(' + idx + ')">展开全文</div>';
+    }
+    html += '<div class="paths-list">';
+
+    // 过滤路径（有关键字时只显示匹配路径）
+    var shownPaths = fKeyword
+      ? e.paths.filter(function(p){ return p.path.toLowerCase().includes(fKeyword); })
+      : e.paths;
+    shownPaths.forEach(function(p) {
+      var actCls = 'act-' + (p.action || '?');
+      html += '<div class="path-item">'
+            + '<span class="path-action ' + actCls + '">' + escHtml(p.action) + '</span>'
+            + '<span class="path-name">' + escHtml(p.path) + '</span>'
+            + '</div>';
+    });
+    if (fKeyword && shownPaths.length < e.paths.length) {
+      html += '<div class="path-item" style="color:var(--dim);font-size:.72rem;">…另 '
+            + (e.paths.length - shownPaths.length) + ' 个文件不含关键字</div>';
+    }
+    html += '</div></div>';
+  });
+
+  // 保留 empty 节点再替换内容
+  container.innerHTML = html;
+  container.appendChild(empty);
+}
+
+function toggleMsg(idx) {
+  var el = document.getElementById('msg-' + idx);
+  var e  = filteredEntries[idx];
+  if (!el || !e) return;
+  var expanded = el.classList.toggle('expanded');
+  el.textContent = expanded ? e.msg.trim() : e.msg.trim().split('\n').slice(0, 3).join('\n');
+  el.nextElementSibling.textContent = expanded ? '收起' : '展开全文';
+}
+
+// ── 汇总渲染 ─────────────────────────────────────────────────────────
+function getSummaryMode() {
+  var checked = document.querySelector('input[name="sum-group"]:checked');
+  return checked ? checked.value : 'path';
+}
+
+function setSummaryMode(mode) {
+  var pathEl = document.getElementById('sum-group-path');
+  var authorEl = document.getElementById('sum-group-author');
+  if (pathEl && authorEl) {
+    pathEl.checked = mode !== 'author';
+    authorEl.checked = mode === 'author';
+  }
+  if (summarySort.col === 'sub') summarySort.asc = true;
+  renderSummary();
+}
+
+function buildSummaryByPath() {
+  var map = {};
+  filteredEntries.forEach(function(e) {
+    e.paths.forEach(function(p) {
+      if (!map[p.path]) map[p.path] = { path: p.path, cnt: 0, acts: {}, authors: {} };
+      map[p.path].cnt++;
+      map[p.path].acts[p.action]  = (map[p.path].acts[p.action]  || 0) + 1;
+      map[p.path].authors[e.author] = true;
+    });
+  });
+  return Object.values(map);
+}
+
+function buildSummaryByAuthor() {
+  var map = {};
+  var fileCountMap = {};
+  filteredEntries.forEach(function(e) {
+    var key = e.author || '(空作者)';
+    if (!fileCountMap[key]) fileCountMap[key] = {};
+    e.paths.forEach(function(p) {
+      var rowKey = key + '\u0001' + (p.path || '');
+      if (!map[rowKey]) map[rowKey] = { path: key, sub: p.path || '', cnt: 0, acts: {}, authors: {} };
+      map[rowKey].cnt++;
+      map[rowKey].acts[p.action] = (map[rowKey].acts[p.action] || 0) + 1;
+      fileCountMap[key][p.path || ''] = true;
+    });
+  });
+  return Object.values(map).map(function(r) {
+    r.fcnt = Object.keys(fileCountMap[r.path] || {}).length;
+    return r;
+  });
+}
+
+function buildSummaryData() {
+  return getSummaryMode() === 'author' ? buildSummaryByAuthor() : buildSummaryByPath();
+}
+
+function buildActsText(acts) {
+  return Object.keys(acts || {}).sort().map(function(a) { return a + '×' + acts[a]; }).join(' ');
+}
+
+function buildActsHtml(acts) {
+  return Object.keys(acts || {}).sort().map(function(a) {
+    return '<span class="path-action act-' + a + '" style="margin-right:2px;">' + a + '×' + acts[a] + '</span>';
+  }).join('');
+}
+
+function sortSummaryDataInViewOrder(data, mode) {
+  var col = summarySort.col;
+  var asc = summarySort.asc;
+  data.sort(function(a, b) {
+    if (mode === 'author' && a.path !== b.path) {
+      return a.path < b.path ? -1 : 1;
+    }
+    var va, vb;
+    if (col === 'cnt') { va = a.cnt; vb = b.cnt; }
+    else if (col === 'fcnt') { va = a.fcnt || 0; vb = b.fcnt || 0; }
+    else if (col === 'path') { va = a.path; vb = b.path; }
+    else if (col === 'sub') {
+      va = mode === 'author' ? (a.sub || '') : Object.keys(a.authors || {}).length;
+      vb = mode === 'author' ? (b.sub || '') : Object.keys(b.authors || {}).length;
+    } else {
+      va = buildActsText(a.acts);
+      vb = buildActsText(b.acts);
+    }
+    if (va < vb) return asc ? -1 : 1;
+    if (va > vb) return asc ?  1 : -1;
+    return 0;
+  });
+}
+
+function renderSummary() {
+  var data = buildSummaryData();
+  var mode = getSummaryMode();
+  var deletedBox = document.getElementById('sum-deleted-box');
+  var deletedTitle = document.getElementById('sum-deleted-title');
+  var deletedList = document.getElementById('sum-deleted-list');
+  var sumStats = document.getElementById('sum-stats');
+  if (sumStats) {
+    sumStats.textContent = mode === 'author'
+      ? ('作者-文件行数：' + data.length)
+      : ('总文件数：' + data.length);
+  }
+  if (deletedBox && deletedTitle && deletedList) {
+    if (mode === 'path') {
+      var deletedFiles = data
+        .filter(function(d) { return d.acts && d.acts.D; })
+        .map(function(d) { return d.path; });
+      deletedTitle.textContent = '删除文件（' + deletedFiles.length + '）';
+      deletedList.textContent = deletedFiles.length ? deletedFiles.join('\n') : '无';
+      deletedBox.style.display = '';
+    } else {
+      deletedBox.style.display = 'none';
+    }
+  }
+  setHeaderLabel('sum-th-idx', '序号');
+  setHeaderLabel('sum-th-key', mode === 'author' ? '作者' : '文件路径');
+  setHeaderLabel('sum-th-sub', mode === 'author' ? '文件路径' : '操作');
+  setHeaderLabel('sum-th-fcnt', '文件数量');
+  setHeaderLabel('sum-th-cnt', '变更次数');
+  setHeaderLabel('sum-th-tail', mode === 'author' ? '操作' : '涉及作者');
+
+  // 排序（与当前表格显示一致）
+  sortSummaryDataInViewOrder(data, mode);
+
+  var tbody = document.getElementById('sum-body');
+  var empty = document.getElementById('summary-empty');
+
+  if (!data.length) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var rows = '';
+  var prevAuthor = null;
+  var authorSeqMap = {};
+  var nextAuthorSeq = 1;
+  data.forEach(function(d, idx) {
+    var actStr = buildActsHtml(d.acts);
+    var tailStr = Object.keys(d.authors || {}).sort().join(', ');
+    var sub = mode === 'author' ? escHtml(d.sub || '') : actStr;
+    var showAuthor = mode !== 'author' || prevAuthor !== d.path;
+    var keyCell = mode === 'author' ? (showAuthor ? escHtml(d.path) : '') : escHtml(d.path);
+    var fcntCell = mode === 'author'
+      ? (showAuthor ? String(d.fcnt || 0) : '')
+      : String(Object.keys(d.authors || {}).length);
+    var tail = mode === 'author' ? actStr : escHtml(tailStr);
+    var idxCell = '';
+    if (mode === 'path') {
+      idxCell = String(idx + 1);
+    } else {
+      if (!authorSeqMap[d.path]) {
+        authorSeqMap[d.path] = nextAuthorSeq++;
+      }
+      idxCell = showAuthor ? String(authorSeqMap[d.path]) : '';
+    }
+    rows += '<tr>'
+          + '<td class="sum-idx">' + idxCell + '</td>'
+          + '<td class="sum-path">' + keyCell + '</td>'
+          + '<td class="sum-fcnt">' + fcntCell + '</td>'
+          + '<td class="sum-sub">' + sub + '</td>'
+          + '<td class="sum-cnt">' + d.cnt + '</td>'
+          + '<td class="sum-tail">' + tail + '</td>'
+          + '</tr>';
+    prevAuthor = d.path;
+  });
+  tbody.innerHTML = rows;
+
+  // 更新排序标记
+  var col = summarySort.col;
+  var asc = summarySort.asc;
+  document.querySelectorAll('.sum-table th').forEach(function(th) {
+    th.classList.remove('sort-asc', 'sort-desc');
+  });
+  var colMap = { path: 1, fcnt: 2, sub: 3, cnt: 4, acts: 5 };
+  var thIdx = colMap[col];
+  if (thIdx !== undefined) {
+    var ths = document.querySelectorAll('.sum-table th');
+    if (ths[thIdx]) ths[thIdx].classList.add(asc ? 'sort-asc' : 'sort-desc');
+  }
+}
+
+function setHeaderLabel(id, label) {
+  var th = document.getElementById(id);
+  if (!th) return;
+  var textNode = null;
+  for (var i = 0; i < th.childNodes.length; i++) {
+    if (th.childNodes[i].nodeType === Node.TEXT_NODE) {
+      textNode = th.childNodes[i];
+      break;
+    }
+  }
+  if (!textNode) {
+    textNode = document.createTextNode('');
+    th.insertBefore(textNode, th.firstChild);
+  }
+  textNode.nodeValue = label;
+}
+
+function sortSummary(col) {
+  if (summarySort.col === col) summarySort.asc = !summarySort.asc;
+  else { summarySort.col = col; summarySort.asc = (col === 'path' || col === 'sub'); }
+  renderSummary();
+}
+
+// ── Tab 切换 ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  curTab = tab;
+  document.getElementById('view-detail').classList.toggle('active', tab === 'detail');
+  document.getElementById('view-summary').classList.toggle('active', tab === 'summary');
+  document.getElementById('tab-detail').classList.toggle('active', tab === 'detail');
+  document.getElementById('tab-summary').classList.toggle('active', tab === 'summary');
+}
+
+// ── 导出 CSV ─────────────────────────────────────────────────────────
+function exportCsv() {
+  if (curTab === 'detail') exportDetailCsv();
+  else exportSummaryCsv();
+}
+
+function copyResult() {
+  var text = curTab === 'detail' ? buildDetailText() : buildSummaryText();
+  if (!text) {
+    setStatus('暂无可复制内容');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      setStatus('已复制到剪贴板');
+    }).catch(function() {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', 'readonly');
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    var ok = document.execCommand('copy');
+    setStatus(ok ? '已复制到剪贴板' : '复制失败，请手动复制');
+  } catch (e) {
+    setStatus('复制失败，请手动复制');
+  }
+  document.body.removeChild(ta);
+}
+
+function csvEsc(s) {
+  s = String(s || '');
+  if (s.includes(',') || s.includes('"') || s.includes('\n'))
+    return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function exportDetailCsv() {
+  var rows = ['序号,版本号,作者,时间,提交说明,操作,文件路径'];
+  filteredEntries.forEach(function(e, idx) {
+    var dateStr = e.date.replace('T', ' ').replace(/\.\d+Z$/, '');
+    if (!e.paths.length) {
+      rows.push([idx + 1, e.rev, e.author, dateStr, e.msg.trim(), '', ''].map(csvEsc).join(','));
+    } else {
+      e.paths.forEach(function(p) {
+        rows.push([idx + 1, e.rev, e.author, dateStr, e.msg.trim(), p.action, p.path].map(csvEsc).join(','));
+      });
+    }
+  });
+  downloadCsv('svn_detail.csv', rows.join('\r\n'));
+}
+
+function buildDetailText() {
+  if (!filteredEntries.length) return '';
+  var lines = [];
+  filteredEntries.forEach(function(e) {
+    var dateStr = (e.date || '').replace('T', ' ').replace(/\.\d+Z$/, '');
+    lines.push('r' + (e.rev || '') + ' | ' + (e.author || '') + ' | ' + dateStr);
+    if ((e.msg || '').trim()) lines.push('  ' + e.msg.trim().replace(/\r?\n/g, '\n  '));
+    if (!e.paths || !e.paths.length) {
+      lines.push('  (无路径变更)');
+    } else {
+      e.paths.forEach(function(p) {
+        lines.push('  [' + (p.action || '?') + '] ' + (p.path || ''));
+      });
+    }
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
+function exportSummaryCsv() {
+  var data = buildSummaryData();
+  var mode = getSummaryMode();
+  sortSummaryDataInViewOrder(data, mode);
+  var rows;
+  if (mode === 'author') {
+    // 与表格列顺序一致：作者 | 文件数量 | 文件路径 | 变更次数 | 操作
+    rows = ['序号,作者,文件数量,文件路径,变更次数,操作'];
+    var prevAuthor = null;
+    var authorSeqMap = {};
+    var nextAuthorSeq = 1;
+    data.forEach(function(d) {
+      var showAuthor = d.path !== prevAuthor;
+      if (!authorSeqMap[d.path]) authorSeqMap[d.path] = nextAuthorSeq++;
+      rows.push([
+        showAuthor ? authorSeqMap[d.path] : '',
+        showAuthor ? d.path : '',
+        showAuthor ? (d.fcnt || 0) : '',
+        d.sub || '',
+        d.cnt,
+        buildActsText(d.acts)
+      ].map(csvEsc).join(','));
+      prevAuthor = d.path;
+    });
+    downloadCsv('svn_summary_by_author.csv', rows.join('\r\n'));
+  } else {
+    // 与表格列顺序一致：文件路径 | 操作 | 文件数量 | 变更次数 | 涉及作者
+    rows = ['序号,文件路径,操作,文件数量,变更次数,涉及作者'];
+    data.forEach(function(d, idx) {
+      var authStr = Object.keys(d.authors || {}).sort().join('; ');
+      rows.push([idx + 1, d.path, buildActsText(d.acts), Object.keys(d.authors || {}).length, d.cnt, authStr].map(csvEsc).join(','));
+    });
+    downloadCsv('svn_summary.csv', rows.join('\r\n'));
+  }
+}
+
+function buildSummaryText() {
+  var data = buildSummaryData();
+  var mode = getSummaryMode();
+  if (!data.length) return '';
+  data.sort(function(a,b){ return b.cnt - a.cnt; });
+  var lines = mode === 'author'
+    ? ['作者\t文件数量\t文件路径\t变更次数\t操作']
+    : ['文件路径\t操作\t文件数量\t变更次数\t涉及作者'];
+  var prevAuthor = null;
+  data.forEach(function(d) {
+    var tailStr = Object.keys(d.authors || {}).sort().join(', ');
+    if (mode === 'author') {
+      var showAuthor = d.path !== prevAuthor;
+      lines.push([showAuthor ? d.path : '', showAuthor ? (d.fcnt || 0) : '', d.sub || '', d.cnt, buildActsText(d.acts)].join('\t'));
+      prevAuthor = d.path;
+    } else {
+      lines.push([d.path, buildActsText(d.acts), Object.keys(d.authors || {}).length, d.cnt, tailStr].join('\t'));
+    }
+  });
+  return lines.join('\n');
+}
+
+function initSummaryColumnResize() {
+  var table = document.querySelector('.sum-table');
+  if (!table) return;
+  var headers = table.querySelectorAll('thead th');
+  var cols = [
+    document.getElementById('sum-col-idx'),
+    document.getElementById('sum-col-key'),
+    document.getElementById('sum-col-fcnt'),
+    document.getElementById('sum-col-sub'),
+    document.getElementById('sum-col-cnt'),
+    document.getElementById('sum-col-tail')
+  ];
+  headers.forEach(function(th, idx) {
+    var resizer = document.createElement('span');
+    resizer.className = 'col-resizer';
+    resizer.addEventListener('mousedown', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var startX = ev.clientX;
+      var startW = th.getBoundingClientRect().width;
+      table.classList.add('resizing');
+      function onMove(mev) {
+        var next = Math.max(80, startW + mev.clientX - startX);
+        if (cols[idx]) cols[idx].style.width = next + 'px';
+      }
+      function onUp() {
+        table.classList.remove('resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(resizer);
+  });
+}
+
+function downloadCsv(filename, content) {
+  var bom = '\uFEFF'; // UTF-8 BOM for Excel
+  var blob = new Blob([bom + content], { type: 'text/csv;charset=utf-8;' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+// ── 工具 ─────────────────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+
+function showLoading() {
+  document.getElementById('view-detail').innerHTML =
+    '<div class="loading-tip">加载中，请稍候…</div>';
+  document.getElementById('sum-body').innerHTML = '';
+  document.getElementById('summary-empty').style.display = 'none';
+}
+
+function showError(msg) {
+  document.getElementById('view-detail').innerHTML =
+    '<div class="empty-tip" style="color:var(--red);">错误：' + escHtml(msg) + '</div>';
+}
+
+function formatSvnError(rawMsg) {
+  var msg = String(rawMsg || '').trim();
+  if (!msg) return '未知错误';
+
+  // 去掉可能混入的 XML 包装，只保留 svn 错误正文
+  msg = msg.replace(/<\?xml[\s\S]*?\?>/ig, ' ');
+  msg = msg.replace(/<\/?log[^>]*>/ig, ' ');
+  msg = msg.replace(/\s+/g, ' ').trim();
+
+  // 提取第一个 svn: ... 行
+  var m = msg.match(/svn:\s*E\d+:[^]+/i);
+  if (m) msg = m[0].trim();
+
+  if (/E175002/i.test(msg) && /REPORT request/i.test(msg)) {
+    return 'SVN 服务器拒绝 REPORT 请求（E175002/400）。当前地址看起来已是标准仓库路径，请重点检查账号权限、认证方式以及是否必须使用 https。';
+  }
+  return msg;
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 回车触发查询
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.target.closest('.query-panel')) doQuery();
+});
+
+// 初始化
+loadForm();
+if (!document.getElementById('q-to').value) setDefaultToDate();
+else document.getElementById('q-to').dataset.autoDefault = '0';
+setupDatePickers();
+initSummaryColumnResize();
+</script>
+</body>
+</html>

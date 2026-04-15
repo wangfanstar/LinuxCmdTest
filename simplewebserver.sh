@@ -122,6 +122,15 @@ cmd_start() {
         shift
     done
 
+    # 提取并记录端口（供 stop 兜底使用）
+    local port=8881
+    for i in "${!extra_args[@]}"; do
+        if [[ "${extra_args[$i]}" == "-p" ]]; then
+            port="${extra_args[$((i+1))]:-8881}"
+        fi
+    done
+    echo "${port}" > "${SCRIPT_DIR}/.port"
+
     info "启动 simplewebserver..."
     nohup "${BIN}" "${extra_args[@]+"${extra_args[@]}"}" \
         > "${NOHUP_OUT}" 2>&1 &
@@ -132,13 +141,6 @@ cmd_start() {
     sleep 0.5
     if kill -0 "${pid}" 2>/dev/null; then
         ok "simplewebserver 已在后台启动 (PID=${pid})"
-        # 从参数提取端口（用于显示）
-        local port=8881
-        for i in "${!extra_args[@]}"; do
-            if [[ "${extra_args[$i]}" == "-p" ]]; then
-                port="${extra_args[$((i+1))]:-8881}"
-            fi
-        done
         ok "访问地址:  http://localhost:${port}"
         ok "日志查看:  http://localhost:${port}/logviewer.html"
         info "nohup 输出: ${NOHUP_OUT}"
@@ -148,39 +150,73 @@ cmd_start() {
     fi
 }
 
-cmd_stop() {
-    local pid
-    pid=$(get_pid) || { warn "服务器未在运行"; return 0; }
+# 通过端口号查找占用该端口的 PID（依赖 ss，Linux 通用）
+find_pid_by_port() {
+    local port="$1"
+    ss -tlnp "sport = :${port}" 2>/dev/null \
+        | awk 'NR>1 && /users:/ { match($0,/pid=([0-9]+)/,a); if(a[1]) print a[1] }' \
+        | head -1
+}
 
-    # 非 root 用户只能终止自己启动的进程
-    if [[ "$(id -u)" -ne 0 ]] && ! owned_by_me "${pid}"; then
-        die "PID=${pid} 不属于当前用户 $(id -un)，无权终止"
-    fi
-
-    info "停止 simplewebserver (PID=${pid})..."
-
-    # 第一步：发送 SIGTERM，等待进程优雅退出（最多 10 秒）
-    kill -TERM "${pid}" 2>/dev/null || { warn "发送 SIGTERM 失败，进程可能已退出"; rm -f "${PID_FILE}"; return 0; }
-
+# 终止单个 PID，先 SIGTERM 再 SIGKILL
+kill_pid() {
+    local pid="$1"
+    kill -TERM "${pid}" 2>/dev/null || return 0
     local waited=0
     while kill -0 "${pid}" 2>/dev/null; do
         sleep 0.5
         waited=$(( waited + 1 ))
         if (( waited >= 20 )); then
-            # 第二步：SIGTERM 超时，发送 SIGKILL 强制终止
             warn "进程未在 10 秒内退出，发送 SIGKILL 强制终止..."
             kill -KILL "${pid}" 2>/dev/null || true
-            # 再等 2 秒确认彻底退出
             sleep 2
-            if kill -0 "${pid}" 2>/dev/null; then
-                error "SIGKILL 后进程仍存在，请手动检查 (PID=${pid})"
-            fi
+            kill -0 "${pid}" 2>/dev/null && error "SIGKILL 后进程仍存在，请手动检查 (PID=${pid})"
             break
         fi
     done
+}
 
-    rm -f "${PID_FILE}"
-    ok "服务器已停止"
+cmd_stop() {
+    local pid stopped=0
+
+    # ── 优先通过 PID 文件停止 ──────────────────────────────────────
+    if pid=$(get_pid 2>/dev/null); then
+        if [[ "$(id -u)" -ne 0 ]] && ! owned_by_me "${pid}"; then
+            die "PID=${pid} 不属于当前用户 $(id -un)，无权终止"
+        fi
+        info "停止 simplewebserver (PID=${pid})..."
+        kill_pid "${pid}"
+        rm -f "${PID_FILE}"
+        ok "服务器已停止 (PID=${pid})"
+        stopped=1
+    else
+        [[ -f "${PID_FILE}" ]] && { rm -f "${PID_FILE}"; info "已清理过期 PID 文件"; }
+    fi
+
+    # ── 兜底：按端口查找残留进程 ───────────────────────────────────
+    # 解析启动端口（从命令行参数或默认值）
+    local port=8881
+    for i in "${!_START_ARGS[@]:-}"; do
+        [[ "${_START_ARGS[$i]:-}" == "-p" ]] && port="${_START_ARGS[$((i+1))]:-8881}"
+    done
+    # 也从 PID 文件同级的 .port 文件读取（如有）
+    [[ -f "${SCRIPT_DIR}/.port" ]] && port=$(<"${SCRIPT_DIR}/.port")
+
+    local port_pid
+    port_pid=$(find_pid_by_port "${port}" 2>/dev/null || true)
+    if [[ -n "${port_pid}" ]]; then
+        if [[ "$(id -u)" -ne 0 ]] && ! owned_by_me "${port_pid}"; then
+            warn "端口 ${port} 被 PID=${port_pid}（非本用户）占用，无权终止"
+        else
+            warn "端口 ${port} 仍被占用 (PID=${port_pid})，强制终止..."
+            kill_pid "${port_pid}"
+            ok "占用端口 ${port} 的进程已终止 (PID=${port_pid})"
+            stopped=1
+        fi
+    fi
+
+    (( stopped == 0 )) && warn "服务器未在运行"
+    return 0
 }
 
 cmd_restart() {

@@ -2021,9 +2021,10 @@ static int wiki_write_html_file(const char *filepath,
     return 0;
 }
 
-/* 递归收集 WIKI_MD_DB 内的子目录路径（代表用户分类），写入 JSON 字符串数组 */
+/* 递归收集 WIKI_ROOT 内用户分类目录路径，写入 JSON 字符串数组
+   top=1 时跳过系统目录（md_db / uploads）*/
 static void wiki_collect_dirs(strbuf_t *sb, const char *base,
-                               const char *rel, int *pfirst)
+                               const char *rel, int *pfirst, int top)
 {
     char full[1024];
     if (rel[0])
@@ -2035,7 +2036,10 @@ static void wiki_collect_dirs(strbuf_t *sb, const char *base,
     if (!d) return;
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
-        if (de->d_name[0] == '.') continue;        /* 跳过隐藏项 */
+        if (de->d_name[0] == '.') continue;
+        /* 顶层跳过系统目录 */
+        if (top && (strcmp(de->d_name,"md_db")==0 ||
+                    strcmp(de->d_name,"uploads")==0)) continue;
         char child[1024];
         snprintf(child, sizeof(child), "%s/%s", full, de->d_name);
         struct stat st;
@@ -2048,7 +2052,7 @@ static void wiki_collect_dirs(strbuf_t *sb, const char *base,
         if (!*pfirst) SB_LIT(sb, ",");
         *pfirst = 0;
         sb_json_str(sb, relpath);
-        wiki_collect_dirs(sb, base, relpath, pfirst); /* 递归子目录 */
+        wiki_collect_dirs(sb, base, relpath, pfirst, 0);
     }
     closedir(d);
 }
@@ -2096,10 +2100,10 @@ static void handle_api_wiki_list(int client_fd)
         }
         closedir(d);
     }
-    /* 附加用户分类目录列表（含空目录） */
+    /* 附加用户分类目录列表（扫 WIKI_ROOT，排除系统目录） */
     SB_LIT(&sb, "],\"categories\":[");
     int firstcat = 1;
-    wiki_collect_dirs(&sb, WIKI_MD_DB, "", &firstcat);
+    wiki_collect_dirs(&sb, WIKI_ROOT, "", &firstcat, 1);
     SB_LIT(&sb, "]}");
     if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
     else send_json(client_fd, 200, "OK", "{\"articles\":[],\"categories\":[]}", 30);
@@ -2167,8 +2171,10 @@ static void handle_api_wiki_save(int client_fd, const char *body)
     } else {
         wiki_gen_id(id, sizeof(id));
     }
-    /* 新建文章且指定了自定义 id 时，检测文件名重复 */
-    if (id[0] && !created[0]) {
+    /* 新建文章且指定了自定义 id 时，检测文件名重复（force=true 时跳过） */
+    char force_str[8]={0}; json_get_str(body,"force",force_str,sizeof(force_str));
+    int force = (strcmp(force_str,"true")==0);
+    if (!force && id[0] && !created[0]) {
         char chk[768]; snprintf(chk, sizeof(chk), "%s/%s.md", WIKI_MD_DB, id);
         FILE *chkf = fopen(chk, "r");
         if (chkf) { fclose(chkf);
@@ -2260,6 +2266,37 @@ static void handle_api_wiki_delete(int client_fd, const char *body)
     LOG_INFO("wiki_delete id=%s",id);
 }
 
+/* 读取已有 .html 的 body 内容，用新参数重写该文件（保留正文，更新标题/分类/时间） */
+static void wiki_rewrite_html(const char *id, const char *title,
+                               const char *cat, const char *updated)
+{
+    char html_path[1024];
+    if (cat && cat[0])
+        snprintf(html_path, sizeof(html_path), "%s/%s/%s.html", WIKI_ROOT, cat, id);
+    else
+        snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
+
+    strbuf_t hfull={0}, hbody={0};
+    FILE *fp = fopen(html_path, "r");
+    if (fp) {
+        char buf[8192]; size_t nr;
+        while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&hfull,buf,nr);
+        fclose(fp);
+    }
+    if (hfull.data) {
+        const char *marker = strstr(hfull.data, "<div class=\"ab\">\n");
+        if (marker) {
+            const char *start = marker + strlen("<div class=\"ab\">\n");
+            const char *end   = strstr(start, "\n</div>\n</article>");
+            if (end) sb_append(&hbody, start, (size_t)(end - start));
+        }
+    }
+    free(hfull.data);
+    wiki_write_html_file(html_path, title, cat ? cat : "", updated,
+                         hbody.data ? hbody.data : "");
+    free(hbody.data);
+}
+
 /* 递归删除目录（空目录及其子目录） */
 static void rmdir_recursive(const char *path)
 {
@@ -2342,31 +2379,8 @@ static void handle_api_wiki_rename_article(int client_fd, const char *body)
     fclose(fp);
     free(mb.data);
 
-    /* 读取现有 .html 的 body 部分，重写（更新标题和时间） */
-    char html_path[1024];
-    if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
-    else         snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
-
-    strbuf_t hfull={0}, hbody={0};
-    fp = fopen(html_path,"r");
-    if (fp) {
-        char hbuf[8192]; size_t hnr;
-        while ((hnr=fread(hbuf,1,sizeof(hbuf),fp))>0) sb_append(&hfull,hbuf,hnr);
-        fclose(fp);
-    }
-    if (hfull.data) {
-        const char *ab_open = "<div class=\"ab\">\n";
-        const char *marker  = strstr(hfull.data, ab_open);
-        if (marker) {
-            const char *start = marker + strlen(ab_open);
-            const char *end   = strstr(start, "\n</div>\n</article>");
-            if (end) sb_append(&hbody, start, (size_t)(end - start));
-        }
-    }
-    free(hfull.data); free(cbuf.data);
-    wiki_write_html_file(html_path, new_title, cat, now,
-                         hbody.data ? hbody.data : "");
-    free(hbody.data);
+    free(cbuf.data);
+    wiki_rewrite_html(id, new_title, cat, now);
 
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_rename_article id=%s new_title=%s", id, new_title);
@@ -2459,6 +2473,8 @@ static void handle_api_wiki_rename_cat(int client_fd, const char *body)
             if (mb.data) fwrite(mb.data,1,mb.len,fp);
             if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
             fclose(fp); free(mb.data); free(cbuf.data);
+            /* 同步重写 .html（更新 breadcrumb 分类名） */
+            wiki_rewrite_html(aid, atitle, new_cat, aupd);
         }
         closedir(d);
     }

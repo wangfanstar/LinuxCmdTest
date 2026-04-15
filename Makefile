@@ -66,5 +66,6 @@ memcheck: debug
 #  清理
 # ──────────────────────────────────────────────
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	-rm -rf $(OBJ_DIR)
+	-rm -f $(BIN_DIR)/simplewebserver
 	@echo "Cleaned."

@@ -4639,7 +4639,11 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
      * ".." 已在上方统一拦截，此处无路径穿越风险。 */
     if (strncmp(path, "/logs/", 6) == 0 && path[6] != '\0') {
         char filepath[2048];
-        snprintf(filepath, sizeof(filepath), "logs/%s", path + 6);
+        char logs_seg[2048];
+        strncpy(logs_seg, path + 6, sizeof(logs_seg) - 1);
+        logs_seg[sizeof(logs_seg) - 1] = '\0';
+        url_decode_report_fn(logs_seg);
+        snprintf(filepath, sizeof(filepath), "logs/%s", logs_seg);
         if (send_file(client_fd, filepath) < 0)
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -4648,10 +4652,14 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     {
         char filepath[2048];
+        char decoded_path[2048];
+        strncpy(decoded_path, path, sizeof(decoded_path) - 1);
+        decoded_path[sizeof(decoded_path) - 1] = '\0';
+        url_decode_report_fn(decoded_path);
         if (strcmp(path, "/") == 0)
             snprintf(filepath, sizeof(filepath), "%s/index.html", WEB_ROOT);
         else
-            snprintf(filepath, sizeof(filepath), "%s%s", WEB_ROOT, path);
+            snprintf(filepath, sizeof(filepath), "%s%s", WEB_ROOT, decoded_path);
 
         if (send_file(client_fd, filepath) < 0) {
             char body[256];

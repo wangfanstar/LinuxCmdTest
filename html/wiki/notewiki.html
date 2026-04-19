@@ -217,6 +217,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="openImgUpload()" title="插入图片">🖼</button>
         <button class="tb-btn" onclick="tb('table')"  title="表格">⊞</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="rebuildAllHtml()" title="重建所有导出HTML（修复旧版侧栏）">🔄 重建HTML</button>
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
@@ -925,6 +927,14 @@ function doMoveArticle() {
     } else setStatus('移动失败：'+(data.error||''));
   })
   .catch(function(e){ setStatus('请求失败：'+e.message); });
+}
+
+function rebuildAllHtml() {
+  setStatus('重建中…');
+  fetch('/api/wiki-rebuild-html')
+    .then(function(r){ return r.json(); })
+    .then(function(d){ setStatus(d.ok ? '重建完成，共 '+d.rebuilt+' 篇' : '重建失败：'+(d.error||'')); })
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
 }
 
 // ── Upload Image ──────────────────────────────────────────────────────

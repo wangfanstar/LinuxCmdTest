@@ -2400,6 +2400,46 @@ static void wiki_rewrite_html(const char *id, const char *title,
     free(hbody.data);
 }
 
+/* GET /api/wiki-rebuild-html — 重建所有 wiki HTML 文件（修复旧版侧栏脚本等） */
+static void handle_api_wiki_rebuild_html(int client_fd)
+{
+    wiki_ensure_dirs();
+    DIR *d = opendir(WIKI_MD_DB);
+    if (!d) { send_json(client_fd,500,"Internal Server Error",
+                        "{\"ok\":false,\"error\":\"opendir\"}",30); return; }
+    int count = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        size_t nl = strlen(de->d_name);
+        if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
+        char md_path[768];
+        snprintf(md_path, sizeof(md_path), "%s/%s", WIKI_MD_DB, de->d_name);
+        FILE *fp = fopen(md_path, "r");
+        if (!fp) continue;
+        char meta_line[4096] = {0};
+        fgets(meta_line, sizeof(meta_line), fp);
+        fclose(fp);
+        if (strncmp(meta_line, "<!--META ", 9) != 0) continue;
+        char *mend = strstr(meta_line, "-->");
+        if (!mend) continue;
+        *mend = '\0';
+        const char *mj = meta_line + 9;
+        char id[128]={0}, title[512]={0}, cat[512]={0}, updated[64]={0};
+        json_get_str(mj, "id",      id,      sizeof(id));
+        json_get_str(mj, "title",   title,   sizeof(title));
+        json_get_str(mj, "category",cat,     sizeof(cat));
+        json_get_str(mj, "updated", updated, sizeof(updated));
+        if (!id[0]) continue;
+        wiki_rewrite_html(id, title, cat[0] ? cat : NULL, updated);
+        count++;
+    }
+    closedir(d);
+    char resp[64];
+    int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"rebuilt\":%d}", count);
+    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+    LOG_INFO("wiki_rebuild_html count=%d", count);
+}
+
 /* 递归删除目录（空目录及其子目录） */
 static void rmdir_recursive(const char *path)
 {
@@ -4525,6 +4565,11 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/wiki-list") == 0) {
         handle_api_wiki_list(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-rebuild-html") == 0) {
+        handle_api_wiki_rebuild_html(client_fd);
         goto done;
     }
 

@@ -156,7 +156,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()">📁 分类</button>
       <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
     </div>
-    <div class="sb-search"><input id="sb-search" type="text" placeholder="搜索文章…" oninput="renderTree()"></div>
+    <div class="sb-search">
+      <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
+      <div id="sb-search-hint" style="font-size:.72rem;color:var(--dim);padding:2px 2px 0;display:none"></div>
+    </div>
     <div class="sb-tree" id="sb-tree"></div>
   </div>
 
@@ -390,12 +393,61 @@ function buildCats(arts) {
 
 // ── Tree ─────────────────────────────────────────────────────────────
 var treeExpanded = {};
+var _searchTimer = null;
+var _searchQ = '';
+var _ftMatched = {}; // ids matched by full-text (not title/cat)
+
+function onSearchInput() {
+  var q = (document.getElementById('sb-search').value||'').toLowerCase().trim();
+  if (q !== _searchQ) { _ftMatched = {}; }
+  _searchQ = q;
+  renderTree();
+  if (_searchTimer) clearTimeout(_searchTimer);
+  if (!q) {
+    document.getElementById('sb-search-hint').style.display='none';
+    return;
+  }
+  document.getElementById('sb-search-hint').textContent='搜索中…';
+  document.getElementById('sb-search-hint').style.display='';
+  _searchTimer = setTimeout(function(){
+    var cur = q;
+    fetch('/api/wiki-search?q='+encodeURIComponent(cur))
+      .then(function(r){return r.json();})
+      .then(function(data){
+        if (_searchQ !== cur) return;
+        if (!data.ok || !data.articles) return;
+        var localIds = {};
+        S.articles.forEach(function(a){
+          if(a.title.toLowerCase().includes(cur)||(a.category||'').toLowerCase().includes(cur))
+            localIds[a.id]=true;
+        });
+        var newFt = {};
+        data.articles.forEach(function(a){ if (!localIds[a.id]) newFt[a.id]=a; });
+        _ftMatched = newFt;
+        var count = Object.keys(newFt).length;
+        var hint = document.getElementById('sb-search-hint');
+        hint.textContent = count ? '全文匹配 '+count+' 篇' : '无全文匹配';
+        hint.style.display='';
+        renderTree();
+      }).catch(function(){
+        document.getElementById('sb-search-hint').textContent='';
+        document.getElementById('sb-search-hint').style.display='none';
+      });
+  }, 350);
+}
 
 function renderTree() {
-  var q = (document.getElementById('sb-search').value||'').toLowerCase().trim();
-  var arts = q ? S.articles.filter(function(a){
-    return a.title.toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
-  }) : S.articles;
+  var q = _searchQ;
+  var arts;
+  if (!q) {
+    arts = S.articles;
+  } else {
+    var localMatches = S.articles.filter(function(a){
+      return a.title.toLowerCase().includes(q) || (a.category||'').toLowerCase().includes(q);
+    });
+    var ftExtra = Object.keys(_ftMatched).map(function(k){return _ftMatched[k];});
+    arts = localMatches.concat(ftExtra);
+  }
 
   var bycat = {};
   arts.forEach(function(a){
@@ -963,7 +1015,7 @@ function doUploadFile(file) {
   setStatus('上传中…');
   fetch('/api/wiki-upload', {
     method:'POST',
-    headers:{'Content-Type':'application/octet-stream','X-Wiki-Filename':encodeURIComponent(file.name)},
+    headers:{'Content-Type':'application/octet-stream','X-Wiki-Filename':encodeURIComponent(file.name),'X-Wiki-Category':encodeURIComponent(S.curCat||'')},
     body: file
   })
   .then(function(r){return r.json();})

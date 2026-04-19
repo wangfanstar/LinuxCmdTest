@@ -2348,11 +2348,16 @@ static void wiki_rewrite_html(const char *id, const char *title,
         fclose(fp);
     }
     if (hfull.data) {
-        const char *marker = strstr(hfull.data, "<div class=\"ab\">\n");
+        /* 兼容旧格式 <div class="ab"> 和新格式 <div class="ab" id="article-body"> */
+        const char *marker = strstr(hfull.data, "class=\"ab\"");
         if (marker) {
-            const char *start = marker + strlen("<div class=\"ab\">\n");
-            const char *end   = strstr(start, "\n</div>\n</article>");
-            if (end) sb_append(&hbody, start, (size_t)(end - start));
+            const char *tag_end = strchr(marker, '>');
+            if (tag_end) {
+                const char *start = tag_end + 1;
+                if (*start == '\n') start++;
+                const char *end = strstr(start, "\n</div>\n</article>");
+                if (end) sb_append(&hbody, start, (size_t)(end - start));
+            }
         }
     }
     free(hfull.data);
@@ -2696,11 +2701,15 @@ static void handle_api_wiki_move_article(int client_fd, const char *body)
         fclose(fp);
     }
     if (hfull.data) {
-        const char *marker = strstr(hfull.data,"<div class=\"ab\">\n");
+        const char *marker = strstr(hfull.data, "class=\"ab\"");
         if (marker) {
-            const char *start = marker + strlen("<div class=\"ab\">\n");
-            const char *end   = strstr(start,"\n</div>\n</article>");
-            if (end) sb_append(&hbody,start,(size_t)(end-start));
+            const char *tag_end = strchr(marker, '>');
+            if (tag_end) {
+                const char *start = tag_end + 1;
+                if (*start == '\n') start++;
+                const char *end = strstr(start, "\n</div>\n</article>");
+                if (end) sb_append(&hbody, start, (size_t)(end - start));
+            }
         }
     }
     free(hfull.data);

@@ -1964,27 +1964,61 @@ static void wiki_fhtml(FILE *fp, const char *s)
     }
 }
 
-/* 写渲染后的独立 HTML 文件 */
+/* JS 字符串转义：将 s 作为双引号包围的 JS 字面量写入 fp */
+static void wiki_fjs(FILE *fp, const char *s)
+{
+    fputc('"', fp);
+    for (; s && *s; s++) {
+        if      (*s == '\\') fputs("\\\\", fp);
+        else if (*s == '"')  fputs("\\\"", fp);
+        else if (*s == '\n') fputs("\\n",  fp);
+        else if (*s == '\r') {}
+        else                 fputc(*s, fp);
+    }
+    fputc('"', fp);
+}
+
+/* 写渲染后的独立 HTML 文件（含左侧目录导航侧栏） */
 static int wiki_write_html_file(const char *filepath,
-    const char *title, const char *category,
+    const char *id, const char *title, const char *category,
     const char *updated, const char *html_body)
 {
     FILE *fp = fopen(filepath, "wb");
     if (!fp) return -1;
+
+    /* ── <head> ── */
     fputs("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
           "<meta charset=\"UTF-8\">\n"
           "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
           "<title>", fp);
     wiki_fhtml(fp, title);
-    fputs(" - NoteWiki</title>\n"
-          "<style>\n"
+    fputs(" - NoteWiki</title>\n<style>\n"
           "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n"
-          "body{font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
-               "background:#0d1117;color:#c9d1d9;line-height:1.7;padding:0 0 60px}\n"
-          "nav{background:#161b22;border-bottom:1px solid #30363d;"
-              "padding:10px 24px;font-size:.85rem}\n"
-          "nav a{color:#4a90e2;text-decoration:none}\n"
-          "article{max-width:840px;margin:0 auto;padding:32px 20px}\n"
+          "html,body{height:100%;overflow:hidden}\n"
+          "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+               "background:#0d1117;color:#c9d1d9;line-height:1.7;"
+               "display:flex;flex-direction:column}\n"
+          "nav.topbar{background:#161b22;border-bottom:1px solid #30363d;"
+                    "padding:8px 20px;font-size:.85rem;flex-shrink:0}\n"
+          "nav.topbar a{color:#4a90e2;text-decoration:none}\n"
+          ".layout{display:flex;flex:1;overflow:hidden}\n"
+          ".sidebar{width:220px;background:#161b22;"
+                  "border-right:1px solid #30363d;"
+                  "overflow-y:auto;padding:0;flex-shrink:0}\n"
+          ".content{flex:1;overflow-y:auto;padding:32px 20px}\n"
+          "article{max-width:840px;margin:0 auto}\n"
+          ".st-top{font-size:.78rem;color:#8b949e;padding:8px 12px 6px;"
+                 "border-bottom:1px solid #21262d;font-weight:600;"
+                 "letter-spacing:.04em;flex-shrink:0}\n"
+          ".st-cat{font-size:.8rem;font-weight:600;color:#8b949e;"
+                 "padding:5px 12px 2px;letter-spacing:.04em;"
+                 "user-select:none;white-space:nowrap;overflow:hidden;"
+                 "text-overflow:ellipsis}\n"
+          ".st-art{font-size:.83rem;color:#c9d1d9;padding:3px 12px;"
+                 "text-decoration:none;display:block;white-space:nowrap;"
+                 "overflow:hidden;text-overflow:ellipsis}\n"
+          ".st-art:hover{background:#21262d;color:#f0f6fc}\n"
+          ".st-art.active{background:#1a3a5c;color:#7ab8ff;font-weight:500}\n"
           "h1.at{font-size:1.75rem;color:#f0f6fc;margin-bottom:6px}\n"
           ".am{font-size:.75rem;color:#8b949e;padding-bottom:14px;"
               "border-bottom:1px solid #30363d;margin-bottom:24px}\n"
@@ -2005,18 +2039,87 @@ static int wiki_write_html_file(const char *filepath,
           ".ab ul,.ab ol{padding-left:1.5em;margin:.5em 0}\n"
           ".ab a{color:#4a90e2}\n"
           ".ab hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}\n"
-          "</style>\n</head>\n<body>\n<nav>"
+          "</style>\n</head>\n<body>\n", fp);
+
+    /* ── 顶部导航栏 ── */
+    fputs("<nav class=\"topbar\">"
           "<a href=\"/wiki/notewiki.html\">← NoteWiki</a>", fp);
     if (category && category[0]) {
         fputs(" / ", fp); wiki_fhtml(fp, category);
     }
-    fputs("</nav>\n<article>\n<h1 class=\"at\">", fp);
+    fputs("</nav>\n", fp);
+
+    /* ── 两栏布局 ── */
+    fputs("<div class=\"layout\">\n"
+          "<nav class=\"sidebar\" id=\"sidebar\">"
+          "<div class=\"st-top\">文章目录</div></nav>\n"
+          "<div class=\"content\">\n"
+          "<article>\n<h1 class=\"at\">", fp);
     wiki_fhtml(fp, title);
     fputs("</h1>\n<div class=\"am\">更新：", fp);
     fputs(updated, fp);
     fputs("</div>\n<div class=\"ab\">\n", fp);
     if (html_body) fputs(html_body, fp);
-    fputs("\n</div>\n</article>\n</body>\n</html>\n", fp);
+    fputs("\n</div>\n</article>\n</div>\n</div>\n", fp);
+
+    /* ── 侧栏渲染脚本 ── */
+    fputs("<script>(function(){\n"
+          "var CUR_ID=", fp);
+    wiki_fjs(fp, id ? id : "");
+    fputs(";\n"
+          "function escH(s){return(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;')"
+          ".replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}\n"
+          "function artUrl(a){\n"
+          "  var c=a.category||'';\n"
+          "  return c?'/wiki/'+encodeURI(c)+'/'+a.id+'.html':'/wiki/'+a.id+'.html';\n"
+          "}\n"
+          "function renderChildren(bycat,parent,depth){\n"
+          "  var prefix=parent?parent+'/':'';\n"
+          "  var h='';\n"
+          "  Object.keys(bycat).sort().forEach(function(cat){\n"
+          "    if(cat===parent||cat==='') return;\n"
+          "    var ok=parent?(cat.indexOf(prefix)===0&&cat.slice(prefix.length).indexOf('/')===-1)\n"
+          "                 :(cat.indexOf('/')===-1);\n"
+          "    if(!ok) return;\n"
+          "    var label=cat.split('/').pop();\n"
+          "    var pi=(10+depth*14)+'px';\n"
+          "    h+='<div class=\"st-cat\" style=\"padding-left:'+pi+'\">'+escH(label)+'</div>';\n"
+          "    (bycat[cat]||[]).forEach(function(a){\n"
+          "      var ai=(22+depth*14)+'px';\n"
+          "      var cls='st-art'+(a.id===CUR_ID?' active':'');\n"
+          "      h+='<a class=\"'+cls+'\" style=\"padding-left:'+ai+'\"'\n"
+          "         +' href=\"'+artUrl(a)+'\" title=\"'+escH(a.title||a.id)+'\">'\n"
+          "         +escH(a.title||a.id)+'</a>';\n"
+          "    });\n"
+          "    h+=renderChildren(bycat,cat,depth+1);\n"
+          "  });\n"
+          "  return h;\n"
+          "}\n"
+          "fetch('/api/wiki-list').then(function(r){return r.json();})"
+          ".then(function(data){\n"
+          "  var arts=data.articles||[];\n"
+          "  var bycat={''};\n"
+          "  arts.forEach(function(a){\n"
+          "    var c=a.category||'';\n"
+          "    if(!bycat[c]) bycat[c]=[];\n"
+          "    bycat[c].push(a);\n"
+          "  });\n"
+          "  var h='';\n"
+          "  (bycat['']||[]).forEach(function(a){\n"
+          "    var cls='st-art'+(a.id===CUR_ID?' active':'');\n"
+          "    h+='<a class=\"'+cls+'\" style=\"padding-left:12px\"'\n"
+          "       +' href=\"'+artUrl(a)+'\" title=\"'+escH(a.title||a.id)+'\">'\n"
+          "       +escH(a.title||a.id)+'</a>';\n"
+          "  });\n"
+          "  h+=renderChildren(bycat,'',0);\n"
+          "  var nav=document.getElementById('sidebar');\n"
+          "  nav.innerHTML='<div class=\"st-top\">文章目录</div>'+h;\n"
+          "  var act=nav.querySelector('.active');\n"
+          "  if(act) act.scrollIntoView({block:'nearest'});\n"
+          "}).catch(function(){});\n"
+          "})();</script>\n"
+          "</body>\n</html>\n", fp);
+
     fclose(fp);
     return 0;
 }
@@ -2221,7 +2324,7 @@ static void handle_api_wiki_save(int client_fd, const char *body)
     } else {
         snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
     }
-    wiki_write_html_file(html_path, title, cat, now, html);
+    wiki_write_html_file(html_path, id, title, cat, now, html);
     free(html);
 
     /* build URL */
@@ -2292,7 +2395,7 @@ static void wiki_rewrite_html(const char *id, const char *title,
         }
     }
     free(hfull.data);
-    wiki_write_html_file(html_path, title, cat ? cat : "", updated,
+    wiki_write_html_file(html_path, id, title, cat ? cat : "", updated,
                          hbody.data ? hbody.data : "");
     free(hbody.data);
 }
@@ -2525,6 +2628,116 @@ static void handle_api_wiki_delete_cat(int client_fd, const char *body)
     rmdir_recursive(full_root);
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_delete_cat path=%s", path);
+}
+
+/* POST /api/wiki-move-article — 将文章移动到另一分类 */
+static void handle_api_wiki_move_article(int client_fd, const char *body)
+{
+    wiki_ensure_dirs();
+    char id[128]={0}, new_cat[512]={0};
+    json_get_str(body, "id",       id,      sizeof(id));
+    json_get_str(body, "category", new_cat, sizeof(new_cat));
+    if (!id[0]) {
+        send_json(client_fd,400,"Bad Request",
+                  "{\"ok\":false,\"error\":\"missing id\"}",33); return;
+    }
+    for (size_t i=0; id[i]; i++) {
+        unsigned char c=(unsigned char)id[i];
+        if (!isalnum(c)&&c!='_'&&c!='-') {
+            send_json(client_fd,400,"Bad Request",
+                      "{\"ok\":false,\"error\":\"invalid id\"}",33); return;
+        }
+    }
+
+    /* 读 .md 文件 */
+    char md_path[768]; snprintf(md_path,sizeof(md_path),"%s/%s.md",WIKI_MD_DB,id);
+    FILE *fp = fopen(md_path,"r");
+    if (!fp) {
+        send_json(client_fd,404,"Not Found",
+                  "{\"ok\":false,\"error\":\"not found\"}",32); return;
+    }
+    char meta_line[4096]={0}; fgets(meta_line,sizeof(meta_line),fp);
+    strbuf_t cbuf={0}; char buf[8192]; size_t nr;
+    while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&cbuf,buf,nr);
+    fclose(fp);
+
+    /* 解析旧 META */
+    char old_cat[512]={0}, title[512]={0}, created[64]={0};
+    if (strncmp(meta_line,"<!--META ",9)==0) {
+        char *mend=strstr(meta_line,"-->");
+        if (mend) { *mend='\0'; const char *mj=meta_line+9;
+            json_get_str(mj,"category",old_cat,sizeof(old_cat));
+            json_get_str(mj,"title",title,sizeof(title));
+            json_get_str(mj,"created",created,sizeof(created)); }
+    }
+
+    /* 若分类未变，直接返回 */
+    if (strcmp(old_cat,new_cat)==0) {
+        free(cbuf.data);
+        send_json(client_fd,200,"OK","{\"ok\":true}",11); return;
+    }
+
+    /* 旧 html 路径 */
+    char old_html[1024];
+    if (old_cat[0]) snprintf(old_html,sizeof(old_html),"%s/%s/%s.html",WIKI_ROOT,old_cat,id);
+    else            snprintf(old_html,sizeof(old_html),"%s/%s.html",WIKI_ROOT,id);
+
+    /* 新 html 路径 */
+    char new_html[1024];
+    if (new_cat[0]) snprintf(new_html,sizeof(new_html),"%s/%s/%s.html",WIKI_ROOT,new_cat,id);
+    else            snprintf(new_html,sizeof(new_html),"%s/%s.html",WIKI_ROOT,id);
+
+    /* 从旧 html 提取正文 */
+    strbuf_t hfull={0}, hbody={0};
+    fp = fopen(old_html,"r");
+    if (fp) {
+        while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&hfull,buf,nr);
+        fclose(fp);
+    }
+    if (hfull.data) {
+        const char *marker = strstr(hfull.data,"<div class=\"ab\">\n");
+        if (marker) {
+            const char *start = marker + strlen("<div class=\"ab\">\n");
+            const char *end   = strstr(start,"\n</div>\n</article>");
+            if (end) sb_append(&hbody,start,(size_t)(end-start));
+        }
+    }
+    free(hfull.data);
+
+    /* 确保新分类目录存在 */
+    if (new_cat[0]) {
+        char new_dir[1024]; snprintf(new_dir,sizeof(new_dir),"%s/%s",WIKI_ROOT,new_cat);
+        mkdir_p(new_dir);
+    }
+
+    char now[64]; wiki_now_iso(now,sizeof(now));
+
+    /* 写新 html，删旧 html */
+    wiki_write_html_file(new_html, id, title, new_cat, now,
+                         hbody.data ? hbody.data : "");
+    free(hbody.data);
+    unlink(old_html);
+
+    /* 更新 .md META */
+    fp = fopen(md_path,"wb");
+    if (fp) {
+        strbuf_t mb={0};
+        SB_LIT(&mb,"<!--META ");
+        SB_LIT(&mb,"{\"id\":"); sb_json_str(&mb,id);
+        SB_LIT(&mb,",\"title\":"); sb_json_str(&mb,title);
+        SB_LIT(&mb,",\"category\":"); sb_json_str(&mb,new_cat);
+        SB_LIT(&mb,",\"created\":"); sb_json_str(&mb,created);
+        SB_LIT(&mb,",\"updated\":"); sb_json_str(&mb,now);
+        SB_LIT(&mb,"}-->\n");
+        if (mb.data) fwrite(mb.data,1,mb.len,fp);
+        if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
+        fclose(fp);
+        free(mb.data);
+    }
+    free(cbuf.data);
+
+    send_json(client_fd,200,"OK","{\"ok\":true}",11);
+    LOG_INFO("wiki_move_article id=%s old_cat=%s new_cat=%s", id, old_cat, new_cat);
 }
 
 /* POST /api/wiki-mkdir */
@@ -4251,6 +4464,10 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-delete-cat") == 0) {
             if (body) handle_api_wiki_delete_cat(client_fd, body);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-move-article") == 0) {
+            if (body) handle_api_wiki_move_article(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-mkdir") == 0) {

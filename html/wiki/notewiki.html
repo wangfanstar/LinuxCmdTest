@@ -225,7 +225,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
             oninput="onEditorInput()"
             onkeydown="onEditorKey(event)"
             ondrop="onEditorDrop(event)"
-            ondragover="event.preventDefault()"></textarea>
+            ondragover="event.preventDefault()"
+            onpaste="onEditorPaste(event)"></textarea>
         </div>
         <div class="edit-right art-content" id="edit-right">
           <div class="panel-label" style="margin:-16px -20px 14px">预览</div>
@@ -288,6 +289,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <!-- 右键菜单 -->
 <div class="ctx-menu" id="ctx-menu">
   <div class="ctx-item" id="ctx-rename-item" onclick="ctxDoRename()">✏ 重命名</div>
+  <div class="ctx-item" id="ctx-newart-item" onclick="ctxDoNewArt()">📄 在此处新建文章</div>
+  <div class="ctx-item" id="ctx-newcat-item" onclick="ctxDoNewCat()">📁 新建子目录</div>
+  <div class="ctx-item" id="ctx-move-item" onclick="ctxDoMove()">📦 移动到...</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" onclick="ctxDoDelete()">🗑 删除</div>
 </div>
@@ -304,6 +308,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeRenameModal()">取消</button>
       <button class="btn btn-primary" onclick="doRename()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 移动文章 modal -->
+<div class="modal-overlay" id="modal-move">
+  <div class="modal-box">
+    <div class="modal-head">📦 移动文章<button class="modal-close" onclick="closeMoveModal()">✕</button></div>
+    <div class="modal-body">
+      <label class="field-label">目标分类</label>
+      <select id="move-category" class="field-input"></select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeMoveModal()">取消</button>
+      <button class="btn btn-primary" onclick="doMoveArticle()">移动</button>
     </div>
   </div>
 </div>
@@ -496,7 +515,7 @@ function openArticle(id) {
 }
 
 // ── Edit ─────────────────────────────────────────────────────────────
-function newArticle() {
+function newArticle(prefillCat) {
   /* 填充分类下拉 */
   var sel = document.getElementById('na-category');
   sel.innerHTML = '<option value="">📁 根目录</option>';
@@ -504,7 +523,7 @@ function newArticle() {
     var opt = document.createElement('option');
     opt.value = c; opt.textContent = '📂 '+c; sel.appendChild(opt);
   });
-  sel.value = S.curCat || '';
+  sel.value = (prefillCat !== undefined ? prefillCat : (S.curCat || ''));
   /* 清空输入 */
   document.getElementById('na-title').value = '';
   document.getElementById('na-filename').value = '';
@@ -688,12 +707,13 @@ function deleteCurrent() {
 }
 
 // ── New Category ─────────────────────────────────────────────────────
-function openNewCatModal() {
+function openNewCatModal(prefillParent) {
   var sel = document.getElementById('nc-parent');
   sel.innerHTML = '<option value="">根目录</option>';
   S.categories.forEach(function(c){
     var opt=document.createElement('option'); opt.value=c; opt.textContent=c; sel.appendChild(opt);
   });
+  sel.value = prefillParent || '';
   document.getElementById('nc-name').value = '';
   document.getElementById('modal-newcat').classList.add('open');
   setTimeout(function(){ document.getElementById('nc-name').focus(); },50);
@@ -758,11 +778,17 @@ document.getElementById('sb-tree').addEventListener('contextmenu', function(e){
 
 function showCtxMenu(e) {
   var menu = document.getElementById('ctx-menu');
-  document.getElementById('ctx-rename-item').textContent =
-    ctxTarget.type==='art' ? '✏ 重命名文章' : '✏ 重命名目录';
-  menu.style.left = e.clientX + 'px';
-  menu.style.top  = e.clientY + 'px';
+  var isArt = ctxTarget.type === 'art';
+  document.getElementById('ctx-rename-item').textContent = isArt ? '✏ 重命名文章' : '✏ 重命名目录';
+  document.getElementById('ctx-newcat-item').style.display = isArt ? 'none' : '';
+  document.getElementById('ctx-move-item').style.display   = isArt ? '' : 'none';
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var mx = e.clientX, my = e.clientY;
+  menu.style.left = '0'; menu.style.top = '0';
   menu.classList.add('open');
+  var mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.min(mx, vw-mw-4) + 'px';
+  menu.style.top  = Math.min(my, vh-mh-4) + 'px';
 }
 
 document.addEventListener('click', function(e){
@@ -849,11 +875,71 @@ function ctxDoDelete() {
   }
 }
 
+function ctxDoNewArt() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  if (!ctxTarget) return;
+  var cat = '';
+  if (ctxTarget.type === 'cat') {
+    cat = ctxTarget.cat;
+  } else {
+    var meta = S.articles.find(function(a){ return a.id===ctxTarget.id; });
+    cat = meta ? (meta.category||'') : '';
+  }
+  newArticle(cat);
+}
+
+function ctxDoNewCat() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  if (!ctxTarget || ctxTarget.type !== 'cat') return;
+  openNewCatModal(ctxTarget.cat);
+}
+
+function ctxDoMove() {
+  document.getElementById('ctx-menu').classList.remove('open');
+  if (!ctxTarget || ctxTarget.type !== 'art') return;
+  var sel = document.getElementById('move-category');
+  sel.innerHTML = '<option value="">📁 根目录</option>';
+  S.categories.forEach(function(c){
+    var opt = document.createElement('option');
+    opt.value = c; opt.textContent = '📂 '+c; sel.appendChild(opt);
+  });
+  var meta = S.articles.find(function(a){ return a.id===ctxTarget.id; });
+  sel.value = meta ? (meta.category||'') : '';
+  document.getElementById('modal-move').classList.add('open');
+}
+function closeMoveModal(){ document.getElementById('modal-move').classList.remove('open'); }
+function doMoveArticle() {
+  var cat = document.getElementById('move-category').value;
+  closeMoveModal();
+  if (!ctxTarget) return;
+  setStatus('移动中…');
+  fetch('/api/wiki-move-article', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id: ctxTarget.id, category: cat })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.ok) {
+      if (S.curId === ctxTarget.id) S.curCat = cat;
+      setStatus('移动成功'); refreshAll();
+    } else setStatus('移动失败：'+(data.error||''));
+  })
+  .catch(function(e){ setStatus('请求失败：'+e.message); });
+}
+
 // ── Upload Image ──────────────────────────────────────────────────────
 function openImgUpload() { document.getElementById('img-file-input').click(); }
 
 function doUploadFile(file) {
   if (!file) return;
+  /* 上传前先记录光标位置，异步完成后插入到原位置 */
+  var ta = document.getElementById('edit-textarea');
+  var insertPos = ta.selectionStart;
+  /* 插入占位符，让用户立刻看到上传进行中 */
+  var placeholder = '![上传中...](uploading)';
+  ta.value = ta.value.substring(0, insertPos) + placeholder + ta.value.substring(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = insertPos + placeholder.length;
+  onEditorInput();
   setStatus('上传中…');
   fetch('/api/wiki-upload', {
     method:'POST',
@@ -863,14 +949,26 @@ function doUploadFile(file) {
   .then(function(r){return r.json();})
   .then(function(data){
     if (data.ok) {
-      var isImg = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(file.name);
+      var isImg = /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)$/i.test(file.name);
       var md = isImg ? '!['+file.name+']('+data.url+')' : '['+file.name+']('+data.url+')';
-      insertAtCursor(md);
+      /* 用实际链接替换占位符 */
+      ta.value = ta.value.replace(placeholder, md);
+      ta.selectionStart = ta.selectionEnd = ta.value.indexOf(md) + md.length;
+      ta.focus();
+      onEditorInput();
       setStatus('上传成功');
       document.getElementById('img-file-input').value='';
-    } else setStatus('上传失败：'+(data.error||''));
+    } else {
+      ta.value = ta.value.replace(placeholder, '');
+      onEditorInput();
+      setStatus('上传失败：'+(data.error||''));
+    }
   })
-  .catch(function(e){ setStatus('上传失败：'+e.message); });
+  .catch(function(err){
+    ta.value = ta.value.replace(placeholder, '');
+    onEditorInput();
+    setStatus('上传失败：'+err.message);
+  });
 }
 
 function onEditorDrop(e) {
@@ -878,6 +976,28 @@ function onEditorDrop(e) {
   if (!file) return;
   e.preventDefault();
   doUploadFile(file);
+}
+
+function onEditorPaste(e) {
+  var items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') === 0) {
+      e.preventDefault();
+      var blob = items[i].getAsFile();
+      if (!blob) continue;
+      /* 以当前时间戳自动命名 */
+      var d = new Date();
+      var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
+      var ts = d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())
+             +'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
+      var ext = (blob.type.split('/')[1] || 'png').replace('jpeg','jpg');
+      var filename = 'img_'+ts+'.'+ext;
+      var file = new File([blob], filename, {type: blob.type});
+      doUploadFile(file);
+      return; /* 只处理第一张图片 */
+    }
+  }
 }
 
 // ── Toolbar ───────────────────────────────────────────────────────────
@@ -1037,7 +1157,7 @@ function md2html(src) {
     var para=[];
     while(i<lines.length){
       var l=lines[i];
-      if(!l.trim()||/^[#>*+\-]/.test(l)||/^\d+\./.test(l)||/^[-*_]{3,}$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
+      if(!l.trim()||/^#{1,6} /.test(l)||/^> ?/.test(l)||/^[-*+] /.test(l)||/^\d+\. /.test(l)||/^[-*_]{3,}\s*$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
       para.push(il(l)); i++;
     }
     if(para.length) out+='<p>'+para.join('<br>')+'</p>\n';
@@ -1054,14 +1174,16 @@ function splitRow(row){ return row.replace(/^\||\|$/g,'').split('|'); }
 function he(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function il(s){
-  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g,'<img src="$2" alt="$1" style="max-width:100%">');
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  var ilsaved = [], ilph = function(v){ ilsaved.push(v); return '\x01'+(ilsaved.length-1)+'\x01'; };
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, function(_,alt,url){ return ilph('<img src="'+url+'" alt="'+alt+'" style="max-width:100%">'); });
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_,txt,url){ return ilph('<a href="'+url+'" target="_blank">'+txt+'</a>'); });
   s = s.replace(/\*\*\*([^*\n]+)\*\*\*/g,'<strong><em>$1</em></strong>');
   s = s.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
   s = s.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
   s = s.replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
   s = s.replace(/_([^_\n]+)_/g,'<em>$1</em>');
   s = s.replace(/~~([^~\n]+)~~/g,'<del>$1</del>');
+  s = s.replace(/\x01(\d+)\x01/g, function(_,n){ return ilsaved[+n]; });
   return s;
 }
 
@@ -1079,6 +1201,7 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-newarticle').classList.contains('open')) closeNewArticleModal();
     if(document.getElementById('modal-newcat').classList.contains('open')) closeNewCatModal();
     if(document.getElementById('modal-rename').classList.contains('open')) closeRenameModal();
+    if(document.getElementById('modal-move').classList.contains('open')) closeMoveModal();
     document.getElementById('ctx-menu').classList.remove('open');
   }
 });
@@ -1092,6 +1215,9 @@ document.getElementById('modal-newcat').addEventListener('click', function(e){
 });
 document.getElementById('modal-rename').addEventListener('click', function(e){
   if(e.target===this) closeRenameModal();
+});
+document.getElementById('modal-move').addEventListener('click', function(e){
+  if(e.target===this) closeMoveModal();
 });
 
 init();

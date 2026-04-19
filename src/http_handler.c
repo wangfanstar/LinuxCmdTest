@@ -2019,6 +2019,16 @@ static int wiki_write_html_file(const char *filepath,
                  "overflow:hidden;text-overflow:ellipsis}\n"
           ".st-art:hover{background:#21262d;color:#f0f6fc}\n"
           ".st-art.active{background:#1a3a5c;color:#7ab8ff;font-weight:500}\n"
+          ".toc{width:200px;background:#161b22;border-left:1px solid #30363d;"
+              "overflow-y:auto;padding:0;flex-shrink:0}\n"
+          ".toc-top{font-size:.78rem;color:#8b949e;padding:8px 12px 6px;"
+                  "border-bottom:1px solid #21262d;font-weight:600;"
+                  "letter-spacing:.04em}\n"
+          ".toc-item{font-size:.8rem;color:#8b949e;padding:3px 12px;"
+                   "text-decoration:none;display:block;white-space:nowrap;"
+                   "overflow:hidden;text-overflow:ellipsis;cursor:pointer}\n"
+          ".toc-item:hover{background:#21262d;color:#f0f6fc}\n"
+          ".toc-item.active{color:#7ab8ff}\n"
           "h1.at{font-size:1.75rem;color:#f0f6fc;margin-bottom:6px}\n"
           ".am{font-size:.75rem;color:#8b949e;padding-bottom:14px;"
               "border-bottom:1px solid #30363d;margin-bottom:24px}\n"
@@ -2058,9 +2068,11 @@ static int wiki_write_html_file(const char *filepath,
     wiki_fhtml(fp, title);
     fputs("</h1>\n<div class=\"am\">更新：", fp);
     fputs(updated, fp);
-    fputs("</div>\n<div class=\"ab\">\n", fp);
+    fputs("</div>\n<div class=\"ab\" id=\"article-body\">\n", fp);
     if (html_body) fputs(html_body, fp);
-    fputs("\n</div>\n</article>\n</div>\n</div>\n", fp);
+    fputs("\n</div>\n</article>\n</div>\n"
+          "<nav class=\"toc\" id=\"toc\"><div class=\"toc-top\">本文目录</div></nav>\n"
+          "</div>\n", fp);
 
     /* ── 侧栏渲染脚本（外链，避免 C 字符串转义问题） ── */
     fputs("<script>window.WIKI_CUR_ID=", fp);

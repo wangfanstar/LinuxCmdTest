@@ -64,4 +64,42 @@
       if (act) act.scrollIntoView({ block: 'nearest' });
     })
     .catch(function () {});
+
+  // ── 右侧本文目录（TOC） ────────────────────────────────────────────
+  (function buildToc() {
+    var body = document.getElementById('article-body');
+    var toc  = document.getElementById('toc');
+    if (!body || !toc) return;
+
+    var headings = body.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    if (!headings.length) { toc.style.display = 'none'; return; }
+
+    var h = '<div class="toc-top">\u672c\u6587\u76ee\u5f55</div>';
+    headings.forEach(function (el, i) {
+      var level  = parseInt(el.tagName[1], 10);
+      var indent = (8 + (level - 1) * 12) + 'px';
+      var id     = 'toc-h-' + i;
+      el.id = id;
+      h += '<a class="toc-item" style="padding-left:' + indent + '"'
+         + ' href="#' + id + '">' + escH(el.textContent) + '</a>';
+    });
+    toc.innerHTML = h;
+
+    // 滚动高亮：当前可见标题对应条目加 active 类
+    var content = document.querySelector('.content');
+    if (!content) return;
+    var links = toc.querySelectorAll('.toc-item');
+    var ids   = Array.prototype.map.call(headings, function (el) { return el.id; });
+
+    content.addEventListener('scroll', function () {
+      var scrollTop = content.scrollTop;
+      var active = 0;
+      headings.forEach(function (el, i) {
+        if (el.offsetTop - content.offsetTop <= scrollTop + 80) active = i;
+      });
+      links.forEach(function (lk, i) {
+        lk.classList.toggle('active', i === active);
+      });
+    }, { passive: true });
+  }());
 })();

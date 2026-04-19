@@ -1,12 +1,30 @@
 (function () {
   var CUR_ID = window.WIKI_CUR_ID || '';
 
+  // ── 折叠面板 ──────────────────────────────────────────────────────
+  function initToggle(navId, btnId, lsKey, iconOpen, iconClosed) {
+    var nav = document.getElementById(navId);
+    var btn = document.getElementById(btnId);
+    if (!nav || !btn) return;
+    var collapsed = localStorage.getItem(lsKey) === '1';
+    if (collapsed) nav.classList.add('collapsed');
+    btn.textContent = collapsed ? iconClosed : iconOpen;
+    btn.addEventListener('click', function () {
+      var now = nav.classList.toggle('collapsed');
+      localStorage.setItem(lsKey, now ? '1' : '0');
+      btn.textContent = now ? iconClosed : iconOpen;
+    });
+  }
+
+  // sidebar: ◀ 折叠 / ▶ 展开；toc: ▶ 折叠 / ◀ 展开
+  initToggle('sidebar', 'sb-toggle',  'wiki-sb',  '\u25C0', '\u25B6');
+  initToggle('toc',     'toc-toggle', 'wiki-toc', '\u25B6', '\u25C0');
+
+  // ── 左侧文章目录 ──────────────────────────────────────────────────
   function escH(s) {
     return ('' + s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function artUrl(a) {
@@ -58,44 +76,43 @@
            + escH(a.title || a.id) + '</a>';
       });
       h += renderChildren(bycat, '', 0);
-      var nav = document.getElementById('sidebar');
-      nav.innerHTML = '<div class="st-top">\u6587\u7ae0\u76ee\u5f55</div>' + h;
-      var act = nav.querySelector('.active');
-      if (act) act.scrollIntoView({ block: 'nearest' });
+      var body = document.getElementById('sidebar-body');
+      if (body) {
+        body.innerHTML = h;
+        var act = body.querySelector('.active');
+        if (act) act.scrollIntoView({ block: 'nearest' });
+      }
     })
     .catch(function () {});
 
-  // ── 右侧本文目录（TOC） ────────────────────────────────────────────
+  // ── 右侧本文目录（TOC） ───────────────────────────────────────────
   (function buildToc() {
-    var body = document.getElementById('article-body');
-    var toc  = document.getElementById('toc');
-    if (!body || !toc) return;
+    var ab  = document.getElementById('article-body');
+    var box = document.getElementById('toc-body');
+    var toc = document.getElementById('toc');
+    if (!ab || !box || !toc) return;
 
-    var headings = body.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    var headings = ab.querySelectorAll('h1,h2,h3,h4,h5,h6');
     if (!headings.length) { toc.style.display = 'none'; return; }
 
-    var h = '<div class="toc-top">\u672c\u6587\u76ee\u5f55</div>';
+    var h = '';
     headings.forEach(function (el, i) {
       var level  = parseInt(el.tagName[1], 10);
       var indent = (8 + (level - 1) * 12) + 'px';
-      var id     = 'toc-h-' + i;
-      el.id = id;
+      el.id = 'toc-h-' + i;
       h += '<a class="toc-item" style="padding-left:' + indent + '"'
-         + ' href="#' + id + '">' + escH(el.textContent) + '</a>';
+         + ' href="#toc-h-' + i + '">' + escH(el.textContent) + '</a>';
     });
-    toc.innerHTML = h;
+    box.innerHTML = h;
 
-    // 滚动高亮：当前可见标题对应条目加 active 类
     var content = document.querySelector('.content');
     if (!content) return;
-    var links = toc.querySelectorAll('.toc-item');
-    var ids   = Array.prototype.map.call(headings, function (el) { return el.id; });
-
+    var links = box.querySelectorAll('.toc-item');
     content.addEventListener('scroll', function () {
-      var scrollTop = content.scrollTop;
+      var top = content.scrollTop;
       var active = 0;
       headings.forEach(function (el, i) {
-        if (el.offsetTop - content.offsetTop <= scrollTop + 80) active = i;
+        if (el.offsetTop - content.offsetTop <= top + 80) active = i;
       });
       links.forEach(function (lk, i) {
         lk.classList.toggle('active', i === active);

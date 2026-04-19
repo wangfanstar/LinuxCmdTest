@@ -2330,6 +2330,31 @@ static void handle_api_wiki_delete(int client_fd, const char *body)
     LOG_INFO("wiki_delete id=%s",id);
 }
 
+/* 从已生成的 HTML 文件中提取正文（article-body 内容） */
+static void wiki_extract_body(const char *html_path, strbuf_t *hbody)
+{
+#define BODY_START "<div class=\"ab\" id=\"article-body\">\n"
+#define BODY_END   "\n</div>\n</article>"
+    strbuf_t hfull = {0};
+    FILE *fp = fopen(html_path, "r");
+    if (fp) {
+        char buf[8192]; size_t nr;
+        while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0) sb_append(&hfull, buf, nr);
+        fclose(fp);
+    }
+    if (hfull.data) {
+        const char *start = strstr(hfull.data, BODY_START);
+        if (start) {
+            start += strlen(BODY_START);
+            const char *end = strstr(start, BODY_END);
+            if (end) sb_append(hbody, start, (size_t)(end - start));
+        }
+    }
+    free(hfull.data);
+#undef BODY_START
+#undef BODY_END
+}
+
 /* 读取已有 .html 的 body 内容，用新参数重写该文件（保留正文，更新标题/分类/时间） */
 static void wiki_rewrite_html(const char *id, const char *title,
                                const char *cat, const char *updated)
@@ -2340,27 +2365,8 @@ static void wiki_rewrite_html(const char *id, const char *title,
     else
         snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
 
-    strbuf_t hfull={0}, hbody={0};
-    FILE *fp = fopen(html_path, "r");
-    if (fp) {
-        char buf[8192]; size_t nr;
-        while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&hfull,buf,nr);
-        fclose(fp);
-    }
-    if (hfull.data) {
-        /* 兼容旧格式 <div class="ab"> 和新格式 <div class="ab" id="article-body"> */
-        const char *marker = strstr(hfull.data, "class=\"ab\"");
-        if (marker) {
-            const char *tag_end = strchr(marker, '>');
-            if (tag_end) {
-                const char *start = tag_end + 1;
-                if (*start == '\n') start++;
-                const char *end = strstr(start, "\n</div>\n</article>");
-                if (end) sb_append(&hbody, start, (size_t)(end - start));
-            }
-        }
-    }
-    free(hfull.data);
+    strbuf_t hbody = {0};
+    wiki_extract_body(html_path, &hbody);
     wiki_write_html_file(html_path, id, title, cat ? cat : "", updated,
                          hbody.data ? hbody.data : "");
     free(hbody.data);
@@ -2694,25 +2700,8 @@ static void handle_api_wiki_move_article(int client_fd, const char *body)
     else            snprintf(new_html,sizeof(new_html),"%s/%s.html",WIKI_ROOT,id);
 
     /* 从旧 html 提取正文 */
-    strbuf_t hfull={0}, hbody={0};
-    fp = fopen(old_html,"r");
-    if (fp) {
-        while ((nr=fread(buf,1,sizeof(buf),fp))>0) sb_append(&hfull,buf,nr);
-        fclose(fp);
-    }
-    if (hfull.data) {
-        const char *marker = strstr(hfull.data, "class=\"ab\"");
-        if (marker) {
-            const char *tag_end = strchr(marker, '>');
-            if (tag_end) {
-                const char *start = tag_end + 1;
-                if (*start == '\n') start++;
-                const char *end = strstr(start, "\n</div>\n</article>");
-                if (end) sb_append(&hbody, start, (size_t)(end - start));
-            }
-        }
-    }
-    free(hfull.data);
+    strbuf_t hbody = {0};
+    wiki_extract_body(old_html, &hbody);
 
     /* 确保新分类目录存在 */
     if (new_cat[0]) {

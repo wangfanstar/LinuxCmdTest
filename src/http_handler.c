@@ -2046,6 +2046,10 @@ static int wiki_write_html_file(const char *filepath,
                         "color:#8b949e;font-size:.8rem;padding:2px 5px;"
                         "border-radius:3px;flex-shrink:0;line-height:1}\n"
           ".panel-toggle:hover{background:#21262d;color:#f0f6fc}\n"
+          ".edit-btn{font-size:.78rem;color:#4a90e2;text-decoration:none;"
+                   "padding:3px 10px;border:1px solid #2d3a54;border-radius:5px;"
+                   "margin-left:auto;white-space:nowrap}\n"
+          ".edit-btn:hover{background:#1a3a5c;border-color:#4a90e2}\n"
           "h1.at{font-size:1.75rem;color:#f0f6fc;margin-bottom:6px}\n"
           ".am{font-size:.75rem;color:#8b949e;padding-bottom:14px;"
               "border-bottom:1px solid #30363d;margin-bottom:24px}\n"
@@ -2074,7 +2078,9 @@ static int wiki_write_html_file(const char *filepath,
     if (category && category[0]) {
         fputs(" / ", fp); wiki_fhtml(fp, category);
     }
-    fputs("</nav>\n", fp);
+    fputs(" <a class=\"edit-btn\" href=\"/wiki/notewiki.html?edit=", fp);
+    fputs(id, fp);
+    fputs("\">✏ 编辑</a></nav>\n", fp);
 
     /* ── 两栏布局 ── */
     fputs("<div class=\"layout\">\n"

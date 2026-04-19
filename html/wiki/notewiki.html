@@ -348,9 +348,18 @@ var S = {
 };
 
 // ── Init ─────────────────────────────────────────────────────────────
-function init() { refreshAll(); }
+function init() {
+  var params = new URLSearchParams(location.search);
+  var editId = params.get('edit');
+  refreshAll(function() {
+    if (editId) {
+      openArticle(editId);
+      editCurrent();
+    }
+  });
+}
 
-function refreshAll() {
+function refreshAll(onDone) {
   setStatus('加载中…');
   fetch('/api/wiki-list')
     .then(function(r){
@@ -368,6 +377,7 @@ function refreshAll() {
       renderTree();
       setStatus('共 ' + S.articles.length + ' 篇文章');
       document.getElementById('status-count').textContent = S.articles.length + ' 篇';
+      if (onDone) onDone();
     })
     .catch(function(e){ setStatus('加载失败：'+e.message); renderTree(); });
 }

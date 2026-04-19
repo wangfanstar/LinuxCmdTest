@@ -2098,7 +2098,7 @@ static int wiki_write_html_file(const char *filepath,
           "fetch('/api/wiki-list').then(function(r){return r.json();})"
           ".then(function(data){\n"
           "  var arts=data.articles||[];\n"
-          "  var bycat={''};\n"
+          "  var bycat={};\n"
           "  arts.forEach(function(a){\n"
           "    var c=a.category||'';\n"
           "    if(!bycat[c]) bycat[c]=[];\n"

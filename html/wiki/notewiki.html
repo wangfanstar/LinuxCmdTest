@@ -116,6 +116,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .edit-toolbar{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:2px;flex-shrink:0;flex-wrap:wrap}
 .tb-btn{background:none;border:none;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:.8rem;color:var(--dim);line-height:1.4}
 .tb-btn:hover{background:rgba(255,255,255,.07);color:var(--text)}
+.tb-btn:disabled{opacity:.3;cursor:default;pointer-events:none}
 .tb-sep{width:1px;height:16px;background:var(--border);margin:0 3px}
 
 /* editor split */
@@ -235,6 +236,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
       <div class="edit-toolbar" id="edit-toolbar">
+        <button class="tb-btn" id="tb-undo" onclick="doUndo()" title="撤消 Ctrl+Z" disabled>↩</button>
+        <button class="tb-btn" id="tb-redo" onclick="doRedo()" title="恢复 Ctrl+Y" disabled>↪</button>
+        <div class="tb-sep"></div>
         <button class="tb-btn" onclick="tb('h1')" title="H1"><b>H1</b></button>
         <button class="tb-btn" onclick="tb('h2')" title="H2"><b>H2</b></button>
         <button class="tb-btn" onclick="tb('h3')" title="H3"><b>H3</b></button>
@@ -693,6 +697,7 @@ function doNewArticle() {
   setViewMode(S.viewMode);
   updatePreview();
   updateEditorHighlight();
+  histReset();
   setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
@@ -717,6 +722,7 @@ function editCurrent() {
       document.getElementById('edit-textarea').value = data.ok ? (data.content||'') : '';
       updatePreview();
       updateEditorHighlight();
+      histReset();
     });
 }
 
@@ -1222,6 +1228,7 @@ function openImgUpload() { document.getElementById('img-file-input').click(); }
 
 function doUploadFile(file) {
   if (!file) return;
+  histFlush();
   /* 上传前先记录光标位置，异步完成后插入到原位置 */
   var ta = document.getElementById('edit-textarea');
   var insertPos = ta.selectionStart;
@@ -1292,6 +1299,7 @@ function onEditorPaste(e) {
 
 // ── Toolbar ───────────────────────────────────────────────────────────
 function tb(cmd) {
+  histFlush();
   var ta = document.getElementById('edit-textarea');
   var start = ta.selectionStart, end = ta.selectionEnd;
   var sel = ta.value.substring(start, end);
@@ -1324,6 +1332,12 @@ function tb(cmd) {
 }
 
 function onEditorKey(e) {
+  if ((e.ctrlKey||e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault(); doUndo(); return;
+  }
+  if ((e.ctrlKey||e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey) || (e.key === 'Z' && e.shiftKey))) {
+    e.preventDefault(); doRedo(); return;
+  }
   if (e.key === 'Tab') {
     e.preventDefault();
     insertAtCursor('  ');
@@ -1344,6 +1358,7 @@ function onEditorInput() {
   clearTimeout(_previewTimer);
   _previewTimer = setTimeout(updatePreview, 120);
   updateEditorHighlight();
+  histSnapshotDeferred();
   scheduleAutoSave();
 }
 
@@ -1389,6 +1404,79 @@ function syncMirrorScroll() {
   var hl = document.getElementById('editor-mirror');
   var ta = document.getElementById('edit-textarea');
   if (hl && ta) hl.scrollTop = ta.scrollTop;
+}
+
+// ── Undo / Redo ───────────────────────────────────────────────────────
+var _hist       = [];   // [{v, s, e}]  v=value, s=selStart, e=selEnd
+var _histIdx    = -1;
+var _histTimer  = null;
+var _histIgnore = false;
+var HIST_MAX    = 200;
+
+function histSnapshot() {
+  if (_histIgnore) return;
+  var ta = document.getElementById('edit-textarea');
+  if (!ta) return;
+  var snap = { v: ta.value, s: ta.selectionStart, e: ta.selectionEnd };
+  var cur  = _histIdx >= 0 ? _hist[_histIdx] : null;
+  if (cur && cur.v === snap.v) return;          // 内容无变化，不重复记录
+  if (_histIdx < _hist.length - 1)              // 截断撤消后的重做历史
+    _hist.splice(_histIdx + 1);
+  _hist.push(snap);
+  if (_hist.length > HIST_MAX) _hist.shift();   // 超出上限，丢弃最旧
+  _histIdx = _hist.length - 1;
+  _updateUndoRedoBtns();
+}
+
+function histSnapshotDeferred() {
+  clearTimeout(_histTimer);
+  _histTimer = setTimeout(histSnapshot, 600);
+}
+
+function histFlush() {
+  clearTimeout(_histTimer);
+  histSnapshot();
+}
+
+function histReset() {
+  clearTimeout(_histTimer);
+  _hist    = [];
+  _histIdx = -1;
+  histSnapshot();           // 以当前内容作为初始快照
+}
+
+function doUndo() {
+  histFlush();              // 先把当前未提交状态存入，确保可重做
+  if (_histIdx <= 0) return;
+  _histIdx--;
+  _histApply();
+}
+
+function doRedo() {
+  if (_histIdx >= _hist.length - 1) return;
+  _histIdx++;
+  _histApply();
+}
+
+function _histApply() {
+  var snap = _hist[_histIdx];
+  if (!snap) return;
+  var ta = document.getElementById('edit-textarea');
+  if (!ta) return;
+  _histIgnore = true;
+  ta.value = snap.v;
+  try { ta.selectionStart = snap.s; ta.selectionEnd = snap.e; } catch(e) {}
+  _histIgnore = false;
+  updatePreview();
+  updateEditorHighlight();
+  _updateUndoRedoBtns();
+}
+
+function _updateUndoRedoBtns() {
+  var u = document.getElementById('tb-undo');
+  var r = document.getElementById('tb-redo');
+  if (u) u.disabled = (_histIdx <= 0);
+  if (r) r.disabled = (_histIdx >= _hist.length - 1);
 }
 
 // ── View mode toggle ──────────────────────────────────────────────────

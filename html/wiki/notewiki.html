@@ -48,6 +48,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 /* buttons */
 .btn{padding:5px 12px;border:none;border-radius:5px;font-size:.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:opacity .15s;white-space:nowrap}
 .btn:hover{opacity:.85}
+.btn:disabled{opacity:.45;cursor:default;filter:saturate(.35)}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-secondary{background:#27334d;color:var(--text);border:1px solid var(--border2)}
 .btn-danger{background:#3a1a1a;color:var(--red);border:1px solid #5a2a2a}
@@ -124,6 +125,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .edit-left{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
 .editor-wrap{position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column}
 .editor-mirror{position:absolute;inset:0;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:22px;tab-size:2;white-space:pre-wrap;word-break:break-word;pointer-events:none;overflow:hidden;background:transparent;z-index:1}
+.editor-mirror *{pointer-events:none}
 .editor-mirror .hl-h1{color:#79c0ff}
 .editor-mirror .hl-h2{color:#7ee787}
 .editor-mirror .hl-h3{color:#ffa657}
@@ -231,7 +233,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
           <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title="仅预览">👁</button>
         </div>
         <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
-        <button class="btn btn-primary btn-sm" onclick="saveArticle()">💾 保存</button>
+        <button class="btn btn-primary btn-sm" id="btn-save" onclick="saveArticle()" disabled>💾 保存</button>
         <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并在新标签页打开已发布页面">📤 发布</button>
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
@@ -698,6 +700,7 @@ function doNewArticle() {
   updatePreview();
   updateEditorHighlight();
   histReset();
+  markEditBaseline();
   setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
@@ -723,6 +726,7 @@ function editCurrent() {
       updatePreview();
       updateEditorHighlight();
       histReset();
+      markEditBaseline();
       setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
     });
 }
@@ -747,6 +751,40 @@ function populateCatSelect(selected) {
 // ── Auto-save ────────────────────────────────────────────────────────
 var _autoSaveTimer = null;
 var _autoSaveDirty = false;
+var _editBaseline = '';
+var _editDirty = false;
+
+function getEditDraftState() {
+  var pane = document.getElementById('pane-edit');
+  if (!pane || pane.style.display === 'none') return '';
+  return JSON.stringify({
+    id: S.editId || '',
+    isNew: !!S.editIsNew,
+    title: document.getElementById('edit-title').value || '',
+    category: document.getElementById('edit-category').value || '',
+    content: document.getElementById('edit-textarea').value || '',
+    filename: document.getElementById('edit-filename').value || ''
+  });
+}
+
+function setEditDirty(dirty) {
+  _editDirty = !!dirty;
+  var saveBtn = document.getElementById('btn-save');
+  if (saveBtn) saveBtn.disabled = !_editDirty;
+}
+
+function markEditBaseline() {
+  _editBaseline = getEditDraftState();
+  setEditDirty(false);
+}
+
+function refreshEditDirtyState() {
+  if (!_editBaseline) {
+    setEditDirty(false);
+    return;
+  }
+  setEditDirty(getEditDraftState() !== _editBaseline);
+}
 
 function scheduleAutoSave() {
   _autoSaveDirty = true;
@@ -825,6 +863,7 @@ function _doSave(opts) {
         setStatus(openHtml ? '已发布' : '已保存');
         updateAutoSaveLabel('保存于 '+hm);
       }
+      markEditBaseline();
       refreshAll();
       if (openHtml && data.url) window.open(data.url, '_blank');
       // 保存后继续停留在编辑态，更新文章列表高亮
@@ -895,14 +934,17 @@ function slugifyFilename(s) {
                 .replace(/^_|_$/g,'').substring(0,80);
 }
 document.getElementById('edit-title').addEventListener('input', function(){
-  if (!S.editIsNew) return;
-  var fn = document.getElementById('edit-filename');
-  if (fn.dataset.manual) return;
-  fn.value = slugifyFilename(this.value);
+  if (S.editIsNew) {
+    var fn = document.getElementById('edit-filename');
+    if (!fn.dataset.manual) fn.value = slugifyFilename(this.value);
+  }
+  refreshEditDirtyState();
 });
 document.getElementById('edit-filename').addEventListener('input', function(){
   this.dataset.manual = '1';
+  refreshEditDirtyState();
 });
+document.getElementById('edit-category').addEventListener('change', refreshEditDirtyState);
 
 // ── 右键菜单 ─────────────────────────────────────────────────────────
 var ctxTarget = null;
@@ -1359,6 +1401,7 @@ function onEditorInput() {
   clearTimeout(_previewTimer);
   _previewTimer = setTimeout(updatePreview, 120);
   updateEditorHighlight();
+  refreshEditDirtyState();
   histSnapshotDeferred();
   scheduleAutoSave();
 }
@@ -1377,6 +1420,7 @@ function updateEditorHighlight() {
   var hl = document.getElementById('editor-mirror');
   var ta = document.getElementById('edit-textarea');
   if (!hl || !ta) return;
+  syncMirrorMetrics();
   var lines = ta.value.split('\n');
   var HCL = ['hl-h1','hl-h2','hl-h3','hl-h4','hl-h5','hl-h6'];
   var html = lines.map(function(line) {
@@ -1395,16 +1439,29 @@ function updateEditorHighlight() {
     } else {
       cls = 'hl-norm';
     }
+    if (!inner) inner = '&nbsp;';
     return '<div style="line-height:22px"><span class="'+cls+'">'+inner+'</span></div>';
   }).join('');
   hl.innerHTML = html;
   hl.scrollTop = ta.scrollTop;
 }
 
+function syncMirrorMetrics() {
+  var hl = document.getElementById('editor-mirror');
+  var ta = document.getElementById('edit-textarea');
+  if (!hl || !ta) return;
+  // mirror 层按 textarea 的可视内容区尺寸对齐，避免软换行后错位
+  hl.style.width = ta.clientWidth + 'px';
+  hl.style.height = ta.clientHeight + 'px';
+}
+
 function syncMirrorScroll() {
   var hl = document.getElementById('editor-mirror');
   var ta = document.getElementById('edit-textarea');
-  if (hl && ta) hl.scrollTop = ta.scrollTop;
+  if (hl && ta) {
+    syncMirrorMetrics();
+    hl.scrollTop = ta.scrollTop;
+  }
 }
 
 // ── Undo / Redo ───────────────────────────────────────────────────────
@@ -1666,6 +1723,20 @@ document.getElementById('modal-rename').addEventListener('click', function(e){
 });
 document.getElementById('modal-move').addEventListener('click', function(e){
   if(e.target===this) closeMoveModal();
+});
+
+// ── IME composition 兜底 ──────────────────────────────────────────────
+// 部分浏览器在 compositionend 后不再触发 oninput，导致 mirror 停留在上屏前状态。
+// 此处仅做兜底：compositionend 后延一个 tick 刷新，确保 textarea.value 已提交。
+// 注意：不在 onEditorInput 内屏蔽合成期——若 compositionstart/end 不成对出现
+// （已知浏览器 bug），屏蔽会导致 _composing 卡住，后续所有输入全部失效。
+document.getElementById('edit-textarea').addEventListener('compositionend', function() {
+  setTimeout(onEditorInput, 0);
+});
+
+window.addEventListener('resize', function() {
+  syncMirrorMetrics();
+  syncMirrorScroll();
 });
 
 init();

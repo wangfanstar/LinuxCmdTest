@@ -14,7 +14,20 @@
       "Bash(export PATH=\"$PATH:/usr/bin:/usr/local/bin\")",
       "Bash(git push:*)",
       "Bash(wsl:*)",
-      "Bash(gcc --version)"
+      "Bash(gcc --version)",
+      "Bash(node:*)",
+      "Bash(wc:*)",
+      "Bash(chmod:*)",
+      "Bash(grep -rn simpleserver E:/MCP_PROJECT/wfserver/wfwebserver --include=Makefile --include=*.sh --include=*.md --include=*.yml --include=*.c --include=*.h)",
+      "Bash(git *)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "Bash(command -v make)",
+      "Read(//mingw64/**)",
+      "Read(//c/ProgramData/chocolatey/bin/**)",
+      "Read(//c/msys64/usr/**)",
+      "Bash(which gcc *)",
+      "Bash(ls /usr/bin/gcc*)"
     ]
   }
 }

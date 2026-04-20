@@ -283,6 +283,39 @@ static void wiki_fjs(FILE *fp, const char *s)
     fputc('"', fp);
 }
 
+/* 根据 category 深度计算相对路径前缀（供离线 file:// 访问用）
+   ""          → ""
+   "cat"       → "../"
+   "cat1/cat2" → "../../"  */
+static void wiki_rel_prefix(char *buf, size_t bufsz, const char *cat)
+{
+    buf[0] = '\0';
+    if (!cat || !cat[0]) return;
+    int depth = 1;
+    for (const char *p = cat; *p; p++) if (*p == '/') depth++;
+    size_t pos = 0;
+    for (int i = 0; i < depth && pos + 3 < bufsz; i++) {
+        buf[pos++] = '.'; buf[pos++] = '.'; buf[pos++] = '/';
+    }
+    buf[pos] = '\0';
+}
+
+/* 将 html_body 写入 fp，同时将 /wiki/uploads/ 替换为相对路径 */
+static void wiki_fwrite_body(FILE *fp, const char *body, const char *prefix)
+{
+    static const char nd[] = "/wiki/uploads/";
+    const size_t nl = sizeof(nd) - 1;
+    const char *p = body;
+    while (p && *p) {
+        const char *f = strstr(p, nd);
+        if (!f) { fputs(p, fp); break; }
+        if (f > p) fwrite(p, 1, (size_t)(f - p), fp);
+        fputs(prefix, fp);
+        fputs("uploads/", fp);
+        p = f + nl;
+    }
+}
+
 /* ── wiki_write_html_file ─────────────────────────────────── */
 
 static int wiki_write_html_file(const char *filepath,
@@ -291,6 +324,10 @@ static int wiki_write_html_file(const char *filepath,
 {
     FILE *fp = fopen(filepath, "wb");
     if (!fp) return -1;
+
+    /* 相对路径前缀，使 HTML 文件可离线用 file:// 打开 */
+    char rp[64];
+    wiki_rel_prefix(rp, sizeof(rp), category);
 
     fputs("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
           "<meta charset=\"UTF-8\">\n"
@@ -405,10 +442,13 @@ static int wiki_write_html_file(const char *filepath,
           ".ab h5::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)'.'counter(sc4)'.'counter(sc5)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
           "</style>\n</head>\n<body>\n", fp);
 
-    fputs("<nav class=\"topbar\">"
-          "<a href=\"/wiki/notewiki.html\">\u2190 NoteWiki</a>", fp);
+    fputs("<nav class=\"topbar\"><a href=\"", fp);
+    fputs(rp, fp);
+    fputs("notewiki.html\">\u2190 NoteWiki</a>", fp);
     if (category && category[0]) { fputs(" / ", fp); wiki_fhtml(fp, category); }
-    fputs(" <a class=\"edit-btn\" href=\"/wiki/notewiki.html?edit=", fp);
+    fputs(" <a class=\"edit-btn\" href=\"", fp);
+    fputs(rp, fp);
+    fputs("notewiki.html?edit=", fp);
     fputs(id, fp);
     fputs("\">\u270f \u7f16\u8f91</a>"
           "<button class=\"copy-btn\" id=\"copy-html-btn\" onclick=\"copyHtml()\">\u590d\u5236 HTML</button>"
@@ -429,7 +469,7 @@ static int wiki_write_html_file(const char *filepath,
     fputs("</h1>\n<div class=\"am\">\u66f4\u65b0\uff1a", fp);
     fputs(updated, fp);
     fputs("</div>\n<div class=\"ab\" id=\"article-body\">\n", fp);
-    if (html_body) fputs(html_body, fp);
+    if (html_body) wiki_fwrite_body(fp, html_body, rp);
     fputs("\n</div>\n</article>\n</div>\n"
           "<nav class=\"toc\" id=\"toc\">"
           "<div class=\"toc-top\">"
@@ -484,18 +524,23 @@ static int wiki_write_html_file(const char *filepath,
           "  copyText(document.getElementById('article-body').innerHTML,'\u2713 HTML \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f');\n"
           "}\n"
           "var _mdCache=null;\n"
-          "fetch('/api/wiki-read?id='+window.WIKI_CUR_ID)\n"
-          "  .then(function(r){return r.json();})\n"
-          "  .then(function(d){if(d.ok)_mdCache=d.content;})\n"
-          "  .catch(function(){});\n"
+          "if(window.location.protocol!=='file:'){\n"
+          "  fetch('/api/wiki-read?id='+window.WIKI_CUR_ID)\n"
+          "    .then(function(r){return r.json();})\n"
+          "    .then(function(d){if(d.ok)_mdCache=d.content;})\n"
+          "    .catch(function(){});\n"
+          "}\n"
           "function copyMd(){\n"
           "  if(_mdCache!==null){copyText(_mdCache,'\u2713 Markdown \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f');return;}\n"
-          "  showToast('\u5185\u5bb9\u52a0\u8f7d\u4e2d\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u2026');\n"
+          "  showToast(window.location.protocol==='file:'"
+          "    ?'\u79bb\u7ebf\u6a21\u5f0f\u4e0d\u652f\u6301\u590d\u5236 MD'"
+          "    :'\u5185\u5bb9\u52a0\u8f7d\u4e2d\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u2026');\n"
           "}\n"
           "</script>\n", fp);
 
-    fputs("<script src=\"/wiki/sidebar.js\"></script>\n"
-          "</body>\n</html>\n", fp);
+    fputs("<script src=\"", fp);
+    fputs(rp, fp);
+    fputs("sidebar.js\"></script>\n</body>\n</html>\n", fp);
 
     fclose(fp);
     return 0;

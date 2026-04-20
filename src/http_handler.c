@@ -2245,6 +2245,18 @@ static int wiki_write_html_file(const char *filepath,
           ".ab a{color:#4a90e2}\n"
           ".ab hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}\n"
           ".sec-num{color:#8b949e;font-weight:400;font-size:.9em;letter-spacing:.02em}\n"
+          ".ab{counter-reset:sc1 sc2 sc3 sc4 sc5 sc6}\n"
+          ".ab h1{counter-reset:sc2 sc3 sc4 sc5 sc6;counter-increment:sc1}\n"
+          ".ab h2{counter-reset:sc3 sc4 sc5 sc6;counter-increment:sc2}\n"
+          ".ab h3{counter-reset:sc4 sc5 sc6;counter-increment:sc3}\n"
+          ".ab h4{counter-reset:sc5 sc6;counter-increment:sc4}\n"
+          ".ab h5{counter-reset:sc6;counter-increment:sc5}\n"
+          ".ab h6{counter-increment:sc6}\n"
+          ".ab h1::before{content:counter(sc1)'. ';color:#8b949e;font-weight:400;font-size:.88em}\n"
+          ".ab h2::before{content:counter(sc1)'.'counter(sc2)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
+          ".ab h3::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
+          ".ab h4::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)'.'counter(sc4)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
+          ".ab h5::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)'.'counter(sc4)'.'counter(sc5)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
           "</style>\n</head>\n<body>\n", fp);
 
     /* ── 顶部导航栏 ── */

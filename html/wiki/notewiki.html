@@ -88,6 +88,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .art-content a{color:var(--accent)}
 .art-content hr{border:none;border-top:1px solid var(--border);margin:1.2em 0}
 .art-content del{color:var(--dim)}
+.art-content{counter-reset:sc1 sc2 sc3 sc4}
+.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}
+.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}
+.art-content h3{counter-reset:sc4;counter-increment:sc3}
+.art-content h4{counter-increment:sc4}
+.art-content h1::before{content:counter(sc1)". ";color:#8b949e;font-weight:400;font-size:.88em}
+.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#8b949e;font-weight:400;font-size:.88em}
+.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#8b949e;font-weight:400;font-size:.88em}
+.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#8b949e;font-weight:400;font-size:.88em}
 
 /* edit pane */
 #pane-edit{flex:1;display:none;flex-direction:column;overflow:hidden}

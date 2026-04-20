@@ -157,6 +157,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()">📁 分类</button>
       <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
       <button class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="一键更新所有文章的HTML">🔄</button>
+      <button class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被引用的图片">🗑</button>
     </div>
     <div class="sb-search">
       <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
@@ -1032,6 +1033,17 @@ function doMoveArticle() {
     } else setStatus('移动失败：'+(data.error||''));
   })
   .catch(function(e){ setStatus('请求失败：'+e.message); });
+}
+
+function cleanupUploads() {
+  if (!confirm('将删除 uploads 中所有未被任何文章引用的图片/文件，操作不可恢复，继续？')) return;
+  setStatus('清理中…');
+  fetch('/api/wiki-cleanup-uploads', {method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      setStatus(d.ok ? '✓ 已删除 '+d.deleted+' 个文件，保留 '+d.kept+' 个' : '失败：'+(d.error||''));
+    })
+    .catch(function(e){setStatus('请求失败：'+e.message);});
 }
 
 function rebuildAllHtml() {

@@ -189,20 +189,35 @@
     box.innerHTML = renderNode(tree, 0);
 
     // 折叠 / 展开
-    box.addEventListener('click', function (e) {
-      var tog = e.target.closest ? e.target.closest('.toc-tog') : null;
-      if (!tog) { // 兼容旧浏览器
-        var t = e.target; while (t && t !== box) { if (t.classList && t.classList.contains('toc-tog')) { tog = t; break; } t = t.parentNode; }
-      }
-      if (!tog) return;
-      e.preventDefault();
-      var cid  = tog.dataset.cid;
+    function tocToggle(tog) {
+      var cid  = tog.dataset ? tog.dataset.cid : tog.getAttribute('data-cid');
       var body = document.getElementById(cid);
       if (!body) return;
       var collapsed = body.style.display === 'none';
       body.style.display = collapsed ? '' : 'none';
-      tog.textContent   = collapsed ? '▾' : '▸';
+      tog.textContent = collapsed ? '▾' : '▸';
       tog.classList.toggle('open', collapsed);
+    }
+
+    function findParent(el, cls, stop) {
+      while (el && el !== stop) {
+        if (el.classList && el.classList.contains(cls)) return el;
+        el = el.parentNode;
+      }
+      return null;
+    }
+
+    box.addEventListener('click', function (e) {
+      // 点箭头：仅折叠，阻止链接跳转
+      var tog = findParent(e.target, 'toc-tog', box);
+      if (tog) { e.preventDefault(); tocToggle(tog); return; }
+
+      // 点标题文字或整行：折叠同时允许链接正常跳转
+      var row = findParent(e.target, 'toc-row', box);
+      if (row) {
+        var rowTog = row.querySelector('.toc-tog');
+        if (rowTog) tocToggle(rowTog);
+      }
     });
 
     // 滚动高亮

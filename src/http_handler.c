@@ -2200,7 +2200,7 @@ static int wiki_write_html_file(const char *filepath,
           ".toc.collapsed .toc-top{justify-content:center;padding:6px 0}\n"
           ".toc.collapsed .toc-top .panel-label{display:none}\n"
           ".toc-node{}\n"
-          ".toc-row{display:flex;align-items:center;gap:2px}\n"
+          ".toc-row{display:flex;align-items:center;gap:2px;cursor:pointer}\n"
           ".toc-tog{font-size:.6rem;color:#555;cursor:pointer;width:14px;text-align:center;"
                   "flex-shrink:0;user-select:none;padding:2px 0}\n"
           ".toc-tog:hover{color:#f0f6fc}\n"
@@ -2285,6 +2285,11 @@ static int wiki_write_html_file(const char *filepath,
           "</nav>\n"
           "</div>\n", fp);
 
+    /* ── WIKI_CUR_ID 必须在复制脚本之前赋值 ── */
+    fputs("<script>window.WIKI_CUR_ID=", fp);
+    wiki_fjs(fp, id ? id : "");
+    fputs(";</script>\n", fp);
+
     /* ── 复制功能脚本 ── */
     fputs("<script>\n"
           "/* toast：动态创建，不依赖 HTML 中预置的 div */\n"
@@ -2340,10 +2345,7 @@ static int wiki_write_html_file(const char *filepath,
           "</script>\n", fp);
 
     /* ── 侧栏渲染脚本（外链，避免 C 字符串转义问题） ── */
-    fputs("<script>window.WIKI_CUR_ID=", fp);
-    wiki_fjs(fp, id ? id : "");
-    fputs(";</script>\n"
-          "<script src=\"/wiki/sidebar.js\"></script>\n"
+    fputs("<script src=\"/wiki/sidebar.js\"></script>\n"
           "</body>\n</html>\n", fp);
 
     fclose(fp);
@@ -3018,6 +3020,104 @@ static void handle_api_wiki_mkdir(int client_fd, const char *body)
     char full_md[1024]; snprintf(full_md,sizeof(full_md),"%s/%s",WIKI_MD_DB,path);
     mkdir_p(full_md);
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
+}
+
+/* POST /api/wiki-cleanup-uploads — 删除 uploads 中未被任何 .md 引用的文件 */
+
+/* 简单字符串链表，用于存储引用的 uploads 相对路径 */
+typedef struct _strnode { char *s; struct _strnode *next; } _strnode_t;
+
+static void _strlist_add(_strnode_t **head, const char *s, size_t len)
+{
+    char *dup = malloc(len + 1);
+    if (!dup) return;
+    memcpy(dup, s, len); dup[len] = '\0';
+    _strnode_t *n = malloc(sizeof(_strnode_t));
+    if (!n) { free(dup); return; }
+    n->s = dup; n->next = *head; *head = n;
+}
+
+static int _strlist_has(_strnode_t *head, const char *s)
+{
+    while (head) { if (strcmp(head->s, s) == 0) return 1; head = head->next; }
+    return 0;
+}
+
+static void _strlist_free(_strnode_t *head)
+{
+    while (head) { _strnode_t *n = head->next; free(head->s); free(head); head = n; }
+}
+
+/* 递归扫描 md_db，从每个 .md 正文收集 /wiki/uploads/ 之后的路径 */
+static void collect_upload_refs(const char *dir, _strnode_t **refs)
+{
+    DIR *d = opendir(dir); if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024]; snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st; if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) { collect_upload_refs(child, refs); continue; }
+        size_t nl = strlen(de->d_name);
+        if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
+        FILE *fp = fopen(child, "r"); if (!fp) continue;
+        char skip[4096]; fgets(skip, sizeof(skip), fp); /* skip META */
+        strbuf_t buf = {0}; char tmp[8192]; size_t nr;
+        while ((nr = fread(tmp, 1, sizeof(tmp), fp)) > 0) sb_append(&buf, tmp, nr);
+        fclose(fp);
+        if (!buf.data) continue;
+        /* 查找所有 /wiki/uploads/ 引用，提取其后的路径 */
+        const char *marker = "/wiki/uploads/";
+        size_t mlen = strlen(marker);
+        const char *p = buf.data;
+        while ((p = strstr(p, marker)) != NULL) {
+            p += mlen;
+            const char *end = p;
+            while (*end && *end != ')' && *end != '"' && *end != '\'' && !isspace((unsigned char)*end)) end++;
+            size_t plen = (size_t)(end - p);
+            if (plen > 0 && plen < 768) _strlist_add(refs, p, plen);
+            p = end;
+        }
+        free(buf.data);
+    }
+    closedir(d);
+}
+
+/* 递归扫描 uploads 目录，删除未被引用的文件 */
+static void cleanup_unreferenced(const char *dir, const char *rel,
+                                  _strnode_t *refs, int *pdel, int *pkept)
+{
+    DIR *d = opendir(dir); if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024]; snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st; if (stat(child, &st) != 0) continue;
+        char relc[768];
+        if (rel[0]) snprintf(relc, sizeof(relc), "%s/%s", rel, de->d_name);
+        else        snprintf(relc, sizeof(relc), "%s", de->d_name);
+        if (S_ISDIR(st.st_mode)) {
+            cleanup_unreferenced(child, relc, refs, pdel, pkept); continue;
+        }
+        if (_strlist_has(refs, relc)) { (*pkept)++; }
+        else { unlink(child); (*pdel)++; LOG_INFO("cleanup_uploads: delete %s", child); }
+    }
+    closedir(d);
+}
+
+static void handle_api_wiki_cleanup_uploads(int client_fd)
+{
+    wiki_ensure_dirs();
+    _strnode_t *refs = NULL;
+    collect_upload_refs(WIKI_MD_DB, &refs);
+    int deleted = 0, kept = 0;
+    cleanup_unreferenced(WIKI_UPLOADS, "", refs, &deleted, &kept);
+    _strlist_free(refs);
+    char resp[128];
+    int rlen = snprintf(resp, sizeof(resp),
+                        "{\"ok\":true,\"deleted\":%d,\"kept\":%d}", deleted, kept);
+    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+    LOG_INFO("wiki_cleanup_uploads deleted=%d kept=%d", deleted, kept);
 }
 
 /* POST /api/wiki-upload */
@@ -4754,6 +4854,8 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                                              (size_t)content_length);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-cleanup-uploads") == 0) {
+            handle_api_wiki_cleanup_uploads(client_fd);
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");

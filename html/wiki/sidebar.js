@@ -248,4 +248,33 @@
       });
     }, { passive: true });
   }());
+
+  // ── 标题自动章节编号 ──────────────────────────────────────────────
+  (function addSectionNumbers() {
+    var ab = document.getElementById('article-body');
+    if (!ab) return;
+    var headings = Array.prototype.slice.call(ab.querySelectorAll('h1,h2,h3,h4,h5,h6'));
+    if (!headings.length) return;
+
+    // 找最小层级作为第一级，避免出现 0.1 这样的编号
+    var minLevel = 6;
+    headings.forEach(function (h) {
+      var l = parseInt(h.tagName[1], 10);
+      if (l < minLevel) minLevel = l;
+    });
+
+    var counters = [0, 0, 0, 0, 0, 0]; // 对应归一化后的 0~5 级
+
+    headings.forEach(function (h) {
+      var depth = parseInt(h.tagName[1], 10) - minLevel; // 0-based
+      counters[depth]++;
+      for (var i = depth + 1; i < counters.length; i++) counters[i] = 0;
+
+      var num = counters.slice(0, depth + 1).join('.');
+      var span = document.createElement('span');
+      span.className = 'sec-num';
+      span.textContent = num + '\u2002'; // en-space 分隔
+      h.insertBefore(span, h.firstChild);
+    });
+  }());
 })();

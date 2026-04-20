@@ -2201,7 +2201,7 @@ static int wiki_write_html_file(const char *filepath,
           ".toc.collapsed .toc-top .panel-label{display:none}\n"
           ".toc-node{}\n"
           ".toc-row{display:flex;align-items:center;gap:2px;cursor:pointer}\n"
-          ".toc-tog{font-size:.6rem;color:#555;cursor:pointer;width:14px;text-align:center;"
+          ".toc-tog{font-size:.65rem;color:#8b949e;cursor:pointer;width:14px;text-align:center;"
                   "flex-shrink:0;user-select:none;padding:2px 0}\n"
           ".toc-tog:hover{color:#f0f6fc}\n"
           ".toc-tog-sp{width:14px;flex-shrink:0}\n"
@@ -2244,6 +2244,7 @@ static int wiki_write_html_file(const char *filepath,
           ".ab ul,.ab ol{padding-left:1.5em;margin:.5em 0}\n"
           ".ab a{color:#4a90e2}\n"
           ".ab hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}\n"
+          ".sec-num{color:#8b949e;font-weight:400;font-size:.9em;letter-spacing:.02em}\n"
           "</style>\n</head>\n<body>\n", fp);
 
     /* ── 顶部导航栏 ── */

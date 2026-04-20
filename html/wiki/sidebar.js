@@ -131,36 +131,106 @@
     })
     .catch(function () {});
 
-  // ── 右侧本文目录（TOC） ───────────────────────────────────────────
+  // ── 右侧本文目录（TOC，支持层级缩进与折叠） ─────────────────────
   (function buildToc() {
     var ab  = document.getElementById('article-body');
     var box = document.getElementById('toc-body');
     var toc = document.getElementById('toc');
     if (!ab || !box || !toc) return;
 
-    var headings = ab.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    var headings = Array.prototype.slice.call(ab.querySelectorAll('h1,h2,h3,h4,h5,h6'));
     if (!headings.length) { toc.style.display = 'none'; return; }
 
-    var h = '';
-    headings.forEach(function (el, i) {
-      var level  = parseInt(el.tagName[1], 10);
-      var indent = (8 + (level - 1) * 12) + 'px';
-      el.id = 'toc-h-' + i;
-      h += '<a class="toc-item" style="padding-left:' + indent + '"'
-         + ' href="#toc-h-' + i + '">' + escH(el.textContent) + '</a>';
-    });
-    box.innerHTML = h;
+    // 给每个标题打上 id
+    headings.forEach(function (el, i) { el.id = 'toc-h-' + i; });
 
+    // 构建树形结构
+    function buildTree(items) {
+      var root = { children: [], level: 0 };
+      var stack = [root];
+      items.forEach(function (el, i) {
+        var level = parseInt(el.tagName[1], 10);
+        var node  = { el: el, idx: i, level: level, children: [] };
+        while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
+        stack[stack.length - 1].children.push(node);
+        stack.push(node);
+      });
+      return root;
+    }
+
+    // 渲染树节点（递归）
+    function renderNode(node, depth) {
+      var h = '';
+      node.children.forEach(function (child) {
+        var hasCh  = child.children.length > 0;
+        var indent = (6 + depth * 12) + 'px';
+        h += '<div class="toc-node">';
+        // 折叠按钮 + 链接行
+        h += '<div class="toc-row" style="padding-left:' + indent + '">';
+        if (hasCh) {
+          h += '<span class="toc-tog open" data-cid="toc-c-' + child.idx + '">▾</span>';
+        } else {
+          h += '<span class="toc-tog-sp"></span>';
+        }
+        h += '<a class="toc-item" data-idx="' + child.idx + '" href="#toc-h-' + child.idx + '">'
+           + escH(child.el.textContent) + '</a>';
+        h += '</div>';
+        if (hasCh) {
+          h += '<div class="toc-children" id="toc-c-' + child.idx + '">';
+          h += renderNode(child, depth + 1);
+          h += '</div>';
+        }
+        h += '</div>';
+      });
+      return h;
+    }
+
+    var tree = buildTree(headings);
+    box.innerHTML = renderNode(tree, 0);
+
+    // 折叠 / 展开
+    box.addEventListener('click', function (e) {
+      var tog = e.target.closest ? e.target.closest('.toc-tog') : null;
+      if (!tog) { // 兼容旧浏览器
+        var t = e.target; while (t && t !== box) { if (t.classList && t.classList.contains('toc-tog')) { tog = t; break; } t = t.parentNode; }
+      }
+      if (!tog) return;
+      e.preventDefault();
+      var cid  = tog.dataset.cid;
+      var body = document.getElementById(cid);
+      if (!body) return;
+      var collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      tog.textContent   = collapsed ? '▾' : '▸';
+      tog.classList.toggle('open', collapsed);
+    });
+
+    // 滚动高亮
     var content = document.querySelector('.content');
     if (!content) return;
     var links = box.querySelectorAll('.toc-item');
     content.addEventListener('scroll', function () {
-      var top = content.scrollTop;
+      var top    = content.scrollTop;
       var active = 0;
       headings.forEach(function (el, i) {
         if (el.offsetTop - content.offsetTop <= top + 80) active = i;
       });
-      links.forEach(function (lk, i) { lk.classList.toggle('active', i === active); });
+      links.forEach(function (lk) {
+        var on = parseInt(lk.dataset.idx, 10) === active;
+        lk.classList.toggle('active', on);
+        // 确保激活项的父级展开
+        if (on) {
+          var p = lk.parentNode;
+          while (p && p !== box) {
+            if (p.classList && p.classList.contains('toc-children') && p.style.display === 'none') {
+              p.style.display = '';
+              var tog2 = document.querySelector('[data-cid="' + p.id + '"]');
+              if (tog2) { tog2.textContent = '▾'; tog2.classList.add('open'); }
+            }
+            p = p.parentNode;
+          }
+        }
+      });
     }, { passive: true });
   }());
 })();

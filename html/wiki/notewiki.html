@@ -51,6 +51,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .btn-primary{background:var(--accent);color:#fff}
 .btn-secondary{background:#27334d;color:var(--text);border:1px solid var(--border2)}
 .btn-danger{background:#3a1a1a;color:var(--red);border:1px solid #5a2a2a}
+.btn-success{background:#1a3a2a;color:#3fb950;border:1px solid #2a5a3a}
 .btn-sm{padding:4px 9px;font-size:.74rem}
 
 /* main content */
@@ -155,6 +156,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <button class="btn btn-primary btn-sm" onclick="newArticle()">✚ 新建</button>
       <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()">📁 分类</button>
       <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
+      <button class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="一键更新所有文章的HTML">🔄</button>
     </div>
     <div class="sb-search">
       <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
@@ -189,7 +191,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <!-- edit -->
     <div id="pane-edit" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="edit-top">
-        <input type="text" id="edit-title" placeholder="文章标题…" spellcheck="false">
+        <input type="text" id="edit-title" placeholder="文章标题…" spellcheck="false" oninput="scheduleAutoSave()">
         <input type="text" id="edit-filename" placeholder="链接文件名（a-z 0-9 _ -）" title="保存为 .md/.html 的文件名，留空自动生成" spellcheck="false" style="display:none;max-width:200px">
         <select id="edit-category"><option value="">📁 根目录</option></select>
         <div class="view-toggle">
@@ -197,7 +199,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
           <button class="vt-btn"    id="vt-edit"  onclick="setViewMode('edit')"  title="仅编辑">✎</button>
           <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title="仅预览">👁</button>
         </div>
+        <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
         <button class="btn btn-primary btn-sm" onclick="saveArticle()">💾 保存</button>
+        <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并在新标签页打开已发布页面">📤 发布</button>
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
       <div class="edit-toolbar" id="edit-toolbar">
@@ -220,8 +224,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="openImgUpload()" title="插入图片">🖼</button>
         <button class="tb-btn" onclick="tb('table')"  title="表格">⊞</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
-        <div class="tb-sep"></div>
-        <button class="tb-btn" onclick="rebuildAllHtml()" title="重建所有导出HTML（修复旧版侧栏）">🔄 重建HTML</button>
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
@@ -665,6 +667,8 @@ function editCurrent() {
   if (!meta) return;
   S.editId = S.curId;
   S.editIsNew = false;
+  _autoSaveDirty = false;
+  updateAutoSaveLabel('');
   document.getElementById('edit-title').value = meta.title||'';
   document.getElementById('edit-filename').style.display = 'none';
   populateCatSelect(meta.category||'');
@@ -697,11 +701,45 @@ function populateCatSelect(selected) {
 }
 
 // ── Save ─────────────────────────────────────────────────────────────
-function saveArticle() {
+// ── Auto-save ────────────────────────────────────────────────────────
+var _autoSaveTimer = null;
+var _autoSaveDirty = false;
+
+function scheduleAutoSave() {
+  _autoSaveDirty = true;
+  if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(function(){ doAutoSave(); }, 30000);
+}
+
+function doAutoSave() {
+  if (!_autoSaveDirty) return;
   var title = document.getElementById('edit-title').value.trim();
-  var cat   = document.getElementById('edit-category').value;
+  if (!title || !S.editId) return; // 仅已有 id 的文章自动保存
+  _doSave({silent: true});
+}
+
+function updateAutoSaveLabel(msg) {
+  var el = document.getElementById('autosave-label');
+  if (el) el.textContent = msg || '';
+}
+
+// ── Save / Publish ────────────────────────────────────────────────────
+function saveArticle()   { _doSave({openHtml: false}); }
+function publishArticle(){ _doSave({openHtml: true});  }
+
+function _doSave(opts) {
+  opts = opts || {};
+  var silent  = !!opts.silent;
+  var openHtml = !!opts.openHtml;
+
+  var title   = document.getElementById('edit-title').value.trim();
+  var cat     = document.getElementById('edit-category').value;
   var content = document.getElementById('edit-textarea').value;
-  if (!title) { document.getElementById('edit-title').focus(); setStatus('请输入标题'); return; }
+
+  if (!title) {
+    if (!silent) { document.getElementById('edit-title').focus(); setStatus('请输入标题'); }
+    return;
+  }
 
   /* 新建时处理自定义文件名 */
   var useId = S.editId || '';
@@ -710,8 +748,8 @@ function saveArticle() {
     var fn = document.getElementById('edit-filename').value.trim();
     if (fn) {
       if (!/^[a-z0-9_-]+$/.test(fn)) {
-        setStatus('文件名只能含小写字母、数字、_ 和 -');
-        document.getElementById('edit-filename').focus(); return;
+        if (!silent) { setStatus('文件名只能含小写字母、数字、_ 和 -'); document.getElementById('edit-filename').focus(); }
+        return;
       }
       useId = fn;
       useForce = S.editForce;
@@ -720,37 +758,42 @@ function saveArticle() {
 
   var html = md2html(content);
   var meta = S.editId ? S.articles.find(function(a){return a.id===S.editId;}) : null;
-  /* 强制覆盖时传入原文章 created，让后端跳过重复检查 */
   var useCreated = meta ? (meta.created||'') : (S.editForceCreated||'');
 
-  setStatus('保存中…');
+  if (!silent) setStatus('保存中…');
+  else updateAutoSaveLabel('保存中…');
+
   fetch('/api/wiki-save', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      id: useId,
-      title: title,
-      category: cat,
-      content: content,
-      html: html,
-      created: useCreated,
-      force: useForce
-    })
+    body: JSON.stringify({id:useId, title:title, category:cat, content:content, html:html, created:useCreated, force:useForce})
   })
   .then(function(r){return r.json();})
   .then(function(data){
     if (data.ok) {
-      S.curId = data.id;
+      S.curId  = data.id;
       S.editId = data.id;
       S.editIsNew = false;
-      setStatus('已保存');
+      _autoSaveDirty = false;
+      var now = new Date(); var hm = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
+      if (silent) {
+        updateAutoSaveLabel('自动保存 '+hm);
+      } else {
+        setStatus(openHtml ? '已发布' : '已保存');
+        updateAutoSaveLabel('保存于 '+hm);
+      }
       refreshAll();
-      setTimeout(function(){ openArticle(data.id); }, 300);
+      if (openHtml && data.url) window.open(data.url, '_blank');
+      // 保存后继续停留在编辑态，更新文章列表高亮
     } else {
-      setStatus('保存失败：'+(data.error||''));
+      if (!silent) setStatus('保存失败：'+(data.error||''));
+      else updateAutoSaveLabel('保存失败');
     }
   })
-  .catch(function(e){ setStatus('请求失败：'+e.message); });
+  .catch(function(e){
+    if (!silent) setStatus('请求失败：'+e.message);
+    else updateAutoSaveLabel('保存失败');
+  });
 }
 
 // ── Delete ───────────────────────────────────────────────────────────
@@ -992,10 +1035,11 @@ function doMoveArticle() {
 }
 
 function rebuildAllHtml() {
-  setStatus('重建中…');
+  if (!confirm('将重新生成所有文章的 HTML，继续？')) return;
+  setStatus('更新中…');
   fetch('/api/wiki-rebuild-html')
     .then(function(r){ return r.json(); })
-    .then(function(d){ setStatus(d.ok ? '重建完成，共 '+d.rebuilt+' 篇' : '重建失败：'+(d.error||'')); })
+    .then(function(d){ setStatus(d.ok ? '✓ 已更新 '+d.rebuilt+' 篇文章 HTML' : '失败：'+(d.error||'')); })
     .catch(function(e){ setStatus('请求失败：'+e.message); });
 }
 
@@ -1125,6 +1169,7 @@ var _previewTimer = null;
 function onEditorInput() {
   clearTimeout(_previewTimer);
   _previewTimer = setTimeout(updatePreview, 120);
+  scheduleAutoSave();
 }
 
 function updatePreview() {

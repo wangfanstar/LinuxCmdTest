@@ -51,8 +51,15 @@ make
 .
 ├── src/
 │   ├── main.c              # 入口：参数解析、socket、accept 循环
-│   ├── http_handler.c/h    # HTTP 请求处理、静态文件服务、/api/ssh-exec 接口
-│   ├── ssh_exec.c/h        # SSH 批量命令执行（fork/pipe/execvpe）
+│   ├── http_handler.c/h    # HTTP 请求调度（路由分发）、静态文件服务
+│   ├── http_utils.c/h      # 共享工具：strbuf、JSON 解析/构建、HTTP 响应、URL 解码
+│   ├── report_api.c/h      # 报告与配置存档管理（/api/save-report、/api/reports 等）
+│   ├── register_api.c/h    # 注册表文件管理（/api/save-register-file 等）
+│   ├── wiki.c/h            # Wiki 引擎（Markdown→HTML、搜索、上传、CRUD）
+│   ├── svn_api.c/h         # SVN 日志查询（/api/svn-log）
+│   ├── ssh_api.c/h         # SSH 命令执行（单条 / 批量 / SSE 流式）
+│   ├── monitor.c/h         # 系统监控（CPU、内存、进程、在线用户统计）
+│   ├── ssh_exec.c/h        # SSH 底层执行引擎（fork/pipe/execvpe）
 │   ├── threadpool.c/h      # 线程池（生产者-消费者，循环队列）
 │   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
 ├── html/
@@ -60,11 +67,28 @@ make
 │   ├── linux_cmd_test.html  # SSH 命令行测试主页面
 │   ├── reports.html         # 已存档报告列表（调用 /api/reports）
 │   ├── TableParse.html      # 域段解析工具
-│   └── logviewer.html       # 日志查看器
+│   ├── logviewer.html       # 日志查看器
+│   └── wiki/               # Wiki 阅读 / 编辑页面
 ├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
 ├── Makefile
 └── README.md
 ```
+
+### 模块职责
+
+| 模块 | 职责 |
+|------|------|
+| `http_handler` | 路由调度：解析请求行，按路径分发到各 API 模块；提供静态文件服务 |
+| `http_utils` | 跨模块共享工具：动态字符串缓冲（`strbuf_t`）、JSON 读写、HTTP 响应发送、URL 解码、目录创建 |
+| `report_api` | 报告与 SSH 配置文件的存取、列表扫描、删除 |
+| `register_api` | 注册表 JSON/XML 文件的上传、重命名、删除及目录管理 |
+| `wiki` | Markdown 文章的读写、HTML 渲染、全文搜索、分类/重命名/移动、图片上传 |
+| `svn_api` | 调用系统 `svn log --xml`，透传 XML 结果给前端 |
+| `ssh_api` | 调用 `ssh_exec` 引擎，支持单条、批量、SSE 流式三种执行模式 |
+| `monitor` | 读取 `/proc/stat`、`/proc/meminfo`、`/proc/[pid]/stat` 等，输出 CPU / 内存 / 进程 / 在线用户 JSON |
+| `ssh_exec` | SSH 底层：`fork`+`pipe`+`execvpe` 驱动 OpenSSH 子进程，PTY 模式支持交互式设备 |
+| `threadpool` | 固定线程池，循环队列，`not_empty`/`not_full` 两个条件变量控制背压 |
+| `log` | 线程安全滚动日志：单文件 100 MB 切换，超限时整体前移并删最旧 |
 
 ## SSH 命令行测试
 

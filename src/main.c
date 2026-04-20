@@ -12,6 +12,7 @@
 #include "log.h"
 #include "threadpool.h"
 #include "http_handler.h"
+#include "monitor.h"
 
 /* ------------------------------------------------------------------ */
 /*  默认配置                                                            */

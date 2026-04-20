@@ -19,6 +19,13 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/log.c  \
        $(SRC_DIR)/threadpool.c \
        $(SRC_DIR)/http_handler.c \
+       $(SRC_DIR)/http_utils.c \
+       $(SRC_DIR)/report_api.c \
+       $(SRC_DIR)/register_api.c \
+       $(SRC_DIR)/wiki.c \
+       $(SRC_DIR)/svn_api.c \
+       $(SRC_DIR)/ssh_api.c \
+       $(SRC_DIR)/monitor.c \
        $(SRC_DIR)/ssh_exec.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)

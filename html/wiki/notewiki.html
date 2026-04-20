@@ -115,7 +115,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 /* editor split */
 .edit-panels{flex:1;display:flex;overflow:hidden;min-height:0}
 .edit-left{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
-.edit-left textarea{flex:1;background:#0a0e14;color:#c9d1d9;border:none;outline:none;resize:none;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:1.65;tab-size:2}
+.editor-wrap{position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column}
+.editor-mirror{position:absolute;inset:0;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:22px;tab-size:2;white-space:pre-wrap;word-break:break-word;pointer-events:none;overflow:hidden;background:#0a0e14;z-index:0}
+.editor-mirror .hl-h1{color:#79c0ff;font-size:1.18em;font-weight:700}
+.editor-mirror .hl-h2{color:#7ee787;font-size:1.07em;font-weight:700}
+.editor-mirror .hl-h3{color:#ffa657;font-size:0.97em;font-weight:700}
+.editor-mirror .hl-h4{color:#ff7b72;font-size:0.92em;font-weight:700}
+.editor-mirror .hl-h5,.editor-mirror .hl-h6{color:#d2a8ff;font-size:0.88em;font-weight:700}
+.editor-mirror .hl-fence{color:#8b949e}
+.editor-mirror .hl-quote{color:#8b949e;font-style:italic}
+.editor-mirror .hl-list{color:#e3b341}
+.editor-mirror .hl-hr{color:#6e7681}
+.editor-mirror .hl-norm{color:#c9d1d9}
+.edit-left textarea{position:relative;z-index:1;flex:1;background:transparent;color:transparent;caret-color:#c9d1d9;border:none;outline:none;resize:none;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:22px;tab-size:2}
 .edit-right{flex:1;overflow-y:auto;padding:16px 20px;min-width:0}
 .edit-right.hidden{display:none}
 .edit-left.full{flex:2}
@@ -188,6 +200,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="view-head">
         <div class="view-breadcrumb" id="view-breadcrumb"></div>
         <button class="btn btn-secondary btn-sm" onclick="editCurrent()">✏ 编辑</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportHtml()" title="导出独立 HTML 文件">⬇ HTML</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF">🖨 PDF</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCurrent()">🗑 删除</button>
         <a class="btn btn-secondary btn-sm" id="view-html-link" href="#" target="_blank">🔗 HTML</a>
       </div>
@@ -238,12 +252,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
           <div class="panel-label">Markdown</div>
-          <textarea id="edit-textarea" spellcheck="false"
-            oninput="onEditorInput()"
-            onkeydown="onEditorKey(event)"
-            ondrop="onEditorDrop(event)"
-            ondragover="event.preventDefault()"
-            onpaste="onEditorPaste(event)"></textarea>
+          <div class="editor-wrap">
+            <div id="editor-mirror" class="editor-mirror" aria-hidden="true"></div>
+            <textarea id="edit-textarea" spellcheck="false"
+              oninput="onEditorInput()"
+              onscroll="syncMirrorScroll()"
+              onkeydown="onEditorKey(event)"
+              ondrop="onEditorDrop(event)"
+              ondragover="event.preventDefault()"
+              onpaste="onEditorPaste(event)"></textarea>
+          </div>
         </div>
         <div class="edit-right art-content" id="edit-right">
           <div class="panel-label" style="margin:-16px -20px 14px">预览</div>
@@ -668,6 +686,7 @@ function doNewArticle() {
   showPane('edit');
   setViewMode(S.viewMode);
   updatePreview();
+  updateEditorHighlight();
   setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
@@ -691,6 +710,7 @@ function editCurrent() {
     .then(function(data){
       document.getElementById('edit-textarea').value = data.ok ? (data.content||'') : '';
       updatePreview();
+      updateEditorHighlight();
     });
 }
 
@@ -1064,6 +1084,133 @@ function rebuildAllHtml() {
     .catch(function(e){ setStatus('请求失败：'+e.message); });
 }
 
+// ── Export HTML ───────────────────────────────────────────────────────
+function exportHtml() {
+  if (!S.curId) return;
+  var meta = S.articles.find(function(a){ return a.id === S.curId; });
+  var title   = meta ? (meta.title   || 'untitled') : 'untitled';
+  var cat     = meta ? (meta.category|| '根目录')   : '根目录';
+  var updated = meta ? (meta.updated || '').replace('T',' ').replace('Z','') : '';
+  var body    = document.getElementById('view-content').innerHTML;
+
+  var css = [
+    'body{margin:0;background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
+    '.wrap{max-width:840px;margin:0 auto;padding:36px 28px 60px}',
+    'h1.art-title{font-size:1.7rem;color:#f0f6fc;margin-bottom:6px}',
+    '.meta{font-size:.75rem;color:#8b949e;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid #30363d}',
+    '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#f0f6fc;margin:1.3em 0 .5em;line-height:1.3}',
+    '.art-content h1{font-size:1.4rem}.art-content h2{font-size:1.2rem}.art-content h3{font-size:1.05rem}',
+    '.art-content p{margin:.7em 0;line-height:1.75}',
+    '.art-content pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;overflow-x:auto;margin:1em 0}',
+    '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.87em}',
+    '.art-content pre code{color:#c9d1d9}',
+    '.art-content :not(pre)>code{background:#1e2740;padding:1px 6px;border-radius:3px;color:#7ab8ff}',
+    '.art-content blockquote{border-left:3px solid #4a90e2;padding:.4em 1em;color:#8b949e;margin:1em 0}',
+    '.art-content table{border-collapse:collapse;width:100%;margin:1em 0}',
+    '.art-content th,.art-content td{border:1px solid #30363d;padding:6px 10px;text-align:left}',
+    '.art-content th{background:#161b22;font-weight:600;color:#f0f6fc}',
+    '.art-content img{max-width:100%;border-radius:4px}',
+    '.art-content ul,.art-content ol{padding-left:1.6em;margin:.6em 0}',
+    '.art-content li{margin:.2em 0}',
+    '.art-content a{color:#4a90e2}',
+    '.art-content hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}',
+    '.art-content del{color:#8b949e}',
+    '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
+    '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
+    '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
+    '.art-content h3{counter-reset:sc4;counter-increment:sc3}',
+    '.art-content h4{counter-increment:sc4}',
+    '.art-content h1::before{content:counter(sc1)". ";color:#8b949e;font-weight:400;font-size:.88em}',
+    '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#8b949e;font-weight:400;font-size:.88em}',
+    '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#8b949e;font-weight:400;font-size:.88em}',
+    '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#8b949e;font-weight:400;font-size:.88em}'
+  ].join('\n');
+
+  var html = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
+    + '<meta charset="UTF-8">\n'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    + '<title>' + escH(title) + '</title>\n'
+    + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
+    + '<div class="wrap">\n'
+    + '<h1 class="art-title">' + escH(title) + '</h1>\n'
+    + '<div class="meta">分类：' + escH(cat) + ' &nbsp;|&nbsp; 更新：' + escH(updated) + '</div>\n'
+    + '<div class="art-content">\n' + body + '\n</div>\n'
+    + '</div>\n</body>\n</html>';
+
+  var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = (meta ? meta.id : 'article') + '.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  setStatus('HTML 已导出');
+}
+
+// ── Export PDF (print dialog) ─────────────────────────────────────────
+function exportPdf() {
+  if (!S.curId) return;
+  var meta    = S.articles.find(function(a){ return a.id === S.curId; });
+  var title   = meta ? (meta.title   || 'untitled') : 'untitled';
+  var cat     = meta ? (meta.category|| '根目录')   : '根目录';
+  var updated = meta ? (meta.updated || '').replace('T',' ').replace('Z','') : '';
+  var body    = document.getElementById('view-content').innerHTML;
+
+  var css = [
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7}',
+    '.wrap{max-width:100%;padding:20px 28px}',
+    'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
+    '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
+    '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
+    '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
+    '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
+    '.art-content p{margin:.6em 0;line-height:1.75}',
+    '.art-content pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;padding:10px;overflow-x:auto;margin:.8em 0;font-size:.8rem;page-break-inside:avoid}',
+    '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.85em}',
+    '.art-content pre code{color:#1a1a2e}',
+    '.art-content :not(pre)>code{background:#f6f8fa;padding:1px 5px;border-radius:3px;color:#0550ae;border:1px solid #d0d7de}',
+    '.art-content blockquote{border-left:3px solid #0969da;padding:.4em 1em;color:#57606a;margin:.8em 0}',
+    '.art-content table{border-collapse:collapse;width:100%;margin:.8em 0;page-break-inside:avoid}',
+    '.art-content th,.art-content td{border:1px solid #d0d7de;padding:5px 9px;text-align:left}',
+    '.art-content th{background:#f6f8fa;font-weight:600}',
+    '.art-content img{max-width:100%;page-break-inside:avoid}',
+    '.art-content ul,.art-content ol{padding-left:1.5em;margin:.5em 0}',
+    '.art-content li{margin:.15em 0}',
+    '.art-content a{color:#0969da;text-decoration:none}',
+    '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
+    '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
+    '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
+    '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
+    '.art-content h3{counter-reset:sc4;counter-increment:sc3}',
+    '.art-content h4{counter-increment:sc4}',
+    '.art-content h1::before{content:counter(sc1)". ";color:#57606a;font-weight:400;font-size:.88em}',
+    '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
+    '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
+    '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
+    '@media print{body{font-size:11px}}'
+  ].join('\n');
+
+  var html = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
+    + '<meta charset="UTF-8">\n'
+    + '<title>' + escH(title) + '</title>\n'
+    + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
+    + '<div class="wrap">\n'
+    + '<h1 class="art-title">' + escH(title) + '</h1>\n'
+    + '<div class="meta">分类：' + escH(cat) + ' &nbsp;|&nbsp; 更新：' + escH(updated) + '</div>\n'
+    + '<div class="art-content">\n' + body + '\n</div>\n'
+    + '</div>\n'
+    + '<script>window.onload=function(){window.print();}<\/script>\n'
+    + '</body>\n</html>';
+
+  var w = window.open('', '_blank', 'width=860,height=720');
+  if (!w) { setStatus('请允许弹出窗口后重试'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
 // ── Upload Image ──────────────────────────────────────────────────────
 function openImgUpload() { document.getElementById('img-file-input').click(); }
 
@@ -1190,6 +1337,7 @@ var _previewTimer = null;
 function onEditorInput() {
   clearTimeout(_previewTimer);
   _previewTimer = setTimeout(updatePreview, 120);
+  updateEditorHighlight();
   scheduleAutoSave();
 }
 
@@ -1198,6 +1346,43 @@ function updatePreview() {
   var right = document.getElementById('edit-right');
   right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
                   + md2html(content);
+}
+
+// ── Editor syntax highlight (mirror overlay) ──────────────────────────
+function escM(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function updateEditorHighlight() {
+  var hl = document.getElementById('editor-mirror');
+  var ta = document.getElementById('edit-textarea');
+  if (!hl || !ta) return;
+  var lines = ta.value.split('\n');
+  var HCL = ['hl-h1','hl-h2','hl-h3','hl-h4','hl-h5','hl-h6'];
+  var html = lines.map(function(line) {
+    var cls, inner = escM(line);
+    var hm = line.match(/^(#{1,6})(\s|$)/);
+    if (hm) {
+      cls = HCL[hm[1].length - 1] || 'hl-h6';
+    } else if (/^```/.test(line)) {
+      cls = 'hl-fence';
+    } else if (/^>/.test(line)) {
+      cls = 'hl-quote';
+    } else if (/^(\s*)([-*+]|\d+\.) /.test(line)) {
+      cls = 'hl-list';
+    } else if (/^[-*_]{3,}\s*$/.test(line.trim())) {
+      cls = 'hl-hr';
+    } else {
+      cls = 'hl-norm';
+    }
+    return '<div style="line-height:22px"><span class="'+cls+'">'+inner+'</span></div>';
+  }).join('');
+  hl.innerHTML = html;
+  hl.scrollTop = ta.scrollTop;
+}
+
+function syncMirrorScroll() {
+  var hl = document.getElementById('editor-mirror');
+  var ta = document.getElementById('edit-textarea');
+  if (hl && ta) hl.scrollTop = ta.scrollTop;
 }
 
 // ── View mode toggle ──────────────────────────────────────────────────

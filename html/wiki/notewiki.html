@@ -286,6 +286,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
               oninput="onEditorInput()"
               onscroll="syncMirrorScroll()"
               onkeydown="onEditorKey(event)"
+              onkeyup="schedulePreviewScrollSync()"
+              onclick="schedulePreviewScrollSync()"
+              onselect="schedulePreviewScrollSync()"
               ondrop="onEditorDrop(event)"
               ondragover="event.preventDefault()"
               onpaste="onEditorPaste(event)"></textarea>
@@ -1544,8 +1547,53 @@ function updatePreview(content) {
   var right = document.getElementById('edit-right');
   if (!right || right.style.display === 'none') return;
   right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
-                  + md2html(content);
+                  + md2html(content, true);
   _lastPreviewContent = content;
+  requestAnimationFrame(function() { syncPreviewToCursor(); });
+}
+
+var _previewScrollTimer = null;
+function schedulePreviewScrollSync() {
+  clearTimeout(_previewScrollTimer);
+  /* 略长于预览节流(180ms)，避免在未换新预览 DOM 前滚动 */
+  _previewScrollTimer = setTimeout(syncPreviewToCursor, 220);
+}
+
+/** 根据编辑器光标所在行，将右侧预览滚动到对应块（需 md2html(..., true) 带 data-md-line） */
+function syncPreviewToCursor() {
+  var ta = document.getElementById('edit-textarea');
+  var right = document.getElementById('edit-right');
+  if (!ta || !right || right.style.display === 'none') return;
+  var pane = document.getElementById('pane-edit');
+  if (!pane || pane.style.display === 'none') return;
+
+  var text = ta.value;
+  var pos = ta.selectionStart;
+  var lineNum = text.substr(0, pos).split('\n').length;
+
+  var nodes = right.querySelectorAll('[data-md-line]');
+  if (!nodes.length) return;
+
+  var elBefore = null, maxL = -1;
+  var elAfter = null, minL = Infinity;
+  for (var k = 0; k < nodes.length; k++) {
+    var ln = parseInt(nodes[k].getAttribute('data-md-line'), 10);
+    if (isNaN(ln)) continue;
+    if (ln <= lineNum && ln >= maxL) {
+      maxL = ln;
+      elBefore = nodes[k];
+    }
+    if (ln >= lineNum && ln < minL) {
+      minL = ln;
+      elAfter = nodes[k];
+    }
+  }
+  var target = elBefore || elAfter || nodes[0];
+  try {
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } catch (e) {
+    target.scrollIntoView(false);
+  }
 }
 
 // ── Editor syntax highlight (mirror overlay) ──────────────────────────
@@ -1720,21 +1768,36 @@ function showPane(name) {
 }
 
 // ── Markdown Renderer ─────────────────────────────────────────────────
-function md2html(src) {
+/** syncLines：为预览同步滚动注入 data-md-line（1-based 源码行号） */
+function mdLineAttr(sync, line) {
+  return (sync && line > 0) ? ' data-md-line="'+line+'"' : '';
+}
+
+function md2html(src, syncLines) {
   if (!src) return '';
+  if (!syncLines) syncLines = false;
   src = src.replace(/\r\n?/g, '\n');
   var saved = [];
-  function save(h){ saved.push(h); return '\x00'+(saved.length-1)+'\x00'; }
+  var savedFenceLine = [];
 
-  // fenced code blocks
-  src = src.replace(/^```([\w-]*) *\n([\s\S]*?)^```\s*$/gm, function(_,lang,code){
+  function save(h, fenceLine) {
+    saved.push(h);
+    savedFenceLine.push(syncLines && fenceLine ? fenceLine : 0);
+    return '\x00'+(saved.length-1)+'\x00';
+  }
+
+  // fenced code blocks（记录围栏起始行用于 data-md-line）
+  src = src.replace(/^```([\w-]*) *\n([\s\S]*?)^```\s*$/gm, function(match, lang, code, offset) {
     var cls = lang ? ' class="lang-'+he(lang)+'"' : '';
     var label = lang ? he(lang) : '代码';
+    var ln = syncLines ? src.substring(0, offset).split('\n').length : 0;
     return save('<div class="code-block"><button class="copy-btn" title="复制'+label+'">⧉ 复制</button>'
-              + '<pre><code'+cls+'>'+he(code.replace(/\n$/,''))+'</code></pre></div>');
+              + '<pre><code'+cls+'>'+he(code.replace(/\n$/,''))+'</code></pre></div>', ln);
   });
-  // inline code
-  src = src.replace(/`([^`\n]+)`/g, function(_,c){ return save('<code>'+he(c)+'</code>'); });
+  // inline code（不参与块级锚点）
+  src = src.replace(/`([^`\n]+)`/g, function(_, c) {
+    return save('<code>'+he(c)+'</code>', 0);
+  });
 
   var lines = src.split('\n'), out = '', i = 0;
   while (i < lines.length) {
@@ -1745,36 +1808,50 @@ function md2html(src) {
     if (!L.trim()) { out+='\n'; i++; continue; }
     // heading
     var hm = L.match(/^(#{1,6}) (.*)/);
-    if (hm) { out+='<h'+hm[1].length+'>'+il(hm[2])+'</h'+hm[1].length+'>\n'; i++; continue; }
+    if (hm) {
+      var hln = syncLines ? (i + 1) : 0;
+      out += '<h'+hm[1].length + mdLineAttr(syncLines, hln) + '>' + il(hm[2]) + '</h'+hm[1].length+'>\n';
+      i++; continue;
+    }
     // HR
-    if (/^[-*_]{3,}\s*$/.test(L)) { out+='<hr>\n'; i++; continue; }
+    if (/^[-*_]{3,}\s*$/.test(L)) {
+      out += '<hr' + mdLineAttr(syncLines, syncLines ? i + 1 : 0) + '>\n';
+      i++; continue;
+    }
     // blockquote
     if (/^> ?/.test(L)) {
+      var bqln = syncLines ? (i + 1) : 0;
       var bq=[];
       while(i<lines.length && /^> ?/.test(lines[i])) bq.push(il(lines[i++].replace(/^> ?/,'')));
-      out+='<blockquote>'+bq.join('<br>')+'</blockquote>\n'; continue;
+      out += '<blockquote' + mdLineAttr(syncLines, bqln) + '>' + bq.join('<br>') + '</blockquote>\n';
+      continue;
     }
     // unordered list
     if (/^[-*+] /.test(L)) {
-      out+='<ul>';
-      while(i<lines.length && /^[-*+] /.test(lines[i]))
-        out+='<li>'+il(lines[i++].replace(/^[-*+] /,''))+'</li>';
-      out+='</ul>\n'; continue;
+      out += '<ul' + mdLineAttr(syncLines, syncLines ? i + 1 : 0) + '>';
+      while(i<lines.length && /^[-*+] /.test(lines[i])) {
+        var uln = syncLines ? (i + 1) : 0;
+        out += '<li' + mdLineAttr(syncLines, uln) + '>' + il(lines[i++].replace(/^[-*+] /,'')) + '</li>';
+      }
+      out += '</ul>\n'; continue;
     }
     // ordered list
     if (/^\d+\. /.test(L)) {
-      out+='<ol>';
-      while(i<lines.length && /^\d+\. /.test(lines[i]))
-        out+='<li>'+il(lines[i++].replace(/^\d+\. /,''))+'</li>';
-      out+='</ol>\n'; continue;
+      out += '<ol' + mdLineAttr(syncLines, syncLines ? i + 1 : 0) + '>';
+      while(i<lines.length && /^\d+\. /.test(lines[i])) {
+        var oln = syncLines ? (i + 1) : 0;
+        out += '<li' + mdLineAttr(syncLines, oln) + '>' + il(lines[i++].replace(/^\d+\. /,'')) + '</li>';
+      }
+      out += '</ol>\n'; continue;
     }
     // table: next line is separator
     if (L.includes('|') && i+1<lines.length && /^\|?[-: |]+\|/.test(lines[i+1])) {
+      var tbln = syncLines ? (i + 1) : 0;
       var hds=splitRow(L), aligns=splitRow(lines[i+1]).map(function(c){
         c=c.trim(); return /^:-+:$/.test(c)?'center':/-:$/.test(c)?'right':'';
       });
       i+=2;
-      out+='<table><thead><tr>'+hds.map(function(h,j){
+      out += '<table' + mdLineAttr(syncLines, tbln) + '><thead><tr>' + hds.map(function(h,j){
         return '<th'+(aligns[j]?' style="text-align:'+aligns[j]+'"':'')+'>'+il(h.trim())+'</th>';
       }).join('')+'</tr></thead><tbody>';
       while(i<lines.length && lines[i].trim() && lines[i].includes('|')){
@@ -1786,17 +1863,25 @@ function md2html(src) {
     }
     // paragraph: collect consecutive text lines
     var para=[];
+    var paraln = syncLines ? (i + 1) : 0;
     while(i<lines.length){
       var l=lines[i];
       if(!l.trim()||/^#{1,6} /.test(l)||/^> ?/.test(l)||/^[-*+] /.test(l)||/^\d+\. /.test(l)||/^[-*_]{3,}\s*$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
       para.push(il(l)); i++;
     }
-    if(para.length) out+='<p>'+para.join('<br>')+'</p>\n';
+    if(para.length) out += '<p' + mdLineAttr(syncLines, paraln) + '>' + para.join('<br>') + '</p>\n';
     else i++; // safety
   }
 
-  // restore
-  out = out.replace(/\x00(\d+)\x00/g, function(_,n){ return saved[+n]; });
+  // restore placeholders；代码块补上 data-md-line（与 fenced 行号一致）
+  out = out.replace(/\x00(\d+)\x00/g, function(_, n) {
+    var idx = +n;
+    var h = saved[idx];
+    var fl = savedFenceLine[idx];
+    if (syncLines && fl > 0 && /^<div class="code-block"/.test(h) && h.indexOf('data-md-line') < 0)
+      h = h.replace('<div class="code-block"', '<div class="code-block"' + mdLineAttr(true, fl));
+    return h;
+  });
   return out;
 }
 

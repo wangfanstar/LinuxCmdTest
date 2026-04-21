@@ -116,6 +116,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#8b949e;font-weight:400;font-size:.88em}
 .art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#8b949e;font-weight:400;font-size:.88em}
 .art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#8b949e;font-weight:400;font-size:.88em}
+.art-content .math-block{margin:1em 0;overflow-x:auto}
+.art-content .mermaid-block{margin:1em 0;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#101722;overflow:auto}
+.art-content .mermaid{min-width:220px}
+.art-content .footnotes{margin-top:1.6em;padding-top:.2em}
+.art-content .footnotes hr{margin:.7em 0 1em}
+.art-content .footnotes ol{padding-left:1.5em;margin:.2em 0}
+.art-content .footnotes li{color:var(--dim);font-size:.9em;line-height:1.7;margin:.35em 0}
+.art-content .fn-ref a{border-bottom:none;font-size:.8em;vertical-align:super}
+.art-content .fn-backref{margin-left:.35em;border-bottom:none}
 
 /* edit pane */
 #pane-edit{flex:1;display:none;flex-direction:column;overflow:hidden}
@@ -441,6 +450,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
        style="display:none" onchange="doUploadFile(this.files[0])">
 
 <script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)'], ['$', '$']],
+    displayMath: [['\\[', '\\]'], ['$$', '$$']]
+  },
+  svg: { fontCache: 'global' },
+  startup: { typeset: false }
+};
+</script>
+<script defer src="/wiki/vendor/mathjax/tex-svg-full.js"></script>
+<script defer src="/wiki/vendor/mermaid/mermaid.min.js"></script>
+
+<script>
 // ── State ────────────────────────────────────────────────────────────
 var S = {
   articles: [],
@@ -683,8 +705,13 @@ function openArticle(id) {
   fetch('/api/wiki-read?id='+encodeURIComponent(id))
     .then(function(r){return r.json();})
     .then(function(data){
-      if(data.ok) document.getElementById('view-content').innerHTML = md2html(data.content||'');
-      else document.getElementById('view-content').innerHTML = '<span style="color:var(--red)">读取失败</span>';
+      if(data.ok) {
+        var vc = document.getElementById('view-content');
+        vc.innerHTML = md2html(data.content||'');
+        scheduleRichRender(vc);
+      } else {
+        document.getElementById('view-content').innerHTML = '<span style="color:var(--red)">读取失败</span>';
+      }
     })
     .catch(function(){ document.getElementById('view-content').innerHTML='<span style="color:var(--red)">网络错误</span>'; });
 }
@@ -1646,6 +1673,7 @@ function updatePreview(content) {
   if (!right || right.style.display === 'none') return;
   right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
                   + md2html(content, !!S.previewAlign);
+  scheduleRichRender(right);
   _lastPreviewContent = previewKey;
   if (S.previewAlign)
     requestAnimationFrame(function() { syncPreviewToCursor(); });
@@ -1898,9 +1926,13 @@ function md2html(src, syncLines) {
 
   // fenced code blocks（记录围栏起始行用于 data-md-line）
   src = src.replace(/^```([\w-]*) *\n([\s\S]*?)^```\s*$/gm, function(match, lang, code, offset) {
+    var langName = (lang || '').trim().toLowerCase();
+    var ln = syncLines ? src.substring(0, offset).split('\n').length : 0;
+    if (langName === 'mermaid') {
+      return save('<div class="mermaid-block"><div class="mermaid">'+he(code.replace(/\n$/,''))+'</div></div>', ln);
+    }
     var cls = lang ? ' class="lang-'+he(lang)+'"' : '';
     var label = lang ? he(lang) : '代码';
-    var ln = syncLines ? src.substring(0, offset).split('\n').length : 0;
     return save('<div class="code-block"><button class="copy-btn" title="复制'+label+'">⧉ 复制</button>'
               + '<pre><code'+cls+'>'+he(code.replace(/\n$/,''))+'</code></pre></div>', ln);
   });
@@ -1910,17 +1942,80 @@ function md2html(src, syncLines) {
   });
 
   var lines = src.split('\n'), out = '', i = 0;
+  var footDefs = {};
+  var footDefOrder = [];
+  for (var fi = 0; fi < lines.length; fi++) {
+    var fm = lines[fi].match(/^\[\^([^\]\s]+)\]:\s*(.*)$/);
+    if (!fm) continue;
+    var fid = fm[1];
+    if (!Object.prototype.hasOwnProperty.call(footDefs, fid)) {
+      var chunks = [fm[2] || ''];
+      lines[fi] = '';
+      var fj = fi + 1;
+      while (fj < lines.length) {
+        var nl = lines[fj];
+        if (/^(?:\t| {2,})/.test(nl)) {
+          chunks.push(nl.replace(/^(?:\t| {2,})/, ''));
+          lines[fj] = '';
+          fj++;
+          continue;
+        }
+        if (!nl.trim()) {
+          chunks.push('');
+          lines[fj] = '';
+          fj++;
+          continue;
+        }
+        break;
+      }
+      footDefs[fid] = chunks.join('\n').replace(/\n+$/,'');
+      footDefOrder.push(fid);
+      fi = fj - 1;
+    } else {
+      lines[fi] = '';
+    }
+  }
+  var footCtx = { defs: footDefs, refOrder: [], refIndex: {} };
+
   while (i < lines.length) {
     var L = lines[i];
     // placeholder line
     if (/^\x00\d+\x00$/.test(L.trim())) { out+=L.trim()+'\n'; i++; continue; }
     // blank
     if (!L.trim()) { out+='\n'; i++; continue; }
+    // display math block ($$ ... $$)
+    if (/^\s*\$\$/.test(L)) {
+      var mln = syncLines ? (i + 1) : 0;
+      var math = '';
+      var single = L.match(/^\s*\$\$(.*?)\$\$\s*$/);
+      if (single) {
+        math = single[1] || '';
+        i++;
+      } else {
+        var first = L.replace(/^\s*\$\$\s*/, '');
+        var buf = [];
+        if (first) buf.push(first);
+        i++;
+        while (i < lines.length) {
+          var end = lines[i].match(/^(.*)\$\$\s*$/);
+          if (end) {
+            if (end[1]) buf.push(end[1]);
+            i++;
+            break;
+          }
+          buf.push(lines[i]);
+          i++;
+        }
+        math = buf.join('\n');
+      }
+      out += '<div class="math-block"' + mdLineAttr(syncLines, mln) + '>\\[' + he(math) + '\\]</div>\n';
+      continue;
+    }
     // heading
     var hm = L.match(/^(#{1,6}) (.*)/);
     if (hm) {
       var hln = syncLines ? (i + 1) : 0;
-      out += '<h'+hm[1].length + mdLineAttr(syncLines, hln) + '>' + il(hm[2]) + '</h'+hm[1].length+'>\n';
+      out += '<h'+hm[1].length + mdLineAttr(syncLines, hln) + '>' + il(hm[2], footCtx) + '</h'+hm[1].length+'>\n';
       i++; continue;
     }
     // HR
@@ -1932,7 +2027,7 @@ function md2html(src, syncLines) {
     if (/^> ?/.test(L)) {
       var bqln = syncLines ? (i + 1) : 0;
       var bq=[];
-      while(i<lines.length && /^> ?/.test(lines[i])) bq.push(il(lines[i++].replace(/^> ?/,'')));
+      while(i<lines.length && /^> ?/.test(lines[i])) bq.push(il(lines[i++].replace(/^> ?/,''), footCtx));
       out += '<blockquote' + mdLineAttr(syncLines, bqln) + '>' + bq.join('<br>') + '</blockquote>\n';
       continue;
     }
@@ -1941,7 +2036,7 @@ function md2html(src, syncLines) {
       out += '<ul' + mdLineAttr(syncLines, syncLines ? i + 1 : 0) + '>';
       while(i<lines.length && /^[-*+] /.test(lines[i])) {
         var uln = syncLines ? (i + 1) : 0;
-        out += '<li' + mdLineAttr(syncLines, uln) + '>' + il(lines[i++].replace(/^[-*+] /,'')) + '</li>';
+        out += '<li' + mdLineAttr(syncLines, uln) + '>' + il(lines[i++].replace(/^[-*+] /,''), footCtx) + '</li>';
       }
       out += '</ul>\n'; continue;
     }
@@ -1950,7 +2045,7 @@ function md2html(src, syncLines) {
       out += '<ol' + mdLineAttr(syncLines, syncLines ? i + 1 : 0) + '>';
       while(i<lines.length && /^\d+\. /.test(lines[i])) {
         var oln = syncLines ? (i + 1) : 0;
-        out += '<li' + mdLineAttr(syncLines, oln) + '>' + il(lines[i++].replace(/^\d+\. /,'')) + '</li>';
+        out += '<li' + mdLineAttr(syncLines, oln) + '>' + il(lines[i++].replace(/^\d+\. /,''), footCtx) + '</li>';
       }
       out += '</ol>\n'; continue;
     }
@@ -1962,11 +2057,11 @@ function md2html(src, syncLines) {
       });
       i+=2;
       out += '<table' + mdLineAttr(syncLines, tbln) + '><thead><tr>' + hds.map(function(h,j){
-        return '<th'+(aligns[j]?' style="text-align:'+aligns[j]+'"':'')+'>'+il(h.trim())+'</th>';
+        return '<th'+(aligns[j]?' style="text-align:'+aligns[j]+'"':'')+'>'+il(h.trim(), footCtx)+'</th>';
       }).join('')+'</tr></thead><tbody>';
       while(i<lines.length && lines[i].trim() && lines[i].includes('|')){
         out+='<tr>'+splitRow(lines[i++]).map(function(c,j){
-          return '<td'+(aligns[j]?' style="text-align:'+aligns[j]+'"':'')+'>'+il(c.trim())+'</td>';
+          return '<td'+(aligns[j]?' style="text-align:'+aligns[j]+'"':'')+'>'+il(c.trim(), footCtx)+'</td>';
         }).join('')+'</tr>';
       }
       out+='</tbody></table>\n'; continue;
@@ -1977,7 +2072,7 @@ function md2html(src, syncLines) {
     while(i<lines.length){
       var l=lines[i];
       if(!l.trim()||/^#{1,6} /.test(l)||/^> ?/.test(l)||/^[-*+] /.test(l)||/^\d+\. /.test(l)||/^[-*_]{3,}\s*$/.test(l.trim())||/^\x00\d+\x00$/.test(l)) break;
-      para.push(il(l)); i++;
+      para.push(il(l, footCtx)); i++;
     }
     if(para.length) out += '<p' + mdLineAttr(syncLines, paraln) + '>' + para.join('<br>') + '</p>\n';
     else i++; // safety
@@ -1992,23 +2087,133 @@ function md2html(src, syncLines) {
       h = h.replace('<div class="code-block"', '<div class="code-block"' + mdLineAttr(true, fl));
     return h;
   });
+
+  var footRenderOrder = footCtx.refOrder.slice();
+  footDefOrder.forEach(function(fid){
+    if (footRenderOrder.indexOf(fid) < 0) footRenderOrder.push(fid);
+  });
+  if (footRenderOrder.length) {
+    out += '<section class="footnotes"><hr><ol>';
+    footRenderOrder.forEach(function(fid, idx){
+      var def = footDefs[fid];
+      if (def == null) return;
+      var aid = footAnchorId(fid);
+      var n = footCtx.refIndex[fid] || (idx + 1);
+      var body = def.split('\n').map(function(line){ return il(line, footCtx); }).join('<br>');
+      out += '<li id="fn-' + aid + '" value="' + n + '">' + body
+          + ' <a class="fn-backref" href="#fnref-' + aid + '" title="返回正文">↩</a></li>';
+    });
+    out += '</ol></section>\n';
+  }
   return out;
+}
+
+var _richRenderTimer = null;
+var _mermaidReady = false;
+var _richRetryCount = 0;
+
+function scheduleRichRender(root) {
+  clearTimeout(_richRenderTimer);
+  _richRenderTimer = setTimeout(function() { renderMathAndMermaid(root); }, 40);
+}
+
+function renderMathAndMermaid(root) {
+  if (!root) return;
+  var hasMJ = !!(window.MathJax && window.MathJax.typesetPromise);
+  var hasMermaid = !!window.mermaid;
+
+  if (!hasMJ && !hasMermaid) {
+    if (_richRetryCount < 20) {
+      _richRetryCount++;
+      setTimeout(function() { renderMathAndMermaid(root); }, 250);
+    }
+    return;
+  }
+  _richRetryCount = 0;
+
+  if (hasMJ) {
+    try { if (window.MathJax.typesetClear) window.MathJax.typesetClear([root]); } catch (e) {}
+    window.MathJax.typesetPromise([root]).catch(function(){});
+  }
+
+  if (hasMermaid) {
+    if (!_mermaidReady) {
+      try {
+        window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+        _mermaidReady = true;
+      } catch (e) {}
+    }
+    var nodes = root.querySelectorAll('.mermaid');
+    if (nodes.length) {
+      try {
+        nodes.forEach(function(n){ n.removeAttribute('data-processed'); });
+        window.mermaid.run({ nodes: Array.prototype.slice.call(nodes) });
+      } catch (e) {}
+    }
+  }
 }
 
 function splitRow(row){ return row.replace(/^\||\|$/g,'').split('|'); }
 
 function he(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function il(s){
+function footAnchorId(id){ return String(id||'').replace(/[^\w-]/g,'_'); }
+
+function il(s, footCtx){
   var ilsaved = [], ilph = function(v){ ilsaved.push(v); return '\x01'+(ilsaved.length-1)+'\x01'; };
+  var mathsaved = [], maph = function(v){ mathsaved.push(v); return '\x02'+(mathsaved.length-1)+'\x02'; };
   s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, function(_,alt,url){ return ilph('<img src="'+url+'" alt="'+alt+'" style="max-width:100%">'); });
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_,txt,url){ return ilph('<a href="'+url+'" target="_blank">'+txt+'</a>'); });
+  if (footCtx && footCtx.defs) {
+    s = s.replace(/\[\^([^\]\s]+)\]/g, function(all, fid){
+      if (!Object.prototype.hasOwnProperty.call(footCtx.defs, fid)) return all;
+      var idx = footCtx.refIndex[fid];
+      if (!idx) {
+        footCtx.refOrder.push(fid);
+        idx = footCtx.refOrder.length;
+        footCtx.refIndex[fid] = idx;
+      }
+      var aid = footAnchorId(fid);
+      return ilph('<sup class="fn-ref" id="fnref-'+aid+'"><a href="#fn-'+aid+'">['+idx+']</a></sup>');
+    });
+  }
+  s = (function(raw) {
+    var out = '', i = 0;
+    while (i < raw.length) {
+      if (raw[i] === '\\' && i + 1 < raw.length && raw[i + 1] === '$') {
+        out += '\\$';
+        i += 2;
+        continue;
+      }
+      if (raw[i] !== '$' || (i + 1 < raw.length && raw[i + 1] === '$')) {
+        out += raw[i++];
+        continue;
+      }
+      var j = i + 1;
+      while (j < raw.length) {
+        if (raw[j] === '$' && raw[j - 1] !== '\\') break;
+        j++;
+      }
+      if (j >= raw.length) {
+        out += raw[i++];
+        continue;
+      }
+      var tex = raw.slice(i + 1, j);
+      if (tex.trim()) out += maph(tex);
+      else out += raw.slice(i, j + 1);
+      i = j + 1;
+    }
+    return out;
+  })(s);
   s = s.replace(/\*\*\*([^*\n]+)\*\*\*/g,'<strong><em>$1</em></strong>');
   s = s.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
   s = s.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
   s = s.replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
   s = s.replace(/_([^_\n]+)_/g,'<em>$1</em>');
   s = s.replace(/~~([^~\n]+)~~/g,'<del>$1</del>');
+  s = s.replace(/\x02(\d+)\x02/g, function(_,n){
+    return '<span class="math-inline">\\(' + he(mathsaved[+n]) + '\\)</span>';
+  });
   s = s.replace(/\x01(\d+)\x01/g, function(_,n){ return ilsaved[+n]; });
   return s;
 }

@@ -266,6 +266,51 @@
     document.head.appendChild(s);
   }());
 
+  // ── 公式/流程图渲染（MathJax + Mermaid）────────────────────────────
+  (function renderMathAndMermaid() {
+    var root = document.getElementById('article-body');
+    if (!root) return;
+    var mermaidReady = false;
+    var tries = 0;
+
+    function run() {
+      var hasMJ = !!(window.MathJax && window.MathJax.typesetPromise);
+      var hasMermaid = !!window.mermaid;
+      if (!hasMJ && !hasMermaid) {
+        if (tries < 20) {
+          tries++;
+          setTimeout(run, 250);
+        }
+        return;
+      }
+
+      if (hasMJ) {
+        try {
+          if (window.MathJax.typesetClear) window.MathJax.typesetClear([root]);
+        } catch (e) {}
+        window.MathJax.typesetPromise([root]).catch(function () {});
+      }
+
+      if (hasMermaid) {
+        if (!mermaidReady) {
+          try {
+            window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+            mermaidReady = true;
+          } catch (e) {}
+        }
+        var nodes = root.querySelectorAll('.mermaid');
+        if (nodes.length) {
+          try {
+            nodes.forEach(function (n) { n.removeAttribute('data-processed'); });
+            window.mermaid.run({ nodes: Array.prototype.slice.call(nodes) });
+          } catch (e) {}
+        }
+      }
+    }
+
+    run();
+  }());
+
   // ── 打印样式（Ctrl+P）：隐藏顶栏与双栏目录，正文多页展开 ─────────────
   (function injectWikiPrintCss() {
     if (!document.getElementById('article-body')) return;

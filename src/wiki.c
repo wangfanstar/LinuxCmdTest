@@ -542,6 +542,16 @@ static int wiki_write_html_file(const char *filepath,
           ".ab a{color:#58a6ff;text-decoration:none;border-bottom:1px solid rgba(88,166,255,.35)}\n"
           ".ab a:hover{color:#79c0ff;border-bottom-color:#79c0ff}\n"
           ".ab hr{border:none;border-top:1px solid #30363d;margin:1.4em 0;opacity:.9}\n"
+          ".ab .math-block{margin:1em 0;overflow-x:auto}\n"
+          ".ab .mermaid-block{margin:1em 0;padding:10px 12px;border:1px solid #30363d;"
+              "border-radius:6px;background:#101722;overflow:auto}\n"
+          ".ab .mermaid{min-width:220px}\n"
+          ".ab .footnotes{margin-top:1.6em;padding-top:.2em}\n"
+          ".ab .footnotes hr{margin:.7em 0 1em}\n"
+          ".ab .footnotes ol{padding-left:1.5em;margin:.2em 0}\n"
+          ".ab .footnotes li{color:#8b949e;font-size:.9em;line-height:1.7;margin:.35em 0}\n"
+          ".ab .fn-ref a{border-bottom:none;font-size:.8em;vertical-align:super}\n"
+          ".ab .fn-backref{margin-left:.35em;border-bottom:none}\n"
           ".sec-num{color:#8b949e;font-weight:400;font-size:.9em;letter-spacing:.02em}\n"
           ".ab{counter-reset:sc1 sc2 sc3 sc4 sc5 sc6}\n"
           ".ab h1{counter-reset:sc2 sc3 sc4 sc5 sc6;counter-increment:sc1}\n"
@@ -680,7 +690,19 @@ static int wiki_write_html_file(const char *filepath,
           "});\n"
           "</script>\n", fp);
 
-    fputs("<script src=\"", fp);
+    fputs("<script>\n"
+          "window.MathJax={"
+          "tex:{inlineMath:[['\\\\(','\\\\)'],['$','$']],displayMath:[['\\\\[','\\\\]'],['$$','$$']]},"
+          "svg:{fontCache:'global'},startup:{typeset:false}"
+          "};\n"
+          "</script>\n"
+          "<script defer src=\"", fp);
+    fputs(rp, fp);
+    fputs("vendor/mathjax/tex-svg-full.js\"></script>\n"
+          "<script defer src=\"", fp);
+    fputs(rp, fp);
+    fputs("vendor/mermaid/mermaid.min.js\"></script>\n"
+          "<script src=\"", fp);
     fputs(rp, fp);
     fputs("sidebar.js\"></script>\n</body>\n</html>\n", fp);
 

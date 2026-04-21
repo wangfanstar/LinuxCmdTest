@@ -25,6 +25,10 @@
 
 static void wiki_rewrite_html(const char *id, const char *title,
                                const char *cat, const char *updated);
+static void rmdir_recursive(const char *path);
+typedef struct _strnode { char *s; struct _strnode *next; } _strnode_t;
+static void _strlist_add(_strnode_t **head, const char *s, size_t len);
+static void _strlist_free(_strnode_t *head);
 
 /* ── 内部工具 ─────────────────────────────────────────────── */
 
@@ -316,6 +320,91 @@ static void wiki_fwrite_body(FILE *fp, const char *body, const char *prefix)
     }
 }
 
+static int wiki_copy_file(const char *src, const char *dst)
+{
+    FILE *in = fopen(src, "rb");
+    if (!in) return -1;
+    FILE *out = fopen(dst, "wb");
+    if (!out) { fclose(in); return -1; }
+    char buf[65536];
+    size_t nr;
+    while ((nr = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, nr, out) != nr) { fclose(in); fclose(out); return -1; }
+    }
+    fclose(in);
+    fclose(out);
+    return 0;
+}
+
+static int wiki_send_attachment_file(int fd, const char *filepath, const char *download_name)
+{
+    struct stat st;
+    if (stat(filepath, &st) < 0 || S_ISDIR(st.st_mode)) return -1;
+    int file_fd = open(filepath, O_RDONLY);
+    if (file_fd < 0) return -1;
+
+    char header[1024];
+    int hlen = snprintf(header, sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/zip\r\n"
+        "Content-Disposition: attachment; filename=\"%s\"\r\n"
+        "Content-Length: %ld\r\n"
+        "Cache-Control: no-store\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        download_name, (long)st.st_size);
+    write(fd, header, hlen);
+
+    char buf[65536];
+    ssize_t n;
+    while ((n = read(file_fd, buf, sizeof(buf))) > 0) write(fd, buf, (size_t)n);
+    close(file_fd);
+    return 0;
+}
+
+static void wiki_collect_upload_refs_from_md(const char *md, _strnode_t **refs)
+{
+    if (!md) return;
+    const char *marker = "/wiki/uploads/";
+    size_t mlen = strlen(marker);
+    const char *p = md;
+    while ((p = strstr(p, marker)) != NULL) {
+        p += mlen;
+        const char *end = p;
+        while (*end && *end != ')' && *end != '"' && *end != '\'' &&
+               !isspace((unsigned char)*end)) end++;
+        size_t len = (size_t)(end - p);
+        if (len > 0 && len < 768 && strstr(p, "..") == NULL && *p != '/') {
+            _strlist_add(refs, p, len);
+        }
+        p = end;
+    }
+}
+
+/* ZIP 导出：把 /wiki/uploads/... 写成相对路径 assets/... */
+static void wiki_md_rewrite_uploads_to_assets(strbuf_t *sb)
+{
+    if (!sb || !sb->data || sb->len == 0) return;
+    static const char nd[] = "/wiki/uploads/";
+    const size_t nl = sizeof(nd) - 1;
+    strbuf_t out = {0};
+    const char *p = sb->data;
+    for (;;) {
+        const char *f = strstr(p, nd);
+        if (!f) {
+            sb_append(&out, p, strlen(p));
+            break;
+        }
+        if (f > p) sb_append(&out, p, (size_t)(f - p));
+        SB_LIT(&out, "assets/");
+        p = f + nl;
+    }
+    free(sb->data);
+    sb->data = out.data;
+    sb->len = out.len;
+}
+
 /* ── wiki_write_html_file ─────────────────────────────────── */
 
 static int wiki_write_html_file(const char *filepath,
@@ -407,26 +496,52 @@ static int wiki_write_html_file(const char *filepath,
                    "padding:3px 10px;border:1px solid #30363d;border-radius:5px;"
                    "cursor:pointer;white-space:nowrap;margin-left:6px}\n"
           ".copy-btn:hover{background:#21262d;color:#f0f6fc;border-color:#8b949e}\n"
+          ".ab .code-block{position:relative;margin:1em 0}\n"
+          ".ab .code-block pre{margin:0}\n"
+          ".ab .code-block .copy-btn{position:absolute;top:7px;right:9px;"
+              "padding:2px 9px;font-size:.7rem;line-height:1.5;"
+              "background:#1e2740;color:#8b949e;border:1px solid #30363d;"
+              "border-radius:4px;cursor:pointer;opacity:0;"
+              "transition:opacity .15s,color .15s,border-color .15s;"
+              "z-index:2;white-space:nowrap;margin-left:0}\n"
+          ".ab .code-block:hover .copy-btn{opacity:1}\n"
+          ".ab .code-block .copy-btn:hover{background:#1e2740;color:#f0f6fc;border-color:#8b949e}\n"
+          ".ab .code-block .copy-btn.copied{color:#3fb950;border-color:#2a5a3a;opacity:1}\n"
           "h1.at{font-size:1.75rem;color:#f0f6fc;margin-bottom:6px}\n"
           ".am{font-size:.75rem;color:#8b949e;padding-bottom:14px;"
               "border-bottom:1px solid #30363d;margin-bottom:24px}\n"
-          ".ab h1,.ab h2,.ab h3,.ab h4{color:#f0f6fc;margin:1.3em 0 .5em}\n"
+          ".ab h1,.ab h2,.ab h3,.ab h4,.ab h5,.ab h6{margin:1.3em 0 .5em;line-height:1.35}\n"
+          ".ab h1{color:#79c0ff}\n"
+          ".ab h2{color:#7ee787}\n"
+          ".ab h3{color:#ffa657}\n"
+          ".ab h4{color:#ff7b72}\n"
+          ".ab h5,.ab h6{color:#d2a8ff}\n"
           ".ab p{margin:.7em 0}\n"
-          ".ab pre{background:#161b22;border:1px solid #30363d;border-radius:6px;"
-                  "padding:12px;overflow-x:auto;margin:1em 0}\n"
-          ".ab code{font-family:monospace;font-size:.88em}\n"
+          ".ab .code-block pre,.ab pre{background:#0d1117;border:1px solid #30363d;"
+                  "border-left:3px solid #3f6fb2;border-radius:6px;padding:12px 14px;"
+                  "overflow-x:auto;margin:1em 0}\n"
+          ".ab code{font-family:ui-monospace,'SFMono-Regular',Consolas,monospace;font-size:.88em}\n"
           ".ab pre code{color:#c9d1d9}\n"
-          ".ab :not(pre)>code{background:#1e2740;padding:1px 5px;"
-                             "border-radius:3px;color:#7ab8ff}\n"
-          ".ab blockquote{border-left:3px solid #4a90e2;padding:.3em 1em;"
-                         "color:#8b949e;margin:1em 0}\n"
+          ".ab :not(pre)>code{background:rgba(210,153,34,.14);padding:2px 7px;"
+                             "border-radius:4px;color:#ffa657;border:1px solid rgba(210,153,34,.38)}\n"
+          ".ab strong{color:#f0f6fc;font-weight:700}\n"
+          ".ab em{color:#c4d6ec;font-style:italic}\n"
+          ".ab strong em,.ab em strong{color:#ffdfa8}\n"
+          ".ab del{color:#8b949e;text-decoration:line-through}\n"
+          ".ab blockquote{background:rgba(74,144,226,.08);border-left:4px solid #4a90e2;"
+                         "padding:.55em 1em .55em 1.1em;color:#9fb0c3;margin:1em 0;"
+                         "border-radius:0 6px 6px 0}\n"
           ".ab table{border-collapse:collapse;width:100%;margin:1em 0}\n"
+          ".ab tbody tr:nth-child(even){background:rgba(110,118,129,.06)}\n"
           ".ab th,.ab td{border:1px solid #30363d;padding:6px 10px;text-align:left}\n"
           ".ab th{background:#161b22;font-weight:600;color:#f0f6fc}\n"
           ".ab img{max-width:100%;border-radius:4px}\n"
           ".ab ul,.ab ol{padding-left:1.5em;margin:.5em 0}\n"
-          ".ab a{color:#4a90e2}\n"
-          ".ab hr{border:none;border-top:1px solid #30363d;margin:1.2em 0}\n"
+          ".ab ul li::marker{color:#e3b341}\n"
+          ".ab ol li::marker{color:#79c0ff}\n"
+          ".ab a{color:#58a6ff;text-decoration:none;border-bottom:1px solid rgba(88,166,255,.35)}\n"
+          ".ab a:hover{color:#79c0ff;border-bottom-color:#79c0ff}\n"
+          ".ab hr{border:none;border-top:1px solid #30363d;margin:1.4em 0;opacity:.9}\n"
           ".sec-num{color:#8b949e;font-weight:400;font-size:.9em;letter-spacing:.02em}\n"
           ".ab{counter-reset:sc1 sc2 sc3 sc4 sc5 sc6}\n"
           ".ab h1{counter-reset:sc2 sc3 sc4 sc5 sc6;counter-increment:sc1}\n"
@@ -451,8 +566,8 @@ static int wiki_write_html_file(const char *filepath,
     fputs("notewiki.html?edit=", fp);
     fputs(id, fp);
     fputs("\">\u270f \u7f16\u8f91</a>"
-          "<button class=\"copy-btn\" id=\"copy-html-btn\" onclick=\"copyHtml()\">\u590d\u5236 HTML</button>"
-          "<button class=\"copy-btn\" id=\"copy-md-btn\" onclick=\"copyMd()\">\u590d\u5236 MD</button>"
+          "<button class=\"copy-btn\" id=\"export-md-btn\" onclick=\"exportMdZip()\">\u5bfc\u51fa MD ZIP</button>"
+          "<button class=\"copy-btn\" id=\"export-pdf-btn\" onclick=\"exportPdf()\">\u5bfc\u51fa PDF</button>"
           "</nav>\n", fp);
 
     fputs("<div class=\"layout\">\n"
@@ -520,22 +635,27 @@ static int wiki_write_html_file(const char *filepath,
           "    if(execCopy(text))showToast(msg);\n"
           "  }\n"
           "}\n"
-          "function copyHtml(){\n"
-          "  copyText(document.getElementById('article-body').innerHTML,'\u2713 HTML \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f');\n"
+          "function exportMdZip(){\n"
+          "  if(window.location.protocol==='file:'){\n"
+          "    showToast('\u79bb\u7ebf\u6a21\u5f0f\u4e0d\u652f\u6301\u5bfc\u51fa MD ZIP');\n"
+          "    return;\n"
+          "  }\n"
+          "  var a=document.createElement('a');\n"
+          "  a.href='/api/wiki-export-md-zip?id='+encodeURIComponent(window.WIKI_CUR_ID||'');\n"
+          "  a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);\n"
           "}\n"
-          "var _mdCache=null;\n"
-          "if(window.location.protocol!=='file:'){\n"
-          "  fetch('/api/wiki-read?id='+window.WIKI_CUR_ID)\n"
-          "    .then(function(r){return r.json();})\n"
-          "    .then(function(d){if(d.ok)_mdCache=d.content;})\n"
-          "    .catch(function(){});\n"
-          "}\n"
-          "function copyMd(){\n"
-          "  if(_mdCache!==null){copyText(_mdCache,'\u2713 Markdown \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f');return;}\n"
-          "  showToast(window.location.protocol==='file:'"
-          "    ?'\u79bb\u7ebf\u6a21\u5f0f\u4e0d\u652f\u6301\u590d\u5236 MD'"
-          "    :'\u5185\u5bb9\u52a0\u8f7d\u4e2d\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u2026');\n"
-          "}\n"
+          "function exportPdf(){ window.print(); }\n"
+          "document.addEventListener('click', function(e){\n"
+          "  var btn = e.target.closest('.ab .code-block .copy-btn');\n"
+          "  if (!btn) return;\n"
+          "  var pre = btn.parentElement ? btn.parentElement.querySelector('pre') : null;\n"
+          "  var text = pre ? pre.textContent : '';\n"
+          "  copyText(text, '\u2713 \u4ee3\u7801\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f');\n"
+          "  var orig = btn.textContent;\n"
+          "  btn.textContent = '\u2713 \u5df2\u590d\u5236';\n"
+          "  btn.classList.add('copied');\n"
+          "  setTimeout(function(){btn.textContent = orig; btn.classList.remove('copied');}, 1600);\n"
+          "});\n"
           "</script>\n", fp);
 
     fputs("<script src=\"", fp);
@@ -737,6 +857,91 @@ void handle_api_wiki_read(int client_fd, const char *path_qs)
     if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
     else send_json(client_fd,500,"Internal Server Error","{\"ok\":false}",12);
     free(sb.data);
+}
+
+/* ── GET /api/wiki-export-md-zip ───────────────────────────── */
+void handle_api_wiki_export_md_zip(int client_fd, const char *path_qs)
+{
+    char id[128] = {0};
+    const char *qs = strchr(path_qs, '?');
+    if (qs) {
+        const char *p = strstr(qs, "id=");
+        if (p) { p += 3; size_t j = 0; while (*p && *p != '&' && j < sizeof(id)-1) id[j++] = *p++; }
+    }
+    if (!id[0]) { send_json(client_fd, 400, "Bad Request", "{\"ok\":false,\"error\":\"missing id\"}", 33); return; }
+    for (size_t i = 0; id[i]; i++) {
+        unsigned char c = (unsigned char)id[i];
+        if (!isalnum(c) && c != '_' && c != '-') {
+            send_json(client_fd, 400, "Bad Request", "{\"ok\":false,\"error\":\"invalid id\"}", 33); return;
+        }
+    }
+
+    char md_path[768];
+    if (wiki_md_find(md_path, sizeof(md_path), id) < 0) {
+        send_json(client_fd, 404, "Not Found", "{\"ok\":false,\"error\":\"not found\"}", 32); return;
+    }
+
+    FILE *fp = fopen(md_path, "r");
+    if (!fp) { send_json(client_fd, 404, "Not Found", "{\"ok\":false,\"error\":\"not found\"}", 32); return; }
+    char meta_line[4096] = {0};
+    fgets(meta_line, sizeof(meta_line), fp);
+    strbuf_t body = {0}; char tmp[8192]; size_t nr;
+    while ((nr = fread(tmp, 1, sizeof(tmp), fp)) > 0) sb_append(&body, tmp, nr);
+    fclose(fp);
+
+    _strnode_t *refs = NULL;
+    wiki_collect_upload_refs_from_md(body.data ? body.data : "", &refs);
+    wiki_md_rewrite_uploads_to_assets(&body);
+
+    char work_root[1024];
+    snprintf(work_root, sizeof(work_root), "/tmp/wiki_export_%ld_%ld", (long)getpid(), (long)time(NULL));
+    char pkg_dir[1152];
+    snprintf(pkg_dir, sizeof(pkg_dir), "%s/pkg", work_root);
+    if (mkdir_p(pkg_dir) != 0) {
+        _strlist_free(refs);
+        free(body.data);
+        send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false,\"error\":\"mkdir failed\"}", 35); return;
+    }
+
+    char md_out[1280];
+    snprintf(md_out, sizeof(md_out), "%s/article.md", pkg_dir);
+    fp = fopen(md_out, "wb");
+    if (!fp) {
+        _strlist_free(refs);
+        free(body.data); rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false,\"error\":\"write md\"}", 33); return;
+    }
+    if (body.data) fwrite(body.data, 1, body.len, fp);
+    fclose(fp);
+    free(body.data);
+
+    for (_strnode_t *n = refs; n; n = n->next) {
+        char src[1024], dst[1280], dst_dir[1152];
+        snprintf(src, sizeof(src), "%s/%s", WIKI_UPLOADS, n->s);
+        snprintf(dst, sizeof(dst), "%s/assets/%s", pkg_dir, n->s);
+        snprintf(dst_dir, sizeof(dst_dir), "%s", dst);
+        char *slash = strrchr(dst_dir, '/');
+        if (slash) { *slash = '\0'; mkdir_p(dst_dir); }
+        wiki_copy_file(src, dst);
+    }
+    _strlist_free(refs);
+
+    char zip_path[1280];
+    snprintf(zip_path, sizeof(zip_path), "%s/%s.zip", work_root, id);
+    char cmd[3072];
+    snprintf(cmd, sizeof(cmd), "cd \"%s\" && zip -q -r \"%s\" .", pkg_dir, zip_path);
+    if (system(cmd) != 0) {
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false,\"error\":\"zip failed\"}", 34); return;
+    }
+
+    char dl_name[192];
+    snprintf(dl_name, sizeof(dl_name), "%s_md_bundle.zip", id);
+    if (wiki_send_attachment_file(client_fd, zip_path, dl_name) < 0) {
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false,\"error\":\"send failed\"}", 35); return;
+    }
+    rmdir_recursive(work_root);
 }
 
 /* ── POST /api/wiki-save ──────────────────────────────────── */
@@ -1139,8 +1344,6 @@ void handle_api_wiki_mkdir(int client_fd, const char *body)
 }
 
 /* ── POST /api/wiki-cleanup-uploads ──────────────────────── */
-
-typedef struct _strnode { char *s; struct _strnode *next; } _strnode_t;
 
 static void _strlist_add(_strnode_t **head, const char *s, size_t len)
 {

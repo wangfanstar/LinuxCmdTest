@@ -290,6 +290,12 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    if (strncmp(path, "/api/wiki-export-md-zip", 23) == 0 &&
+        (path[23] == '\0' || path[23] == '?')) {
+        handle_api_wiki_export_md_zip(client_fd, path_qs);
+        goto done;
+    }
+
     if (strncmp(path, "/api/wiki-read", 14) == 0 &&
         (path[14] == '\0' || path[14] == '?')) {
         handle_api_wiki_read(client_fd, path_qs);

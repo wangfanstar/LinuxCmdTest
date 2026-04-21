@@ -71,9 +71,17 @@ function wikiArticleHref(cat, id) {
   return '/wiki/' + segs.join('/') + '/' + safeId + '.html';
 }
 
+function isHiddenCategory(cat) {
+  return !!cat && (cat === 'vendor' || cat.indexOf('vendor/') === 0);
+}
+
 function render(data, leadText) {
-  var arts = data.articles || [];
-  var catsFromServer = data.categories || [];
+  var arts = (data.articles || []).filter(function(a){
+    return !isHiddenCategory(a.category || '');
+  });
+  var catsFromServer = (data.categories || []).filter(function(c){
+    return !isHiddenCategory(c);
+  });
   var by = {};
   arts.forEach(function(a){
     var c = a.category || '';
@@ -143,8 +151,10 @@ function runWikiSearch() {
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(data){
       if (!data.ok) throw new Error(data.error || '搜索失败');
-      var n = (data.articles || []).length;
-      var arts = data.articles || [];
+      var arts = (data.articles || []).filter(function(a){
+        return !isHiddenCategory(a.category || '');
+      });
+      var n = arts.length;
       var catSet = {};
       arts.forEach(function(a){ catSet[a.category || ''] = 1; });
       var cats = Object.keys(catSet);

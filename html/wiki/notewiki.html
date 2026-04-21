@@ -289,6 +289,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="openLinkModal()" title="插入链接">🔗</button>
         <button class="tb-btn" onclick="openImgUpload()" title="插入图片">🖼</button>
         <button class="tb-btn" onclick="openTableModal()" title="插入表格（Ctrl+Alt+T）">⊞</button>
+        <button class="tb-btn" onclick="tb('math-inline')" title="行内公式（Ctrl+Alt+M）">∑</button>
+        <button class="tb-btn" onclick="tb('math-block')" title="块公式（Ctrl+Alt+Shift+M）">∫</button>
+        <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
+        <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
       </div>
       <div class="edit-panels" id="edit-panels">
@@ -489,6 +493,10 @@ function init() {
   });
 }
 
+function isHiddenCategory(cat) {
+  return !!cat && (cat === 'vendor' || cat.indexOf('vendor/') === 0);
+}
+
 function refreshAll(onDone) {
   setStatus('加载中…');
   fetch('/api/wiki-list')
@@ -501,8 +509,10 @@ function refreshAll(onDone) {
       S.categories = buildCats(S.articles);
       // 合并服务端返回的目录列表（包含空目录）
       (data.categories || []).forEach(function(c){
+        if (isHiddenCategory(c)) return;
         if(c && S.categories.indexOf(c)===-1) S.categories.push(c);
       });
+      S.categories = S.categories.filter(function(c){ return !isHiddenCategory(c); });
       S.categories.sort();
       renderTree();
       setStatus('共 ' + S.articles.length + ' 篇文章');
@@ -514,7 +524,9 @@ function refreshAll(onDone) {
 
 function buildCats(arts) {
   var set = {'':true};
-  arts.forEach(function(a){ if(a.category) set[a.category]=true; });
+  arts.forEach(function(a){
+    if (a.category && !isHiddenCategory(a.category)) set[a.category]=true;
+  });
   return Object.keys(set).filter(Boolean).sort();
 }
 
@@ -1510,6 +1522,24 @@ function tb(cmd) {
     case 'strike':  ins='~~'+(sel||'文字')+'~~'; cur=start+ins.length; break;
     case 'code':    ins='`'+(sel||'code')+'`'; cur=start+ins.length; break;
     case 'codeblock': ins='\n```\n'+(sel||'code')+'\n```\n'; cur=start+ins.length; break;
+    case 'math-inline': ins='$'+(sel||'x^2')+'$'; cur=start+ins.length; break;
+    case 'math-block':
+      ins='\n$$\n'+(sel||'\\frac{a}{b}')+'\n$$\n';
+      cur=start+ins.length;
+      break;
+    case 'mermaid':
+      ins='\n```mermaid\n'+(sel||'graph TD\n  A[开始] --> B[结束]')+'\n```\n';
+      cur=start+ins.length;
+      break;
+    case 'footnote':
+      var id = 'n' + Date.now().toString(36).slice(-4);
+      if (sel) {
+        ins = sel + '[^' + id + ']\n\n[^' + id + ']: 脚注内容';
+      } else {
+        ins = '[^' + id + ']\n\n[^' + id + ']: 脚注内容';
+      }
+      cur = start + ins.length;
+      break;
     case 'quote':   ins='> '+(sel||'引用内容'); cur=start+ins.length; break;
     case 'ul':      ins='- '+(sel||'列表项'); cur=start+ins.length; break;
     case 'ol':      ins='1. '+(sel||'列表项'); cur=start+ins.length; break;
@@ -1531,6 +1561,21 @@ function onEditorKey(e) {
   if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 't' || e.key === 'T')) {
     e.preventDefault();
     openTableModal();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'm' || e.key === 'M')) {
+    e.preventDefault();
+    tb(e.shiftKey ? 'math-block' : 'math-inline');
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'g' || e.key === 'G')) {
+    e.preventDefault();
+    tb('mermaid');
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    tb('footnote');
     return;
   }
   if (e.key === 'Tab') {

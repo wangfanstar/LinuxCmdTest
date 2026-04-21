@@ -555,9 +555,31 @@ static int wiki_write_html_file(const char *filepath,
           ".ab h3::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
           ".ab h4::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)'.'counter(sc4)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
           ".ab h5::before{content:counter(sc1)'.'counter(sc2)'.'counter(sc3)'.'counter(sc4)'.'counter(sc5)' ';color:#8b949e;font-weight:400;font-size:.88em}\n"
+          /* 打印/PDF：彻底隐藏顶栏、全站文章目录、本文 TOC，并展开正文（多浏览器兼容） */
+          "@media print{\n"
+          "html,body{height:auto!important;max-height:none!important;overflow:visible!important;"
+          "background:#fff!important;color:#1a1a2e!important;"
+          "-webkit-print-color-adjust:exact;print-color-adjust:exact}\n"
+          "body{display:block!important}\n"
+          "nav.topbar,nav#sidebar,nav#toc,.sidebar,.toc,\n"
+          ".st-top,.sidebar-body,.toc-top,.toc-body,\n"
+          ".edit-btn,.copy-btn,.panel-toggle,.panel-label{display:none!important;"
+          "width:0!important;height:0!important;max-height:0!important;overflow:hidden!important;"
+          "visibility:hidden!important;position:absolute!important;left:-9999px!important;"
+          "clip:rect(0,0,0,0)!important}\n"
+          ".layout{display:block!important;flex:none!important;overflow:visible!important;"
+          "height:auto!important;max-height:none!important}\n"
+          ".content{display:block!important;overflow:visible!important;flex:none!important;"
+          "max-height:none!important;height:auto!important;width:100%!important;"
+          "padding:12px 16px!important;position:static!important}\n"
+          "article,#article-body{overflow:visible!important;max-height:none!important}\n"
+          ".ab pre,.ab table,.ab img,.ab .code-block{page-break-inside:avoid}\n"
+          "}\n"
           "</style>\n</head>\n<body>\n", fp);
 
     fputs("<nav class=\"topbar\"><a href=\"", fp);
+    fputs(rp, fp);
+    fputs("notewikiindex.html\">\u6587\u7ae0\u7d22\u5f15</a> \u00b7 <a href=\"", fp);
     fputs(rp, fp);
     fputs("notewiki.html\">\u2190 NoteWiki</a>", fp);
     if (category && category[0]) { fputs(" / ", fp); wiki_fhtml(fp, category); }
@@ -644,7 +666,7 @@ static int wiki_write_html_file(const char *filepath,
           "  a.href='/api/wiki-export-md-zip?id='+encodeURIComponent(window.WIKI_CUR_ID||'');\n"
           "  a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);\n"
           "}\n"
-          "function exportPdf(){ window.print(); }\n"
+          "/* exportPdf \u7531 sidebar.js \u6ce8\u5165\uff0c\u4e0e notewiki \u4e00\u81f4 */\n"
           "document.addEventListener('click', function(e){\n"
           "  var btn = e.target.closest('.ab .code-block .copy-btn');\n"
           "  if (!btn) return;\n"
@@ -737,6 +759,68 @@ static void wiki_rewrite_html(const char *id, const char *title,
 
 /* ── wiki_search_dir ──────────────────────────────────────── */
 
+#define WIKI_FIND_NONE ((size_t)-1)
+
+/* 在 hay[0..haylen) 中找与 q（已小写）的不区分大小写子串，返回起始下标或 WIKI_FIND_NONE */
+static size_t wiki_find_icase_submem(const unsigned char *hay, size_t haylen,
+                                     const char *q, size_t qlen)
+{
+    if (!hay || !q || !qlen || haylen < qlen) return WIKI_FIND_NONE;
+    for (size_t i = 0; i + qlen <= haylen; i++) {
+        size_t j;
+        for (j = 0; j < qlen; j++) {
+            if (tolower(hay[i + j]) != (unsigned char)q[j]) break;
+        }
+        if (j == qlen) return i;
+    }
+    return WIKI_FIND_NONE;
+}
+
+/* 将 [pos, pos+match_len) 前后各取一段，折叠空白写入 out；cap 为允许达到的 out->len 上限 */
+static void wiki_append_match_context(strbuf_t *out, const char *hay, size_t haylen,
+                                      size_t pos, size_t match_len,
+                                      size_t before, size_t after, size_t cap)
+{
+    if (!hay || haylen == 0 || pos > haylen || cap <= out->len + 8) return;
+    if (match_len > haylen) match_len = haylen;
+    if (pos + match_len > haylen) return;
+
+    size_t start = pos > before ? pos - before : 0;
+    while (start < haylen && ((unsigned char)hay[start] & 0xC0) == 0x80) start++;
+
+    size_t end = pos + match_len + after;
+    if (end > haylen) end = haylen;
+
+    int lead_el = (start > 0);
+    int trail_el = (end < haylen);
+
+    if (lead_el && out->len + 3 < cap) SB_LIT(out, "\xe2\x80\xa6"); /* … */
+
+    int prev_space = 0;
+    for (size_t i = start; i < end && out->len + 4 < cap; i++) {
+        unsigned char c = (unsigned char)hay[i];
+        if (c == '\n' || c == '\r' || c == '\t') {
+            if (!prev_space) {
+                if (SB_LIT(out, " ") < 0) return;
+                prev_space = 1;
+            }
+            continue;
+        }
+        if (c == ' ') {
+            if (!prev_space) {
+                if (SB_LIT(out, " ") < 0) return;
+                prev_space = 1;
+            }
+            continue;
+        }
+        if (c < 32) continue;
+        prev_space = 0;
+        if (sb_append(out, (const char *)(hay + i), 1) < 0) return;
+    }
+
+    if (trail_el && out->len + 3 < cap) SB_LIT(out, "\xe2\x80\xa6");
+}
+
 static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const char *q)
 {
     DIR *d = opendir(dir);
@@ -763,26 +847,46 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
                 json_get_str(mj,"updated",upd,sizeof(upd)); }
         }
         if (!id[0]) { free(body.data); continue; }
-        int found = 0;
-        if (body.data) {
-            size_t qlen = strlen(q);
-            for (size_t i = 0; i + qlen <= body.len && !found; i++) {
-                size_t j;
-                for (j = 0; j < qlen; j++) {
-                    if (tolower((unsigned char)body.data[i+j]) != (unsigned char)q[j]) break;
-                }
-                if (j == qlen) found = 1;
+        size_t qlen = strlen(q);
+        size_t ti = WIKI_FIND_NONE;
+        size_t bi = WIKI_FIND_NONE;
+        if (qlen > 0) {
+            if (title[0])
+                ti = wiki_find_icase_submem((const unsigned char *)title, strlen(title), q, qlen);
+            if (body.data)
+                bi = wiki_find_icase_submem((const unsigned char *)body.data, body.len, q, qlen);
+        }
+        strbuf_t snippet = {0};
+        const size_t snip_cap = 960;
+        if (ti != WIKI_FIND_NONE) {
+            SB_LIT(&snippet, "\xe3\x80\x90\xe6\xa0\x87\xe9\xa2\x98\xe3\x80\x91"); /* 【标题】 */
+            wiki_append_match_context(&snippet, title, strlen(title), ti, qlen,
+                                      48, 96, snip_cap);
+        }
+        if (bi != WIKI_FIND_NONE) {
+            if (snippet.len) {
+                SB_LIT(&snippet, " ");
+                SB_LIT(&snippet, "\xe3\x80\x90\xe6\xad\xa3\xe6\x96\x87\xe3\x80\x91"); /* 【正文】 */
+            } else {
+                SB_LIT(&snippet, "\xe3\x80\x90\xe6\xad\xa3\xe6\x96\x87\xe3\x80\x91");
             }
+            wiki_append_match_context(&snippet, body.data, body.len, bi, qlen,
+                                      64, 128, snip_cap);
         }
         free(body.data);
-        if (!found) continue;
+        if (ti == WIKI_FIND_NONE && bi == WIKI_FIND_NONE) {
+            free(snippet.data);
+            continue;
+        }
         if (!*pfirst) SB_LIT(sb, ","); *pfirst = 0;
         SB_LIT(sb,"{\"id\":"); sb_json_str(sb,id);
         SB_LIT(sb,",\"title\":"); sb_json_str(sb,title);
         SB_LIT(sb,",\"category\":"); sb_json_str(sb,cat);
         SB_LIT(sb,",\"created\":"); sb_json_str(sb,cre);
         SB_LIT(sb,",\"updated\":"); sb_json_str(sb,upd);
+        SB_LIT(sb,",\"snippet\":"); sb_json_str(sb, snippet.data ? snippet.data : "");
         SB_LIT(sb,"}");
+        free(snippet.data);
     }
     closedir(d);
 }

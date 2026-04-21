@@ -265,4 +265,172 @@
       '.ab h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#8b949e;font-weight:400;font-size:.88em;margin-right:.2em}';
     document.head.appendChild(s);
   }());
+
+  // ── 打印样式（Ctrl+P）：隐藏顶栏与双栏目录，正文多页展开 ─────────────
+  (function injectWikiPrintCss() {
+    if (!document.getElementById('article-body')) return;
+    if (document.getElementById('wiki-print-media')) return;
+    var st = document.createElement('style');
+    st.id = 'wiki-print-media';
+    st.textContent =
+      '@media print{' +
+      'html,body{height:auto!important;max-height:none!important;overflow:visible!important;' +
+      'background:#fff!important;color:#1a1a2e!important;' +
+      '-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+      'body{display:block!important}' +
+      'nav.topbar,nav#sidebar,nav#toc,.sidebar,.toc,' +
+      '.st-top,.sidebar-body,.toc-top,.toc-body,' +
+      '.edit-btn,.copy-btn,.panel-toggle,.panel-label{' +
+      'display:none!important;visibility:hidden!important;width:0!important;height:0!important;' +
+      'max-height:0!important;overflow:hidden!important;position:absolute!important;left:-9999px!important;' +
+      'clip:rect(0,0,0,0)!important}' +
+      '.layout{display:block!important;flex:none!important;height:auto!important;' +
+      'max-height:none!important;overflow:visible!important}' +
+      '.content{display:block!important;flex:none!important;width:100%!important;' +
+      'height:auto!important;max-height:none!important;overflow:visible!important;' +
+      'padding:12px 16px!important;position:static!important}' +
+      'article,#article-body{overflow:visible!important;max-height:none!important}' +
+      '}';
+    document.head.appendChild(st);
+  }());
+
+  // ── 导出 PDF：新开窗口仅含正文（覆盖页面内联脚本，与 notewiki 行为一致）──
+  (function installWikiExportPdf() {
+    if (!document.getElementById('article-body')) return;
+
+    window.exportPdf = function () {
+      var b = document.getElementById('article-body');
+      var h = document.querySelector('h1.at');
+      var m = document.querySelector('.am');
+      if (!b) return;
+      var title = h && h.textContent ? String(h.textContent).trim() : '';
+      var metaTxt = m && m.textContent ? String(m.textContent).trim() : '';
+      var body = String(b.innerHTML || '').replace(/<\/script/gi, '<\\/script');
+      var css = [
+        '@page{margin:0;size:auto;}',
+        '*{box-sizing:border-box;margin:0;padding:0}',
+        'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
+        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:14mm;padding:0}',
+        '.wrap{max-width:100%;padding:20px 28px}',
+        'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
+        '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
+        '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
+        '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
+        '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
+        '.art-content p{margin:.6em 0;line-height:1.75}',
+        '.art-content pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;padding:10px;overflow-x:auto;margin:.8em 0;font-size:.8rem;page-break-inside:avoid}',
+        '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.85em}',
+        '.art-content pre code{color:#1a1a2e}',
+        '.art-content :not(pre)>code{background:#f6f8fa;padding:1px 5px;border-radius:3px;color:#0550ae;border:1px solid #d0d7de}',
+        '.art-content blockquote{border-left:3px solid #0969da;padding:.4em 1em;color:#57606a;margin:.8em 0}',
+        '.art-content table{border-collapse:collapse;width:100%;margin:.8em 0;page-break-inside:avoid}',
+        '.art-content th,.art-content td{border:1px solid #d0d7de;padding:5px 9px;text-align:left}',
+        '.art-content th{background:#f6f8fa;font-weight:600}',
+        '.art-content img{max-width:100%;page-break-inside:avoid}',
+        '.art-content ul,.art-content ol{padding-left:1.5em;margin:.5em 0}',
+        '.art-content li{margin:.15em 0}',
+        '.art-content a{color:#0969da;text-decoration:none}',
+        '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
+        '.art-content .code-block{position:relative;margin:1em 0}',
+        '.art-content .code-block .copy-btn{display:none!important}',
+        '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
+        '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
+        '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
+        '.art-content h3{counter-reset:sc4;counter-increment:sc3}',
+        '.art-content h4{counter-increment:sc4}',
+        '.art-content h1::before{content:counter(sc1)". ";color:#57606a;font-weight:400;font-size:.88em}',
+        '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
+        '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
+        '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
+        '@media print{@page{margin:0}html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:14mm!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+      ].join('\n');
+
+      var baseHref = '';
+      try {
+        baseHref = new URL('.', window.location.href).href;
+      } catch (e) {
+        baseHref = window.location.href;
+      }
+      var baseTag = baseHref
+        ? '<base href="' + escH(baseHref) + '">\n'
+        : '';
+
+      var html =
+        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
+        '<meta charset="UTF-8">\n' +
+        baseTag +
+        '<title>' +
+        escH(title) +
+        '</title>\n<style>\n' +
+        css +
+        '\n</style>\n</head>\n<body>\n' +
+        '<div class="wrap">\n' +
+        '<h1 class="art-title">' +
+        escH(title) +
+        '</h1>\n' +
+        '<div class="meta">' +
+        escH(metaTxt) +
+        '</div>\n' +
+        '<div class="art-content">\n' +
+        body +
+        '\n</div>\n</div>\n</body>\n</html>';
+
+      var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var ifr = document.createElement('iframe');
+      ifr.style.cssText =
+        'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+      ifr.setAttribute('aria-hidden', 'true');
+      ifr.src = url;
+      var cleaned = false;
+      function cleanupPdf() {
+        if (cleaned) return;
+        cleaned = true;
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {}
+        if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+      }
+      ifr.onload = function () {
+        setTimeout(function () {
+          var cw = ifr.contentWindow;
+          if (!cw) {
+            cleanupPdf();
+            return;
+          }
+          try {
+            cw.addEventListener('afterprint', cleanupPdf);
+          } catch (e) {}
+          try {
+            cw.focus();
+            cw.print();
+          } catch (e) {
+            var w = window.open(url, '_blank');
+            if (w) {
+              try {
+                w.addEventListener('afterprint', cleanupPdf);
+              } catch (e2) {}
+              setTimeout(function () {
+                try {
+                  w.focus();
+                  w.print();
+                } catch (e3) {}
+              }, 300);
+              setTimeout(cleanupPdf, 60000);
+              return;
+            }
+            if (typeof showToast === 'function') {
+              showToast('\u8bf7\u5141\u8bb8\u5f39\u51fa\u7a97\u53e3\u540e\u91cd\u8bd5');
+            } else {
+              alert('\u8bf7\u5141\u8bb8\u5f39\u51fa\u7a97\u53e3\u540e\u91cd\u8bd5');
+            }
+            cleanupPdf();
+            return;
+          }
+          setTimeout(cleanupPdf, 60000);
+        }, 150);
+      };
+      document.body.appendChild(ifr);
+    };
+  }());
 })();

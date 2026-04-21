@@ -65,8 +65,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 /* view pane */
 #pane-view{flex:1;display:none;flex-direction:column;overflow:hidden}
-.view-head{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
-.view-breadcrumb{font-size:.78rem;color:var(--dim);flex:1}
+.view-head{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.view-head>.btn,.view-head>a.btn{flex-shrink:0}
+.view-breadcrumb{font-size:.78rem;color:var(--dim);flex:1 1 200px;min-width:0}
 .view-breadcrumb span{color:var(--text)}
 .view-body{flex:1;overflow-y:auto;padding:28px 32px}
 .view-body h1.art-title{font-size:1.55rem;color:#f0f6fc;margin-bottom:6px}
@@ -135,24 +136,24 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .edit-panels{flex:1;display:flex;overflow:hidden;min-height:0}
 .edit-left{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
 .editor-wrap{position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column}
-.editor-mirror{position:absolute;inset:0;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:22px;tab-size:2;white-space:pre-wrap;word-break:break-word;pointer-events:none;overflow:hidden;background:transparent;z-index:1}
+.editor-mirror{position:absolute;inset:0;padding:14px 16px;font-family:"Cascadia Mono","SFMono-Regular",Consolas,"Microsoft YaHei UI",monospace;font-size:.85rem;line-height:22px;tab-size:2;white-space:pre-wrap;word-break:break-word;pointer-events:none;overflow:hidden;background:transparent;z-index:1}
 .editor-mirror *{pointer-events:none}
 .editor-mirror .hl-h1{color:#79c0ff}
 .editor-mirror .hl-h2{color:#7ee787}
 .editor-mirror .hl-h3{color:#ffa657}
 .editor-mirror .hl-h4{color:#ff7b72}
 .editor-mirror .hl-h5,.editor-mirror .hl-h6{color:#d2a8ff}
-.editor-mirror .hl-fence{color:#8b949e;background:rgba(110,118,129,.12);border-left:3px solid #6e7681;display:block;padding:0 8px}
-.editor-mirror .hl-codeblock{color:#c9d1d9;background:rgba(35,45,70,.26);border-left:3px solid #3f6fb2;display:block;padding:0 8px}
-.editor-mirror .hl-quote{color:#9fb0c3;font-style:italic;background:rgba(74,144,226,.08);border-left:3px solid #4a90e2;display:block;padding:0 8px}
+.editor-mirror .hl-fence{color:#8b949e;background:rgba(110,118,129,.12)}
+.editor-mirror .hl-codeblock{color:#c9d1d9;background:rgba(35,45,70,.26)}
+.editor-mirror .hl-quote{color:#9fb0c3;background:rgba(74,144,226,.08)}
 .editor-mirror .hl-list{color:#e3b341}
 .editor-mirror .hl-hr{color:#6e7681}
 .editor-mirror .hl-norm{color:#c9d1d9}
-.editor-mirror .hl-inline-code{color:#ffb86b;background:rgba(210,153,34,.16);border:1px solid rgba(210,153,34,.35);border-radius:4px;padding:0 4px}
-.editor-mirror .hl-strong{color:#f0f6fc;font-weight:700}
-.editor-mirror .hl-em{color:#c4d6ec;font-style:italic}
+.editor-mirror .hl-inline-code{color:#ffb86b;background:rgba(210,153,34,.16)}
+.editor-mirror .hl-strong{color:#f0f6fc}
+.editor-mirror .hl-em{color:#c4d6ec}
 .editor-mirror .hl-link{color:#79c0ff;text-decoration:underline}
-.edit-left textarea{position:relative;z-index:0;flex:1;background:#0a0e14;color:transparent;caret-color:#c9d1d9;border:none;outline:none;resize:none;padding:14px 16px;font-family:"SFMono-Regular",Consolas,monospace;font-size:.85rem;line-height:22px;tab-size:2}
+.edit-left textarea{position:relative;z-index:0;flex:1;background:#0a0e14;color:transparent;caret-color:#c9d1d9;border:none;outline:none;resize:none;padding:14px 16px;font-family:"Cascadia Mono","SFMono-Regular",Consolas,"Microsoft YaHei UI",monospace;font-size:.85rem;line-height:22px;tab-size:2}
 .edit-right{flex:1;overflow-y:auto;padding:16px 20px;min-width:0}
 .edit-right.hidden{display:none}
 .edit-left.full{flex:2}
@@ -192,6 +193,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="topbar">
   <h1>📝 NoteWiki</h1>
   <div class="topbar-sep"></div>
+  <a href="/notewikiindex.html">📑 文章索引</a>
   <a href="/index.html">← 返回首页</a>
 </div>
 
@@ -247,10 +249,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
           <button class="vt-btn on" id="vt-split" onclick="setViewMode('split')" title="分屏">⊞</button>
           <button class="vt-btn"    id="vt-edit"  onclick="setViewMode('edit')"  title="仅编辑">✎</button>
           <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title="仅预览">👁</button>
+          <button class="vt-btn"    id="btn-preview-align" onclick="togglePreviewAlign()" title="默认关闭：开启后右侧预览随光标所在行自动滚动对齐">↕</button>
         </div>
         <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
         <button class="btn btn-primary btn-sm" id="btn-save" onclick="saveArticle()" disabled>💾 保存</button>
-        <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并在新标签页打开已发布页面">📤 发布</button>
+        <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并生成已发布页面（不离开当前页）">📤 发布</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF（阅读态用已打开正文，编辑态用当前草稿）">🖨 PDF</button>
+        <a class="btn btn-secondary btn-sm" id="edit-html-link" href="#" target="_blank" rel="noopener noreferrer" title="已发布 HTML 页面">🔗 HTML</a>
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
       <div class="edit-toolbar" id="edit-toolbar">
@@ -446,7 +451,8 @@ var S = {
   editIsNew: false,
   editForce: false,       // 强制覆盖同名文件
   editForceCreated: '',   // 被覆盖文章原有 created 字段
-  viewMode: 'split'   // split | edit | prev
+  viewMode: 'split',      // split | edit | prev
+  previewAlign: false     // 右侧预览是否随光标自动对齐（默认关闭）
 };
 
 // ── Init ─────────────────────────────────────────────────────────────
@@ -648,6 +654,13 @@ function toggleCat(key) {
   renderTree();
 }
 
+/** 与阅读页「HTML」链接一致的已发布路径（相对网站根路径） */
+function publishedHtmlUrl(id, cat) {
+  if (!id) return '';
+  cat = cat || '';
+  return cat ? '/wiki/' + cat + '/' + id + '.html' : '/wiki/' + id + '.html';
+}
+
 // ── Open / View ───────────────────────────────────────────────────────
 function openArticle(id) {
   S.curId = id;
@@ -661,8 +674,7 @@ function openArticle(id) {
     '分类：'+(meta.category||'根目录') + '  |  更新：'+(meta.updated||'').replace('T',' ').replace('Z','');
 
   var cat = meta.category||'';
-  var url = cat ? '/wiki/'+cat+'/'+id+'.html' : '/wiki/'+id+'.html';
-  document.getElementById('view-html-link').href = url;
+  document.getElementById('view-html-link').href = publishedHtmlUrl(id, cat);
   document.getElementById('view-breadcrumb').innerHTML =
     '<span>'+escH(cat||'根目录')+'</span> / '+escH(meta.title||'');
 
@@ -784,6 +796,7 @@ function editCurrent() {
       updateEditorHighlight();
       histReset();
       markEditBaseline();
+      updateEditHtmlLink();
       setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
     });
 }
@@ -802,6 +815,33 @@ function populateCatSelect(selected) {
     sel.appendChild(opt);
   });
   sel.value = selected||'';
+  updateEditHtmlLink();
+}
+
+/** 编辑顶栏「HTML」按钮：已有 id 或新建时已填文件名时可用 */
+function updateEditHtmlLink() {
+  var a = document.getElementById('edit-html-link');
+  if (!a) return;
+  var cat = document.getElementById('edit-category').value || '';
+  var id = S.editId;
+  if (!id && S.editIsNew)
+    id = (document.getElementById('edit-filename').value || '').trim();
+  var url = publishedHtmlUrl(id, cat);
+  if (!url) {
+    a.href = '#';
+    a.setAttribute('data-edit-html-disabled', '1');
+    a.style.opacity = '0.45';
+    a.style.pointerEvents = 'none';
+    a.style.cursor = 'default';
+    a.title = '保存文章后（或填写链接文件名）可打开已发布的 HTML';
+    return;
+  }
+  a.href = url;
+  a.removeAttribute('data-edit-html-disabled');
+  a.style.opacity = '';
+  a.style.pointerEvents = '';
+  a.style.cursor = '';
+  a.title = '新标签打开已发布页面：' + url;
 }
 
 // ── Save ─────────────────────────────────────────────────────────────
@@ -862,36 +902,13 @@ function updateAutoSaveLabel(msg) {
 }
 
 // ── Save / Publish ────────────────────────────────────────────────────
-function saveArticle()   { _doSave({openHtml: false}); }
-function publishArticle(){ _doSave({openHtml: true});  }
-
-function openPublishedInBackground(url) {
-  if (!url) return;
-  // 优先尝试窗口特性，避免新页反向控制当前页
-  var win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (win) {
-    try { win.opener = null; } catch (e) {}
-    // 尽量将焦点保持在当前编辑页（实际是否生效取决于浏览器策略）
-    try { win.blur(); } catch (e) {}
-    try { window.focus(); } catch (e) {}
-    return;
-  }
-  // 兜底：模拟链接点击
-  var a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  try { window.focus(); } catch (e) {}
-}
+function saveArticle()   { _doSave({}); }
+function publishArticle(){ _doSave({ published: true }); }
 
 function _doSave(opts) {
   opts = opts || {};
   var silent  = !!opts.silent;
-  var openHtml = !!opts.openHtml;
+  var published = !!opts.published;
 
   var title   = document.getElementById('edit-title').value.trim();
   var cat     = document.getElementById('edit-category').value;
@@ -940,13 +957,13 @@ function _doSave(opts) {
       if (silent) {
         updateAutoSaveLabel('自动保存 '+hm);
       } else {
-        setStatus(openHtml ? '已发布' : '已保存');
+        setStatus(published ? '已发布' : '已保存');
         updateAutoSaveLabel('保存于 '+hm);
       }
       markEditBaseline();
       refreshAll();
-      if (openHtml && data.url) openPublishedInBackground(data.url);
-      // 保存后继续停留在编辑态，更新文章列表高亮
+      updateEditHtmlLink();
+      // 保存/发布后继续停留在当前编辑页，不打开新标签
     } else {
       if (!silent) setStatus('保存失败：'+(data.error||''));
       else updateAutoSaveLabel('保存失败');
@@ -1017,14 +1034,23 @@ document.getElementById('edit-title').addEventListener('input', function(){
   if (S.editIsNew) {
     var fn = document.getElementById('edit-filename');
     if (!fn.dataset.manual) fn.value = slugifyFilename(this.value);
+    updateEditHtmlLink();
   }
   refreshEditDirtyState();
 });
 document.getElementById('edit-filename').addEventListener('input', function(){
   this.dataset.manual = '1';
   refreshEditDirtyState();
+  updateEditHtmlLink();
 });
-document.getElementById('edit-category').addEventListener('change', refreshEditDirtyState);
+document.getElementById('edit-category').addEventListener('change', function(){
+  refreshEditDirtyState();
+  updateEditHtmlLink();
+});
+
+document.getElementById('edit-html-link').addEventListener('click', function(e) {
+  if (this.getAttribute('data-edit-html-disabled')) e.preventDefault();
+});
 
 // ── 右键菜单 ─────────────────────────────────────────────────────────
 var ctxTarget = null;
@@ -1231,18 +1257,58 @@ function exportMdZip() {
   setStatus('已开始下载 MD ZIP');
 }
 
-// ── Export PDF (print dialog) ─────────────────────────────────────────
-function exportPdf() {
-  if (!S.curId) return;
-  var meta    = S.articles.find(function(a){ return a.id === S.curId; });
-  var title   = meta ? (meta.title   || 'untitled') : 'untitled';
-  var cat     = meta ? (meta.category|| '根目录')   : '根目录';
-  var updated = meta ? (meta.updated || '').replace('T',' ').replace('Z','') : '';
-  var body    = document.getElementById('view-content').innerHTML;
+// ── Export PDF（隐藏 iframe + Blob，避免 about:blank；@page 压缩浏览器页眉页脚区） ──
+function printHtmlForPdf(html) {
+  var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var ifr = document.createElement('iframe');
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+  ifr.setAttribute('aria-hidden', 'true');
+  ifr.src = url;
+  var cleaned = false;
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    try { URL.revokeObjectURL(url); } catch (e) {}
+    if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+  }
+  ifr.onload = function () {
+    setTimeout(function () {
+      var cw = ifr.contentWindow;
+      if (!cw) { cleanup(); return; }
+      try {
+        cw.addEventListener('afterprint', cleanup);
+      } catch (e) {}
+      try {
+        cw.focus();
+        cw.print();
+      } catch (e) {
+        var w = window.open(url, '_blank');
+        if (w) {
+          try { w.addEventListener('afterprint', cleanup); } catch (e1) {}
+          setTimeout(function () {
+            try { w.focus(); w.print(); } catch (e2) {}
+          }, 300);
+          setTimeout(cleanup, 60000);
+          return;
+        }
+        setStatus('请允许弹出窗口后重试');
+        cleanup();
+        return;
+      }
+      setTimeout(cleanup, 60000);
+    }, 150);
+  };
+  document.body.appendChild(ifr);
+}
 
+function exportPdfBuildWindow(title, cat, updated, bodyInner) {
+  var body = String(bodyInner || '').replace(/<\/script/gi, '<\\/script');
   var css = [
+    '@page{margin:0;size:auto;}',
     '*{box-sizing:border-box;margin:0;padding:0}',
-    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7}',
+    'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
+    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7;margin:14mm;padding:0}',
     '.wrap{max-width:100%;padding:20px 28px}',
     'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
     '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
@@ -1272,11 +1338,18 @@ function exportPdf() {
     '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '@media print{body{font-size:11px}}'
+    '@media print{@page{margin:0}html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:14mm!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
   ].join('\n');
+
+  var baseHref = '';
+  try { baseHref = new URL('.', location.href).href; } catch (e) { baseHref = location.href; }
+  var baseTag = baseHref
+    ? ('<base href="' + String(baseHref).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">\n')
+    : '';
 
   var html = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
     + '<meta charset="UTF-8">\n'
+    + baseTag
     + '<title>' + escH(title) + '</title>\n'
     + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
     + '<div class="wrap">\n'
@@ -1284,13 +1357,37 @@ function exportPdf() {
     + '<div class="meta">分类：' + escH(cat) + ' &nbsp;|&nbsp; 更新：' + escH(updated) + '</div>\n'
     + '<div class="art-content">\n' + body + '\n</div>\n'
     + '</div>\n'
-    + '<script>window.onload=function(){window.print();}<\/script>\n'
     + '</body>\n</html>';
 
-  var w = window.open('', '_blank', 'width=860,height=720');
-  if (!w) { setStatus('请允许弹出窗口后重试'); return; }
-  w.document.write(html);
-  w.document.close();
+  printHtmlForPdf(html);
+}
+
+function exportPdf() {
+  var pv = document.getElementById('pane-view');
+  var pe = document.getElementById('pane-edit');
+  var inView = pv && pv.style.display !== 'none';
+  var inEdit = pe && pe.style.display !== 'none';
+  var title, cat, updated, body;
+
+  if (inView && S.curId) {
+    var meta = S.articles.find(function(a){ return a.id === S.curId; });
+    title   = meta ? (meta.title || 'untitled') : 'untitled';
+    cat     = meta ? (meta.category || '根目录') : '根目录';
+    updated = meta ? (meta.updated || '').replace('T',' ').replace('Z','') : '';
+    body    = document.getElementById('view-content').innerHTML;
+  } else if (inEdit) {
+    title = (document.getElementById('edit-title').value || '').trim() || 'untitled';
+    var cv = document.getElementById('edit-category').value || '';
+    cat = cv ? cv : '根目录';
+    updated = '';
+    var ta = document.getElementById('edit-textarea');
+    body = md2html(ta ? ta.value : '', false);
+  } else {
+    setStatus('请先打开一篇文章，或进入编辑界面');
+    return;
+  }
+
+  exportPdfBuildWindow(title, cat, updated, body);
 }
 
 // ── Upload Image ──────────────────────────────────────────────────────
@@ -1543,17 +1640,29 @@ function updatePreview(content) {
     var ta = document.getElementById('edit-textarea');
     content = ta ? ta.value : '';
   }
-  if (content === _lastPreviewContent) return;
+  var previewKey = content + '\n' + (S.previewAlign ? '1' : '0');
+  if (previewKey === _lastPreviewContent) return;
   var right = document.getElementById('edit-right');
   if (!right || right.style.display === 'none') return;
   right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
-                  + md2html(content, true);
-  _lastPreviewContent = content;
-  requestAnimationFrame(function() { syncPreviewToCursor(); });
+                  + md2html(content, !!S.previewAlign);
+  _lastPreviewContent = previewKey;
+  if (S.previewAlign)
+    requestAnimationFrame(function() { syncPreviewToCursor(); });
+}
+
+function togglePreviewAlign() {
+  S.previewAlign = !S.previewAlign;
+  var btn = document.getElementById('btn-preview-align');
+  if (btn) btn.classList.toggle('on', S.previewAlign);
+  _lastPreviewContent = null;
+  var ta = document.getElementById('edit-textarea');
+  updatePreview(ta ? ta.value : '');
 }
 
 var _previewScrollTimer = null;
 function schedulePreviewScrollSync() {
+  if (!S.previewAlign) return;
   clearTimeout(_previewScrollTimer);
   /* 略长于预览节流(180ms)，避免在未换新预览 DOM 前滚动 */
   _previewScrollTimer = setTimeout(syncPreviewToCursor, 220);
@@ -1561,6 +1670,7 @@ function schedulePreviewScrollSync() {
 
 /** 根据编辑器光标所在行，将右侧预览滚动到对应块（需 md2html(..., true) 带 data-md-line） */
 function syncPreviewToCursor() {
+  if (!S.previewAlign) return;
   var ta = document.getElementById('edit-textarea');
   var right = document.getElementById('edit-right');
   if (!ta || !right || right.style.display === 'none') return;

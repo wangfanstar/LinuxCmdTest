@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NoteWiki 文章索引</title>
+<style>
+:root{
+  --bg:#0d1117;--surf:#161b22;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--accent:#4a90e2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+.topbar{height:50px;background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:14px;flex-shrink:0}
+.topbar h1{font-size:.95rem;font-weight:700;color:#f0f6fc}
+.topbar a{font-size:12px;color:var(--dim);text-decoration:none}
+.topbar a:hover{color:var(--text)}
+.search-bar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.search-bar input[type="search"]{
+  flex:1;min-width:180px;max-width:420px;height:34px;padding:0 12px;font-size:.86rem;
+  background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none
+}
+.search-bar input[type="search"]::placeholder{color:var(--dim)}
+.search-bar input[type="search"]:focus{border-color:var(--accent)}
+.search-bar button{
+  height:34px;padding:0 14px;font-size:.82rem;font-weight:600;cursor:pointer;border-radius:6px;
+  border:1px solid var(--border);background:var(--surf);color:var(--text)
+}
+.search-bar button:hover{background:#21262d;border-color:#444}
+.wrap{max-width:920px;margin:0 auto;padding:28px 20px 48px}
+.lead{font-size:.85rem;color:var(--dim);margin-bottom:22px}
+.cat-block{margin-bottom:26px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surf)}
+.cat-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--accent);background:#161b22;border-bottom:1px solid var(--border)}
+.cat-body{padding:4px 0}
+.row{display:flex;align-items:flex-start;gap:12px;padding:8px 14px;border-bottom:1px solid #21262d;font-size:.86rem}
+.row:last-child{border-bottom:none}
+.row:hover{background:rgba(255,255,255,.04)}
+.row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.row a.art{color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row a.art:hover{color:var(--accent)}
+.row .snippet{font-size:.74rem;color:var(--dim);line-height:1.45;white-space:normal;word-break:break-word;margin:0}
+.row .snippet mark.hit{background:rgba(74,144,226,.28);color:#e6edf3;padding:0 .05em;border-radius:2px;font:inherit}
+.row .meta{font-size:.72rem;color:var(--dim);white-space:nowrap;flex-shrink:0;padding-top:2px}
+.empty{padding:14px;color:var(--dim);font-size:.8rem;text-align:center}
+.err{color:#f85149;font-size:.86rem;padding:20px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>📑 NoteWiki 文章索引</h1>
+  <div style="flex:1"></div>
+  <a href="/wiki/notewiki.html">📝 NoteWiki 编辑</a>
+  <a href="/index.html">← 网站首页</a>
+</div>
+<div class="wrap">
+  <div class="search-bar">
+    <input type="search" id="wiki-search-q" placeholder="搜索标题与正文…" autocomplete="off" aria-label="搜索文章">
+    <button type="button" id="wiki-search-go">搜索</button>
+    <button type="button" id="wiki-search-clear" title="显示全部文章" style="display:none">全部</button>
+  </div>
+  <p class="lead" id="lead">加载中…</p>
+  <div id="index-root"></div>
+</div>
+<script>
+var _wikiIndexFull = null;
+var _wikiSearchTimer = null;
+var _wikiLastQuery = '';
+function wikiArticleHref(cat, id) {
+  var safeId = encodeURIComponent(id).replace(/%20/g,'+');
+  if (!cat) return '/wiki/' + safeId + '.html';
+  var segs = cat.split('/').map(function(p){ return encodeURIComponent(p); });
+  return '/wiki/' + segs.join('/') + '/' + safeId + '.html';
+}
+
+function render(data, leadText) {
+  var arts = data.articles || [];
+  var catsFromServer = data.categories || [];
+  var by = {};
+  arts.forEach(function(a){
+    var c = a.category || '';
+    if (!by[c]) by[c] = [];
+    by[c].push(a);
+  });
+  Object.keys(by).forEach(function(c){
+    by[c].sort(function(a,b){ return (b.updated||'').localeCompare(a.updated||''); });
+  });
+  var catList = Object.keys(by);
+  catsFromServer.forEach(function(c){
+    if (catList.indexOf(c) === -1) { by[c] = []; catList.push(c); }
+  });
+  catList.sort(function(a,b){
+    if (a === '') return -1;
+    if (b === '') return 1;
+    return a.localeCompare(b);
+  });
+
+  var html = '';
+  catList.forEach(function(cat){
+    var list = by[cat] || [];
+    var label = cat ? cat : '根目录';
+    html += '<div class="cat-block">';
+    html += '<div class="cat-head">📂 ' + esc(cat || '根目录') + ' <span style="font-weight:400;color:var(--dim)">(' + list.length + ')</span></div>';
+    html += '<div class="cat-body">';
+    if (!list.length) {
+      html += '<div class="empty">暂无文章</div>';
+    } else {
+      list.forEach(function(a){
+        var href = wikiArticleHref(a.category || '', a.id);
+        var upd = (a.updated || '').replace('T',' ').replace('Z','').slice(0,16);
+        html += '<div class="row">';
+        html += '<div class="row-main">';
+        html += '<a class="art" href="' + escAttr(href) + '">' + esc(a.title || a.id) + '</a>';
+        if (a.snippet) {
+          html += '<p class="snippet">' + escSnippetHighlight(a.snippet, _wikiLastQuery) + '</p>';
+        }
+        html += '</div>';
+        html += '<span class="meta">' + esc(upd || '—') + '</span>';
+        html += '</div>';
+      });
+    }
+    html += '</div></div>';
+  });
+
+  document.getElementById('index-root').innerHTML = html || '<p class="empty">暂无数据</p>';
+  if (leadText != null && leadText !== '') {
+    document.getElementById('lead').textContent = leadText;
+  } else {
+    document.getElementById('lead').textContent = '共 ' + arts.length + ' 篇文章 · 点击标题打开已发布页面';
+  }
+  var q = (document.getElementById('wiki-search-q').value || '').trim();
+  var clr = document.getElementById('wiki-search-clear');
+  if (clr) clr.style.display = q ? 'inline-block' : 'none';
+}
+
+function runWikiSearch() {
+  var q = (document.getElementById('wiki-search-q').value || '').trim();
+  if (!q) {
+    _wikiLastQuery = '';
+    if (_wikiIndexFull) render(_wikiIndexFull);
+    return;
+  }
+  document.getElementById('lead').textContent = '搜索中…';
+  fetch('/api/wiki-search?q=' + encodeURIComponent(q))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      if (!data.ok) throw new Error(data.error || '搜索失败');
+      var n = (data.articles || []).length;
+      var arts = data.articles || [];
+      var catSet = {};
+      arts.forEach(function(a){ catSet[a.category || ''] = 1; });
+      var cats = Object.keys(catSet);
+      cats.sort(function(a,b){
+        if (a === '') return -1;
+        if (b === '') return 1;
+        return a.localeCompare(b);
+      });
+      _wikiLastQuery = q;
+      render({ articles: arts, categories: cats },
+        '搜索「' + q + '」· ' + n + ' 篇 · 匹配标题与正文（不区分大小写）');
+    })
+    .catch(function(e){
+      document.getElementById('lead').textContent = '搜索失败：' + e.message;
+    });
+}
+
+document.getElementById('wiki-search-go').addEventListener('click', runWikiSearch);
+document.getElementById('wiki-search-q').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') { e.preventDefault(); runWikiSearch(); }
+});
+document.getElementById('wiki-search-q').addEventListener('input', function(){
+  var self = this;
+  if (_wikiSearchTimer) clearTimeout(_wikiSearchTimer);
+  _wikiSearchTimer = setTimeout(function(){
+    if (!(self.value || '').trim()) {
+      _wikiLastQuery = '';
+      if (_wikiIndexFull) render(_wikiIndexFull);
+    }
+  }, 320);
+});
+document.getElementById('wiki-search-clear').addEventListener('click', function(){
+  document.getElementById('wiki-search-q').value = '';
+  _wikiLastQuery = '';
+  if (_wikiIndexFull) render(_wikiIndexFull);
+});
+
+function esc(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s){
+  return esc(s).replace(/"/g,'&quot;');
+}
+/** 转义后在文本中高亮所有与 q 不区分大小写匹配的子串（用于摘要） */
+function escSnippetHighlight(text, q) {
+  if (!text) return '';
+  if (!q) return esc(text);
+  var lower = text.toLowerCase();
+  var lq = q.toLowerCase();
+  if (!lq) return esc(text);
+  var out = '';
+  var pos = 0;
+  var idx;
+  while ((idx = lower.indexOf(lq, pos)) >= 0) {
+    out += esc(text.slice(pos, idx));
+    out += '<mark class="hit">' + esc(text.slice(idx, idx + q.length)) + '</mark>';
+    pos = idx + q.length;
+  }
+  out += esc(text.slice(pos));
+  return out;
+}
+
+fetch('/api/wiki-list')
+  .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(function(data){
+    _wikiIndexFull = data;
+    render(data);
+  })
+  .catch(function(e){
+    document.getElementById('lead').textContent = '';
+    document.getElementById('index-root').innerHTML = '<p class="err">加载失败：'+esc(e.message)+'</p>';
+  });
+</script>
+</body>
+</html>

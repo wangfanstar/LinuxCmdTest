@@ -48,14 +48,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="topbar">
   <h1>📑 NoteWiki 文章索引</h1>
   <div style="flex:1"></div>
-  <a href="/wiki/notewiki.html">📝 NoteWiki 编辑</a>
-  <a href="/index.html">← 网站首页</a>
+  <a id="link-edit" href="/wiki/notewiki.html">📝 NoteWiki 编辑</a>
+  <a id="link-home" href="/index.html">← 网站首页</a>
 </div>
 <div class="wrap">
   <div class="search-bar">
     <input type="search" id="wiki-search-q" placeholder="搜索标题与正文…" autocomplete="off" aria-label="搜索文章">
     <button type="button" id="wiki-search-go">搜索</button>
     <button type="button" id="wiki-search-clear" title="显示全部文章" style="display:none">全部</button>
+    <button type="button" id="wiki-load-local" title="离线模式：加载本地索引文件" style="display:none">加载本地索引</button>
+    <input type="file" id="wiki-local-file" accept=".json,application/json" style="display:none">
   </div>
   <p class="lead" id="lead">加载中…</p>
   <div id="index-root"></div>
@@ -64,8 +66,26 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 var _wikiIndexFull = null;
 var _wikiSearchTimer = null;
 var _wikiLastQuery = '';
+var _isFileMode = (location.protocol === 'file:');
+var _offlineIndexCandidates = ['./wiki-index.json', '../wiki-index.json'];
+var _cacheKey = 'notewiki-index-cache-v1';
+
+if (_isFileMode) {
+  var loadBtn = document.getElementById('wiki-load-local');
+  if (loadBtn) loadBtn.style.display = 'inline-block';
+  var editLink = document.getElementById('link-edit');
+  var homeLink = document.getElementById('link-home');
+  if (editLink) editLink.href = './notewiki.html';
+  if (homeLink) homeLink.href = '../index.html';
+}
+
 function wikiArticleHref(cat, id) {
   var safeId = encodeURIComponent(id).replace(/%20/g,'+');
+  if (_isFileMode) {
+    if (!cat) return './' + safeId + '.html';
+    var relSegs = cat.split('/').map(function(p){ return encodeURIComponent(p); });
+    return './' + relSegs.join('/') + '/' + safeId + '.html';
+  }
   if (!cat) return '/wiki/' + safeId + '.html';
   var segs = cat.split('/').map(function(p){ return encodeURIComponent(p); });
   return '/wiki/' + segs.join('/') + '/' + safeId + '.html';
@@ -146,6 +166,10 @@ function runWikiSearch() {
     if (_wikiIndexFull) render(_wikiIndexFull);
     return;
   }
+  if (_isFileMode) {
+    document.getElementById('lead').textContent = '离线模式不支持服务端全文搜索，请先加载本地索引并按标题浏览';
+    return;
+  }
   document.getElementById('lead').textContent = '搜索中…';
   fetch('/api/wiki-search?q=' + encodeURIComponent(q))
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
@@ -217,16 +241,100 @@ function escSnippetHighlight(text, q) {
   return out;
 }
 
-fetch('/api/wiki-list')
-  .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-  .then(function(data){
-    _wikiIndexFull = data;
-    render(data);
-  })
-  .catch(function(e){
-    document.getElementById('lead').textContent = '';
-    document.getElementById('index-root').innerHTML = '<p class="err">加载失败：'+esc(e.message)+'</p>';
+function saveIndexCache(data) {
+  try {
+    localStorage.setItem(_cacheKey, JSON.stringify({ ts: Date.now(), data: data }));
+  } catch (e) {}
+}
+
+function loadIndexCache() {
+  try {
+    var raw = localStorage.getItem(_cacheKey);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (!obj || !obj.data) return null;
+    return obj.data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function applyIndexData(data, lead) {
+  _wikiIndexFull = data;
+  render(data, lead || '');
+}
+
+function parseLocalIndexText(text) {
+  var data = JSON.parse(text);
+  if (!data || typeof data !== 'object') throw new Error('JSON 格式无效');
+  if (!Array.isArray(data.articles)) throw new Error('缺少 articles 数组');
+  if (!Array.isArray(data.categories)) data.categories = [];
+  return data;
+}
+
+function bindOfflineFileLoader() {
+  var btn = document.getElementById('wiki-load-local');
+  var inp = document.getElementById('wiki-local-file');
+  if (!btn || !inp) return;
+  btn.addEventListener('click', function(){ inp.click(); });
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try {
+        var data = parseLocalIndexText(String(reader.result || ''));
+        applyIndexData(data, '离线索引：' + f.name + '（' + data.articles.length + ' 篇）');
+      } catch (e) {
+        document.getElementById('lead').textContent = '本地索引加载失败：' + e.message;
+      }
+    };
+    reader.onerror = function(){ document.getElementById('lead').textContent = '本地索引读取失败'; };
+    reader.readAsText(f, 'utf-8');
   });
+}
+
+function bootOnlineMode() {
+  fetch('/api/wiki-list')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      applyIndexData(data);
+      saveIndexCache(data);
+    })
+    .catch(function(e){
+      document.getElementById('lead').textContent = '';
+      document.getElementById('index-root').innerHTML = '<p class="err">加载失败：'+esc(e.message)+'</p>';
+    });
+}
+
+function tryOfflineCandidates(i) {
+  if (i >= _offlineIndexCandidates.length) return Promise.reject(new Error('无可用候选'));
+  return fetch(_offlineIndexCandidates[i])
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(text){ return parseLocalIndexText(text); })
+    .catch(function(){ return tryOfflineCandidates(i + 1); });
+}
+
+function bootOfflineMode() {
+  bindOfflineFileLoader();
+  var cached = loadIndexCache();
+  if (cached) {
+    applyIndexData(cached, '离线模式：已加载缓存索引（可点击“加载本地索引”替换）');
+  } else {
+    document.getElementById('lead').textContent = '离线模式：请点击“加载本地索引”选择 wiki-index.json';
+  }
+  tryOfflineCandidates(0)
+    .then(function(data){
+      applyIndexData(data, '离线模式：已自动加载本地索引（' + data.articles.length + ' 篇）');
+    })
+    .catch(function(){});
+}
+
+if (_isFileMode) bootOfflineMode();
+else bootOnlineMode();
 </script>
 </body>
 </html>

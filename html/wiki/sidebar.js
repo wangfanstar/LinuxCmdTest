@@ -270,45 +270,20 @@
   (function renderMathAndMermaid() {
     var root = document.getElementById('article-body');
     if (!root) return;
-    var mermaidReady = false;
-    var tries = 0;
-
-    function run() {
-      var hasMJ = !!(window.MathJax && window.MathJax.typesetPromise);
-      var hasMermaid = !!window.mermaid;
-      if (!hasMJ && !hasMermaid) {
-        if (tries < 20) {
-          tries++;
-          setTimeout(run, 250);
-        }
-        return;
-      }
-
-      if (hasMJ) {
-        try {
-          if (window.MathJax.typesetClear) window.MathJax.typesetClear([root]);
-        } catch (e) {}
-        window.MathJax.typesetPromise([root]).catch(function () {});
-      }
-
-      if (hasMermaid) {
-        if (!mermaidReady) {
-          try {
-            window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
-            mermaidReady = true;
-          } catch (e) {}
-        }
-        var nodes = root.querySelectorAll('.mermaid');
-        if (nodes.length) {
-          try {
-            nodes.forEach(function (n) { n.removeAttribute('data-processed'); });
-            window.mermaid.run({ nodes: Array.prototype.slice.call(nodes) });
-          } catch (e) {}
-        }
-      }
-    }
-
-    run();
+    var base = (function () {
+      var p = window.location.pathname || '';
+      var i = p.indexOf('/wiki/');
+      if (i >= 0) return p.slice(0, i + 6);
+      return '/wiki/';
+    }());
+    var rr = createRichRenderer({
+      mathjaxSrc: base + 'vendor/mathjax/tex-svg-full.js',
+      mermaidSrc: base + 'vendor/mermaid/mermaid.min.js',
+      mermaidTheme: 'dark'
+    });
+    rr.ensure();
+    rr.render(root);
+    window.addEventListener('load', function () { rr.render(root); });
   }());
 
   // ── 打印样式（Ctrl+P）：隐藏顶栏与双栏目录，正文多页展开 ─────────────
@@ -352,11 +327,11 @@
       var metaTxt = m && m.textContent ? String(m.textContent).trim() : '';
       var body = String(b.innerHTML || '').replace(/<\/script/gi, '<\\/script');
       var css = [
-        '@page{margin:0;size:auto;}',
+        '@page{size:A4;margin:14mm;}',
         '*{box-sizing:border-box;margin:0;padding:0}',
         'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:14mm;padding:0}',
-        '.wrap{max-width:100%;padding:20px 28px}',
+        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
+        '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
         'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
         '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
         '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
@@ -387,7 +362,8 @@
         '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '@media print{@page{margin:0}html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:14mm!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+        '.pdf-page-num{display:none;position:absolute;right:0;color:#666;font-size:10px}',
+        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
       ].join('\n');
 
       var baseHref = '';
@@ -399,6 +375,18 @@
       var baseTag = baseHref
         ? '<base href="' + escH(baseHref) + '">\n'
         : '';
+      var boot = '<script src="/wiki/rich-render.js"><\\/script>\n' +
+        '<script>(function(){' +
+        'function mmPx(v){var d=document.createElement("div");d.style.cssText="position:absolute;visibility:hidden;height:"+v+"mm";document.body.appendChild(d);var h=d.offsetHeight||0;d.remove();return h;}' +
+        'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});' +
+        'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));' +
+        'wrap.style.paddingBottom=(footerGap+10)+"px";' +
+        'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.textContent="第 "+i+" / "+total+" 页";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}' +
+        'function done(){window.__pdfReady=1;}' +
+        'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}' +
+        'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});' +
+        'rr.ensure(function(){rr.render(root);setTimeout(function(){injectPaging();done();},700);});setTimeout(function(){injectPaging();done();},4200);' +
+        '}catch(e){injectPaging();done();}})();<\\/script>\n';
 
       var html =
         '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
@@ -409,16 +397,18 @@
         '</title>\n<style>\n' +
         css +
         '\n</style>\n</head>\n<body>\n' +
-        '<div class="wrap">\n' +
+        '<div class="wrap" id="pdf-print-root">\n' +
         '<h1 class="art-title">' +
         escH(title) +
         '</h1>\n' +
         '<div class="meta">' +
         escH(metaTxt) +
         '</div>\n' +
-        '<div class="art-content">\n' +
+        '<div class="art-content" id="pdf-article-body">\n' +
         body +
-        '\n</div>\n</div>\n</body>\n</html>';
+        '\n</div>\n</div>\n' +
+        boot +
+        '</body>\n</html>';
 
       var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
       var url = URL.createObjectURL(blob);
@@ -448,7 +438,17 @@
           } catch (e) {}
           try {
             cw.focus();
-            cw.print();
+            var tries = 0;
+            (function waitReadyAndPrint() {
+              var ready = false;
+              try { ready = !!cw.__pdfReady; } catch (e0) {}
+              if (ready || tries > 50) {
+                try { cw.print(); } catch (e1) {}
+                return;
+              }
+              tries++;
+              setTimeout(waitReadyAndPrint, 120);
+            })();
           } catch (e) {
             var w = window.open(url, '_blank');
             if (w) {

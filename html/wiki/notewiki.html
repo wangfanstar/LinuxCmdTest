@@ -69,9 +69,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .view-head>.btn,.view-head>a.btn{flex-shrink:0}
 .view-breadcrumb{font-size:.78rem;color:var(--dim);flex:1 1 200px;min-width:0}
 .view-breadcrumb span{color:var(--text)}
-.view-body{flex:1;overflow-y:auto;padding:28px 32px}
+.view-body{flex:1;overflow-y:auto;padding:28px 32px;display:flex;align-items:flex-start;gap:22px}
+.view-main{flex:1;min-width:0}
 .view-body h1.art-title{font-size:1.55rem;color:#f0f6fc;margin-bottom:6px}
 .view-meta{font-size:.72rem;color:var(--dim);margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.view-toc{width:240px;flex-shrink:0;position:sticky;top:0;max-height:calc(100vh - 130px);overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--surf);padding:10px 8px}
+.view-toc-title{font-size:.78rem;font-weight:600;color:#f0f6fc;padding:2px 8px 8px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.view-toc-list a{display:block;text-decoration:none;color:var(--dim);font-size:.76rem;line-height:1.45;padding:4px 8px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view-toc-list a:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.view-toc-list a.l2{padding-left:16px}
+.view-toc-list a.l3{padding-left:24px}
+.view-toc-list a.l4{padding-left:32px}
+.view-toc-empty{font-size:.74rem;color:var(--dim);padding:6px 8px}
+@media (max-width: 1200px){.view-toc{display:none}}
 /* article content styles */
 .art-content h1,.art-content h2,.art-content h3,.art-content h4,.art-content h5,.art-content h6{margin:1.3em 0 .5em;line-height:1.35}
 .art-content h1{font-size:1.4rem;color:#79c0ff}
@@ -119,6 +129,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .art-content .math-block{margin:1em 0;overflow-x:auto}
 .art-content .mermaid-block{margin:1em 0;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#101722;overflow:auto}
 .art-content .mermaid{min-width:220px}
+.art-content mjx-container{color:#c9d1d9 !important}
+.art-content mjx-container[display="true"]{margin:1em 0;overflow-x:auto}
 .art-content .footnotes{margin-top:1.6em;padding-top:.2em}
 .art-content .footnotes hr{margin:.7em 0 1em}
 .art-content .footnotes ol{padding-left:1.5em;margin:.2em 0}
@@ -202,7 +214,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="topbar">
   <h1>📝 NoteWiki</h1>
   <div class="topbar-sep"></div>
-  <a href="/notewikiindex.html">📑 文章索引</a>
+  <a href="/wiki/notewikiindex.html">📑 文章索引</a>
   <a href="/index.html">← 返回首页</a>
 </div>
 
@@ -242,9 +254,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <a class="btn btn-secondary btn-sm" id="view-html-link" href="#" target="_blank">🔗 HTML</a>
       </div>
       <div class="view-body">
-        <h1 class="art-title" id="view-title"></h1>
-        <div class="view-meta" id="view-meta"></div>
-        <div class="art-content" id="view-content"></div>
+        <div class="view-main">
+          <h1 class="art-title" id="view-title"></h1>
+          <div class="view-meta" id="view-meta"></div>
+          <div class="art-content" id="view-content"></div>
+        </div>
+        <aside class="view-toc" id="view-toc">
+          <div class="view-toc-title">本文目录</div>
+          <div class="view-toc-list" id="view-toc-list">
+            <div class="view-toc-empty">请选择文章</div>
+          </div>
+        </aside>
       </div>
     </div>
 
@@ -453,18 +473,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <input type="file" id="img-file-input" accept="image/*,.pdf,.txt,.zip,.gz"
        style="display:none" onchange="doUploadFile(this.files[0])">
 
-<script>
-window.MathJax = {
-  tex: {
-    inlineMath: [['\\(', '\\)'], ['$', '$']],
-    displayMath: [['\\[', '\\]'], ['$$', '$$']]
-  },
-  svg: { fontCache: 'global' },
-  startup: { typeset: false }
-};
-</script>
-<script defer src="/wiki/vendor/mathjax/tex-svg-full.js"></script>
-<script defer src="/wiki/vendor/mermaid/mermaid.min.js"></script>
+<script src="/wiki/rich-render.js"></script>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────
@@ -483,6 +492,7 @@ var S = {
 
 // ── Init ─────────────────────────────────────────────────────────────
 function init() {
+  richRenderer.ensure();
   var params = new URLSearchParams(location.search);
   var editId = params.get('edit');
   refreshAll(function() {
@@ -713,6 +723,7 @@ function openArticle(id) {
     '<span>'+escH(cat||'根目录')+'</span> / '+escH(meta.title||'');
 
   document.getElementById('view-content').innerHTML = '<span style="color:var(--dim)">加载中…</span>';
+  resetViewToc('目录生成中…');
 
   fetch('/api/wiki-read?id='+encodeURIComponent(id))
     .then(function(r){return r.json();})
@@ -720,12 +731,50 @@ function openArticle(id) {
       if(data.ok) {
         var vc = document.getElementById('view-content');
         vc.innerHTML = md2html(data.content||'');
+        buildViewToc(vc);
         scheduleRichRender(vc);
       } else {
         document.getElementById('view-content').innerHTML = '<span style="color:var(--red)">读取失败</span>';
+        resetViewToc('读取失败');
       }
     })
-    .catch(function(){ document.getElementById('view-content').innerHTML='<span style="color:var(--red)">网络错误</span>'; });
+    .catch(function(){
+      document.getElementById('view-content').innerHTML='<span style="color:var(--red)">网络错误</span>';
+      resetViewToc('网络错误');
+    });
+}
+
+function resetViewToc(msg) {
+  var list = document.getElementById('view-toc-list');
+  if (!list) return;
+  list.innerHTML = '<div class="view-toc-empty">' + escH(msg || '本文无标题目录') + '</div>';
+}
+
+function buildViewToc(root) {
+  var list = document.getElementById('view-toc-list');
+  if (!list || !root) return;
+  var heads = Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4'));
+  if (!heads.length) {
+    resetViewToc('本文无标题目录');
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < heads.length; i++) {
+    var h = heads[i];
+    var lv = parseInt((h.tagName || 'H2').substring(1), 10) || 2;
+    if (!h.id) h.id = 'view-head-' + (i + 1);
+    html += '<a class="l' + lv + '" href="#' + escH(h.id) + '" data-target="' + escH(h.id) + '">' + escH((h.textContent || '').trim() || ('标题 ' + (i + 1))) + '</a>';
+  }
+  list.innerHTML = html;
+  Array.prototype.forEach.call(list.querySelectorAll('a[data-target]'), function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var id = a.getAttribute('data-target');
+      if (!id) return;
+      var el = document.getElementById(id);
+      if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 }
 
 // ── Edit ─────────────────────────────────────────────────────────────
@@ -1320,7 +1369,17 @@ function printHtmlForPdf(html) {
       } catch (e) {}
       try {
         cw.focus();
-        cw.print();
+        var tries = 0;
+        (function waitReadyAndPrint() {
+          var ready = false;
+          try { ready = !!cw.__pdfReady; } catch (e) {}
+          if (ready || tries > 50) {
+            try { cw.print(); } catch (e2) {}
+            return;
+          }
+          tries++;
+          setTimeout(waitReadyAndPrint, 120);
+        })();
       } catch (e) {
         var w = window.open(url, '_blank');
         if (w) {
@@ -1344,11 +1403,11 @@ function printHtmlForPdf(html) {
 function exportPdfBuildWindow(title, cat, updated, bodyInner) {
   var body = String(bodyInner || '').replace(/<\/script/gi, '<\\/script');
   var css = [
-    '@page{margin:0;size:auto;}',
+    '@page{size:A4;margin:14mm;}',
     '*{box-sizing:border-box;margin:0;padding:0}',
     'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7;margin:14mm;padding:0}',
-    '.wrap{max-width:100%;padding:20px 28px}',
+    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
+    '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
     'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
     '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
     '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
@@ -1377,7 +1436,8 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '@media print{@page{margin:0}html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:14mm!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    '.pdf-page-num{display:none;position:absolute;right:0;color:#666;font-size:10px}',
+    '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
   ].join('\n');
 
   var baseHref = '';
@@ -1386,16 +1446,30 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     ? ('<base href="' + String(baseHref).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">\n')
     : '';
 
+  var boot = '<script src="/wiki/rich-render.js"><\\/script>\n'
+    + '<script>(function(){'
+    + 'function mmPx(v){var d=document.createElement("div");d.style.cssText="position:absolute;visibility:hidden;height:"+v+"mm";document.body.appendChild(d);var h=d.offsetHeight||0;d.remove();return h;}'
+    + 'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});'
+    + 'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));'
+    + 'wrap.style.paddingBottom=(footerGap+10)+"px";'
+    + 'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.textContent="第 "+i+" / "+total+" 页";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}'
+    + 'function done(){window.__pdfReady=1;}'
+    + 'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}'
+    + 'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});'
+    + 'rr.ensure(function(){rr.render(root);setTimeout(function(){injectPaging();done();},700);});setTimeout(function(){injectPaging();done();},4200);'
+    + '}catch(e){injectPaging();done();}})();<\\/script>\n';
+
   var html = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
     + '<meta charset="UTF-8">\n'
     + baseTag
     + '<title>' + escH(title) + '</title>\n'
     + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
-    + '<div class="wrap">\n'
+    + '<div class="wrap" id="pdf-print-root">\n'
     + '<h1 class="art-title">' + escH(title) + '</h1>\n'
     + '<div class="meta">分类：' + escH(cat) + ' &nbsp;|&nbsp; 更新：' + escH(updated) + '</div>\n'
-    + '<div class="art-content">\n' + body + '\n</div>\n'
+    + '<div class="art-content" id="pdf-article-body">\n' + body + '\n</div>\n'
     + '</div>\n'
+    + boot
     + '</body>\n</html>';
 
   printHtmlForPdf(html);
@@ -1408,12 +1482,23 @@ function exportPdf() {
   var inEdit = pe && pe.style.display !== 'none';
   var title, cat, updated, body;
 
-  if (inView && S.curId) {
-    var meta = S.articles.find(function(a){ return a.id === S.curId; });
-    title   = meta ? (meta.title || 'untitled') : 'untitled';
-    cat     = meta ? (meta.category || '根目录') : '根目录';
-    updated = meta ? (meta.updated || '').replace('T',' ').replace('Z','') : '';
-    body    = document.getElementById('view-content').innerHTML;
+  if (inView) {
+    var vc = document.getElementById('view-content');
+    body = vc ? vc.innerHTML : '';
+    if (!body || !body.trim()) {
+      setStatus('当前无可导出的正文内容');
+      return;
+    }
+    var meta = S.curId ? S.articles.find(function(a){ return a.id === S.curId; }) : null;
+    title = meta ? (meta.title || 'untitled') : ((document.getElementById('view-title').textContent || '').trim() || 'untitled');
+    cat = meta ? (meta.category || '根目录') : '根目录';
+    updated = meta
+      ? (meta.updated || '').replace('T',' ').replace('Z','')
+      : (function(){
+          var vm = (document.getElementById('view-meta').textContent || '');
+          var m = vm.match(/更新：\s*([^\|]+)/);
+          return m ? m[1].trim() : '';
+        })();
   } else if (inEdit) {
     title = (document.getElementById('edit-title').value || '').trim() || 'untitled';
     var cv = document.getElementById('edit-category').value || '';
@@ -2154,48 +2239,17 @@ function md2html(src, syncLines) {
 }
 
 var _richRenderTimer = null;
-var _mermaidReady = false;
-var _richRetryCount = 0;
+var richRenderer = createRichRenderer({
+  mathjaxSrc: '/wiki/vendor/mathjax/tex-svg-full.js',
+  mermaidSrc: '/wiki/vendor/mermaid/mermaid.min.js',
+  mermaidTheme: 'dark'
+});
 
 function scheduleRichRender(root) {
   clearTimeout(_richRenderTimer);
-  _richRenderTimer = setTimeout(function() { renderMathAndMermaid(root); }, 40);
-}
-
-function renderMathAndMermaid(root) {
-  if (!root) return;
-  var hasMJ = !!(window.MathJax && window.MathJax.typesetPromise);
-  var hasMermaid = !!window.mermaid;
-
-  if (!hasMJ && !hasMermaid) {
-    if (_richRetryCount < 20) {
-      _richRetryCount++;
-      setTimeout(function() { renderMathAndMermaid(root); }, 250);
-    }
-    return;
-  }
-  _richRetryCount = 0;
-
-  if (hasMJ) {
-    try { if (window.MathJax.typesetClear) window.MathJax.typesetClear([root]); } catch (e) {}
-    window.MathJax.typesetPromise([root]).catch(function(){});
-  }
-
-  if (hasMermaid) {
-    if (!_mermaidReady) {
-      try {
-        window.mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
-        _mermaidReady = true;
-      } catch (e) {}
-    }
-    var nodes = root.querySelectorAll('.mermaid');
-    if (nodes.length) {
-      try {
-        nodes.forEach(function(n){ n.removeAttribute('data-processed'); });
-        window.mermaid.run({ nodes: Array.prototype.slice.call(nodes) });
-      } catch (e) {}
-    }
-  }
+  _richRenderTimer = setTimeout(function() {
+    richRenderer.render(root);
+  }, 40);
 }
 
 function splitRow(row){ return row.replace(/^\||\|$/g,'').split('|'); }

@@ -313,12 +313,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openLinkModal()" title="插入链接">🔗</button>
         <button class="tb-btn" onclick="openImgUpload()" title="插入图片">🖼</button>
+        <button class="tb-btn" onclick="openColorPicker()" title="文字颜色">🎨</button>
         <button class="tb-btn" onclick="openTableModal()" title="插入表格（Ctrl+Alt+T）">⊞</button>
         <button class="tb-btn" onclick="tb('math-inline')" title="行内公式（Ctrl+Alt+M）">∑</button>
         <button class="tb-btn" onclick="tb('math-block')" title="块公式（Ctrl+Alt+Shift+M）">∫</button>
         <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
         <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
+        <input type="color" id="tb-color-picker" value="#ff4d4f" style="display:none" onchange="onColorPicked(this.value)">
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
@@ -1510,7 +1512,8 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '.pdf-page-num{display:none;position:absolute;right:0;color:#666;font-size:10px}',
+    '.pdf-page-num{display:none;position:absolute;left:0;right:0;color:#666;font-size:10px;text-align:right;white-space:nowrap}',
+    '.pdf-page-num .num{font-weight:600;color:#333}',
     '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;padding:12mm 14mm!important;margin:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
   ].join('\n');
 
@@ -1526,7 +1529,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + 'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});'
     + 'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));'
     + 'wrap.style.paddingBottom=(footerGap+10)+"px";'
-    + 'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.textContent="第 "+i+" / "+total+" 页";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}'
+    + 'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.innerHTML="当前页 <span class=\\"num\\">"+i+"</span> / 总页数 <span class=\\"num\\">"+total+"</span>";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}'
     + 'function done(){window.__pdfReady=1;}'
     + 'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}'
     + 'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});'
@@ -1786,6 +1789,7 @@ function doInsertTable() {
 }
 
 var _linkInsertRange = { start: 0, end: 0 };
+var _colorInsertRange = { start: 0, end: 0 };
 
 function openLinkModal() {
   if (document.getElementById('pane-edit').style.display === 'none') return;
@@ -1800,6 +1804,38 @@ function openLinkModal() {
     document.getElementById('link-url').focus();
     document.getElementById('link-url').select();
   }, 50);
+}
+
+function openColorPicker() {
+  if (document.getElementById('pane-edit').style.display === 'none') return;
+  var ta = document.getElementById('edit-textarea');
+  _colorInsertRange.start = ta.selectionStart;
+  _colorInsertRange.end = ta.selectionEnd;
+  var picker = document.getElementById('tb-color-picker');
+  if (!picker) return;
+  picker.click();
+}
+
+function onColorPicked(color) {
+  var c = (color || '').trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
+  histFlush();
+  var ta = document.getElementById('edit-textarea');
+  if (!ta) return;
+  var start = _colorInsertRange.start;
+  var end = _colorInsertRange.end;
+  if (typeof start !== 'number' || typeof end !== 'number' || start < 0 || end < start) {
+    start = ta.selectionStart;
+    end = ta.selectionEnd;
+  }
+  var sel = ta.value.substring(start, end);
+  var text = sel || '彩色文本';
+  var ins = '<span style="color:' + c + ';">' + text + '</span>';
+  ta.value = ta.value.substring(0, start) + ins + ta.value.substring(end);
+  var cur = start + ins.length;
+  ta.selectionStart = ta.selectionEnd = cur;
+  ta.focus();
+  onEditorInput();
 }
 
 function closeLinkModal() {
@@ -1951,7 +1987,8 @@ function enhanceInlineMarkdown(line) {
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<span class="hl-strong">**$1**</span>');
   s = s.replace(/\*([^*\n]+)\*/g, '<span class="hl-em">*$1*</span>');
   s = s.replace(/(\[[^\]]+\]\([^)]+\))/g, '<span class="hl-link">$1</span>');
-  s = s.replace(/\x03(\d+)\x03/g, function(_,n){ return escM(escsaved[+n]); });
+  /* 编辑镜像层必须保持字符宽度一致，避免反斜杠处光标错位 */
+  s = s.replace(/\x03(\d+)\x03/g, function(_,n){ return '\\' + escM(escsaved[+n]); });
   return s;
 }
 

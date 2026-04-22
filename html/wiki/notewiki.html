@@ -1943,10 +1943,15 @@ function escM(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 
 function enhanceInlineMarkdown(line) {
   var s = escM(line);
+  var escsaved = [], ecph = function(v){ escsaved.push(v); return '\x03'+(escsaved.length-1)+'\x03'; };
+  s = s.replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, function(_, ch) {
+    return ecph(ch);
+  });
   s = s.replace(/`([^`\n]+)`/g, '<span class="hl-inline-code">`$1`</span>');
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<span class="hl-strong">**$1**</span>');
   s = s.replace(/\*([^*\n]+)\*/g, '<span class="hl-em">*$1*</span>');
   s = s.replace(/(\[[^\]]+\]\([^)]+\))/g, '<span class="hl-link">$1</span>');
+  s = s.replace(/\x03(\d+)\x03/g, function(_,n){ return escM(escsaved[+n]); });
   return s;
 }
 
@@ -2335,6 +2340,11 @@ function footAnchorId(id){ return String(id||'').replace(/[^\w-]/g,'_'); }
 function il(s, footCtx){
   var ilsaved = [], ilph = function(v){ ilsaved.push(v); return '\x01'+(ilsaved.length-1)+'\x01'; };
   var mathsaved = [], maph = function(v){ mathsaved.push(v); return '\x02'+(mathsaved.length-1)+'\x02'; };
+  var escsaved = [], ecph = function(v){ escsaved.push(v); return '\x03'+(escsaved.length-1)+'\x03'; };
+  // markdown 反斜杠转义统一前置处理，避免后续被链接/强调等规则误解析
+  s = s.replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, function(_, ch) {
+    return ecph(ch);
+  });
   s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, function(_,alt,url){ return ilph('<img src="'+url+'" alt="'+alt+'" style="max-width:100%">'); });
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_,txt,url){ return ilph('<a href="'+url+'" target="_blank">'+txt+'</a>'); });
   if (footCtx && footCtx.defs) {
@@ -2387,6 +2397,7 @@ function il(s, footCtx){
   s = s.replace(/\x02(\d+)\x02/g, function(_,n){
     return '<span class="math-inline">\\(' + he(mathsaved[+n]) + '\\)</span>';
   });
+  s = s.replace(/\x03(\d+)\x03/g, function(_,n){ return he(escsaved[+n]); });
   s = s.replace(/\x01(\d+)\x01/g, function(_,n){ return ilsaved[+n]; });
   return s;
 }

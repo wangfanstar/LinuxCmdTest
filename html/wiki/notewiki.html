@@ -1503,6 +1503,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content li{margin:.15em 0}',
     '.art-content a{color:#0969da;text-decoration:none}',
     '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
+    '.art-content .code-block .copy-btn{display:none!important}',
     '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
     '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
     '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
@@ -1978,18 +1979,8 @@ function syncPreviewToCursor() {
 function escM(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function enhanceInlineMarkdown(line) {
-  var s = escM(line);
-  var escsaved = [], ecph = function(v){ escsaved.push(v); return '\x03'+(escsaved.length-1)+'\x03'; };
-  s = s.replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, function(_, ch) {
-    return ecph(ch);
-  });
-  s = s.replace(/`([^`\n]+)`/g, '<span class="hl-inline-code">`$1`</span>');
-  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<span class="hl-strong">**$1**</span>');
-  s = s.replace(/\*([^*\n]+)\*/g, '<span class="hl-em">*$1*</span>');
-  s = s.replace(/(\[[^\]]+\]\([^)]+\))/g, '<span class="hl-link">$1</span>');
-  /* 编辑镜像层必须保持字符宽度一致，避免反斜杠处光标错位 */
-  s = s.replace(/\x03(\d+)\x03/g, function(_,n){ return '\\' + escM(escsaved[+n]); });
-  return s;
+  // mirror 层优先保证字符与 textarea 完全一致，避免光标点击错位
+  return escM(line);
 }
 
 function updateEditorHighlight(content) {
@@ -2428,8 +2419,8 @@ function il(s, footCtx){
   s = s.replace(/\*\*\*([^*\n]+)\*\*\*/g,'<strong><em>$1</em></strong>');
   s = s.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
   s = s.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
-  s = s.replace(/__([^_\n]+)__/g,'<strong>$1</strong>');
-  s = s.replace(/_([^_\n]+)_/g,'<em>$1</em>');
+  s = s.replace(/(^|[^\w\\])__([^_\n]+)__(?=[^\w]|$)/g,'$1<strong>$2</strong>');
+  s = s.replace(/(^|[^\w\\])_([^_\n]+)_(?=[^\w]|$)/g,'$1<em>$2</em>');
   s = s.replace(/~~([^~\n]+)~~/g,'<del>$1</del>');
   s = s.replace(/\x02(\d+)\x02/g, function(_,n){
     return '<span class="math-inline">\\(' + he(mathsaved[+n]) + '\\)</span>';

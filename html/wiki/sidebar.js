@@ -362,7 +362,8 @@
         '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '.pdf-page-num{display:none;position:absolute;right:0;color:#666;font-size:10px}',
+        '.pdf-page-num{display:none;position:absolute;left:0;right:0;color:#666;font-size:10px;text-align:right;white-space:nowrap}',
+        '.pdf-page-num .num{font-weight:600;color:#333}',
         '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;padding:12mm 14mm!important;margin:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
       ].join('\n');
 
@@ -381,7 +382,7 @@
         'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});' +
         'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));' +
         'wrap.style.paddingBottom=(footerGap+10)+"px";' +
-        'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.textContent="第 "+i+" / "+total+" 页";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}' +
+        'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.innerHTML="当前页 <span class=\\"num\\">"+i+"</span> / 总页数 <span class=\\"num\\">"+total+"</span>";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}' +
         'function done(){window.__pdfReady=1;}' +
         'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}' +
         'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});' +

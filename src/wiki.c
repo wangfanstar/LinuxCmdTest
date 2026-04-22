@@ -268,6 +268,40 @@ static int wiki_upload_safe(const char *fn)
     return 0;
 }
 
+/* 生成不与现有文件冲突的上传文件名：
+   先尝试原名；若已存在则追加 _1、_2... */
+static int wiki_upload_unique_name(char *out, size_t outsz,
+                                   const char *dir, const char *orig)
+{
+    if (!out || outsz == 0 || !dir || !orig || !orig[0]) return -1;
+    snprintf(out, outsz, "%s", orig);
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/%s", dir, out);
+    struct stat st;
+    if (stat(path, &st) != 0) return 0; /* 不存在，直接可用 */
+
+    const char *dot = strrchr(orig, '.');
+    char name[256] = {0};
+    char ext[64] = {0};
+    if (dot && dot != orig) {
+        size_t nlen = (size_t)(dot - orig);
+        if (nlen >= sizeof(name)) nlen = sizeof(name) - 1;
+        memcpy(name, orig, nlen);
+        name[nlen] = '\0';
+        snprintf(ext, sizeof(ext), "%s", dot);
+    } else {
+        snprintf(name, sizeof(name), "%s", orig);
+        ext[0] = '\0';
+    }
+
+    for (int i = 1; i < 10000; i++) {
+        snprintf(out, outsz, "%s_%d%s", name, i, ext);
+        snprintf(path, sizeof(path), "%s/%s", dir, out);
+        if (stat(path, &st) != 0) return 0;
+    }
+    return -1;
+}
+
 static void wiki_ensure_dirs(void)
 {
     mkdir_p(WIKI_MD_DB);
@@ -1637,7 +1671,11 @@ void handle_api_wiki_upload(http_sock_t client_fd, const char *req_headers,
     } else {
         snprintf(upload_dir, sizeof(upload_dir), "%s", WIKI_UPLOADS);
     }
-    char filepath[1024]; snprintf(filepath,sizeof(filepath),"%s/%s",upload_dir,filename);
+    char final_name[256]={0};
+    if (wiki_upload_unique_name(final_name, sizeof(final_name), upload_dir, filename) != 0) {
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"name conflict\"}",38); return;
+    }
+    char filepath[1024]; snprintf(filepath,sizeof(filepath),"%s/%s",upload_dir,final_name);
     FILE *fp = fopen(filepath,"wb");
     if (!fp) { send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"open\"}",29); return; }
     if (body_len>0) fwrite(body,1,body_len,fp);
@@ -1647,7 +1685,7 @@ void handle_api_wiki_upload(http_sock_t client_fd, const char *req_headers,
     if (cat[0] && register_subdir_safe(cat)) {
         sb_append(&sb,cat,strlen(cat)); SB_LIT(&sb,"/");
     }
-    sb_append(&sb,filename,strlen(filename));
+    sb_append(&sb,final_name,strlen(final_name));
     SB_LIT(&sb,"\"}");
     if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
     else send_json(client_fd,200,"OK","{\"ok\":true}",11);

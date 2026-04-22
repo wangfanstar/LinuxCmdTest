@@ -327,10 +327,10 @@
       var metaTxt = m && m.textContent ? String(m.textContent).trim() : '';
       var body = String(b.innerHTML || '').replace(/<\/script/gi, '<\\/script');
       var css = [
-        '@page{size:A4;margin:0;}',
+        '@page{size:A4;margin:14mm 14mm 18mm;@bottom-center{content:counter(page)" / "counter(pages);font-size:9pt;color:#666;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif}}',
         '*{box-sizing:border-box;margin:0;padding:0}',
         'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:14mm}',
+        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
         '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
         'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
         '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
@@ -362,9 +362,7 @@
         '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '.pdf-page-num{display:none;position:absolute;left:0;right:0;color:#666;font-size:10px;text-align:right;white-space:nowrap}',
-        '.pdf-page-num .num{font-weight:600;color:#333}',
-        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;padding:12mm 14mm!important;margin:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
+        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
       ].join('\n');
 
       var baseHref = '';
@@ -378,16 +376,12 @@
         : '';
       var boot = '<script src="/wiki/rich-render.js"><\\/script>\n' +
         '<script>(function(){' +
-        'function mmPx(v){var d=document.createElement("div");d.style.cssText="position:absolute;visibility:hidden;height:"+v+"mm";document.body.appendChild(d);var h=d.offsetHeight||0;d.remove();return h;}' +
-        'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});' +
-        'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));' +
-        'wrap.style.paddingBottom=(footerGap+10)+"px";' +
-        'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.innerHTML="当前页 <span class=\\"num\\">"+i+"</span> / 总页数 <span class=\\"num\\">"+total+"</span>";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}' +
         'function done(){window.__pdfReady=1;}' +
-        'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}' +
+        'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){done();return;}' +
+        'var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}' +
         'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});' +
-        'rr.ensure(function(){rr.render(root);setTimeout(function(){injectPaging();done();},700);});setTimeout(function(){injectPaging();done();},4200);' +
-        '}catch(e){injectPaging();done();}})();<\\/script>\n';
+        'rr.ensure(function(){rr.render(root);setTimeout(done,220);});setTimeout(done,1400);' +
+        '}catch(e){done();}})();<\\/script>\n';
 
       var html =
         '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
@@ -451,12 +445,12 @@
             (function waitReadyAndPrint() {
               var ready = false;
               try { ready = !!cw.__pdfReady; } catch (e0) {}
-              if (ready || tries > 50) {
+              if (ready || tries > 20) {
                 try { cw.print(); } catch (e1) {}
                 return;
               }
               tries++;
-              setTimeout(waitReadyAndPrint, 120);
+              setTimeout(waitReadyAndPrint, 80);
             })();
           } catch (e) {
             if (!url) {
@@ -488,7 +482,7 @@
             return;
           }
           setTimeout(cleanupPdf, 60000);
-        }, 150);
+        }, 80);
       };
       document.body.appendChild(ifr);
     };

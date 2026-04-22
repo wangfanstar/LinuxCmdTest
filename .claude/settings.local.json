@@ -27,7 +27,8 @@
       "Read(//c/ProgramData/chocolatey/bin/**)",
       "Read(//c/msys64/usr/**)",
       "Bash(which gcc *)",
-      "Bash(ls /usr/bin/gcc*)"
+      "Bash(ls /usr/bin/gcc*)",
+      "Bash(grep -v \"^E:/MCP_PROJECT/wfserver/wfwebserver/html/[^/]*\\\\.html$\")"
     ]
   }
 }

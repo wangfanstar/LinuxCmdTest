@@ -201,6 +201,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .field-label{font-size:.75rem;color:var(--dim);margin-bottom:4px;display:block}
 .field-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.82rem;padding:6px 8px;outline:none;margin-bottom:10px}
 .field-input:focus{border-color:var(--accent)}
+.color-swatches{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:12px}
+.color-swatch{width:26px;height:26px;border:1px solid var(--border2);border-radius:6px;cursor:pointer;outline:none}
+.color-swatch:hover{transform:translateY(-1px);border-color:#c9d1d9}
+.color-custom-wrap{display:flex;align-items:center;gap:10px}
+.color-custom-wrap input[type=color]{width:44px;height:28px;padding:0;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer}
 
 /* context menu */
 .ctx-menu{position:fixed;z-index:9999;background:var(--surf2);border:1px solid var(--border2);border-radius:6px;padding:4px 0;min-width:130px;box-shadow:0 6px 20px rgba(0,0,0,.55);display:none}
@@ -320,7 +325,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
         <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
-        <input type="color" id="tb-color-picker" value="#ff4d4f" style="display:none" onchange="onColorPicked(this.value)">
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
@@ -472,6 +476,37 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeLinkModal()">取消</button>
       <button class="btn btn-primary" onclick="doInsertLink()">插入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文字颜色 modal -->
+<div class="modal-overlay" id="modal-color">
+  <div class="modal-box">
+    <div class="modal-head">🎨 文字颜色<button class="modal-close" onclick="closeColorModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="color-swatches">
+        <button type="button" class="color-swatch" style="background:#f5222d" onclick="pickPresetColor('#f5222d')" title="#f5222d"></button>
+        <button type="button" class="color-swatch" style="background:#fa541c" onclick="pickPresetColor('#fa541c')" title="#fa541c"></button>
+        <button type="button" class="color-swatch" style="background:#fa8c16" onclick="pickPresetColor('#fa8c16')" title="#fa8c16"></button>
+        <button type="button" class="color-swatch" style="background:#fadb14" onclick="pickPresetColor('#fadb14')" title="#fadb14"></button>
+        <button type="button" class="color-swatch" style="background:#52c41a" onclick="pickPresetColor('#52c41a')" title="#52c41a"></button>
+        <button type="button" class="color-swatch" style="background:#13c2c2" onclick="pickPresetColor('#13c2c2')" title="#13c2c2"></button>
+        <button type="button" class="color-swatch" style="background:#1677ff" onclick="pickPresetColor('#1677ff')" title="#1677ff"></button>
+        <button type="button" class="color-swatch" style="background:#722ed1" onclick="pickPresetColor('#722ed1')" title="#722ed1"></button>
+        <button type="button" class="color-swatch" style="background:#eb2f96" onclick="pickPresetColor('#eb2f96')" title="#eb2f96"></button>
+        <button type="button" class="color-swatch" style="background:#ad6800" onclick="pickPresetColor('#ad6800')" title="#ad6800"></button>
+        <button type="button" class="color-swatch" style="background:#595959" onclick="pickPresetColor('#595959')" title="#595959"></button>
+        <button type="button" class="color-swatch" style="background:#262626" onclick="pickPresetColor('#262626')" title="#262626"></button>
+        <button type="button" class="color-swatch" style="background:#ffffff" onclick="pickPresetColor('#ffffff')" title="#ffffff"></button>
+        <button type="button" class="color-swatch" style="background:#ffd666" onclick="pickPresetColor('#ffd666')" title="#ffd666"></button>
+        <button type="button" class="color-swatch" style="background:#91caff" onclick="pickPresetColor('#91caff')" title="#91caff"></button>
+        <button type="button" class="color-swatch" style="background:#b37feb" onclick="pickPresetColor('#b37feb')" title="#b37feb"></button>
+      </div>
+      <div class="color-custom-wrap">
+        <span class="field-label" style="margin:0">自定义</span>
+        <input id="color-custom" type="color" value="#ff4d4f" onchange="pickPresetColor(this.value)">
+      </div>
     </div>
   </div>
 </div>
@@ -1443,12 +1478,12 @@ function printHtmlForPdf(html) {
         (function waitReadyAndPrint() {
           var ready = false;
           try { ready = !!cw.__pdfReady; } catch (e) {}
-          if (ready || tries > 50) {
+          if (ready || tries > 20) {
             try { cw.print(); } catch (e2) {}
             return;
           }
           tries++;
-          setTimeout(waitReadyAndPrint, 120);
+          setTimeout(waitReadyAndPrint, 80);
         })();
       } catch (e) {
         if (!url) {
@@ -1471,7 +1506,7 @@ function printHtmlForPdf(html) {
         return;
       }
       setTimeout(cleanup, 60000);
-    }, 150);
+    }, 80);
   };
   document.body.appendChild(ifr);
 }
@@ -1479,10 +1514,10 @@ function printHtmlForPdf(html) {
 function exportPdfBuildWindow(title, cat, updated, bodyInner) {
   var body = String(bodyInner || '').replace(/<\/script/gi, '<\\/script');
   var css = [
-    '@page{size:A4;margin:0;}',
+    '@page{size:A4;margin:14mm 14mm 18mm;@bottom-center{content:counter(page)" / "counter(pages);font-size:9pt;color:#666;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}',
     '*{box-sizing:border-box;margin:0;padding:0}',
     'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7;margin:0;padding:14mm}',
+    'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
     '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
     'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
     '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
@@ -1513,9 +1548,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
     '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '.pdf-page-num{display:none;position:absolute;left:0;right:0;color:#666;font-size:10px;text-align:right;white-space:nowrap}',
-    '.pdf-page-num .num{font-weight:600;color:#333}',
-    '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;padding:12mm 14mm!important;margin:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
+    '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
   ].join('\n');
 
   var baseHref = '';
@@ -1526,16 +1559,12 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
 
   var boot = '<script src="/wiki/rich-render.js"><\\/script>\n'
     + '<script>(function(){'
-    + 'function mmPx(v){var d=document.createElement("div");d.style.cssText="position:absolute;visibility:hidden;height:"+v+"mm";document.body.appendChild(d);var h=d.offsetHeight||0;d.remove();return h;}'
-    + 'function injectPaging(){var wrap=document.getElementById("pdf-print-root"),root=document.getElementById("pdf-article-body");if(!wrap||!root)return;Array.prototype.forEach.call(wrap.querySelectorAll(".pdf-page-num"),function(n){n.remove();});'
-    + 'var pageH=mmPx(269),footerGap=18;if(!pageH)return;var total=Math.max(1,Math.ceil(wrap.scrollHeight/pageH));'
-    + 'wrap.style.paddingBottom=(footerGap+10)+"px";'
-    + 'for(var i=1;i<=total;i++){var el=document.createElement("div");el.className="pdf-page-num";el.innerHTML="当前页 <span class=\\"num\\">"+i+"</span> / 总页数 <span class=\\"num\\">"+total+"</span>";el.style.top=Math.max(0,i*pageH-footerGap)+"px";wrap.appendChild(el);}}'
     + 'function done(){window.__pdfReady=1;}'
-    + 'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){injectPaging();done();return;}'
+    + 'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){done();return;}'
+    + 'var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}'
     + 'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});'
-    + 'rr.ensure(function(){rr.render(root);setTimeout(function(){injectPaging();done();},700);});setTimeout(function(){injectPaging();done();},4200);'
-    + '}catch(e){injectPaging();done();}})();<\\/script>\n';
+    + 'rr.ensure(function(){rr.render(root);setTimeout(done,220);});setTimeout(done,1400);'
+    + '}catch(e){done();}})();<\\/script>\n';
 
   var html = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
     + '<meta charset="UTF-8">\n'
@@ -1595,6 +1624,38 @@ function exportPdf() {
 // ── Upload Image ──────────────────────────────────────────────────────
 function openImgUpload() { document.getElementById('img-file-input').click(); }
 
+var _uploadNameState = { lastBase: '', seq: 0 };
+function inferImageExtFromMime(mime) {
+  var t = (mime || '').toLowerCase();
+  if (t === 'image/jpeg' || t === 'image/jpg') return 'jpg';
+  if (t === 'image/png') return 'png';
+  if (t === 'image/gif') return 'gif';
+  if (t === 'image/webp') return 'webp';
+  if (t === 'image/svg+xml') return 'svg';
+  if (t === 'image/bmp') return 'bmp';
+  if (t === 'image/x-icon' || t === 'image/vnd.microsoft.icon') return 'ico';
+  return 'png';
+}
+
+function buildUploadImageName(mime) {
+  var d = new Date();
+  var pad2 = function(n){ return n < 10 ? '0' + n : '' + n; };
+  var pad3 = function(n){
+    if (n < 10) return '00' + n;
+    if (n < 100) return '0' + n;
+    return '' + n;
+  };
+  var base = d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate())
+           + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds())
+           + '_' + pad3(d.getMilliseconds());
+  if (base === _uploadNameState.lastBase) _uploadNameState.seq++;
+  else { _uploadNameState.lastBase = base; _uploadNameState.seq = 0; }
+  var seq = (_uploadNameState.seq < 10 ? '0' : '') + _uploadNameState.seq;
+  var rand = Math.floor(Math.random() * 0x10000).toString(16);
+  while (rand.length < 4) rand = '0' + rand;
+  return 'img_' + base + '_' + seq + '_' + rand + '.' + inferImageExtFromMime(mime);
+}
+
 function doUploadFile(file) {
   if (!file) return;
   histFlush();
@@ -1652,13 +1713,8 @@ function onEditorPaste(e) {
       e.preventDefault();
       var blob = items[i].getAsFile();
       if (!blob) continue;
-      /* 以当前时间戳自动命名 */
-      var d = new Date();
-      var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
-      var ts = d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())
-             +'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
-      var ext = (blob.type.split('/')[1] || 'png').replace('jpeg','jpg');
-      var filename = 'img_'+ts+'.'+ext;
+      /* 毫秒时间 + 同毫秒序号 + 随机后缀，避免并发粘贴重名 */
+      var filename = buildUploadImageName(blob.type);
       var file = new File([blob], filename, {type: blob.type});
       doUploadFile(file);
       return; /* 只处理第一张图片 */
@@ -1812,12 +1868,16 @@ function openColorPicker() {
   var ta = document.getElementById('edit-textarea');
   _colorInsertRange.start = ta.selectionStart;
   _colorInsertRange.end = ta.selectionEnd;
-  var picker = document.getElementById('tb-color-picker');
-  if (!picker) return;
-  picker.click();
+  var modal = document.getElementById('modal-color');
+  if (!modal) return;
+  modal.classList.add('open');
 }
 
-function onColorPicked(color) {
+function closeColorModal() {
+  document.getElementById('modal-color').classList.remove('open');
+}
+
+function pickPresetColor(color) {
   var c = (color || '').trim();
   if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
   histFlush();
@@ -1837,6 +1897,7 @@ function onColorPicked(color) {
   ta.selectionStart = ta.selectionEnd = cur;
   ta.focus();
   onEditorInput();
+  closeColorModal();
 }
 
 function closeLinkModal() {
@@ -2475,6 +2536,7 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-move').classList.contains('open')) closeMoveModal();
     if(document.getElementById('modal-table').classList.contains('open')) closeTableModal();
     if(document.getElementById('modal-link').classList.contains('open')) closeLinkModal();
+    if(document.getElementById('modal-color').classList.contains('open')) closeColorModal();
     document.getElementById('ctx-menu').classList.remove('open');
   }
 });
@@ -2497,6 +2559,9 @@ document.getElementById('modal-table').addEventListener('click', function(e){
 });
 document.getElementById('modal-link').addEventListener('click', function(e){
   if(e.target===this) closeLinkModal();
+});
+document.getElementById('modal-color').addEventListener('click', function(e){
+  if(e.target===this) closeColorModal();
 });
 
 // ── IME composition 兜底 ──────────────────────────────────────────────

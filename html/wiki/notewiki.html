@@ -15,18 +15,20 @@
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* topbar */
-.topbar{height:50px;background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.topbar{min-height:50px;background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:6px 16px;gap:12px;flex-shrink:0;flex-wrap:wrap;row-gap:6px}
 .topbar h1{font-size:.95rem;font-weight:700;color:#f0f6fc}
 .topbar-sep{flex:1}
 .topbar a{font-size:12px;color:var(--dim);text-decoration:none}
 .topbar a:hover{color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.topbar-right .btn{flex-shrink:0}
 
 /* layout */
 .wiki-layout{display:flex;flex:1;overflow:hidden;min-height:0}
 
 /* sidebar */
 .sidebar{width:240px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
-.sb-actions{display:flex;gap:6px;padding:10px;flex-shrink:0}
+.sb-actions{display:flex;gap:6px;padding:10px;flex-shrink:0;flex-wrap:wrap}
 .sb-search{padding:0 10px 8px;flex-shrink:0}
 .sb-search input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.8rem;padding:5px 8px;outline:none}
 .sb-search input:focus{border-color:var(--accent)}
@@ -214,8 +216,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="topbar">
   <h1>📝 NoteWiki</h1>
   <div class="topbar-sep"></div>
-  <a href="/wiki/notewikiindex.html">📑 文章索引</a>
-  <a href="/index.html">← 返回首页</a>
+  <div class="topbar-right">
+    <a href="/wiki/notewikiindex.html">📑 文章索引</a>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
+    <a href="/index.html">← 返回首页</a>
+  </div>
 </div>
 
 <div class="wiki-layout">
@@ -225,9 +232,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <button class="btn btn-primary btn-sm" onclick="newArticle()">✚ 新建</button>
       <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()">📁 分类</button>
       <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
-      <button class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json 供离线索引">📄 索引</button>
-      <button class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="一键更新所有文章的HTML">🔄</button>
-      <button class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被引用的图片">🗑</button>
     </div>
     <div class="sb-search">
       <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
@@ -708,10 +712,32 @@ function publishedHtmlUrl(id, cat) {
 
 // ── Open / View ───────────────────────────────────────────────────────
 function openArticle(id) {
+  var pe = document.getElementById('pane-edit');
+  var preferEdit = pe && pe.style.display !== 'none';
+  /* 已在编辑同一篇时，不再重复加载 */
+  if (id === S.curId && preferEdit) return;
+  if (preferEdit) {
+    refreshEditDirtyState();
+    if (_editDirty) {
+      if (!confirm('当前编辑未保存，确定要切换到其他文章？未保存的修改将丢失。')) {
+        return;
+      }
+    }
+    if (_autoSaveTimer) {
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = null;
+    }
+  }
+
   S.curId = id;
   renderTree();
-  var meta = S.articles.find(function(a){return a.id===id;});
+  var meta = S.articles.find(function(a) { return a.id === id; });
   if (!meta) return;
+
+  if (preferEdit) {
+    loadEditorFromArticleId(id);
+    return;
+  }
 
   showPane('view');
   document.getElementById('view-title').textContent = meta.title||'';
@@ -862,32 +888,37 @@ function doNewArticle() {
   setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
-function editCurrent() {
-  if (!S.curId) return;
-  var meta = S.articles.find(function(a){return a.id===S.curId;});
+/** 按文章 id 填满编辑区（与点击「编辑」等效） */
+function loadEditorFromArticleId(id) {
+  var meta = S.articles.find(function(a){ return a.id === id; });
   if (!meta) return;
-  S.editId = S.curId;
+  S.editId = id;
   S.editIsNew = false;
   _autoSaveDirty = false;
   updateAutoSaveLabel('');
-  document.getElementById('edit-title').value = meta.title||'';
+  document.getElementById('edit-title').value = meta.title || '';
   document.getElementById('edit-filename').style.display = 'none';
-  populateCatSelect(meta.category||'');
+  populateCatSelect(meta.category || '');
   showPane('edit');
   setViewMode(S.viewMode);
   document.getElementById('edit-textarea').value = '加载中…';
 
-  fetch('/api/wiki-read?id='+encodeURIComponent(S.curId))
-    .then(function(r){return r.json();})
-    .then(function(data){
-      document.getElementById('edit-textarea').value = data.ok ? (data.content||'') : '';
+  fetch('/api/wiki-read?id=' + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('edit-textarea').value = data.ok ? (data.content || '') : '';
       updatePreview();
       updateEditorHighlight();
       histReset();
       markEditBaseline();
       updateEditHtmlLink();
-      setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
+      setTimeout(function() { document.getElementById('edit-textarea').focus(); }, 50);
     });
+}
+
+function editCurrent() {
+  if (!S.curId) return;
+  loadEditorFromArticleId(S.curId);
 }
 
 function cancelEdit() {
@@ -1315,25 +1346,34 @@ function doMoveArticle() {
 }
 
 function cleanupUploads() {
-  if (!confirm('将删除 uploads 中所有未被任何文章引用的图片/文件，操作不可恢复，继续？')) return;
-  setStatus('清理中…');
+  if (!confirm('将扫描 html/wiki/md_db 下全部 .md，删除 html/wiki/uploads 中「未被任何文章路径引用」的图片与文件。空目录不删。操作不可恢复，是否继续？')) return;
+  setStatus('清理无效上传中…');
   fetch('/api/wiki-cleanup-uploads', {method:'POST'})
     .then(function(r){return r.json();})
     .then(function(d){
-      setStatus(d.ok ? '✓ 已删除 '+d.deleted+' 个文件，保留 '+d.kept+' 个' : '失败：'+(d.error||''));
+      if (d.ok) {
+        setStatus('✓ 已删除 ' + d.deleted + ' 个文件，保留仍被引用的 ' + d.kept + ' 个');
+      } else {
+        setStatus('清理失败：' + (d.error || '未知错误'));
+      }
     })
-    .catch(function(e){setStatus('请求失败：'+e.message);});
+    .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
 function rebuildAllHtml() {
-  if (!confirm('将重新生成所有文章的 HTML，继续？')) return;
-  setStatus('更新中…');
+  if (!confirm('将遍历全部 Markdown 并重新生成对应 HTML（与单篇「发布」相同的全量批处理）。数据量大时可能需几秒，是否继续？')) return;
+  setStatus('正在全部更新 HTML…');
   fetch('/api/wiki-rebuild-html')
     .then(function(r){ return r.json(); })
     .then(function(d){
-      setStatus(d.ok ? '✓ 已更新 '+d.rebuilt+' 篇文章 HTML' : '失败：'+(d.error||''));
+      if (d.ok) {
+        setStatus('✓ 已更新 ' + (d.rebuilt|0) + ' 篇 HTML');
+        refreshAll();
+      } else {
+        setStatus('更新失败：' + (d.error || '未知错误'));
+      }
     })
-    .catch(function(e){ setStatus('请求失败：'+e.message); });
+    .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
 /** 写回 html/wiki/wiki-index.json，结构与 /api/wiki-list 相同，供 notewikiindex 离线与备份 */

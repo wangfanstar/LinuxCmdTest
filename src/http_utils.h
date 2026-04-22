@@ -1,6 +1,8 @@
 #ifndef HTTP_UTILS_H
 #define HTTP_UTILS_H
 
+#include "platform.h"
+
 #include <stddef.h>
 #include <stdarg.h>
 
@@ -27,11 +29,11 @@ int         json_get_str_array(const char *json, const char *key,
                                char **out, int max_count, size_t item_len);
 
 /* ── HTTP 响应 ──────────────────────────────────────────── */
-void send_response(int fd, int status, const char *status_text,
+void send_response(http_sock_t fd, int status, const char *status_text,
                    const char *body);
-void send_json(int fd, int status, const char *status_text,
+void send_json(http_sock_t fd, int status, const char *status_text,
                const char *json, size_t json_len);
-int  send_file(int fd, const char *filepath);
+int  send_file(http_sock_t fd, const char *filepath);
 int  http_header_value(const char *headers, const char *name,
                        char *out, size_t cap);
 

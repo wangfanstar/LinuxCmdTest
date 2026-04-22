@@ -106,7 +106,7 @@ static void scan_register_subdirs(const char *dir_path, const char *rel_prefix,
 
 /* ── GET /api/list-register-files ────────────────────────── */
 
-void handle_api_list_register_files(int client_fd)
+void handle_api_list_register_files(http_sock_t client_fd)
 {
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"files\":[");
@@ -119,7 +119,7 @@ void handle_api_list_register_files(int client_fd)
 
 /* ── GET /api/list-register-dirs ─────────────────────────── */
 
-void handle_api_list_register_dirs(int client_fd)
+void handle_api_list_register_dirs(http_sock_t client_fd)
 {
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"dirs\":[");
@@ -132,7 +132,7 @@ void handle_api_list_register_dirs(int client_fd)
 
 /* ── POST /api/save-register-file ────────────────────────── */
 
-void handle_api_save_register_file(int client_fd, const char *req_headers,
+void handle_api_save_register_file(http_sock_t client_fd, const char *req_headers,
                                     const char *body, size_t body_len)
 {
     char subdir[256] = "", filename[256] = "";
@@ -199,7 +199,7 @@ void handle_api_save_register_file(int client_fd, const char *req_headers,
 
 /* ── POST /api/rename-register-dir ──────────────────────── */
 
-void handle_api_rename_register_dir(int client_fd, const char *body)
+void handle_api_rename_register_dir(http_sock_t client_fd, const char *body)
 {
     char from_rel[512] = "", to_rel[512] = "";
     if (json_get_str(body, "from", from_rel, sizeof(from_rel)) < 0 || !from_rel[0] ||
@@ -225,7 +225,7 @@ void handle_api_rename_register_dir(int client_fd, const char *body)
 
 /* ── POST /api/delete-register-dir ──────────────────────── */
 
-void handle_api_delete_register_dir(int client_fd, const char *body)
+void handle_api_delete_register_dir(http_sock_t client_fd, const char *body)
 {
     char rel[512] = "";
     if (json_get_str(body, "path", rel, sizeof(rel)) < 0 || !rel[0]) {
@@ -249,7 +249,7 @@ void handle_api_delete_register_dir(int client_fd, const char *body)
 
 /* ── POST /api/rename-register-file ─────────────────────── */
 
-void handle_api_rename_register_file(int client_fd, const char *body)
+void handle_api_rename_register_file(http_sock_t client_fd, const char *body)
 {
     char from_rel[512] = "", to_rel[512] = "";
     if (json_get_str(body, "from", from_rel, sizeof(from_rel)) < 0 || !from_rel[0] ||
@@ -280,7 +280,7 @@ void handle_api_rename_register_file(int client_fd, const char *body)
 
 /* ── POST /api/delete-register-file ─────────────────────── */
 
-void handle_api_delete_register_file(int client_fd, const char *body)
+void handle_api_delete_register_file(http_sock_t client_fd, const char *body)
 {
     char rel[512] = "";
     if (json_get_str(body, "path", rel, sizeof(rel)) < 0 || !rel[0]) {
@@ -304,7 +304,7 @@ void handle_api_delete_register_file(int client_fd, const char *body)
 
 /* ── GET /api/client-info ────────────────────────────────── */
 
-void handle_api_client_info(int client_fd, const char *client_ip)
+void handle_api_client_info(http_sock_t client_fd, const char *client_ip)
 {
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ip\":"); sb_json_str(&sb, client_ip ? client_ip : "");

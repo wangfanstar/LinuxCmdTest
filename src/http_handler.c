@@ -12,11 +12,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#ifndef _WIN32
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <time.h>
+#endif
 #include <errno.h>
+#ifndef _WIN32
 #include <signal.h>
+#endif
 #include <dirent.h>
 #include <ctype.h>
 
@@ -25,7 +29,7 @@
 
 /* ── 主处理入口 ──────────────────────────────────────────────── */
 
-void handle_client(int client_fd, struct sockaddr_in *addr)
+void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 {
     char client_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &addr->sin_addr, client_ip, sizeof(client_ip));
@@ -40,13 +44,13 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     ssize_t total = 0, n;
     while (total < (ssize_t)sizeof(req_buf) - 1) {
-        n = read(client_fd, req_buf + total, sizeof(req_buf) - 1 - total);
+        n = http_sock_recv_buf(client_fd, req_buf + total, sizeof(req_buf) - 1 - total);
         if (n <= 0) break;
         total += n;
         if (strstr(req_buf, "\r\n\r\n")) break;
     }
 
-    if (total <= 0) { stats_req_end(); close(client_fd); return; }
+    if (total <= 0) { stats_req_end(); http_sock_close(client_fd); return; }
 
     /* 解析请求行 */
     char method[16] = {0}, path[2048] = {0}, version[16] = {0};
@@ -71,7 +75,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
     /* ── POST ──────────────────────────────────────────────────── */
     if (strcasecmp(method, "POST") == 0) {
         long content_length = 0;
-        const char *cl = strcasestr(req_buf, "\r\nContent-Length:");
+        const char *cl = platform_strcasestr(req_buf, "\r\nContent-Length:");
         if (cl) {
             cl += strlen("\r\nContent-Length:");
             while (*cl == ' ') cl++;
@@ -101,7 +105,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
                 }
                 size_t rcvd = already;
                 while (rcvd < (size_t)content_length) {
-                    n = read(client_fd, body + rcvd,
+                    n = http_sock_recv_buf(client_fd, body + rcvd,
                              (size_t)content_length - rcvd);
                     if (n <= 0) break;
                     rcvd += (size_t)n;
@@ -128,7 +132,7 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
             if (body) {
                 int pid = json_get_int(body, "pid", -1);
                 if (pid > 1) {
-                    if (kill((pid_t)pid, SIGKILL) == 0) {
+                    if (platform_process_kill(pid) == 0) {
                         char resp[64];
                         int rlen = snprintf(resp, sizeof(resp),
                                             "{\"ok\":true,\"pid\":%d}", pid);
@@ -282,6 +286,11 @@ void handle_client(int client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/wiki-list") == 0) {
         handle_api_wiki_list(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-refresh-index") == 0) {
+        handle_api_wiki_refresh_index(client_fd);
         goto done;
     }
 
@@ -442,5 +451,5 @@ done:;
         LOG_INFO("response %s:%d \"%s\" done in %.2fms",
                  client_ip, client_port, path, elapsed);
 
-    close(client_fd);
+    http_sock_close(client_fd);
 }

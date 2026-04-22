@@ -16,13 +16,50 @@
 
 ## 快速开始
 
-### 编译
+### 编译（Linux / WSL / macOS）
+
+在 **非 Windows** 终端中（未设置 `OS=Windows_NT`），使用完整 Linux 源码（含 `monitor.c`、`ssh_exec.c`）：
 
 ```bash
-make
+chmod +x build_linux.sh   # 仅首次
+./build_linux.sh          # 或直接: make
 ```
 
 产出：`bin/simplewebserver`
+
+若误在 MSYS 里带着 `OS=Windows_NT` 环境变量，可先 `unset OS` 再 `make`。
+
+### 编译（Windows，MinGW-w64）
+
+依赖：**GCC（C11）**、**mingw32-make**、**pthread**（WinLibs 自带）。推荐使用 [winget](https://learn.microsoft.com/windows/package-manager/winget/) 安装 WinLibs：
+
+```powershell
+winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT --accept-source-agreements --accept-package-agreements
+```
+
+安装后**新开一个终端**（或注销重登），使 `PATH` 生效，然后在项目根目录执行：
+
+```powershell
+.\build_win.ps1
+```
+
+或 **cmd**：
+
+```bat
+build_mingw.bat
+```
+
+产出：`bin/simplewebserver.exe`。
+
+**说明（Windows 构建）**：`Makefile` 在 `OS=Windows_NT` 时会链接 `-lws2_32`，并改用 `monitor_win.c`、`ssh_exec_win_stub.c`（无 `/proc` 与 Unix 版 SSH 引擎）。SVN 接口在 Windows 上返回“本构建不支持”；完整监控与 SSH 仍以 Linux 构建为准。
+
+### 一行命令对照
+
+| 环境 | 命令 |
+|------|------|
+| Linux / WSL | `./build_linux.sh` 或 `make` |
+| Windows PowerShell | `.\build_win.ps1` |
+| Windows cmd | `build_mingw.bat` |
 
 ### 启动 / 停止
 
@@ -39,9 +76,9 @@ make
 
 ### 依赖
 
-- GCC（支持 C11）
-- OpenSSH 客户端（`ssh` 命令，≥ 6.x）
-- pthread
+- **GCC**（支持 C11）
+- **pthread**（Linux 为系统库；Windows 用 MinGW POSIX 线程）
+- **OpenSSH 客户端**（`ssh` 命令，≥ 6.x；**仅 Linux 运行完整 SSH 引擎时需要**）
 
 无需 `sshpass`，密码认证通过 `SSH_ASKPASS` 机制实现。
 
@@ -70,6 +107,9 @@ make
 │   ├── logviewer.html       # 日志查看器
 │   └── wiki/               # Wiki 阅读 / 编辑页面
 ├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
+├── build_linux.sh          # Linux/WSL：调用 make（非 Windows 目标）
+├── build_win.ps1           # Windows PowerShell：设置 OS 与 PATH 后 mingw32-make
+├── build_mingw.bat         # Windows cmd：同上
 ├── Makefile
 └── README.md
 ```
@@ -179,7 +219,8 @@ make clean      # 清除构建产物
 
 ## 平台
 
-目标平台：Linux（RHEL / CentOS / Ubuntu）。编译需 `_GNU_SOURCE`，运行需 `openssh-client`，服务端需开启密码认证。
+- **Linux**（RHEL / CentOS / Ubuntu 等）：主要目标；编译需 `_GNU_SOURCE`；运行完整 SSH/监控需 `openssh-client`，服务端需开启密码认证。
+- **Windows**：可用 **MinGW-w64（WinLibs）** 编译并运行 HTTP/Wiki/报告等；监控与 SSH 使用存根实现，行为见上文「编译（Windows）」说明。
 
 ## 许可证
 

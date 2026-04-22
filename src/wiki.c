@@ -2,13 +2,24 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
+#include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <unistd.h>
+#else
+#include <io.h>
+#define open  _open
+#define read  _read
+#define close _close
+#ifndef O_RDONLY
+#define O_RDONLY _O_RDONLY
+#endif
+#endif
 #include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -66,8 +77,9 @@ static char *json_get_str_alloc(const char *json, const char *key)
 
 static void wiki_gen_id(char *buf, size_t sz)
 {
-    time_t t = time(NULL); struct tm tm;
-    localtime_r(&t, &tm);
+    time_t t = time(NULL);
+    struct tm tm;
+    platform_localtime_wall(&t, &tm);
     unsigned long tid = (unsigned long)pthread_self() & 0xFFFF;
     snprintf(buf, sz, "note_%04d%02d%02d_%02d%02d%02d_%04lx",
              tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
@@ -76,8 +88,9 @@ static void wiki_gen_id(char *buf, size_t sz)
 
 static void wiki_now_iso(char *buf, size_t sz)
 {
-    time_t t = time(NULL); struct tm tm;
-    gmtime_r(&t, &tm);
+    time_t t = time(NULL);
+    struct tm tm;
+    platform_gmtime_utc(&t, &tm);
     strftime(buf, sz, "%Y-%m-%dT%H:%M:%SZ", &tm);
 }
 
@@ -336,7 +349,7 @@ static int wiki_copy_file(const char *src, const char *dst)
     return 0;
 }
 
-static int wiki_send_attachment_file(int fd, const char *filepath, const char *download_name)
+static int wiki_send_attachment_file(http_sock_t fd, const char *filepath, const char *download_name)
 {
     struct stat st;
     if (stat(filepath, &st) < 0 || S_ISDIR(st.st_mode)) return -1;
@@ -354,11 +367,15 @@ static int wiki_send_attachment_file(int fd, const char *filepath, const char *d
         "Connection: close\r\n"
         "\r\n",
         download_name, (long)st.st_size);
-    write(fd, header, hlen);
+    (void)http_sock_send_all(fd, header, (size_t)hlen);
 
     char buf[65536];
     ssize_t n;
-    while ((n = read(file_fd, buf, sizeof(buf))) > 0) write(fd, buf, (size_t)n);
+    while ((n = read(file_fd, buf, sizeof(buf))) > 0) {
+        if (http_sock_send_all(fd, buf, (size_t)n) < 0) {
+            break;
+        }
+    }
     close(file_fd);
     return 0;
 }
@@ -918,11 +935,53 @@ static void rmdir_recursive(const char *path)
     rmdir(path);
 }
 
-/* ── GET /api/wiki-list ───────────────────────────────────── */
+/* ── 写入 html/wiki/wiki-index.json（与 /api/wiki-list 返回结构一致，供离线索引） ── */
 
-void handle_api_wiki_list(int client_fd)
+static void wiki_refresh_index_json(void)
 {
     wiki_ensure_dirs();
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"articles\":[");
+    int first = 1;
+    wiki_scan_md_dir(&sb, &first, WIKI_MD_DB);
+    SB_LIT(&sb, "],\"categories\":[");
+    int firstcat = 1;
+    wiki_collect_dirs(&sb, WIKI_ROOT, "", &firstcat, 1);
+    SB_LIT(&sb, "]}");
+
+    char outpath[1024];
+    snprintf(outpath, sizeof(outpath), "%s/wiki-index.json", WIKI_ROOT);
+    FILE *fp = fopen(outpath, "wb");
+    if (fp) {
+        if (sb.data)
+            fwrite(sb.data, 1, sb.len, fp);
+        else
+            fwrite("{\"articles\":[],\"categories\":[]}", 1, 30, fp);
+        fclose(fp);
+    } else {
+        LOG_INFO("wiki_refresh_index_json: write failed %s", outpath);
+    }
+    free(sb.data);
+}
+
+void handle_api_wiki_refresh_index(http_sock_t client_fd)
+{
+    wiki_refresh_index_json();
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+}
+
+/* ── GET /api/wiki-list ───────────────────────────────────── */
+
+void handle_api_wiki_list(http_sock_t client_fd)
+{
+    wiki_ensure_dirs();
+    {
+        char outpath[1024];
+        snprintf(outpath, sizeof(outpath), "%s/wiki-index.json", WIKI_ROOT);
+        struct stat st;
+        if (stat(outpath, &st) != 0)
+            wiki_refresh_index_json();
+    }
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"articles\":[");
     int first = 1;
@@ -938,7 +997,7 @@ void handle_api_wiki_list(int client_fd)
 
 /* ── GET /api/wiki-read ───────────────────────────────────── */
 
-void handle_api_wiki_read(int client_fd, const char *path_qs)
+void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
 {
     char id[128] = {0};
     const char *qs = strchr(path_qs, '?');
@@ -973,7 +1032,7 @@ void handle_api_wiki_read(int client_fd, const char *path_qs)
 }
 
 /* ── GET /api/wiki-export-md-zip ───────────────────────────── */
-void handle_api_wiki_export_md_zip(int client_fd, const char *path_qs)
+void handle_api_wiki_export_md_zip(http_sock_t client_fd, const char *path_qs)
 {
     char id[128] = {0};
     const char *qs = strchr(path_qs, '?');
@@ -1059,7 +1118,7 @@ void handle_api_wiki_export_md_zip(int client_fd, const char *path_qs)
 
 /* ── POST /api/wiki-save ──────────────────────────────────── */
 
-void handle_api_wiki_save(int client_fd, const char *body)
+void handle_api_wiki_save(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char id[128]={0}, title[512]={0}, cat[512]={0}, created[64]={0};
@@ -1149,6 +1208,8 @@ void handle_api_wiki_save(int client_fd, const char *body)
     wiki_write_html_file(html_path, id, title, cat, now, html);
     free(html);
 
+    wiki_refresh_index_json();
+
     const char *rel = html_path + strlen(WEB_ROOT) + 1;
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"id\":"); sb_json_str(&sb, id);
@@ -1161,7 +1222,7 @@ void handle_api_wiki_save(int client_fd, const char *body)
 
 /* ── POST /api/wiki-delete ────────────────────────────────── */
 
-void handle_api_wiki_delete(int client_fd, const char *body)
+void handle_api_wiki_delete(http_sock_t client_fd, const char *body)
 {
     char id[128]={0}; json_get_str(body,"id",id,sizeof(id));
     if (!id[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing id\"}",34); return; }
@@ -1187,13 +1248,14 @@ void handle_api_wiki_delete(int client_fd, const char *body)
     if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
     else        snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
     unlink(html_path);
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_delete id=%s",id);
 }
 
 /* ── GET /api/wiki-search ─────────────────────────────────── */
 
-void handle_api_wiki_search(int client_fd, const char *path_qs)
+void handle_api_wiki_search(http_sock_t client_fd, const char *path_qs)
 {
     char q[256] = {0};
     const char *qs = strchr(path_qs, '?');
@@ -1217,11 +1279,12 @@ void handle_api_wiki_search(int client_fd, const char *path_qs)
 
 /* ── GET /api/wiki-rebuild-html ───────────────────────────── */
 
-void handle_api_wiki_rebuild_html(int client_fd)
+void handle_api_wiki_rebuild_html(http_sock_t client_fd)
 {
     wiki_ensure_dirs();
     int count = 0;
     wiki_rebuild_md_dir(&count, WIKI_MD_DB);
+    wiki_refresh_index_json();
     char resp[64];
     int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"rebuilt\":%d}", count);
     send_json(client_fd, 200, "OK", resp, (size_t)rlen);
@@ -1230,7 +1293,7 @@ void handle_api_wiki_rebuild_html(int client_fd)
 
 /* ── POST /api/wiki-rename-article ───────────────────────── */
 
-void handle_api_wiki_rename_article(int client_fd, const char *body)
+void handle_api_wiki_rename_article(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char id[128]={0}, new_title[512]={0};
@@ -1280,13 +1343,14 @@ void handle_api_wiki_rename_article(int client_fd, const char *body)
     fclose(fp); free(mb.data); free(cbuf.data);
 
     wiki_rewrite_html(id, new_title, cat, now);
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_rename_article id=%s new_title=%s", id, new_title);
 }
 
 /* ── POST /api/wiki-rename-cat ────────────────────────────── */
 
-void handle_api_wiki_rename_cat(int client_fd, const char *body)
+void handle_api_wiki_rename_cat(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char old_path[512]={0}, new_name[256]={0};
@@ -1323,13 +1387,14 @@ void handle_api_wiki_rename_cat(int client_fd, const char *body)
 
     size_t old_len = strlen(old_path);
     wiki_update_cat_in_dir(WIKI_MD_DB, old_path, new_path, old_len);
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_rename_cat old=%s new=%s", old_path, new_path);
 }
 
 /* ── POST /api/wiki-delete-cat ────────────────────────────── */
 
-void handle_api_wiki_delete_cat(int client_fd, const char *body)
+void handle_api_wiki_delete_cat(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char path[512]={0}; json_get_str(body,"path",path,sizeof(path));
@@ -1348,13 +1413,14 @@ void handle_api_wiki_delete_cat(int client_fd, const char *body)
     snprintf(full_md,  sizeof(full_md),  "%s/%s",WIKI_MD_DB,path);
     rmdir_recursive(full_md);
     rmdir_recursive(full_root);
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_delete_cat path=%s", path);
 }
 
 /* ── POST /api/wiki-move-article ──────────────────────────── */
 
-void handle_api_wiki_move_article(int client_fd, const char *body)
+void handle_api_wiki_move_article(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char id[128]={0}, new_cat[512]={0};
@@ -1432,13 +1498,14 @@ void handle_api_wiki_move_article(int client_fd, const char *body)
     free(cbuf.data);
     if (strcmp(md_path, new_md_path) != 0) unlink(md_path);
 
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_move_article id=%s old_cat=%s new_cat=%s", id, old_cat, new_cat);
 }
 
 /* ── POST /api/wiki-mkdir ─────────────────────────────────── */
 
-void handle_api_wiki_mkdir(int client_fd, const char *body)
+void handle_api_wiki_mkdir(http_sock_t client_fd, const char *body)
 {
     wiki_ensure_dirs();
     char path[512]={0}; json_get_str(body,"path",path,sizeof(path));
@@ -1453,6 +1520,7 @@ void handle_api_wiki_mkdir(int client_fd, const char *body)
     }
     char full_md[1024]; snprintf(full_md,sizeof(full_md),"%s/%s",WIKI_MD_DB,path);
     mkdir_p(full_md);
+    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
 }
 
@@ -1530,7 +1598,7 @@ static void cleanup_unreferenced(const char *dir, const char *rel,
     closedir(d);
 }
 
-void handle_api_wiki_cleanup_uploads(int client_fd)
+void handle_api_wiki_cleanup_uploads(http_sock_t client_fd)
 {
     wiki_ensure_dirs();
     _strnode_t *refs = NULL;
@@ -1546,7 +1614,7 @@ void handle_api_wiki_cleanup_uploads(int client_fd)
 
 /* ── POST /api/wiki-upload ────────────────────────────────── */
 
-void handle_api_wiki_upload(int client_fd, const char *req_headers,
+void handle_api_wiki_upload(http_sock_t client_fd, const char *req_headers,
                              const char *body, size_t body_len)
 {
     wiki_ensure_dirs();

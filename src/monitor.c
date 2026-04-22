@@ -543,7 +543,7 @@ static void pid_format_tcp_ports(pid_t pid, tcp_ino_port_t *map, int map_n,
 
 /* ── GET /api/port ───────────────────────────────────────────── */
 
-void handle_api_port(int client_fd, int query_port)
+void handle_api_port(http_sock_t client_fd, int query_port)
 {
     if (query_port <= 0 || query_port > 65535) {
         send_json(client_fd, 400, "Bad Request",
@@ -691,7 +691,7 @@ void handle_api_port(int client_fd, int query_port)
 
 /* ── GET /api/procs ──────────────────────────────────────────── */
 
-void handle_api_procs(int client_fd, const char *query, int include_ports)
+void handle_api_procs(http_sock_t client_fd, const char *query, int include_ports)
 {
     char cache_key[160];
     snprintf(cache_key, sizeof(cache_key), "%d:%s", include_ports, query ? query : "");
@@ -816,7 +816,7 @@ void handle_api_procs(int client_fd, const char *query, int include_ports)
 
 /* ── GET /api/monitor ────────────────────────────────────────── */
 
-void handle_api_monitor(int client_fd)
+void handle_api_monitor(http_sock_t client_fd)
 {
     pthread_mutex_lock(&g_monitor_json_mtx);
     if (g_monitor_json &&

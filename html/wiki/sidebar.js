@@ -327,10 +327,10 @@
       var metaTxt = m && m.textContent ? String(m.textContent).trim() : '';
       var body = String(b.innerHTML || '').replace(/<\/script/gi, '<\\/script');
       var css = [
-        '@page{size:A4;margin:14mm;}',
+        '@page{size:A4;margin:0;}',
         '*{box-sizing:border-box;margin:0;padding:0}',
         'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
+        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:14mm}',
         '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
         'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
         '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
@@ -363,7 +363,7 @@
         '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.pdf-page-num{display:none;position:absolute;right:0;color:#666;font-size:10px}',
-        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
+        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;padding:12mm 14mm!important;margin:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page-num{display:block}}'
       ].join('\n');
 
       var baseHref = '';
@@ -392,9 +392,7 @@
         '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
         '<meta charset="UTF-8">\n' +
         baseTag +
-        '<title>' +
-        escH(title) +
-        '</title>\n<style>\n' +
+        '<title>\u200b</title>\n<style>\n' +
         css +
         '\n</style>\n</head>\n<body>\n' +
         '<div class="wrap" id="pdf-print-root">\n' +
@@ -410,20 +408,30 @@
         boot +
         '</body>\n</html>';
 
-      var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
-      var url = URL.createObjectURL(blob);
+      if (typeof showToast === 'function') {
+        showToast('\u82e5\u9884\u89c8\u5de6\u4e0a\u6709\u65e5\u671f/\u5de6\u4e0b\u6709\u7f51\u5740\uff0c\u8bf7\u5728\u6253\u5370\u8bbe\u7f6e\u4e2d\u53d6\u6d88\u300c\u9875\u7709\u548c\u9875\u811a\u300d');
+      }
+
+      var url = null;
       var ifr = document.createElement('iframe');
       ifr.style.cssText =
         'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
       ifr.setAttribute('aria-hidden', 'true');
-      ifr.src = url;
+      var useSrcdoc = (String(html).length < 2000000);
+      if (useSrcdoc) {
+        try { ifr.removeAttribute('src'); ifr.srcdoc = html; } catch (e0) { useSrcdoc = false; }
+      }
+      if (!useSrcdoc) {
+        var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
+        url = URL.createObjectURL(blob);
+        ifr.removeAttribute('srcdoc');
+        ifr.src = url;
+      }
       var cleaned = false;
       function cleanupPdf() {
         if (cleaned) return;
         cleaned = true;
-        try {
-          URL.revokeObjectURL(url);
-        } catch (e) {}
+        try { if (url) URL.revokeObjectURL(url); } catch (e) {}
         if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
       }
       ifr.onload = function () {
@@ -450,6 +458,12 @@
               setTimeout(waitReadyAndPrint, 120);
             })();
           } catch (e) {
+            if (!url) {
+              try {
+                var b = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
+                url = URL.createObjectURL(b);
+              } catch (e0) { cleanupPdf(); if (typeof showToast === 'function') showToast('\u65e0\u6cd5\u51c6\u5907\u6253\u5370\u5185\u5bb9'); return; }
+            }
             var w = window.open(url, '_blank');
             if (w) {
               try {

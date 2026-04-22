@@ -14,6 +14,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .topbar h1{font-size:.95rem;font-weight:700;color:#f0f6fc}
 .topbar a{font-size:12px;color:var(--dim);text-decoration:none}
 .topbar a:hover{color:var(--text)}
+.topbar .tb-btn{height:28px;padding:0 10px;font-size:.75rem;border-radius:5px;border:1px solid var(--border);background:var(--surf);color:var(--text);cursor:pointer;box-sizing:border-box;vertical-align:middle}
+.topbar .tb-btn:hover{background:#21262d}
+a.tb-btn{display:inline-block;line-height:1.2}
 .search-bar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
 .search-bar input[type="search"]{
   flex:1;min-width:180px;max-width:420px;height:34px;padding:0 12px;font-size:.86rem;
@@ -49,6 +52,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <h1>📑 NoteWiki 文章索引</h1>
   <div style="flex:1"></div>
   <a id="link-edit" href="/wiki/notewiki.html">📝 NoteWiki 编辑</a>
+  <button type="button" class="tb-btn" id="wiki-refresh-index" title="在服务器上重写 html/wiki/wiki-index.json">🔄 更新离线索引</button>
+  <a id="link-wiki-index-dl" class="tb-btn" href="/wiki/wiki-index.json" download="wiki-index.json" title="下载当前 wiki-index.json 用于本地备份/离线" style="display:none;text-decoration:none">⬇ wiki-index.json</a>
   <a id="link-home" href="/index.html">← 网站首页</a>
 </div>
 <div class="wrap">
@@ -77,6 +82,32 @@ if (_isFileMode) {
   var homeLink = document.getElementById('link-home');
   if (editLink) editLink.href = './notewiki.html';
   if (homeLink) homeLink.href = '../index.html';
+  var rHide = document.getElementById('wiki-refresh-index');
+  var dHide = document.getElementById('link-wiki-index-dl');
+  if (rHide) rHide.style.display = 'none';
+  if (dHide) dHide.style.display = 'none';
+} else {
+  var rbi = document.getElementById('wiki-refresh-index');
+  var dli = document.getElementById('link-wiki-index-dl');
+  if (rbi) {
+    rbi.style.display = 'inline-block';
+    rbi.addEventListener('click', function(){
+      rbi.disabled = true;
+      document.getElementById('lead').textContent = '正在更新服务器上的 wiki-index.json…';
+      fetch('/api/wiki-refresh-index')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          document.getElementById('lead').textContent = (d && d.ok)
+            ? '已更新 wiki-index.json。可将「⬇ wiki-index.json」保存到与本页同目录，供 file:// 离线索引。'
+            : '更新失败';
+        })
+        .catch(function(e){
+          document.getElementById('lead').textContent = '更新失败：' + e.message;
+        })
+        .then(function(){ rbi.disabled = false; });
+    });
+  }
+  if (dli) dli.style.display = 'inline-block';
 }
 
 function wikiArticleHref(cat, id) {
@@ -324,11 +355,11 @@ function bootOfflineMode() {
   if (cached) {
     applyIndexData(cached, '离线模式：已加载缓存索引（可点击“加载本地索引”替换）');
   } else {
-    document.getElementById('lead').textContent = '离线模式：请点击“加载本地索引”选择 wiki-index.json';
+    document.getElementById('lead').textContent = '离线模式：请把本页同目录下的 wiki-index.json 放好（在在线时「更新离线索引」后下载，或从服务器 html/wiki/ 目录复制），也可点「加载本地索引」手动选择。';
   }
   tryOfflineCandidates(0)
     .then(function(data){
-      applyIndexData(data, '离线模式：已自动加载本地索引（' + data.articles.length + ' 篇）');
+      applyIndexData(data, '离线模式：已自动加载本地 wiki-index.json（' + data.articles.length + ' 篇）');
     })
     .catch(function(){});
 }

@@ -5,11 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <ctype.h>
 #include <errno.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+#ifdef _WIN32
+#include <io.h>
+#define open _open
+#define read _read
+#define close _close
+#ifndef O_RDONLY
+#define O_RDONLY _O_RDONLY
+#endif
+#endif
 
 /* ── MIME 类型映射 ─────────────────────────────────────── */
 typedef struct { const char *ext; const char *mime; } mime_entry_t;
@@ -307,7 +318,7 @@ int json_get_str_array(const char *json, const char *key,
 }
 
 /* ── HTTP 响应 ──────────────────────────────────────────── */
-void send_response(int fd, int status, const char *status_text,
+void send_response(http_sock_t fd, int status, const char *status_text,
                    const char *body)
 {
     char header[512];
@@ -319,11 +330,11 @@ void send_response(int fd, int status, const char *status_text,
         "Connection: close\r\n"
         "\r\n",
         status, status_text, body_len);
-    write(fd, header, hlen);
-    write(fd, body, body_len);
+    (void)http_sock_send_all(fd, header, (size_t)hlen);
+    (void)http_sock_send_all(fd, body, (size_t)body_len);
 }
 
-void send_json(int fd, int status, const char *status_text,
+void send_json(http_sock_t fd, int status, const char *status_text,
                const char *json, size_t json_len)
 {
     char header[512];
@@ -335,11 +346,11 @@ void send_json(int fd, int status, const char *status_text,
         "Connection: close\r\n"
         "\r\n",
         status, status_text, json_len);
-    write(fd, header, hlen);
-    write(fd, json, json_len);
+    (void)http_sock_send_all(fd, header, (size_t)hlen);
+    (void)http_sock_send_all(fd, json, json_len);
 }
 
-int send_file(int fd, const char *filepath)
+int send_file(http_sock_t fd, const char *filepath)
 {
     struct stat st;
     if (stat(filepath, &st) < 0 || S_ISDIR(st.st_mode)) return -1;
@@ -360,12 +371,15 @@ int send_file(int fd, const char *filepath)
         "Connection: close\r\n"
         "\r\n",
         mime, (long)st.st_size, cache);
-    write(fd, header, hlen);
+    (void)http_sock_send_all(fd, header, (size_t)hlen);
 
     char buf[65536];
     ssize_t n;
-    while ((n = read(file_fd, buf, sizeof(buf))) > 0)
-        write(fd, buf, (size_t)n);
+    while ((n = read(file_fd, buf, sizeof(buf))) > 0) {
+        if (http_sock_send_all(fd, buf, (size_t)n) < 0) {
+            break;
+        }
+    }
 
     close(file_fd);
     return 0;
@@ -456,11 +470,11 @@ int mkdir_p(const char *path)
     for (char *p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+            if (platform_mkdir(tmp) != 0 && errno != EEXIST) return -1;
             *p = '/';
         }
     }
-    return (mkdir(tmp, 0755) != 0 && errno != EEXIST) ? -1 : 0;
+    return (platform_mkdir(tmp) != 0 && errno != EEXIST) ? -1 : 0;
 }
 
 int register_subdir_safe(const char *s)

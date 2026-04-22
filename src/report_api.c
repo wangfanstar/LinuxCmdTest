@@ -2,12 +2,15 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
+#include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -141,9 +144,9 @@ static int mkdir_report_legacy_ym(char *dirpath, size_t dcap, const char *yyyymm
     char tmp[512];
     if (!yyyymm || strlen(yyyymm) != 6) return -1;
     snprintf(tmp, sizeof(tmp), "%s/report", WEB_ROOT);
-    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+    if (platform_mkdir(tmp) != 0 && errno != EEXIST) return -1;
     snprintf(dirpath, dcap, "%s/report/%s", WEB_ROOT, yyyymm);
-    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) return -1;
+    if (platform_mkdir(dirpath) != 0 && errno != EEXIST) return -1;
     return 0;
 }
 
@@ -152,17 +155,17 @@ static int mkdir_report_user_ym(char *dirpath, size_t dcap,
 {
     char tmp[512];
     snprintf(tmp, sizeof(tmp), "%s/report", WEB_ROOT);
-    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+    if (platform_mkdir(tmp) != 0 && errno != EEXIST) return -1;
     snprintf(tmp, sizeof(tmp), "%s/report/%s", WEB_ROOT, user_sanitized);
-    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return -1;
+    if (platform_mkdir(tmp) != 0 && errno != EEXIST) return -1;
     snprintf(dirpath, dcap, "%s/report/%s/%s", WEB_ROOT, user_sanitized, yyyymm);
-    if (mkdir(dirpath, 0755) != 0 && errno != EEXIST) return -1;
+    if (platform_mkdir(dirpath) != 0 && errno != EEXIST) return -1;
     return 0;
 }
 
 /* ── POST /api/save-report ───────────────────────────────── */
 
-void handle_api_save_report(int client_fd, const char *req_headers,
+void handle_api_save_report(http_sock_t client_fd, const char *req_headers,
                              const char *body, size_t body_len)
 {
     char filename[256], userdir[128], kind_hdr[32], legacy_hdr[32], ym_hdr[16];
@@ -229,11 +232,9 @@ void handle_api_save_report(int client_fd, const char *req_headers,
         }
         strncpy(yyyymm, ym_hdr, sizeof(yyyymm)); yyyymm[sizeof(yyyymm)-1] = '\0';
     } else {
-        time_t now = time(NULL); struct tm tm_local;
-        if (localtime_r(&now, &tm_local) == NULL) {
-            send_json(client_fd, 500, "Internal Server Error",
-                      "{\"ok\":false,\"error\":\"time\"}", 28); return;
-        }
+        time_t     now     = time(NULL);
+        struct tm  tm_local;
+        platform_localtime_wall(&now, &tm_local);
         if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
             send_json(client_fd, 500, "Internal Server Error",
                       "{\"ok\":false,\"error\":\"strftime\"}", 32); return;
@@ -292,7 +293,7 @@ void handle_api_save_report(int client_fd, const char *req_headers,
 
 /* ── POST /api/save-config ───────────────────────────────── */
 
-void handle_api_save_config(int client_fd, const char *req_headers,
+void handle_api_save_config(http_sock_t client_fd, const char *req_headers,
                              const char *body, size_t body_len)
 {
     char filename[256], userdir[128];
@@ -312,11 +313,9 @@ void handle_api_save_config(int client_fd, const char *req_headers,
     userdir[sizeof(userdir) - 1] = '\0';
     sanitize_report_user_dir(userdir, sizeof(userdir));
 
-    time_t now = time(NULL); struct tm tm_local;
-    if (localtime_r(&now, &tm_local) == NULL) {
-        send_json(client_fd, 500, "Internal Server Error",
-                  "{\"ok\":false,\"error\":\"time\"}", 28); return;
-    }
+    time_t     now = time(NULL);
+    struct tm  tm_local;
+    platform_localtime_wall(&now, &tm_local);
     char yyyymm[16];
     if (strftime(yyyymm, sizeof(yyyymm), "%Y%m", &tm_local) == 0) {
         send_json(client_fd, 500, "Internal Server Error",
@@ -428,7 +427,7 @@ static void scan_report_dir_archive_files(const char *sub, report_grp_t *g)
     closedir(sd);
 }
 
-void handle_api_reports(int client_fd)
+void handle_api_reports(http_sock_t client_fd)
 {
     char base[384]; DIR *d; strbuf_t sb = {0};
     report_grp_t groups[REPORTS_MAX_GROUPS]; int ng = 0;
@@ -512,7 +511,7 @@ void handle_api_reports(int client_fd)
 
 /* ── POST /api/delete-report ─────────────────────────────── */
 
-void handle_api_delete_report(int client_fd, const char *body)
+void handle_api_delete_report(http_sock_t client_fd, const char *body)
 {
     char name[256] = {0}, user[128] = {0}, ym[16] = {0}, filepath[800];
     int legacy = 0;
@@ -576,7 +575,7 @@ void handle_api_delete_report(int client_fd, const char *body)
 
 /* ── GET /api/list-ssh-configs ───────────────────────────── */
 
-void handle_api_list_ssh_configs(int client_fd, const char *path)
+void handle_api_list_ssh_configs(http_sock_t client_fd, const char *path)
 {
     char userdir[128], ubase[512]; DIR *d; strbuf_t sb = {0};
 
@@ -623,7 +622,7 @@ void handle_api_list_ssh_configs(int client_fd, const char *path)
 
 /* ── GET /api/list-all-configs ───────────────────────────── */
 
-void handle_api_list_all_configs(int client_fd)
+void handle_api_list_all_configs(http_sock_t client_fd)
 {
     char rbase[512]; DIR *d; strbuf_t sb = {0};
 

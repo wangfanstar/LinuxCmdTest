@@ -3,15 +3,16 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  工作线程主函数（前向声明）                                           */
 /* ------------------------------------------------------------------ */
 
 /* http_handler.h 中声明的处理函数 */
-extern void handle_client(int client_fd, struct sockaddr_in *addr);
+extern void handle_client(http_sock_t client_fd, struct sockaddr_in *addr);
 
 static void *worker_thread(void *arg)
 {

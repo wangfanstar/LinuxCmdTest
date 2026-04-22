@@ -1,14 +1,18 @@
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
 
+#include <pthread.h>
+#include "platform.h"
+#ifndef _WIN32
 #include <netinet/in.h>
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  任务结构：封装一个客户端连接                                         */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    int                 client_fd;
+    http_sock_t         client_fd;
     struct sockaddr_in  client_addr;
 } client_task_t;
 

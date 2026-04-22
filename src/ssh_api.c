@@ -7,14 +7,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <errno.h>
+#ifndef _WIN32
+#include <unistd.h>
 #include <sys/uio.h>
 #include <netinet/tcp.h>
+#endif
 
 /* ── POST /api/ssh-exec-one ──────────────────────────────────── */
 
-void handle_api_ssh_exec_one(int client_fd, const char *body)
+void handle_api_ssh_exec_one(http_sock_t client_fd, const char *body)
 {
     char host[256] = {0}, user[64] = {0}, pass[256] = {0};
     char command[CMD_BUF_SIZE] = {0};
@@ -62,7 +64,7 @@ void handle_api_ssh_exec_one(int client_fd, const char *body)
 
 /* ── POST /api/ssh-exec ──────────────────────────────────────── */
 
-void handle_api_ssh_exec(int client_fd, const char *body)
+void handle_api_ssh_exec(http_sock_t client_fd, const char *body)
 {
     char host[256] = {0}, user[64] = {0}, pass[256] = {0};
     int  port = 22;
@@ -132,24 +134,25 @@ void handle_api_ssh_exec(int client_fd, const char *body)
 
 /* ── POST /api/ssh-exec-stream ───────────────────────────────── */
 
-static int sse_write_json(int fd, const char *json)
+static int sse_write_json(http_sock_t fd, const char *json)
 {
-    struct iovec iov[3];
-    iov[0].iov_base = (void *)"data: ";
-    iov[0].iov_len  = 6;
-    iov[1].iov_base = (void *)json;
-    iov[1].iov_len  = strlen(json);
-    iov[2].iov_base = (void *)"\n\n";
-    iov[2].iov_len  = 2;
-    ssize_t w = writev(fd, iov, 3);
-    return (w < 0) ? -1 : 0;
+    if (http_sock_send_all(fd, "data: ", 6) < 0) {
+        return -1;
+    }
+    if (http_sock_send_all(fd, json, strlen(json)) < 0) {
+        return -1;
+    }
+    if (http_sock_send_all(fd, "\n\n", 2) < 0) {
+        return -1;
+    }
+    return 0;
 }
 
 typedef struct {
-    int   fd;
+    http_sock_t         fd;
     char (*cmds)[CMD_BUF_SIZE];
-    int   completed;
-    int   conn_broken;
+    int                 completed;
+    int                 conn_broken;
 } stream_ctx_t;
 
 static void sse_on_write_fail(stream_ctx_t *ctx)
@@ -165,7 +168,7 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
                               int exit_code, const char *prompt_after, void *ud)
 {
     stream_ctx_t *ctx = (stream_ctx_t *)ud;
-    int           fd  = ctx->fd;
+    http_sock_t   fd  = ctx->fd;
     strbuf_t      sb  = {0};
 
     if (ctx->conn_broken) return;
@@ -218,7 +221,7 @@ static void on_stream_result(int idx, const char *cmd, const char *output,
     }
 }
 
-void handle_api_ssh_exec_stream(int client_fd, const char *body)
+void handle_api_ssh_exec_stream(http_sock_t client_fd, const char *body)
 {
     char host[256] = {0}, user[64] = {0}, pass[256] = {0};
     int  port = 22;
@@ -267,7 +270,7 @@ void handle_api_ssh_exec_stream(int client_fd, const char *body)
         "X-Accel-Buffering: no\r\n"
         "Connection: close\r\n"
         "\r\n";
-    write(client_fd, sse_hdr, strlen(sse_hdr));
+    (void)http_sock_send_all(client_fd, sse_hdr, strlen(sse_hdr));
 
     if (pty_debug) {
         int eff_to = (timeout > 0) ? timeout : 300;

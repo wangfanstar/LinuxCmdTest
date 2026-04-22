@@ -9,7 +9,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 
 /* ── 输入校验工具 ─────────────────────────────────────────────── */
 
@@ -43,7 +45,7 @@ static int svn_date_safe(const char *s)
 
 /* ── POST /api/svn-log ───────────────────────────────────────── */
 
-void handle_api_svn_log(int client_fd, const char *body)
+void handle_api_svn_log(http_sock_t client_fd, const char *body)
 {
     char url[1024] = {0}, user[128] = {0}, pass[512] = {0};
     char author[128] = {0}, date_from[32] = {0}, date_to[32] = {0};
@@ -83,6 +85,13 @@ void handle_api_svn_log(int client_fd, const char *body)
                   "{\"ok\":false,\"error\":\"invalid date_to\"}", 40); return;
     }
 
+#ifdef _WIN32
+    {
+        const char *j =
+            "{\"ok\":false,\"error\":\"svn process API not available in this Windows build\"}";
+        send_json(client_fd, 501, "Not Implemented", j, strlen(j));
+    }
+#else
     char limit_str[32];
     snprintf(limit_str, sizeof(limit_str), "%d", limit);
 
@@ -163,4 +172,5 @@ void handle_api_svn_log(int client_fd, const char *body)
         send_json(client_fd, 500, "Internal Server Error",
                   "{\"ok\":false,\"error\":\"out of memory\"}", 38);
     free(sb.data);
+#endif
 }

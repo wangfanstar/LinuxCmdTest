@@ -8,7 +8,11 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <pthread.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
 #include <unistd.h>
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  内部状态                                                            */

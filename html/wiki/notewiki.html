@@ -209,6 +209,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .hist-detail-grid{display:grid;grid-template-columns:140px 1fr;gap:8px 10px}
 .hist-detail-k{font-size:.75rem;color:var(--dim);text-align:right;padding-top:2px}
 .hist-detail-v{font-size:.8rem;color:var(--text);word-break:break-all;background:#111827;border:1px solid var(--border);border-radius:6px;padding:6px 8px}
+.hist-mode-toggle{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.hist-mode-btn{padding:3px 8px;border:1px solid var(--border2);background:#1a2236;color:var(--dim);border-radius:6px;font-size:.72rem;cursor:pointer}
+.hist-mode-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.hist-diff-line{font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace;line-height:1.45;padding:2px 6px;border-radius:4px;margin:1px 0}
+.hist-diff-del{background:rgba(248,81,73,.18);color:#ffd7d5}
+.hist-diff-add{background:rgba(63,185,80,.2);color:#b6f3c1}
+.hist-diff-note{background:rgba(139,148,158,.16);color:#c9d1d9}
+.hist-diff-ctx{background:rgba(110,118,129,.12);color:#c9d1d9}
 .field-label{font-size:.75rem;color:var(--dim);margin-bottom:4px;display:block}
 .field-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.82rem;padding:6px 8px;outline:none;margin-bottom:10px}
 .field-input:focus{border-color:var(--accent)}
@@ -554,7 +562,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <div class="hist-detail-k">分类</div><div class="hist-detail-v" id="histd-category"></div>
         <div class="hist-detail-k">save_txn_id</div><div class="hist-detail-v" id="histd-txn"></div>
         <div class="hist-detail-k">内容长度</div><div class="hist-detail-v" id="histd-len"></div>
-        <div class="hist-detail-k">修改内容</div><div class="hist-detail-v" id="histd-diff" style="white-space:pre-wrap;max-height:62vh;overflow:auto"></div>
+        <div class="hist-detail-k">修改内容</div><div class="hist-detail-v" style="white-space:pre-wrap;max-height:62vh;overflow:auto">
+          <div class="hist-mode-toggle">
+            <button type="button" class="hist-mode-btn on" id="histd-mode-changes" onclick="setHistoryDiffMode(false)">仅显示变更行</button>
+            <button type="button" class="hist-mode-btn" id="histd-mode-context" onclick="setHistoryDiffMode(true)">显示上下文行</button>
+          </div>
+          <div id="histd-diff"></div>
+        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -1640,6 +1654,28 @@ function closeHistoryModal() {
 }
 
 var _historyItems = [];
+var _histDiffShowContext = false;
+var _histDiffCurContent = '';
+var _histDiffPrevContent = '';
+
+function filterSameVersionHistory(items) {
+  if (!items || !items.length) return [];
+  var out = [];
+  var lastContent = null;
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var c = (it && typeof it.content === 'string') ? it.content : null;
+    if (c === null) {
+      out.push(it);
+      continue;
+    }
+    if (out.length === 0 || c !== lastContent) {
+      out.push(it);
+      lastContent = c;
+    }
+  }
+  return out;
+}
 
 function renderHistoryRows(items) {
   if (!items || !items.length) {
@@ -1691,9 +1727,12 @@ function openHistoryModal() {
         return;
       }
       var items = d.items || [];
-      _historyItems = items;
-      summary.textContent = '文章 ID：' + id + '，共 ' + items.length + ' 条（按时间倒序）';
-      wrap.innerHTML = renderHistoryRows(items);
+      var filtered = filterSameVersionHistory(items);
+      _historyItems = filtered;
+      var removed = items.length - filtered.length;
+      summary.textContent = '文章 ID：' + id + '，共 ' + filtered.length + ' 条（按时间倒序）'
+        + (removed > 0 ? ('，已过滤 ' + removed + ' 条相同版本') : '');
+      wrap.innerHTML = renderHistoryRows(filtered);
     })
     .catch(function(e){
       summary.textContent = '文章 ID：' + id;
@@ -1708,27 +1747,66 @@ function closeHistoryDetailModal() {
   if (m) m.classList.remove('open');
 }
 
-function buildHistoryDiff(currContent, prevContent) {
+function buildHistoryDiff(currContent, prevContent, showContext) {
   var cur = String(currContent || '').replace(/\r\n?/g, '\n').split('\n');
   var prev = String(prevContent || '').replace(/\r\n?/g, '\n').split('\n');
   var out = [];
   if (!prevContent && currContent) {
-    out.push('首次存档，无上一版本可对比。\n');
+    out.push('<div class="hist-diff-line hist-diff-note">首次存档，无上一版本可对比。</div>');
   }
   var max = Math.max(cur.length, prev.length);
+  var changed = [];
+  for (var cidx = 0; cidx < max; cidx++) {
+    var pa = (cidx < prev.length) ? prev[cidx] : null;
+    var cb = (cidx < cur.length) ? cur[cidx] : null;
+    if (pa !== cb) changed.push(cidx);
+  }
+  function needContextLine(idx) {
+    if (!showContext) return false;
+    for (var j = 0; j < changed.length; j++) {
+      if (Math.abs(changed[j] - idx) <= 2) return true;
+    }
+    return false;
+  }
+  var skipped = false;
   for (var i = 0; i < max; i++) {
     var a = (i < prev.length) ? prev[i] : null;
     var b = (i < cur.length) ? cur[i] : null;
-    if (a === b) continue;
-    if (a !== null) out.push('- L' + (i + 1) + ': ' + a);
-    if (b !== null) out.push('+ L' + (i + 1) + ': ' + b);
+    if (a === b) {
+      if (needContextLine(i)) {
+        out.push('<div class="hist-diff-line hist-diff-ctx">  L' + (i + 1) + ': ' + escH(a || '') + '</div>');
+        skipped = false;
+      } else if (showContext && !skipped && changed.length > 0) {
+        out.push('<div class="hist-diff-line hist-diff-note">... 省略未改动行 ...</div>');
+        skipped = true;
+      }
+      continue;
+    }
+    if (a !== null) out.push('<div class="hist-diff-line hist-diff-del">- L' + (i + 1) + ': ' + escH(a) + '</div>');
+    if (b !== null) out.push('<div class="hist-diff-line hist-diff-add">+ L' + (i + 1) + ': ' + escH(b) + '</div>');
+    skipped = false;
     if (out.length > 1200) {
-      out.push('... 变更内容过长，已截断显示 ...');
+      out.push('<div class="hist-diff-line hist-diff-note">... 变更内容过长，已截断显示 ...</div>');
       break;
     }
   }
-  if (!out.length) return '该版本与上一版本内容一致。';
-  return out.join('\n');
+  if (!out.length) return '<div class="hist-diff-line hist-diff-note">该版本与上一版本内容一致。</div>';
+  return out.join('');
+}
+
+function renderHistoryDiffView() {
+  var box = document.getElementById('histd-diff');
+  if (!box) return;
+  box.innerHTML = buildHistoryDiff(_histDiffCurContent, _histDiffPrevContent, _histDiffShowContext);
+  var b1 = document.getElementById('histd-mode-changes');
+  var b2 = document.getElementById('histd-mode-context');
+  if (b1) b1.classList.toggle('on', !_histDiffShowContext);
+  if (b2) b2.classList.toggle('on', !!_histDiffShowContext);
+}
+
+function setHistoryDiffMode(showContext) {
+  _histDiffShowContext = !!showContext;
+  renderHistoryDiffView();
 }
 
 function openHistoryDetailModal(historyId) {
@@ -1750,7 +1828,10 @@ function openHistoryDetailModal(historyId) {
   document.getElementById('histd-txn').textContent = String(hit.saveTxnId || '');
   document.getElementById('histd-len').textContent = String(hit.contentLength || 0);
   var prev = (hitIdx >= 0 && hitIdx + 1 < _historyItems.length) ? _historyItems[hitIdx + 1] : null;
-  document.getElementById('histd-diff').textContent = buildHistoryDiff(hit.content || '', prev ? (prev.content || '') : '');
+  _histDiffCurContent = hit.content || '';
+  _histDiffPrevContent = prev ? (prev.content || '') : '';
+  _histDiffShowContext = false;
+  renderHistoryDiffView();
   document.getElementById('modal-history-detail').classList.add('open');
 }
 

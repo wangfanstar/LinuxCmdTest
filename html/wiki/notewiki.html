@@ -317,7 +317,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="tb('ol')"     title="有序列表">1. 列</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openLinkModal()" title="插入链接">🔗</button>
-        <button class="tb-btn" onclick="openImgUpload()" title="插入图片">🖼</button>
+        <button class="tb-btn" onclick="openImgUpload()" title="插入图片（Ctrl+Alt+I）">🖼</button>
+        <button class="tb-btn" onclick="openAttachmentUpload()" title="上传附件（Ctrl+Alt+A）">📎</button>
         <button class="tb-btn" onclick="openColorPicker()" title="文字颜色">🎨</button>
         <button class="tb-btn" onclick="openTableModal()" title="插入表格（Ctrl+Alt+T）">⊞</button>
         <button class="tb-btn" onclick="tb('math-inline')" title="行内公式（Ctrl+Alt+M）">∑</button>
@@ -512,8 +513,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <!-- 上传图片 input -->
-<input type="file" id="img-file-input" accept="image/*,.pdf,.txt,.zip,.gz"
-       style="display:none" onchange="doUploadFile(this.files[0])">
+<input type="file" id="img-file-input" accept="image/*"
+       style="display:none" onchange="doUploadFile(this.files[0], {sourceInput:'img-file-input'})">
+<input type="file" id="attach-file-input"
+       style="display:none" onchange="doUploadFile(this.files[0], {forceLink:true, sourceInput:'attach-file-input'})">
 
 <script src="/wiki/rich-render.js"></script>
 
@@ -1733,6 +1736,7 @@ function exportPdf() {
 
 // ── Upload Image ──────────────────────────────────────────────────────
 function openImgUpload() { document.getElementById('img-file-input').click(); }
+function openAttachmentUpload() { document.getElementById('attach-file-input').click(); }
 
 var _uploadNameState = { lastBase: '', seq: 0 };
 function inferImageExtFromMime(mime) {
@@ -1766,35 +1770,72 @@ function buildUploadImageName(mime) {
   return 'img_' + base + '_' + seq + '_' + rand + '.' + inferImageExtFromMime(mime);
 }
 
-function doUploadFile(file) {
+function mdLinkText(name) {
+  return String(name || '附件').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+}
+
+function buildSafeUploadFilename(rawName, prefix) {
+  var name = String(rawName || '').trim();
+  var pre = prefix || 'file';
+  var ext = '';
+  var m = name.match(/(\.[A-Za-z0-9]{1,16})$/);
+  if (m) ext = m[1].toLowerCase();
+
+  var base = name.replace(/(\.[A-Za-z0-9]{1,16})$/, '');
+  base = base.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!base || base[0] === '.') {
+    var d = new Date();
+    var pad2 = function(n){ return n < 10 ? '0' + n : '' + n; };
+    var pad3 = function(n){
+      if (n < 10) return '00' + n;
+      if (n < 100) return '0' + n;
+      return '' + n;
+    };
+    base = pre + '_' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate())
+         + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds())
+         + '_' + pad3(d.getMilliseconds());
+  }
+  return base + ext;
+}
+
+function doUploadFile(file, opts) {
   if (!file) return;
+  opts = opts || {};
+  var forceLink = !!opts.forceLink;
   histFlush();
   /* 上传前先记录光标位置，异步完成后插入到原位置 */
   var ta = document.getElementById('edit-textarea');
   var insertPos = ta.selectionStart;
   /* 插入占位符，让用户立刻看到上传进行中 */
-  var placeholder = '![上传中...](uploading)';
+  var placeholder = forceLink ? '[附件上传中...](uploading)' : '![上传中...](uploading)';
   ta.value = ta.value.substring(0, insertPos) + placeholder + ta.value.substring(ta.selectionEnd);
   ta.selectionStart = ta.selectionEnd = insertPos + placeholder.length;
   onEditorInput();
   setStatus('上传中…');
+  var uploadName = buildSafeUploadFilename(file.name, forceLink ? 'att' : 'img');
   fetch('/api/wiki-upload', {
     method:'POST',
-    headers:{'Content-Type':'application/octet-stream','X-Wiki-Filename':encodeURIComponent(file.name),'X-Wiki-Category':encodeURIComponent(S.curCat||'')},
+    headers:{'Content-Type':'application/octet-stream','X-Wiki-Filename':encodeURIComponent(uploadName),'X-Wiki-Category':encodeURIComponent(S.curCat||'')},
     body: file
   })
   .then(function(r){return r.json();})
   .then(function(data){
     if (data.ok) {
-      var isImg = /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)$/i.test(file.name);
-      var md = isImg ? '!['+file.name+']('+data.url+')' : '['+file.name+']('+data.url+')';
+      var isImg = !forceLink && /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)$/i.test(file.name);
+      var linkText = mdLinkText(file.name);
+      var md = isImg ? '!['+linkText+']('+data.url+')' : '['+linkText+']('+data.url+')';
       /* 用实际链接替换占位符 */
       ta.value = ta.value.replace(placeholder, md);
       ta.selectionStart = ta.selectionEnd = ta.value.indexOf(md) + md.length;
       ta.focus();
       onEditorInput();
       setStatus('上传成功');
-      document.getElementById('img-file-input').value='';
+      if (opts.sourceInput && document.getElementById(opts.sourceInput)) {
+        document.getElementById(opts.sourceInput).value = '';
+      } else {
+        document.getElementById('img-file-input').value = '';
+        document.getElementById('attach-file-input').value = '';
+      }
     } else {
       ta.value = ta.value.replace(placeholder, '');
       onEditorInput();
@@ -1905,6 +1946,16 @@ function onEditorKey(e) {
   if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'f' || e.key === 'F')) {
     e.preventDefault();
     tb('footnote');
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault();
+    openImgUpload();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    openAttachmentUpload();
     return;
   }
   if (e.key === 'Tab') {

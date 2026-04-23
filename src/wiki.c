@@ -257,15 +257,46 @@ static int wiki_upload_safe(const char *fn)
 {
     if (!fn || !fn[0] || fn[0] == '.') return 0;
     if (strchr(fn, '/') || strchr(fn, '\\') || strchr(fn, ':')) return 0;
+    for (const char *p = fn; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (!isalnum(c) && c != '.' && c != '_' && c != '-') return 0;
+    }
     const char *dot = strrchr(fn, '.');
-    if (!dot) return 0;
+    if (!dot) return 1; /* 支持无后缀文件 */
     static const char *exts[] = {
         ".jpg",".jpeg",".png",".gif",".svg",".webp",
-        ".pdf",".txt",".md",".zip",".tar",".gz",NULL
+        ".pdf",".txt",".md",".csv",".json",".log",
+        ".c",".h",".cpp",".cc",".cxx",".hpp",".hh",
+        ".sh",".bash",".zsh",".fish",
+        ".py",".js",".mjs",".cjs",".ts",".tsx",
+        ".java",".go",".rs",".php",".rb",".pl",".lua",
+        ".sql",".xml",".yml",".yaml",".toml",".ini",".cfg",
+        ".doc",".docx",".xls",".xlsx",".ppt",".pptx",
+        ".zip",".tar",".gz",".bz2",".xz",".7z",".rar",
+        ".mp3",".wav",".mp4",".mov",".avi",NULL
     };
     for (int i = 0; exts[i]; i++)
         if (strcasecmp(dot, exts[i]) == 0) return 1;
     return 0;
+}
+
+static int wiki_ref_list_has(_strnode_t *head, const char *s)
+{
+    while (head) {
+        if (strcmp(head->s, s) == 0) return 1;
+        head = head->next;
+    }
+    return 0;
+}
+
+static int wiki_is_image_ref(const char *path)
+{
+    const char *dot = strrchr(path ? path : "", '.');
+    if (!dot) return 0;
+    return strcasecmp(dot, ".jpg") == 0 || strcasecmp(dot, ".jpeg") == 0 ||
+           strcasecmp(dot, ".png") == 0 || strcasecmp(dot, ".gif") == 0 ||
+           strcasecmp(dot, ".svg") == 0 || strcasecmp(dot, ".webp") == 0 ||
+           strcasecmp(dot, ".bmp") == 0 || strcasecmp(dot, ".ico") == 0;
 }
 
 /* 生成不与现有文件冲突的上传文件名：
@@ -498,6 +529,58 @@ static void wiki_collect_upload_refs_from_md(const char *md, _strnode_t **refs)
     }
 }
 
+static void wiki_write_related_attachments(FILE *fp, const char *html_body, const char *prefix)
+{
+    if (!fp || !html_body || !html_body[0]) return;
+    const char *marker = "/wiki/uploads/";
+    size_t mlen = strlen(marker);
+    const char *p = html_body;
+    _strnode_t *refs = NULL;
+
+    while ((p = strstr(p, marker)) != NULL) {
+        p += mlen;
+        const char *end = p;
+        while (*end && *end != ')' && *end != '"' && *end != '\'' &&
+               *end != '<' && *end != '>' && !isspace((unsigned char)*end)) end++;
+        size_t len = (size_t)(end - p);
+        if (len > 0 && len < 768 && strstr(p, "..") == NULL && *p != '/') {
+            char ref[768];
+            memcpy(ref, p, len);
+            ref[len] = '\0';
+            if (!wiki_is_image_ref(ref) && !wiki_ref_list_has(refs, ref)) {
+                _strlist_add(&refs, ref, strlen(ref));
+            }
+        }
+        p = end;
+    }
+
+    if (!refs) return;
+
+    fputs("\n<section class=\"rel-attachments\">\n"
+          "<h2 id=\"related-attachments\">\u76f8\u5173\u9644\u4ef6</h2>\n"
+          "<ul>\n", fp);
+    for (_strnode_t *n = refs; n; n = n->next) {
+        const char *base = strrchr(n->s, '/');
+        base = base ? (base + 1) : n->s;
+        fputs("<li><a href=\"", fp);
+        fputs(prefix ? prefix : "", fp);
+        fputs("uploads/", fp);
+        wiki_fhtml(fp, n->s);
+        fputs("\" target=\"_blank\" rel=\"noopener noreferrer\">", fp);
+        wiki_fhtml(fp, base);
+        fputs("</a></li>\n", fp);
+    }
+    fputs("</ul>\n</section>\n", fp);
+    _strlist_free(refs);
+}
+
+static int wiki_body_has_related_attachments_section(const char *html_body)
+{
+    if (!html_body) return 0;
+    return strstr(html_body, "id=\"related-attachments\"") != NULL ||
+           strstr(html_body, "id='related-attachments'") != NULL;
+}
+
 /* ZIP 导出：把 /wiki/uploads/... 写成相对路径 assets/... */
 static void wiki_md_rewrite_uploads_to_assets(strbuf_t *sb)
 {
@@ -670,6 +753,10 @@ static int wiki_write_html_file(const char *filepath,
           ".ab .footnotes li{color:#8b949e;font-size:.9em;line-height:1.7;margin:.35em 0}\n"
           ".ab .fn-ref a{border-bottom:none;font-size:.8em;vertical-align:super}\n"
           ".ab .fn-backref{margin-left:.35em;border-bottom:none}\n"
+          ".ab .rel-attachments{margin-top:2em;padding-top:1em;border-top:1px dashed #30363d}\n"
+          ".ab .rel-attachments h2{margin:0 0 .6em;color:#79c0ff}\n"
+          ".ab .rel-attachments ul{padding-left:1.2em;margin:.2em 0}\n"
+          ".ab .rel-attachments li{margin:.22em 0}\n"
           ".sec-num{color:#8b949e;font-weight:400;font-size:.9em;letter-spacing:.02em}\n"
           ".ab{counter-reset:sc1 sc2 sc3 sc4 sc5 sc6}\n"
           ".ab h1{counter-reset:sc2 sc3 sc4 sc5 sc6;counter-increment:sc1}\n"
@@ -729,6 +816,7 @@ static int wiki_write_html_file(const char *filepath,
     fputs(updated, fp);
     fputs("</div>\n<div class=\"ab\" id=\"article-body\">\n", fp);
     if (html_body) wiki_fwrite_body(fp, html_body, rp);
+    if (html_body) wiki_write_related_attachments(fp, html_body, rp);
     fputs("\n</div>\n</article>\n</div>\n"
           "<nav class=\"toc\" id=\"toc\">"
           "<div class=\"toc-top\">"
@@ -1263,6 +1351,10 @@ void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body)
           "th,td{border:1px solid #ddd;padding:6px}"
           ".pdf-title{font-size:24px;font-weight:700;margin:0 0 8px}"
           ".pdf-meta{color:#666;margin:0 0 14px;font-size:12px}"
+          ".rel-attachments{margin-top:2em;padding-top:1em;border-top:1px dashed #ddd}"
+          ".rel-attachments h2{margin:0 0 .6em;font-size:1.1rem;color:#222}"
+          ".rel-attachments ul{padding-left:1.2em;margin:.2em 0}"
+          ".rel-attachments li{margin:.22em 0}"
           ".pdf-bookmark-shadow-root{position:absolute;left:-100000px;top:0;width:1px;height:1px;overflow:hidden}"
           ".pdf-bookmark-shadow{margin:0;padding:0;font-size:1px;line-height:1px;color:transparent;border:0}"
           ".copy-btn{display:none!important}"
@@ -1278,6 +1370,9 @@ void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body)
     }
     fputs("<div class=\"art-content\">", fp);
     fputs(art, fp);
+    if (!wiki_body_has_related_attachments_section(art)) {
+        wiki_write_related_attachments(fp, art, "");
+    }
     fputs("</div></body></html>", fp);
     fclose(fp);
 

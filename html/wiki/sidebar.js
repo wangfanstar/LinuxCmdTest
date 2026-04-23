@@ -33,6 +33,46 @@
       : '/wiki/' + a.id + '.html';
   }
 
+  function buildStablePdfBookmarkBody(bodyHtml) {
+    var root = document.createElement('div');
+    root.innerHTML = String(bodyHtml || '');
+    var hs = root.querySelectorAll('h1,h2,h3,h4');
+    if (!hs.length) return root.innerHTML;
+
+    var used = {};
+    function slug(t) {
+      var b = String(t || '')
+        .toLowerCase()
+        .replace(/[^\w\-\u4e00-\u9fa5]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'sec';
+      var id = b, n = 1;
+      while (used[id]) id = b + '-' + (n++);
+      used[id] = 1;
+      return id;
+    }
+
+    var shadow = [];
+    for (var i = 0; i < hs.length; i++) {
+      var hd = hs[i];
+      var txt = (hd.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!txt) continue;
+      var lv = parseInt(hd.tagName.slice(1), 10) || 1;
+      if (lv < 1) lv = 1;
+      if (lv > 4) lv = 4;
+      var id = hd.getAttribute('id') || slug(txt);
+      hd.setAttribute('id', id);
+      shadow.push('<h' + lv + ' class="pdf-bookmark-shadow">' + escH(txt) + '</h' + lv + '>');
+    }
+    if (shadow.length) {
+      var box = document.createElement('div');
+      box.className = 'pdf-bookmark-shadow-root';
+      box.setAttribute('aria-hidden', 'true');
+      box.innerHTML = shadow.join('');
+      root.insertBefore(box, root.firstChild);
+    }
+    return root.innerHTML;
+  }
+
   // ── 目录文件夹折叠状态（key=分类路径，value=1表示折叠） ──────────
   var collapsedCats = {};
   try { collapsedCats = JSON.parse(localStorage.getItem('wiki-cats') || '{}'); } catch (e) {}
@@ -326,178 +366,56 @@
       var title = h && h.textContent ? String(h.textContent).trim() : '';
       var metaTxt = m && m.textContent ? String(m.textContent).trim() : '';
       var body = String(b.innerHTML || '').replace(/<\/script/gi, '<\\/script');
-      var css = [
-        '@page{size:A4;margin:14mm 14mm 18mm;@bottom-center{content:counter(page)" / "counter(pages);font-size:9pt;color:#666;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif}}',
-        '*{box-sizing:border-box;margin:0;padding:0}',
-        'html,body{height:auto!important;max-height:none!important;overflow:visible!important}',
-        'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:13px;line-height:1.7;margin:0;padding:0}',
-        '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
-        'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
-        '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
-        '.pdf-layout{display:flex;gap:18px;align-items:flex-start}',
-        '.pdf-toc{width:190px;flex:0 0 190px;border:1px solid #e5e7eb;border-radius:6px;padding:10px;background:#fafbfc;max-height:calc(100vh - 42px);overflow:auto;position:sticky;top:0}',
-        '.pdf-toc-title{font-size:.78rem;font-weight:700;color:#444;margin-bottom:8px}',
-        '.pdf-toc-empty{font-size:.72rem;color:#999}',
-        '.pdf-toc a{display:block;font-size:.72rem;line-height:1.45;color:#555;text-decoration:none;padding:2px 0;word-break:break-word}',
-        '.pdf-toc a.deepest{color:#b54708;font-weight:600}',
-        '.pdf-toc a.lv2{padding-left:10px}.pdf-toc a.lv3{padding-left:20px}.pdf-toc a.lv4{padding-left:30px}',
-        '.pdf-main{flex:1;min-width:0}',
-        '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
-        '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
-        '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
-        '.art-content p{margin:.6em 0;line-height:1.75}',
-        '.art-content pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;padding:10px;overflow-x:auto;margin:.8em 0;font-size:.8rem;page-break-inside:avoid}',
-        '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.85em}',
-        '.art-content pre code{color:#1a1a2e}',
-        '.art-content :not(pre)>code{background:#f6f8fa;padding:1px 5px;border-radius:3px;color:#0550ae;border:1px solid #d0d7de}',
-        '.art-content blockquote{border-left:3px solid #0969da;padding:.4em 1em;color:#57606a;margin:.8em 0}',
-        '.art-content table{border-collapse:collapse;width:100%;margin:.8em 0;page-break-inside:avoid}',
-        '.art-content th,.art-content td{border:1px solid #d0d7de;padding:5px 9px;text-align:left}',
-        '.art-content th{background:#f6f8fa;font-weight:600}',
-        '.art-content img{max-width:100%;page-break-inside:avoid}',
-        '.art-content ul,.art-content ol{padding-left:1.5em;margin:.5em 0}',
-        '.art-content li{margin:.15em 0}',
-        '.art-content a{color:#0969da;text-decoration:none}',
-        '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
-        '.art-content .code-block{position:relative;margin:1em 0}',
-        '.art-content .code-block .copy-btn{display:none!important}',
-        '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
-        '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
-        '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
-        '.art-content h3{counter-reset:sc4;counter-increment:sc3}',
-        '.art-content h4{counter-increment:sc4}',
-        '.art-content h1::before{content:counter(sc1)". ";color:#57606a;font-weight:400;font-size:.88em}',
-        '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-layout{display:block}.pdf-toc{position:static;width:auto;max-height:none;margin-bottom:12px;page-break-inside:avoid}}'
-      ].join('\n');
-
-      var baseHref = '';
-      try {
-        baseHref = new URL('.', window.location.href).href;
-      } catch (e) {
-        baseHref = window.location.href;
-      }
-      var baseTag = baseHref
-        ? '<base href="' + escH(baseHref) + '">\n'
-        : '';
-      var boot = '<script src="/wiki/rich-render.js"><\\/script>\n' +
-        '<script>(function(){' +
-        'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}' +
-        'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}' +
-        'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}' +
-        'var used={},h="",maxLv=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0>maxLv)maxLv=lv0;}' +
-        'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=[];if(lv>1)cls.push("lv"+lv);if(lv===maxLv)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}' +
-        'function done(){window.__pdfReady=1;}' +
-        'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}' +
-        'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}' +
-        'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});' +
-        'rr.ensure(function(){rr.render(root);setTimeout(function(){buildPdfToc();done();},220);});setTimeout(function(){buildPdfToc();done();},1400);' +
-        '}catch(e){buildPdfToc();done();}})();<\\/script>\n';
-
-      var html =
-        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
-        '<meta charset="UTF-8">\n' +
-        baseTag +
-        '<title>\u200b</title>\n<style>\n' +
-        css +
-        '\n</style>\n</head>\n<body>\n' +
-        '<div class="wrap" id="pdf-print-root">\n' +
-        '<h1 class="art-title">' +
-        escH(title) +
-        '</h1>\n' +
-        '<div class="meta">' +
-        escH(metaTxt) +
-        '</div>\n' +
-        '<div class="pdf-layout"><aside class="pdf-toc"><div class="pdf-toc-title">目录</div><div id="pdf-toc-list"><div class="pdf-toc-empty">生成中…</div></div></aside><div class="pdf-main"><div class="art-content" id="pdf-article-body">\n' +
-        body +
-        '\n</div></div></div>\n</div>\n' +
-        boot +
-        '</body>\n</html>';
-
+      body = buildStablePdfBookmarkBody(body);
       if (typeof showToast === 'function') {
-        showToast('\u82e5\u9884\u89c8\u5de6\u4e0a\u6709\u65e5\u671f/\u5de6\u4e0b\u6709\u7f51\u5740\uff0c\u8bf7\u5728\u6253\u5370\u8bbe\u7f6e\u4e2d\u53d6\u6d88\u300c\u9875\u7709\u548c\u9875\u811a\u300d');
+        showToast('正在由服务端生成 PDF（含书签）...');
       }
-
-      var url = null;
-      var ifr = document.createElement('iframe');
-      ifr.style.cssText =
-        'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
-      ifr.setAttribute('aria-hidden', 'true');
-      var useSrcdoc = (String(html).length < 2000000);
-      if (useSrcdoc) {
-        try { ifr.removeAttribute('src'); ifr.srcdoc = html; } catch (e0) { useSrcdoc = false; }
+      function parseErrText(t) {
+        var s = String(t || '').trim();
+        if (!s) return '';
+        try {
+          var obj = JSON.parse(s);
+          if (obj && obj.error) return String(obj.error);
+        } catch (e) {}
+        return s;
       }
-      if (!useSrcdoc) {
-        var blob = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
-        url = URL.createObjectURL(blob);
-        ifr.removeAttribute('srcdoc');
-        ifr.src = url;
-      }
-      var cleaned = false;
-      function cleanupPdf() {
-        if (cleaned) return;
-        cleaned = true;
-        try { if (url) URL.revokeObjectURL(url); } catch (e) {}
-        if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
-      }
-      ifr.onload = function () {
-        setTimeout(function () {
-          var cw = ifr.contentWindow;
-          if (!cw) {
-            cleanupPdf();
-            return;
-          }
-          try {
-            cw.addEventListener('afterprint', cleanupPdf);
-          } catch (e) {}
-          try {
-            cw.focus();
-            var tries = 0;
-            (function waitReadyAndPrint() {
-              var ready = false;
-              try { ready = !!cw.__pdfReady; } catch (e0) {}
-              if (ready || tries > 20) {
-                try { cw.print(); } catch (e1) {}
-                return;
-              }
-              tries++;
-              setTimeout(waitReadyAndPrint, 80);
-            })();
-          } catch (e) {
-            if (!url) {
-              try {
-                var b = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
-                url = URL.createObjectURL(b);
-              } catch (e0) { cleanupPdf(); if (typeof showToast === 'function') showToast('\u65e0\u6cd5\u51c6\u5907\u6253\u5370\u5185\u5bb9'); return; }
-            }
-            var w = window.open(url, '_blank');
-            if (w) {
-              try {
-                w.addEventListener('afterprint', cleanupPdf);
-              } catch (e2) {}
-              setTimeout(function () {
-                try {
-                  w.focus();
-                  w.print();
-                } catch (e3) {}
-              }, 300);
-              setTimeout(cleanupPdf, 60000);
-              return;
-            }
-            if (typeof showToast === 'function') {
-              showToast('\u8bf7\u5141\u8bb8\u5f39\u51fa\u7a97\u53e3\u540e\u91cd\u8bd5');
-            } else {
-              alert('\u8bf7\u5141\u8bb8\u5f39\u51fa\u7a97\u53e3\u540e\u91cd\u8bd5');
-            }
-            cleanupPdf();
-            return;
-          }
-          setTimeout(cleanupPdf, 60000);
-        }, 80);
-      };
-      document.body.appendChild(ifr);
+      fetch('/api/wiki-export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({
+          title: title || 'untitled',
+          meta: metaTxt || '',
+          body: body || ''
+        })
+      }).then(function(resp) {
+        if (!resp.ok) {
+          return resp.text().then(function(t) {
+            var msg = parseErrText(t);
+            throw new Error('HTTP ' + resp.status + (msg ? (' ' + msg) : ''));
+          });
+        }
+        var dispo = resp.headers.get('Content-Disposition') || '';
+        return resp.blob().then(function(blob) { return { blob: blob, dispo: dispo }; });
+      }).then(function(ret) {
+        var filename = 'wiki_export.pdf';
+        var m1 = ret.dispo.match(/filename="?([^";]+)"?/i);
+        if (m1 && m1[1]) filename = m1[1];
+        var url = URL.createObjectURL(ret.blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+        if (typeof showToast === 'function') showToast('PDF 已下载（服务端书签版）');
+      }).catch(function(err) {
+        var msg = '服务端 PDF 导出失败：' + (err && err.message ? err.message : err);
+        if (typeof showToast === 'function') showToast(msg);
+        else alert(msg);
+        try { window.print(); } catch (e2) {}
+      });
     };
   }());
 })();

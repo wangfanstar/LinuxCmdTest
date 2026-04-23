@@ -87,7 +87,8 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             strcmp(path, "/api/save-config") == 0 ||
             strcmp(path, "/api/save-register-file") == 0 ||
             strcmp(path, "/api/wiki-save") == 0 ||
-            strcmp(path, "/api/wiki-upload") == 0)
+            strcmp(path, "/api/wiki-upload") == 0 ||
+            strcmp(path, "/api/wiki-export-pdf") == 0)
             max_body_allowed = SAVE_REPORT_MAX_BODY;
 
         char *body = NULL;
@@ -236,6 +237,10 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         } else if (strcmp(path, "/api/wiki-upload") == 0) {
             if (body) handle_api_wiki_upload(client_fd, req_buf, body,
                                              (size_t)content_length);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-export-pdf") == 0) {
+            if (body) handle_api_wiki_export_pdf(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-cleanup-uploads") == 0) {

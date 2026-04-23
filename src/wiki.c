@@ -383,7 +383,8 @@ static int wiki_copy_file(const char *src, const char *dst)
     return 0;
 }
 
-static int wiki_send_attachment_file(http_sock_t fd, const char *filepath, const char *download_name)
+static int wiki_send_download_file(http_sock_t fd, const char *filepath,
+                                   const char *download_name, const char *content_type)
 {
     struct stat st;
     if (stat(filepath, &st) < 0 || S_ISDIR(st.st_mode)) return -1;
@@ -393,14 +394,14 @@ static int wiki_send_attachment_file(http_sock_t fd, const char *filepath, const
     char header[1024];
     int hlen = snprintf(header, sizeof(header),
         "HTTP/1.1 200 OK\r\n"
-        "Content-Type: application/zip\r\n"
+        "Content-Type: %s\r\n"
         "Content-Disposition: attachment; filename=\"%s\"\r\n"
         "Content-Length: %ld\r\n"
         "Cache-Control: no-store\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Connection: close\r\n"
         "\r\n",
-        download_name, (long)st.st_size);
+        content_type, download_name, (long)st.st_size);
     (void)http_sock_send_all(fd, header, (size_t)hlen);
 
     char buf[65536];
@@ -412,6 +413,70 @@ static int wiki_send_attachment_file(http_sock_t fd, const char *filepath, const
     }
     close(file_fd);
     return 0;
+}
+
+static int wiki_send_attachment_file(http_sock_t fd, const char *filepath, const char *download_name)
+{
+    return wiki_send_download_file(fd, filepath, download_name, "application/zip");
+}
+
+static int wiki_title_to_filename_base(const char *title, char *out, size_t outsz)
+{
+    size_t j = 0;
+    if (!title || !out || outsz < 2) return -1;
+    for (size_t i = 0; title[i] && j + 1 < outsz; i++) {
+        unsigned char c = (unsigned char)title[i];
+        if (isalnum(c)) out[j++] = (char)c;
+        else if (c == ' ' || c == '-' || c == '_') out[j++] = '_';
+    }
+    while (j > 0 && out[j - 1] == '_') j--;
+    if (j == 0) {
+        const char *def = "wiki_export";
+        snprintf(out, outsz, "%s", def);
+        return 0;
+    }
+    out[j] = '\0';
+    return 0;
+}
+
+static int wiki_run_wkhtmltopdf_with_outline(const char *in_html, const char *out_pdf)
+{
+    char cmd[4096];
+#ifdef _WIN32
+    snprintf(cmd, sizeof(cmd),
+             "wkhtmltopdf --quiet --encoding utf-8 --enable-local-file-access "
+             "--outline --outline-depth 6 "
+             "--footer-right \"[page] / [toPage]\" --footer-font-size 9 --footer-spacing 4 "
+             "\"%s\" \"%s\"",
+             in_html, out_pdf);
+    return system(cmd);
+#else
+    /* Linux: first try wkhtmltopdf directly, then try xvfb-run for headless servers. */
+    snprintf(cmd, sizeof(cmd),
+             "wkhtmltopdf --quiet --encoding utf-8 --enable-local-file-access "
+             "--outline --outline-depth 6 "
+             "--footer-right \"[page] / [toPage]\" --footer-font-size 9 --footer-spacing 4 "
+             "\"%s\" \"%s\"",
+             in_html, out_pdf);
+    if (system(cmd) == 0) return 0;
+
+    snprintf(cmd, sizeof(cmd),
+             "xvfb-run -a wkhtmltopdf --quiet --encoding utf-8 --enable-local-file-access "
+             "--outline --outline-depth 6 "
+             "--footer-right \"[page] / [toPage]\" --footer-font-size 9 --footer-spacing 4 "
+             "\"%s\" \"%s\"",
+             in_html, out_pdf);
+    return system(cmd);
+#endif
+}
+
+static int wiki_has_wkhtmltopdf(void)
+{
+#ifdef _WIN32
+    return system("where wkhtmltopdf >nul 2>nul") == 0;
+#else
+    return system("command -v wkhtmltopdf >/dev/null 2>&1") == 0;
+#endif
 }
 
 static void wiki_collect_upload_refs_from_md(const char *md, _strnode_t **refs)
@@ -1146,6 +1211,103 @@ void handle_api_wiki_export_md_zip(http_sock_t client_fd, const char *path_qs)
     if (wiki_send_attachment_file(client_fd, zip_path, dl_name) < 0) {
         rmdir_recursive(work_root);
         send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false,\"error\":\"send failed\"}", 35); return;
+    }
+    rmdir_recursive(work_root);
+}
+
+/* ── POST /api/wiki-export-pdf ─────────────────────────────── */
+void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body)
+{
+    char *title = json_get_str_alloc(body, "title");
+    char *meta  = json_get_str_alloc(body, "meta");
+    char *art   = json_get_str_alloc(body, "body");
+    if (!art || !art[0]) {
+        free(title); free(meta); free(art);
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing body\"}", 35);
+        return;
+    }
+
+    char work_root[1024];
+    snprintf(work_root, sizeof(work_root), "%s/.tmp_pdf_%ld_%ld",
+             WIKI_ROOT, (long)getpid(), (long)time(NULL));
+    if (mkdir_p(work_root) != 0) {
+        free(title); free(meta); free(art);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"mkdir failed\"}", 35);
+        return;
+    }
+
+    char in_html[1280], out_pdf[1280];
+    snprintf(in_html, sizeof(in_html), "%s/input.html", work_root);
+    snprintf(out_pdf, sizeof(out_pdf), "%s/output.pdf", work_root);
+
+    FILE *fp = fopen(in_html, "wb");
+    if (!fp) {
+        free(title); free(meta); free(art);
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write html failed\"}", 40);
+        return;
+    }
+
+    fputs("<!doctype html><html><head><meta charset=\"utf-8\">"
+          "<style>"
+          "body{font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;"
+          "margin:18mm 14mm 20mm 14mm;color:#111;font-size:14px;line-height:1.7}"
+          "h1,h2,h3,h4{page-break-after:avoid;break-after:avoid-page}"
+          "h1{font-size:1.45rem;border-bottom:1px solid #ddd;padding-bottom:4px}"
+          "h2{font-size:1.2rem}h3{font-size:1.07rem}h4{font-size:1rem}"
+          "img{max-width:100%;height:auto}pre{white-space:pre-wrap;word-break:break-word}"
+          "table{border-collapse:collapse;width:100%}"
+          "th,td{border:1px solid #ddd;padding:6px}"
+          ".pdf-title{font-size:24px;font-weight:700;margin:0 0 8px}"
+          ".pdf-meta{color:#666;margin:0 0 14px;font-size:12px}"
+          ".pdf-bookmark-shadow-root{position:absolute;left:-100000px;top:0;width:1px;height:1px;overflow:hidden}"
+          ".pdf-bookmark-shadow{margin:0;padding:0;font-size:1px;line-height:1px;color:transparent;border:0}"
+          ".copy-btn{display:none!important}"
+          "</style></head><body>", fp);
+
+    fputs("<div class=\"pdf-title\">", fp);
+    wiki_fhtml(fp, title ? title : "Wiki Export");
+    fputs("</div>", fp);
+    if (meta && meta[0]) {
+        fputs("<div class=\"pdf-meta\">", fp);
+        wiki_fhtml(fp, meta);
+        fputs("</div>", fp);
+    }
+    fputs("<div class=\"art-content\">", fp);
+    fputs(art, fp);
+    fputs("</div></body></html>", fp);
+    fclose(fp);
+
+    if (!wiki_has_wkhtmltopdf()) {
+        const char *err = "{\"ok\":false,\"error\":\"wkhtmltopdf not found on server\"}";
+        free(title); free(meta); free(art);
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        return;
+    }
+
+    int rc = wiki_run_wkhtmltopdf_with_outline(in_html, out_pdf);
+    if (rc != 0) {
+        const char *err = "{\"ok\":false,\"error\":\"wkhtmltopdf failed (linux headless may need xvfb-run)\"}";
+        free(title); free(meta); free(art);
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        return;
+    }
+
+    char base[192], dl_name[224];
+    wiki_title_to_filename_base(title ? title : "wiki_export", base, sizeof(base));
+    snprintf(dl_name, sizeof(dl_name), "%s.pdf", base);
+
+    free(title); free(meta); free(art);
+    if (wiki_send_download_file(client_fd, out_pdf, dl_name, "application/pdf") < 0) {
+        rmdir_recursive(work_root);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"send failed\"}", 35);
+        return;
     }
     rmdir_recursive(work_root);
 }

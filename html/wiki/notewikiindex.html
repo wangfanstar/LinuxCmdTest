@@ -72,7 +72,8 @@ var _wikiIndexFull = null;
 var _wikiSearchTimer = null;
 var _wikiLastQuery = '';
 var _isFileMode = (location.protocol === 'file:');
-var _offlineIndexCandidates = ['./wiki-index.json', '../wiki-index.json'];
+var _offlinePrimaryIndex = './wiki-index.json';
+var _offlineFallbackCandidates = buildOfflineFallbackCandidates();
 var _cacheKey = 'notewiki-index-cache-v1';
 
 if (_isFileMode) {
@@ -296,7 +297,8 @@ function applyIndexData(data, lead) {
 }
 
 function parseLocalIndexText(text) {
-  var data = JSON.parse(text);
+  var t = String(text || '').replace(/^\uFEFF/, '');
+  var data = JSON.parse(t);
   if (!data || typeof data !== 'object') throw new Error('JSON 格式无效');
   if (!Array.isArray(data.articles)) throw new Error('缺少 articles 数组');
   if (!Array.isArray(data.categories)) data.categories = [];
@@ -338,30 +340,116 @@ function bootOnlineMode() {
     });
 }
 
-function tryOfflineCandidates(i) {
-  if (i >= _offlineIndexCandidates.length) return Promise.reject(new Error('无可用候选'));
-  return fetch(_offlineIndexCandidates[i])
+function tryOfflineCandidates(list, i) {
+  if (!Array.isArray(list) || i >= list.length) return Promise.reject(new Error('无可用候选'));
+  return loadOfflineIndexFromPath(list[i])
+    .then(function(text){ return parseLocalIndexText(text); })
+    .catch(function(e){
+      if (i >= list.length - 1) throw e || new Error('无可用候选');
+      return tryOfflineCandidates(list, i + 1);
+    });
+}
+
+function errText(e) {
+  if (!e) return '未知错误';
+  return (e.message || String(e)).replace(/\s+/g, ' ').trim();
+}
+
+function buildOfflineFallbackCandidates() {
+  var out = ['../wiki-index.json'];
+  if (_isFileMode) {
+    try {
+      var sameDirAbs = new URL('wiki-index.json', location.href).href;
+      if (out.indexOf(sameDirAbs) < 0) out.unshift(sameDirAbs);
+    } catch (e) {}
+    if (out.indexOf('wiki-index.json') < 0) out.unshift('wiki-index.json');
+  }
+  return out;
+}
+
+function isLikelyFileProtocolBlocked(msg) {
+  var m = String(msg || '').toLowerCase();
+  return _isFileMode && (m.indexOf('xhr 0') >= 0 || m.indexOf('failed to fetch') >= 0);
+}
+
+function showOfflineDiag(lines) {
+  var lead = document.getElementById('lead');
+  if (!lead) return;
+  var safe = (lines || []).map(function(s){ return esc(String(s)); });
+  lead.innerHTML =
+    '<span style="color:#f85149;font-weight:600">离线自动加载失败</span>'
+    + '<br><span style="font-size:.78rem;color:var(--dim);line-height:1.5">'
+    + safe.join('<br>')
+    + '</span>';
+}
+
+function loadOfflineIndexFromPath(path) {
+  return fetch(path)
     .then(function(r){
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.text();
     })
-    .then(function(text){ return parseLocalIndexText(text); })
-    .catch(function(){ return tryOfflineCandidates(i + 1); });
+    .catch(function(){
+      /* 某些浏览器 file:// 下 fetch 本地文件受限，回退到 XHR */
+      return new Promise(function(resolve, reject){
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', path, true);
+          xhr.onreadystatechange = function(){
+            if (xhr.readyState !== 4) return;
+            if ((xhr.status >= 200 && xhr.status < 300) || (xhr.status === 0 && xhr.responseText)) {
+              resolve(xhr.responseText);
+            } else {
+              reject(new Error('XHR ' + xhr.status));
+            }
+          };
+          xhr.onerror = function(){ reject(new Error('XHR error')); };
+          xhr.send();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
 }
 
 function bootOfflineMode() {
   bindOfflineFileLoader();
-  var cached = loadIndexCache();
-  if (cached) {
-    applyIndexData(cached, '离线模式：已加载缓存索引（可点击“加载本地索引”替换）');
-  } else {
-    document.getElementById('lead').textContent = '离线模式：请把本页同目录下的 wiki-index.json 放好（在在线时「更新离线索引」后下载，或从服务器 html/wiki/ 目录复制），也可点「加载本地索引」手动选择。';
-  }
-  tryOfflineCandidates(0)
+  document.getElementById('lead').textContent = '离线模式：优先加载同目录 wiki-index.json…';
+  var diag = [];
+  loadOfflineIndexFromPath(_offlinePrimaryIndex)
+    .then(function(text){ return parseLocalIndexText(text); })
     .then(function(data){
-      applyIndexData(data, '离线模式：已自动加载本地 wiki-index.json（' + data.articles.length + ' 篇）');
+      applyIndexData(data, '离线模式：已优先加载同目录 wiki-index.json（' + data.articles.length + ' 篇）');
     })
-    .catch(function(){});
+    .catch(function(e0){
+      diag.push('同目录 ./wiki-index.json：' + errText(e0));
+      if (isLikelyFileProtocolBlocked(errText(e0))) {
+        diag.push('检测到浏览器限制：Windows 下 file:// 页面通常禁止脚本自动读取同目录文件');
+      }
+      var cached = loadIndexCache();
+      if (cached) {
+        applyIndexData(cached, '离线模式：同目录索引不可用，已回退缓存索引（可点击“加载本地索引”替换）');
+      } else {
+        document.getElementById('lead').textContent = '离线模式：同目录 wiki-index.json 不可用，正在尝试其他位置…';
+      }
+      return tryOfflineCandidates(_offlineFallbackCandidates, 0)
+        .then(function(data){
+          applyIndexData(data, '离线模式：已加载备用位置 wiki-index.json（' + data.articles.length + ' 篇）');
+        })
+        .catch(function(e1){
+          diag.push('备用路径（含绝对 file:// 形式）：' + errText(e1));
+          if (!cached) {
+            if (isLikelyFileProtocolBlocked(errText(e0)) || isLikelyFileProtocolBlocked(errText(e1))) {
+              diag.push('建议：使用本地 HTTP 打开本页（例如在 html 目录启动本地服务），或手动点「加载本地索引」');
+            }
+            diag.push('可操作：点击「加载本地索引」手动选择同目录 wiki-index.json');
+            showOfflineDiag(diag);
+          } else {
+            diag.push('已使用缓存索引展示，可点击「加载本地索引」替换');
+            showOfflineDiag(diag);
+          }
+        });
+    });
 }
 
 if (_isFileMode) bootOfflineMode();

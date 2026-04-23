@@ -1532,6 +1532,10 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
     '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
     '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
+    '.art-content h1{bookmark-level:1;bookmark-label:content(text)}',
+    '.art-content h2{bookmark-level:2;bookmark-label:content(text)}',
+    '.art-content h3{bookmark-level:3;bookmark-label:content(text)}',
+    '.art-content h4{bookmark-level:4;bookmark-label:content(text)}',
     '.art-content p{margin:.6em 0;line-height:1.75}',
     '.art-content pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;padding:10px;overflow-x:auto;margin:.8em 0;font-size:.8rem;page-break-inside:avoid}',
     '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.85em}',
@@ -1595,6 +1599,98 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
   printHtmlForPdf(html);
 }
 
+function exportPdfViaServer(title, cat, updated, body) {
+  var meta = '分类：' + (cat || '根目录') + ' | 更新：' + (updated || '');
+  setStatus('正在由服务端生成 PDF（含书签）...');
+  function parseErrText(t) {
+    var s = String(t || '').trim();
+    if (!s) return '';
+    try {
+      var obj = JSON.parse(s);
+      if (obj && obj.error) return String(obj.error);
+    } catch (e) {}
+    return s;
+  }
+  return fetch('/api/wiki-export-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json;charset=utf-8' },
+    body: JSON.stringify({
+      title: title || 'untitled',
+      meta: meta,
+      body: body || ''
+    })
+  }).then(function(resp) {
+    if (!resp.ok) {
+      return resp.text().then(function(t) {
+        var msg = parseErrText(t);
+        throw new Error('HTTP ' + resp.status + (msg ? (' ' + msg) : ''));
+      });
+    }
+    var dispo = resp.headers.get('Content-Disposition') || '';
+    return resp.blob().then(function(blob) { return { blob: blob, dispo: dispo }; });
+  }).then(function(ret) {
+    var filename = 'wiki_export.pdf';
+    var m = ret.dispo.match(/filename="?([^";]+)"?/i);
+    if (m && m[1]) filename = m[1];
+    var url = URL.createObjectURL(ret.blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+    setStatus('PDF 已下载（服务端书签版）');
+  }).catch(function(err) {
+    var em = (err && err.message) ? err.message : String(err || '');
+    setStatus('服务端 PDF 导出失败，已回退本地导出：' + em);
+    try {
+      exportPdfBuildWindow(title, cat, updated, body);
+    } catch (e2) {}
+  });
+}
+
+function buildStablePdfBookmarkBody(bodyHtml) {
+  var root = document.createElement('div');
+  root.innerHTML = String(bodyHtml || '');
+  var hs = root.querySelectorAll('h1,h2,h3,h4');
+  if (!hs.length) return root.innerHTML;
+
+  var used = {};
+  function slug(t) {
+    var b = String(t || '')
+      .toLowerCase()
+      .replace(/[^\w\-\u4e00-\u9fa5]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'sec';
+    var id = b, n = 1;
+    while (used[id]) id = b + '-' + (n++);
+    used[id] = 1;
+    return id;
+  }
+
+  var shadow = [];
+  for (var i = 0; i < hs.length; i++) {
+    var hd = hs[i];
+    var txt = (hd.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!txt) continue;
+    var lv = parseInt(hd.tagName.slice(1), 10) || 1;
+    if (lv < 1) lv = 1;
+    if (lv > 4) lv = 4;
+    var id = hd.getAttribute('id') || slug(txt);
+    hd.setAttribute('id', id);
+    shadow.push('<h' + lv + ' class="pdf-bookmark-shadow">' + escH(txt) + '</h' + lv + '>');
+  }
+  if (shadow.length) {
+    var box = document.createElement('div');
+    box.className = 'pdf-bookmark-shadow-root';
+    box.setAttribute('aria-hidden', 'true');
+    box.innerHTML = shadow.join('');
+    root.insertBefore(box, root.firstChild);
+  }
+  return root.innerHTML;
+}
+
 function exportPdf() {
   var pv = document.getElementById('pane-view');
   var pe = document.getElementById('pane-edit');
@@ -1631,7 +1727,8 @@ function exportPdf() {
     return;
   }
 
-  exportPdfBuildWindow(title, cat, updated, body);
+  body = buildStablePdfBookmarkBody(body);
+  exportPdfViaServer(title, cat, updated, body);
 }
 
 // ── Upload Image ──────────────────────────────────────────────────────

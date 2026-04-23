@@ -35,6 +35,9 @@ LOG_DIR="${SCRIPT_DIR}/logs"
 HTML_DIR="${SCRIPT_DIR}/html"
 NOHUP_OUT="${LOG_DIR}/nohup.out"
 
+# 默认启用 SQLite（可通过环境变量 SQLITE3=0 临时关闭）
+SQLITE3_FLAG="${SQLITE3:-1}"
+
 # ── 颜色输出 ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
@@ -79,13 +82,14 @@ prepare_dirs() {
 
 cmd_build() {
     info "开始编译..."
+    info "编译选项: SQLITE3=${SQLITE3_FLAG}"
     cd "${SCRIPT_DIR}"
 
     # 清除旧产物（含旧名称二进制），确保全量重链接到正确路径
-    make clean 2>&1 | sed 's/^/  /'
+    make SQLITE3="${SQLITE3_FLAG}" clean 2>&1 | sed 's/^/  /'
 
     # 全量编译
-    if ! make 2>&1 | sed 's/^/  /'; then
+    if ! make SQLITE3="${SQLITE3_FLAG}" 2>&1 | sed 's/^/  /'; then
         die "编译失败，请检查上方错误信息"
     fi
 
@@ -284,6 +288,7 @@ start / restart 选项:
 
 二进制路径: ${BIN}
 日志目录:   ${LOG_DIR}
+编译开关:   SQLITE3=${SQLITE3_FLAG}（默认启用，可用 SQLITE3=0 临时关闭）
 EOF
 }
 

@@ -337,6 +337,13 @@ void send_response(http_sock_t fd, int status, const char *status_text,
 void send_json(http_sock_t fd, int status, const char *status_text,
                const char *json, size_t json_len)
 {
+    if (!json) {
+        json = "{}";
+        json_len = 2;
+    } else {
+        size_t real_len = strlen(json);
+        if (json_len > real_len) json_len = real_len;
+    }
     char header[512];
     int hlen = snprintf(header, sizeof(header),
         "HTTP/1.1 %d %s\r\n"

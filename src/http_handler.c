@@ -8,6 +8,7 @@
 #include "report_api.h"
 #include "register_api.h"
 #include "wiki.h"
+#include "auth_db.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,21 @@
 
 #define MAX_BODY_SIZE        (64 * 1024)
 #define SAVE_REPORT_MAX_BODY (50 * 1024 * 1024)
+
+static int is_wiki_write_api(const char *path)
+{
+    return strcmp(path, "/api/wiki-save") == 0 ||
+           strcmp(path, "/api/wiki-delete") == 0 ||
+           strcmp(path, "/api/wiki-rename-article") == 0 ||
+           strcmp(path, "/api/wiki-rename-cat") == 0 ||
+           strcmp(path, "/api/wiki-delete-cat") == 0 ||
+           strcmp(path, "/api/wiki-move-article") == 0 ||
+           strcmp(path, "/api/wiki-mkdir") == 0 ||
+           strcmp(path, "/api/wiki-upload") == 0 ||
+           strcmp(path, "/api/wiki-refresh-index") == 0 ||
+           strcmp(path, "/api/wiki-rebuild-html") == 0 ||
+           strcmp(path, "/api/wiki-cleanup-uploads") == 0;
+}
 
 /* ── 主处理入口 ──────────────────────────────────────────────── */
 
@@ -114,7 +130,31 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             }
         }
 
-        if (strcmp(path, "/api/ssh-exec") == 0) {
+        auth_user_t req_user;
+        memset(&req_user, 0, sizeof(req_user));
+        if (is_wiki_write_api(path)) {
+            if (auth_require_author(req_buf, client_fd, &req_user) != 0) {
+                auth_audit(client_ip, "", "denied", path, "guest write blocked");
+                free(body);
+                goto done;
+            }
+        }
+        if (strcmp(path, "/api/wiki-user-save") == 0 ||
+            strcmp(path, "/api/wiki-user-delete") == 0) {
+            if (auth_require_admin(req_buf, client_fd, &req_user) != 0) {
+                auth_audit(client_ip, "", "denied", path, "admin required");
+                free(body);
+                goto done;
+            }
+        }
+
+        if (strcmp(path, "/api/wiki-login") == 0) {
+            if (body) handle_api_wiki_login(client_fd, req_buf, body, client_ip);
+            else send_json(client_fd, 400, "Bad Request",
+                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-logout") == 0) {
+            handle_api_wiki_logout(client_fd, req_buf);
+        } else if (strcmp(path, "/api/ssh-exec") == 0) {
             if (body) handle_api_ssh_exec(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"error\":\"empty body\"}", 21);
@@ -207,11 +247,17 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-save") == 0) {
-            if (body) handle_api_wiki_save(client_fd, body);
+            if (body) {
+                auth_audit(client_ip, req_user.username, "wiki_save", "", "");
+                handle_api_wiki_save(client_fd, body, req_user.username, client_ip);
+            }
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-delete") == 0) {
-            if (body) handle_api_wiki_delete(client_fd, body);
+            if (body) {
+                auth_audit(client_ip, req_user.username, "wiki_delete", "", "");
+                handle_api_wiki_delete(client_fd, body);
+            }
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-rename-article") == 0) {
@@ -244,7 +290,24 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-cleanup-uploads") == 0) {
+            auth_audit(client_ip, req_user.username, "wiki_cleanup_uploads", "", "");
             handle_api_wiki_cleanup_uploads(client_fd);
+        } else if (strcmp(path, "/api/wiki-user-save") == 0) {
+            if (body) {
+                auth_audit(client_ip, req_user.username, "user_save", "", "");
+                handle_api_wiki_user_save(client_fd, body);
+            } else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
+            }
+        } else if (strcmp(path, "/api/wiki-user-delete") == 0) {
+            if (body) {
+                auth_audit(client_ip, req_user.username, "user_delete", "", "");
+                handle_api_wiki_user_delete(client_fd, body);
+            } else {
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
+            }
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -294,12 +357,54 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    if (strcmp(path, "/api/wiki-auth-status") == 0) {
+        handle_api_wiki_auth_status(client_fd, req_buf);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-users") == 0) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_wiki_users_list(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/wiki-audit-logs", 20) == 0 &&
+        (path[20] == '\0' || path[20] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_wiki_audit_logs(client_fd, path_qs);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/wiki-md-history", 20) == 0 &&
+        (path[20] == '\0' || path[20] == '?')) {
+        auth_user_t u;
+        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_wiki_md_history(client_fd, path_qs);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/wiki-user-article-rank", 27) == 0 &&
+        (path[27] == '\0' || path[27] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_wiki_user_article_rank(client_fd, path_qs);
+        goto done;
+    }
+
     if (strcmp(path, "/api/wiki-refresh-index") == 0) {
+        auth_user_t u;
+        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        auth_audit(client_ip, u.username, "wiki_refresh_index", "", "");
         handle_api_wiki_refresh_index(client_fd);
         goto done;
     }
 
     if (strcmp(path, "/api/wiki-rebuild-html") == 0) {
+        auth_user_t u;
+        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        auth_audit(client_ip, u.username, "wiki_rebuild_html", "", "");
         handle_api_wiki_rebuild_html(client_fd);
         goto done;
     }
@@ -430,6 +535,10 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
     }
 
     {
+        auth_user_t u;
+        if (strncmp(path, "/wiki/", 6) == 0 && auth_resolve_user_from_headers(req_buf, &u) != 0) {
+            auth_audit(client_ip, "guest", "guest_view", path, "");
+        }
         char filepath[2048];
         char decoded_path[2048];
         strncpy(decoded_path, path, sizeof(decoded_path) - 1);

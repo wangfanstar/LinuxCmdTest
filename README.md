@@ -13,6 +13,7 @@
 | 报告存档与列表 | 执行结果可存档到 `html/report/`；`reports.html` 浏览 HTML/JSON，支持筛选、排序、删除 |
 | 域段解析 | `TableParse.html`：Length/Range 解析 hex/dec/bin，嵌套域段与 JSON 配置 |
 | 日志查看器 | 实时查看服务器日志，支持级别过滤、关键字搜索、本地文件上传 |
+| Wiki 权限与审计（可选） | 基于 SQLite 的登录、角色权限（admin/author/guest）、操作日志、MD 历史备份 |
 
 ## 快速开始
 
@@ -28,6 +29,12 @@ chmod +x build_linux.sh   # 仅首次
 产出：`bin/simplewebserver`
 
 若误在 MSYS 里带着 `OS=Windows_NT` 环境变量，可先 `unset OS` 再 `make`。
+
+> 如需启用 Wiki 的 SQLite 权限功能，请先安装 sqlite3 开发包后使用：
+>
+> ```bash
+> make SQLITE3=1
+> ```
 
 ### 编译（Windows，MinGW-w64）
 
@@ -52,6 +59,12 @@ build_mingw.bat
 产出：`bin/simplewebserver.exe`。
 
 **说明（Windows 构建）**：`Makefile` 在 `OS=Windows_NT` 时会链接 `-lws2_32`，并改用 `monitor_win.c`、`ssh_exec_win_stub.c`（无 `/proc` 与 Unix 版 SSH 引擎）。SVN 接口在 Windows 上返回“本构建不支持”；完整监控与 SSH 仍以 Linux 构建为准。
+
+> 如需启用 Wiki 的 SQLite 权限功能，请先安装 sqlite3 开发头文件和库后使用：
+>
+> ```powershell
+> mingw32-make SQLITE3=1
+> ```
 
 ### 一行命令对照
 
@@ -82,6 +95,46 @@ build_mingw.bat
 
 无需 `sshpass`，密码认证通过 `SSH_ASKPASS` 机制实现。
 
+### SQLite 安装（启用 Wiki 权限/审计时）
+
+#### Windows（MSYS2 / MinGW-w64）
+
+```bash
+pacman -Syu
+# 关闭并重新打开终端后
+pacman -Su
+pacman -S mingw-w64-x86_64-sqlite3
+```
+
+验证：
+
+```bash
+sqlite3 --version
+ls /mingw64/include/sqlite3.h
+```
+
+#### Linux
+
+- Ubuntu / Debian
+
+```bash
+sudo apt update
+sudo apt install -y sqlite3 libsqlite3-dev
+```
+
+- CentOS 7
+
+```bash
+sudo yum install -y epel-release
+sudo yum install -y sqlite sqlite-devel
+```
+
+安装后启用编译：
+
+```bash
+make SQLITE3=1
+```
+
 ## 项目结构
 
 ```
@@ -93,6 +146,7 @@ build_mingw.bat
 │   ├── report_api.c/h      # 报告与配置存档管理（/api/save-report、/api/reports 等）
 │   ├── register_api.c/h    # 注册表文件管理（/api/save-register-file 等）
 │   ├── wiki.c/h            # Wiki 引擎（Markdown→HTML、搜索、上传、CRUD）
+│   ├── auth_db.c/h         # Wiki 登录/权限/会话/审计/MD 历史（SQLite，可选启用）
 │   ├── svn_api.c/h         # SVN 日志查询（/api/svn-log）
 │   ├── ssh_api.c/h         # SSH 命令执行（单条 / 批量 / SSE 流式）
 │   ├── monitor.c/h         # 系统监控（CPU、内存、进程、在线用户统计）
@@ -106,6 +160,8 @@ build_mingw.bat
 │   ├── TableParse.html      # 域段解析工具
 │   ├── logviewer.html       # 日志查看器
 │   └── wiki/               # Wiki 阅读 / 编辑页面
+│       ├── notewiki.html
+│       └── wiki-auth-admin.html   # Wiki 账号权限与日志查询页（管理员）
 ├── simplewebserver.sh      # 管理脚本（start/stop/restart/status/build）
 ├── build_linux.sh          # Linux/WSL：调用 make（非 Windows 目标）
 ├── build_win.ps1           # Windows PowerShell：设置 OS 与 PATH 后 mingw32-make
@@ -123,6 +179,7 @@ build_mingw.bat
 | `report_api` | 报告与 SSH 配置文件的存取、列表扫描、删除 |
 | `register_api` | 注册表 JSON/XML 文件的上传、重命名、删除及目录管理 |
 | `wiki` | Markdown 文章的读写、HTML 渲染、全文搜索、分类/重命名/移动、图片上传 |
+| `auth_db` | Wiki 认证与权限：用户、会话、审计日志、MD 历史备份（SQLite） |
 | `svn_api` | 调用系统 `svn log --xml`，透传 XML 结果给前端 |
 | `ssh_api` | 调用 `ssh_exec` 引擎，支持单条、批量、SSE 流式三种执行模式 |
 | `monitor` | 读取 `/proc/stat`、`/proc/meminfo`、`/proc/[pid]/stat` 等，输出 CPU / 内存 / 进程 / 在线用户 JSON |
@@ -216,6 +273,21 @@ make clean      # 清除构建产物
 
 解析请求行后，**路径中 `?` 与 `#` 之后会被截断**再用于静态文件路径与多数 API 匹配（例如 `/api/reports`、`.html` 页面），避免带缓存参数时 404。  
 仍依赖查询串的接口（如 `/api/list-ssh-configs?user=`、`/api/procs?`、`/api/port?`）在服务端使用**保留查询的完整路径**解析参数。
+
+### Wiki 权限接口（`SQLITE3=1` 启用时）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/wiki-login` | POST | 登录，写入会话 Cookie（`WIKI_SESS`） |
+| `/api/wiki-logout` | POST | 退出登录并清理会话 |
+| `/api/wiki-auth-status` | GET | 查询当前登录状态 |
+| `/api/wiki-users` | GET | 用户列表（管理员） |
+| `/api/wiki-user-save` | POST | 新增/修改用户（管理员） |
+| `/api/wiki-user-delete` | POST | 删除用户（管理员） |
+| `/api/wiki-audit-logs` | GET | 查询操作审计日志（管理员） |
+| `/api/wiki-md-history` | GET | 查询文章历史备份（作者/管理员） |
+
+默认账号：`Admin / 123456`（首次初始化 SQLite 库时自动创建）。
 
 ## 平台
 

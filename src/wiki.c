@@ -3,6 +3,7 @@
 #include "http_utils.h"
 #include "log.h"
 #include "platform.h"
+#include "auth_db.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -914,7 +915,10 @@ static void wiki_collect_dirs(strbuf_t *sb, const char *base,
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_name[0] == '.') continue;
-        if (top && (strcmp(de->d_name,"md_db")==0 || strcmp(de->d_name,"uploads")==0 || strcmp(de->d_name,"vendor")==0)) continue;
+        if (top && (strcmp(de->d_name,"md_db")==0 ||
+                    strcmp(de->d_name,"uploads")==0 ||
+                    strcmp(de->d_name,"vendor")==0 ||
+                    strcmp(de->d_name,"sqlite_db")==0)) continue;
         char child[1024]; snprintf(child, sizeof(child), "%s/%s", full, de->d_name);
         struct stat st; if (stat(child, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
         char relpath[512];
@@ -1409,7 +1413,8 @@ void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body)
 
 /* ── POST /api/wiki-save ──────────────────────────────────── */
 
-void handle_api_wiki_save(http_sock_t client_fd, const char *body)
+void handle_api_wiki_save(http_sock_t client_fd, const char *body,
+                          const char *actor, const char *ip)
 {
     wiki_ensure_dirs();
     char id[128]={0}, title[512]={0}, cat[512]={0}, created[64]={0};
@@ -1451,6 +1456,11 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body)
         free(content); free(html);
         send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing content/html\"}",45); return;
     }
+    char *content_snapshot = strdup(content);
+    if (!content_snapshot) {
+        free(content); free(html);
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"oom\"}",26); return;
+    }
 
     char old_md_path[768] = {0}, old_cat[512] = {0};
     if (wiki_md_find(old_md_path, sizeof(old_md_path), id) == 0) {
@@ -1466,7 +1476,7 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body)
     char md_path[768];
     wiki_md_write_path(md_path, sizeof(md_path), id, cat);
     FILE *fp = fopen(md_path, "wb");
-    if (!fp) { free(content); free(html);
+    if (!fp) { free(content); free(html); free(content_snapshot);
         send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write md\"}",33); return; }
     strbuf_t meta = {0};
     SB_LIT(&meta, "<!--META ");
@@ -1497,6 +1507,8 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body)
         snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
     }
     wiki_write_html_file(html_path, id, title, cat, now, html);
+    auth_md_backup(id, title, cat, content_snapshot, html, actor ? actor : "", ip ? ip : "");
+    free(content_snapshot);
     free(html);
 
     wiki_refresh_index_json();

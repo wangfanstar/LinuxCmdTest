@@ -25,6 +25,7 @@
 #include "threadpool.h"
 #include "http_handler.h"
 #include "monitor.h"
+#include "auth_db.h"
 
 /* ------------------------------------------------------------------ */
 /*  默认配置                                                            */
@@ -197,6 +198,9 @@ int main(int argc, char *argv[])
     LOG_INFO("port=%d  threads=%d  queue=%d  logdir=%s",
              port, threads, queue_size, log_dir);
     LOG_INFO("cpu cores detected: %d", platform_cpu_cores());
+    if (auth_db_init() != 0) {
+        LOG_WARN("auth sqlite init failed, runtime auth APIs may not work");
+    }
 
 #ifdef _WIN32
     (void)SetConsoleCtrlHandler(win_console_handler, TRUE);
@@ -296,6 +300,7 @@ int main(int argc, char *argv[])
     g_server_fd = HTTP_SOCK_INVALID;
     threadpool_destroy(g_pool);
     LOG_INFO("=== simplewebserver stopped ===");
+    auth_db_close();
     log_close();
 
     return 0;

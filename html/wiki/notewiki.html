@@ -222,6 +222,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <h1>📝 NoteWiki</h1>
   <div class="topbar-sep"></div>
   <div class="topbar-right">
+    <span id="auth-status" style="font-size:.75rem;color:var(--dim)">游客</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="btn-auth" onclick="toggleAuthAction()">登录</button>
+    <a href="/wiki/wiki-auth-admin.html" id="auth-admin-link" style="display:none">👤 用户管理</a>
     <a href="/wiki/notewikiindex.html">📑 文章索引</a>
     <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
@@ -512,6 +515,26 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   </div>
 </div>
 
+<!-- 登录 modal -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal-box">
+    <div class="modal-head">🔐 登录<button class="modal-close" onclick="closeLoginModal()">✕</button></div>
+    <div class="modal-body">
+      <label class="field-label">账号</label>
+      <input id="login-username" class="field-input" type="text" placeholder="Admin"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('login-password').focus();}">
+      <label class="field-label">密码</label>
+      <input id="login-password" class="field-input" type="password" placeholder="请输入密码"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
+      <div id="login-tip" style="font-size:.75rem;color:var(--red);display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
+      <button class="btn btn-primary" onclick="doLogin()">登录</button>
+    </div>
+  </div>
+</div>
+
 <!-- 上传图片 input -->
 <input type="file" id="img-file-input" accept="image/*"
        style="display:none" onchange="doUploadFile(this.files[0], {sourceInput:'img-file-input'})">
@@ -534,22 +557,120 @@ var S = {
   viewMode: 'split',      // split | edit | prev
   previewAlign: false     // 右侧预览是否随光标自动对齐（默认关闭）
 };
+var Auth = { loggedIn:false, user:null };
+
+function setAuthUi() {
+  var st = document.getElementById('auth-status');
+  var btn = document.getElementById('btn-auth');
+  var link = document.getElementById('auth-admin-link');
+  if (!st || !btn || !link) return;
+  if (Auth.loggedIn && Auth.user) {
+    var roleTxt = (Auth.user.role || '');
+    if (roleTxt === 'guest') roleTxt = 'guest(只读)';
+    st.textContent = '已登录：' + (Auth.user.username || '') + ' [' + roleTxt + ']';
+    btn.textContent = '退出';
+    link.style.display = (Auth.user.role === 'admin') ? '' : 'none';
+  } else {
+    st.textContent = '游客（只读）';
+    btn.textContent = '登录';
+    link.style.display = 'none';
+  }
+}
+
+function refreshAuthStatus() {
+  return fetch('/api/wiki-auth-status')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      Auth.loggedIn = !!(d && d.loggedIn);
+      Auth.user = d && d.user ? d.user : null;
+      setAuthUi();
+    })
+    .catch(function(){
+      Auth.loggedIn = false;
+      Auth.user = null;
+      setAuthUi();
+    });
+}
+
+function openLoginModal() {
+  document.getElementById('login-tip').style.display = 'none';
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('modal-login').classList.add('open');
+  setTimeout(function(){ document.getElementById('login-username').focus(); }, 40);
+}
+function closeLoginModal() { document.getElementById('modal-login').classList.remove('open'); }
+
+function doLogin() {
+  var u = document.getElementById('login-username').value.trim();
+  var p = document.getElementById('login-password').value;
+  if (!u || !p) return;
+  fetch('/api/wiki-login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d && d.ok) {
+      closeLoginModal();
+      setStatus('登录成功');
+      return refreshAuthStatus();
+    }
+    var tip = document.getElementById('login-tip');
+    tip.textContent = '登录失败：' + ((d && d.error) || '用户名或密码错误');
+    tip.style.display = '';
+  })
+  .catch(function(e){
+    var tip = document.getElementById('login-tip');
+    tip.textContent = '登录失败：' + e.message;
+    tip.style.display = '';
+  });
+}
+
+function doLogout() {
+  fetch('/api/wiki-logout', { method:'POST' })
+    .then(function(){ Auth.loggedIn = false; Auth.user = null; setAuthUi(); setStatus('已退出登录'); });
+}
+
+function toggleAuthAction() {
+  if (Auth.loggedIn) doLogout();
+  else openLoginModal();
+}
+
+function ensureWriteAuth() {
+  if (!Auth.loggedIn) {
+    openLoginModal();
+    setStatus('请先登录后再执行编辑操作');
+    return false;
+  }
+  if (!Auth.user || (Auth.user.role !== 'admin' && Auth.user.role !== 'author')) {
+    setStatus('当前账号为只读权限（guest），不可编辑');
+    return false;
+  }
+  return true;
+}
 
 // ── Init ─────────────────────────────────────────────────────────────
 function init() {
   richRenderer.ensure();
-  var params = new URLSearchParams(location.search);
-  var editId = params.get('edit');
-  refreshAll(function() {
-    if (editId) {
-      openArticle(editId);
-      editCurrent();
-    }
+  refreshAuthStatus().finally(function(){
+    var params = new URLSearchParams(location.search);
+    var editId = params.get('edit');
+    refreshAll(function() {
+      if (editId) {
+        openArticle(editId);
+        editCurrent();
+      }
+    });
   });
 }
 
 function isHiddenCategory(cat) {
-  return !!cat && (cat === 'vendor' || cat.indexOf('vendor/') === 0);
+  return !!cat && (
+    cat === 'vendor' || cat.indexOf('vendor/') === 0 ||
+    cat === 'sqlite_db' || cat.indexOf('sqlite_db/') === 0
+  );
 }
 
 function refreshAll(onDone) {
@@ -846,6 +967,7 @@ function buildViewToc(root) {
 
 // ── Edit ─────────────────────────────────────────────────────────────
 function newArticle(prefillCat) {
+  if (!ensureWriteAuth()) return;
   /* 填充分类下拉 */
   var sel = document.getElementById('na-category');
   sel.innerHTML = '<option value="">📁 根目录</option>';
@@ -897,6 +1019,7 @@ function validateNAFilename() {
   hideTip(); return true;
 }
 function doNewArticle() {
+  if (!ensureWriteAuth()) return;
   var title = document.getElementById('na-title').value.trim();
   if (!title) { document.getElementById('na-title').focus(); return; }
   if (!validateNAFilename()) { document.getElementById('na-filename').focus(); return; }
@@ -958,6 +1081,7 @@ function loadEditorFromArticleId(id) {
 
 function editCurrent() {
   if (!S.curId) return;
+  if (!ensureWriteAuth()) return;
   loadEditorFromArticleId(S.curId);
 }
 
@@ -1066,6 +1190,7 @@ function saveArticle()   { _doSave({}); }
 function publishArticle(){ _doSave({ published: true }); }
 
 function _doSave(opts) {
+  if (!ensureWriteAuth()) return;
   opts = opts || {};
   var silent  = !!opts.silent;
   var published = !!opts.published;
@@ -1138,6 +1263,7 @@ function _doSave(opts) {
 // ── Delete ───────────────────────────────────────────────────────────
 function deleteCurrent() {
   if (!S.curId) return;
+  if (!ensureWriteAuth()) return;
   var meta = S.articles.find(function(a){return a.id===S.curId;});
   var name = meta ? meta.title : S.curId;
   if (!confirm('确定删除「'+name+'」？')) return;
@@ -1154,6 +1280,7 @@ function deleteCurrent() {
 
 // ── New Category ─────────────────────────────────────────────────────
 function openNewCatModal(prefillParent) {
+  if (!ensureWriteAuth()) return;
   var sel = document.getElementById('nc-parent');
   sel.innerHTML = '<option value="">根目录</option>';
   S.categories.forEach(function(c){
@@ -1166,6 +1293,7 @@ function openNewCatModal(prefillParent) {
 }
 function closeNewCatModal(){ document.getElementById('modal-newcat').classList.remove('open'); }
 function doCreateCat() {
+  if (!ensureWriteAuth()) return;
   var parent = document.getElementById('nc-parent').value.trim();
   var name   = document.getElementById('nc-name').value.trim();
   if (!name) { document.getElementById('nc-name').focus(); return; }
@@ -1267,6 +1395,7 @@ function ctxDoRename() {
 function closeRenameModal(){ document.getElementById('modal-rename').classList.remove('open'); }
 
 function doRename() {
+  if (!ensureWriteAuth()) return;
   var val = document.getElementById('rename-input').value.trim();
   if (!val) { document.getElementById('rename-input').focus(); return; }
   closeRenameModal();
@@ -1299,6 +1428,7 @@ function doRename() {
 }
 
 function ctxDoDelete() {
+  if (!ensureWriteAuth()) return;
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget) return;
   if (ctxTarget.type === 'art') {
@@ -1334,6 +1464,7 @@ function ctxDoDelete() {
 }
 
 function ctxDoNewArt() {
+  if (!ensureWriteAuth()) return;
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget) return;
   var cat = '';
@@ -1347,12 +1478,14 @@ function ctxDoNewArt() {
 }
 
 function ctxDoNewCat() {
+  if (!ensureWriteAuth()) return;
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget || ctxTarget.type !== 'cat') return;
   openNewCatModal(ctxTarget.cat);
 }
 
 function ctxDoMove() {
+  if (!ensureWriteAuth()) return;
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget || ctxTarget.type !== 'art') return;
   var sel = document.getElementById('move-category');
@@ -1367,6 +1500,7 @@ function ctxDoMove() {
 }
 function closeMoveModal(){ document.getElementById('modal-move').classList.remove('open'); }
 function doMoveArticle() {
+  if (!ensureWriteAuth()) return;
   var cat = document.getElementById('move-category').value;
   closeMoveModal();
   if (!ctxTarget) return;
@@ -1386,6 +1520,7 @@ function doMoveArticle() {
 }
 
 function cleanupUploads() {
+  if (!ensureWriteAuth()) return;
   if (!confirm('将扫描 html/wiki/md_db 下全部 .md，删除 html/wiki/uploads 中「未被任何文章路径引用」的图片与文件。空目录不删。操作不可恢复，是否继续？')) return;
   setStatus('清理无效上传中…');
   fetch('/api/wiki-cleanup-uploads', {method:'POST'})
@@ -1401,6 +1536,7 @@ function cleanupUploads() {
 }
 
 function rebuildAllHtml() {
+  if (!ensureWriteAuth()) return;
   if (!confirm('将遍历全部 Markdown 并重新生成对应 HTML（与单篇「发布」相同的全量批处理）。数据量大时可能需几秒，是否继续？')) return;
   setStatus('正在全部更新 HTML…');
   fetch('/api/wiki-rebuild-html')
@@ -1418,6 +1554,7 @@ function rebuildAllHtml() {
 
 /** 写回 html/wiki/wiki-index.json，结构与 /api/wiki-list 相同，供 notewikiindex 离线与备份 */
 function wikiRefreshIndexJson(silent) {
+  if (!ensureWriteAuth()) return Promise.resolve();
   if (!silent) setStatus('更新离线索引…');
   return fetch('/api/wiki-refresh-index')
     .then(function(r){ return r.json(); })
@@ -1735,8 +1872,14 @@ function exportPdf() {
 }
 
 // ── Upload Image ──────────────────────────────────────────────────────
-function openImgUpload() { document.getElementById('img-file-input').click(); }
-function openAttachmentUpload() { document.getElementById('attach-file-input').click(); }
+function openImgUpload() {
+  if (!ensureWriteAuth()) return;
+  document.getElementById('img-file-input').click();
+}
+function openAttachmentUpload() {
+  if (!ensureWriteAuth()) return;
+  document.getElementById('attach-file-input').click();
+}
 
 var _uploadNameState = { lastBase: '', seq: 0 };
 function inferImageExtFromMime(mime) {
@@ -1799,6 +1942,7 @@ function buildSafeUploadFilename(rawName, prefix) {
 }
 
 function doUploadFile(file, opts) {
+  if (!ensureWriteAuth()) return;
   if (!file) return;
   opts = opts || {};
   var forceLink = !!opts.forceLink;
@@ -2698,6 +2842,7 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-table').classList.contains('open')) closeTableModal();
     if(document.getElementById('modal-link').classList.contains('open')) closeLinkModal();
     if(document.getElementById('modal-color').classList.contains('open')) closeColorModal();
+    if(document.getElementById('modal-login').classList.contains('open')) closeLoginModal();
     document.getElementById('ctx-menu').classList.remove('open');
   }
 });
@@ -2723,6 +2868,9 @@ document.getElementById('modal-link').addEventListener('click', function(e){
 });
 document.getElementById('modal-color').addEventListener('click', function(e){
   if(e.target===this) closeColorModal();
+});
+document.getElementById('modal-login').addEventListener('click', function(e){
+  if(e.target===this) closeLoginModal();
 });
 
 // ── IME composition 兜底 ──────────────────────────────────────────────

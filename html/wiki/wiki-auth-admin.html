@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wiki 权限与日志管理</title>
+<link rel="icon" href="data:,">
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;margin:0}
+.wrap{max-width:1100px;margin:0 auto;padding:18px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.btn{background:#27334d;color:#c9d1d9;border:1px solid #2d3a54;border-radius:6px;padding:6px 12px;cursor:pointer}
+.btn.primary{background:#4a90e2;border-color:#4a90e2;color:#fff}
+.btn.sm{padding:2px 8px;font-size:12px}
+.card{border:1px solid #30363d;border-radius:10px;background:#161b22;padding:14px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #30363d;padding:6px 8px;font-size:13px;text-align:left}
+.ops{display:flex;gap:6px;flex-wrap:wrap}
+input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 8px}
+.muted{color:#8b949e;font-size:12px}
+#msg{margin-left:auto;color:#8b949e}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <a class="btn" href="/wiki/notewiki.html">返回 NoteWiki</a>
+    <button class="btn" onclick="refreshAll()">刷新</button>
+    <span id="who" class="muted"></span>
+    <span id="msg"></span>
+  </div>
+
+  <div class="card">
+    <h3>用户管理</h3>
+    <div class="bar">
+      <input id="u-account" placeholder="账号（新增必填，可含字母数字符号）" style="width:260px">
+      <input id="u-origin-account" type="hidden">
+      <input id="u-display-name" placeholder="用户名/显示名（可修改）" style="width:200px">
+      <input id="u-pass" type="password" placeholder="密码（新增必填，修改可留空）" style="width:220px">
+      <select id="u-role">
+        <option value="guest">guest（只读）</option>
+        <option value="author" selected>author（可编辑，不能管用户）</option>
+        <option value="admin">admin（全部权限）</option>
+      </select>
+      <input id="u-group" placeholder="分组名（默认 default）" value="default" style="width:180px">
+      <select id="u-enabled"><option value="1">启用</option><option value="0">禁用</option></select>
+      <button class="btn primary" onclick="saveUser()">新增/更新用户</button>
+      <button class="btn" onclick="deleteUser()">删除用户</button>
+      <button class="btn" onclick="clearUserForm()">清空表单</button>
+    </div>
+    <div class="muted" style="margin:4px 0 10px">
+      权限规则：admin=所有权限；author=除用户管理外的所有 Wiki 操作；guest=仅浏览。
+    </div>
+    <table>
+      <thead><tr><th>账号</th><th>用户名</th><th>角色</th><th>分组</th><th>状态</th><th>创建时间</th><th>更新时间</th><th>操作</th></tr></thead>
+      <tbody id="tb-users"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>操作日志</h3>
+    <div class="bar">
+      <input id="log-limit" type="number" min="1" max="1000" value="10" style="width:120px">
+      <button class="btn" onclick="loadLogs()">查询日志</button>
+    </div>
+    <table>
+      <thead><tr><th>时间</th><th>IP</th><th>账号</th><th>动作</th><th>目标</th><th>详情</th></tr></thead>
+      <tbody id="tb-logs"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>用户文章数量排名</h3>
+    <div class="bar">
+      <input id="rank-limit" type="number" min="1" max="1000" value="10" style="width:120px">
+      <button class="btn" onclick="loadUserArticleRank()">查询排名</button>
+    </div>
+    <table>
+      <thead><tr><th>排名</th><th>用户名</th><th>角色</th><th>分组</th><th>状态</th><th>文章数</th><th>最近编辑时间</th></tr></thead>
+      <tbody id="tb-rank"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>MD 历史备份</h3>
+    <div class="bar">
+      <input id="hist-id" placeholder="文章 id（留空=全部）">
+      <input id="hist-limit" type="number" min="1" max="500" value="10" style="width:120px">
+      <button class="btn" onclick="loadHistory()">查询历史</button>
+    </div>
+    <table>
+      <thead><tr><th>记录ID</th><th>文章ID</th><th>标题</th><th>分类</th><th>编辑者</th><th>IP</th><th>时间</th><th>内容长度</th></tr></thead>
+      <tbody id="tb-hist"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function setMsg(t){ document.getElementById('msg').textContent=t||''; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function loadStatus(){
+  return fetch('/api/wiki-auth-status').then(function(r){ return r.json(); }).then(function(d){
+    if(!d.loggedIn || !d.user || d.user.role!=='admin'){
+      alert('Admin only');
+      location.href='/wiki/notewiki.html';
+      return Promise.reject(new Error('forbidden'));
+    }
+    document.getElementById('who').textContent='当前管理员：'+d.user.username;
+  });
+}
+
+function renderUserRow(u){
+  var tr = document.createElement('tr');
+  tr.addEventListener('click', function(){ pickUser(u.username, u.displayName || '', u.role, u.group || '', !!u.enabled); });
+  tr.innerHTML =
+    '<td>'+esc(u.username)+'</td>'
+    +'<td>'+esc(u.displayName||'')+'</td>'
+    +'<td>'+esc(u.role)+'</td>'
+    +'<td>'+esc(u.group||'')+'</td>'
+    +'<td>'+(u.enabled?'enabled':'disabled')+'</td>'
+    +'<td>'+esc(u.createdAt||'')+'</td>'
+    +'<td>'+esc(u.updatedAt||'')+'</td>'
+    +'<td><div class="ops"></div></td>';
+  var ops = tr.querySelector('.ops');
+  function mkBtn(label, fn){
+    var b = document.createElement('button');
+    b.className = 'btn sm';
+    b.textContent = label;
+    b.type = 'button';
+    b.addEventListener('click', function(e){ e.stopPropagation(); fn(); });
+    return b;
+  }
+  ops.appendChild(mkBtn('Edit', function(){ pickUser(u.username, u.displayName || '', u.role, u.group || '', !!u.enabled); }));
+  ops.appendChild(mkBtn('SetAuthor', function(){ quickSetRole(u.username, u.group || '', !!u.enabled, 'author'); }));
+  ops.appendChild(mkBtn('SetGuest', function(){ quickSetRole(u.username, u.group || '', !!u.enabled, 'guest'); }));
+  ops.appendChild(mkBtn(u.enabled ? 'Disable' : 'Enable', function(){ quickToggleEnabled(u.username, u.role, u.group || '', !u.enabled); }));
+  ops.appendChild(mkBtn('Delete', function(){ quickDeleteUser(u.username); }));
+  return tr;
+}
+
+function loadUsers(){
+  return fetch('/api/wiki-users').then(function(r){ return r.json(); }).then(function(d){
+    var tb=document.getElementById('tb-users');
+    tb.innerHTML='';
+    (d.users||[]).forEach(function(u){ tb.appendChild(renderUserRow(u)); });
+  });
+}
+
+function saveUserPatch(account, role, group, enabled){
+  return fetch('/api/wiki-user-save',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      account:account,
+      origin_account:account,
+      display_name:'',
+      password:'',
+      role:role,
+      group:group,
+      enabled:enabled ? 1 : 0
+    })
+  }).then(function(r){ return r.json(); });
+}
+
+function quickSetRole(account, group, enabled, role){
+  saveUserPatch(account, role, group, enabled).then(function(d){
+    if(d.ok){ setMsg('Role updated'); refreshAll(); }
+    else setMsg('Update failed: '+(d.error||'')); 
+  }).catch(function(e){ setMsg('Request failed: '+e.message); });
+}
+
+function quickToggleEnabled(account, role, group, enabled){
+  saveUserPatch(account, role, group, enabled).then(function(d){
+    if(d.ok){ setMsg('Status updated'); refreshAll(); }
+    else setMsg('Update failed: '+(d.error||'')); 
+  }).catch(function(e){ setMsg('Request failed: '+e.message); });
+}
+
+function quickDeleteUser(account){
+  if(!confirm('Delete user "'+account+'"?')) return;
+  fetch('/api/wiki-user-delete',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:account})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.ok){ setMsg('User deleted'); refreshAll(); }
+    else setMsg('Delete failed: '+(d.error||'')); 
+  }).catch(function(e){ setMsg('Request failed: '+e.message); });
+}
+
+function pickUser(account,displayName,role,group,enabled){
+  document.getElementById('u-account').value = account || '';
+  document.getElementById('u-origin-account').value = account || '';
+  document.getElementById('u-display-name').value = displayName || '';
+  document.getElementById('u-account').disabled = !!account;
+  document.getElementById('u-role').value = role || 'guest';
+  document.getElementById('u-group').value = group || '';
+  document.getElementById('u-enabled').value = enabled ? '1' : '0';
+  document.getElementById('u-pass').value = '';
+}
+
+function clearUserForm(){
+  document.getElementById('u-account').value = '';
+  document.getElementById('u-origin-account').value = '';
+  document.getElementById('u-display-name').value = '';
+  document.getElementById('u-account').disabled = false;
+  document.getElementById('u-pass').value = '';
+  document.getElementById('u-role').value = 'author';
+  document.getElementById('u-group').value = 'default';
+  document.getElementById('u-enabled').value = '1';
+}
+
+function saveUser(){
+  var account = document.getElementById('u-account').value.trim();
+  var originAccount = document.getElementById('u-origin-account').value.trim();
+  var body = {
+    account: account,
+    username: account,
+    origin_account: originAccount,
+    display_name: document.getElementById('u-display-name').value.trim(),
+    password: document.getElementById('u-pass').value,
+    role: document.getElementById('u-role').value,
+    group: (document.getElementById('u-group').value || '').trim() || 'default',
+    enabled: Number(document.getElementById('u-enabled').value||1)
+  };
+  if(!body.account){ setMsg('Account required'); return; }
+  if(!body.origin_account && !body.password){ setMsg('Password required for new user'); return; }
+  fetch('/api/wiki-user-save',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.ok){ setMsg('User saved'); refreshAll(); }
+    else setMsg('Save failed: '+(d.error||'')); 
+  }).catch(function(e){ setMsg('Request failed: '+e.message); });
+}
+
+function deleteUser(){
+  var account = document.getElementById('u-account').value.trim();
+  if(!account){ setMsg('Input account first'); return; }
+  if(!confirm('Delete account "'+account+'"?')) return;
+  fetch('/api/wiki-user-delete',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:account})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.ok){ setMsg('User deleted'); refreshAll(); }
+    else setMsg('Delete failed: '+(d.error||'')); 
+  }).catch(function(e){ setMsg('Request failed: '+e.message); });
+}
+
+function loadLogs(){
+  var limit = Number(document.getElementById('log-limit').value||10);
+  fetch('/api/wiki-audit-logs?limit='+encodeURIComponent(limit)).then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('tb-logs').innerHTML=(d.logs||[]).map(function(x){
+      return '<tr><td>'+esc(x.ts)+'</td><td>'+esc(x.ip)+'</td><td>'+esc(x.username)+'</td><td>'+esc(x.action)+'</td><td>'+esc(x.target)+'</td><td>'+esc(x.detail)+'</td></tr>';
+    }).join('');
+  });
+}
+
+function loadHistory(){
+  var id = document.getElementById('hist-id').value.trim();
+  var limit = Number(document.getElementById('hist-limit').value||10);
+  var url = '/api/wiki-md-history?limit='+encodeURIComponent(limit);
+  if(id) url += '&id='+encodeURIComponent(id);
+  fetch(url).then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('tb-hist').innerHTML=(d.items||[]).map(function(x){
+      return '<tr><td>'+x.id+'</td><td>'+esc(x.articleId||'')+'</td><td>'+esc(x.title)+'</td><td>'+esc(x.category)+'</td><td>'+esc(x.editor)+'</td><td>'+esc(x.ip)+'</td><td>'+esc(x.createdAt)+'</td><td>'+x.contentLength+'</td></tr>';
+    }).join('');
+  });
+}
+
+function loadUserArticleRank(){
+  var limit = Number(document.getElementById('rank-limit').value||10);
+  fetch('/api/wiki-user-article-rank?limit='+encodeURIComponent(limit)).then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('tb-rank').innerHTML=(d.items||[]).map(function(x){
+      return '<tr><td>'+x.rank+'</td><td>'+esc(x.username)+'</td><td>'+esc(x.role)+'</td><td>'+esc(x.group||'')+'</td><td>'+(x.enabled?'enabled':'disabled')+'</td><td>'+x.articleCount+'</td><td>'+esc(x.lastEditAt||'')+'</td></tr>';
+    }).join('');
+  });
+}
+
+function refreshAll(){
+  loadStatus()
+    .then(function(){ return loadUsers(); })
+    .then(function(){ return loadLogs(); })
+    .then(function(){ return loadUserArticleRank(); })
+    .then(function(){ return loadHistory(); })
+    .catch(function(){});
+}
+
+refreshAll();
+</script>
+</body>
+</html>

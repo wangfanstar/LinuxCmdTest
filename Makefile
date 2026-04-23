@@ -9,6 +9,11 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE \
           -Isrc
 LDFLAGS = -lpthread
+SQLITE3 ?= 0
+ifeq ($(SQLITE3),1)
+CFLAGS  += -DENABLE_SQLITE3
+LDFLAGS += -lsqlite3
+endif
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -33,7 +38,8 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/svn_api.c \
        $(SRC_DIR)/ssh_api.c \
        $(SRC_DIR)/monitor.c \
-       $(SRC_DIR)/ssh_exec.c
+       $(SRC_DIR)/ssh_exec.c \
+       $(SRC_DIR)/auth_db.c
 
 ifeq ($(OS),Windows_NT)
 LDFLAGS += -lws2_32

@@ -28,6 +28,7 @@
 #define AUTH_DB_DIR   WEB_ROOT "/wiki/sqlite_db"
 #define AUTH_DB_FILE  AUTH_DB_DIR "/wiki_auth.db"
 #define AUTH_DB_CONFIG AUTH_DB_DIR "/db.config"
+#define AUTH_DB_PENDING_LOG AUTH_DB_DIR "/pending_logs.jsonl"
 #define SESSION_NAME  "WIKI_SESS"
 #define SESSION_TTL_SEC (30 * 24 * 3600)
 
@@ -38,6 +39,18 @@ static pthread_mutex_t g_auth_mu = PTHREAD_MUTEX_INITIALIZER;
 static int g_inited = 0;
 static char g_admin_user[128] = "Admin";
 static char g_admin_pass[128] = "123456";
+static void auth_replay_pending_locked(void);
+
+void auth_gen_save_txn_id(char *out, size_t outsz)
+{
+    static unsigned long long ctr = 0;
+    ctr++;
+    unsigned long long t = (unsigned long long)time(NULL);
+    unsigned int r1 = (unsigned int)rand();
+    unsigned int r2 = (unsigned int)rand();
+    if (!out || outsz < 8) return;
+    snprintf(out, outsz, "%08llx-%08x-%08x-%08llx", t, r1, r2, ctr);
+}
 
 static void trim_inplace(char *s)
 {
@@ -172,6 +185,7 @@ static int ensure_schema(void)
         "CREATE TABLE IF NOT EXISTS md_backups ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "article_id TEXT NOT NULL,"
+        "save_txn_id TEXT DEFAULT '',"
         "title TEXT DEFAULT '',"
         "category TEXT DEFAULT '',"
         "content TEXT NOT NULL,"
@@ -183,9 +197,11 @@ static int ensure_schema(void)
     const char *sql_idx1 = "CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_logs(ts DESC);";
     const char *sql_idx2 = "CREATE INDEX IF NOT EXISTS idx_md_article ON md_backups(article_id, id DESC);";
     const char *sql_alt1 = "ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT '';";
+    const char *sql_alt2 = "ALTER TABLE md_backups ADD COLUMN save_txn_id TEXT DEFAULT '';";
 
     if (exec_sql(sql_users)) return -1;
     if (exec_sql_allow_dup_column(sql_alt1)) return -1;
+    if (exec_sql_allow_dup_column(sql_alt2)) return -1;
     if (exec_sql(sql_sessions)) return -1;
     if (exec_sql(sql_audit)) return -1;
     if (exec_sql(sql_login)) return -1;
@@ -248,6 +264,7 @@ int auth_db_init(void)
         pthread_mutex_unlock(&g_auth_mu);
         return -1;
     }
+    auth_replay_pending_locked();
     g_inited = 1;
     pthread_mutex_unlock(&g_auth_mu);
     return 0;
@@ -313,9 +330,227 @@ static void send_json_ex(http_sock_t fd, int status, const char *status_text,
     (void)http_sock_send_all(fd, json, json_len);
 }
 
+static char *json_get_str_alloc_local(const char *json, const char *key)
+{
+    char search[128];
+    snprintf(search, sizeof(search), "\"%s\"", key);
+    const char *p = strstr(json, search);
+    if (!p) return NULL;
+    p += strlen(search);
+    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '\n' || *p == '\r') p++;
+    if (*p != '"') return NULL;
+    p++;
+    size_t len = 0;
+    const char *q = p;
+    while (*q && *q != '"') { if (*q == '\\') { q++; if (!*q) break; } len++; q++; }
+    char *out = malloc(len + 1);
+    if (!out) return NULL;
+    size_t i = 0;
+    while (*p && *p != '"' && i < len) {
+        if (*p == '\\') {
+            p++;
+            if (!*p) break;
+            switch (*p) {
+                case 'n': out[i++] = '\n'; break;
+                case 'r': out[i++] = '\r'; break;
+                case 't': out[i++] = '\t'; break;
+                default: out[i++] = *p; break;
+            }
+        } else {
+            out[i++] = *p;
+        }
+        p++;
+    }
+    out[i] = '\0';
+    return out;
+}
+
 static int role_is_author_or_admin(const char *role)
 {
     return role && (!strcmp(role, "admin") || !strcmp(role, "author"));
+}
+
+static int sqlite_insert_audit_locked(const char *ip, const char *username, const char *action,
+                                      const char *target, const char *detail, const char *save_txn_id)
+{
+    sqlite3_stmt *st = NULL;
+    const char *sql = "INSERT INTO audit_logs(ts,ip,username,action,target,detail) VALUES(?1,?2,?3,?4,?5,?6);";
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) != SQLITE_OK) return -1;
+    char ts[32];
+    now_iso(ts, sizeof(ts));
+    char detail_buf[1024];
+    if (save_txn_id && save_txn_id[0]) {
+        snprintf(detail_buf, sizeof(detail_buf), "%s%s%s",
+                 detail ? detail : "", (detail && detail[0]) ? " | save_txn_id=" : "save_txn_id=", save_txn_id);
+    } else {
+        snprintf(detail_buf, sizeof(detail_buf), "%s", detail ? detail : "");
+    }
+    sqlite3_bind_text(st, 1, ts, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, ip ? ip : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, username ? username : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, action ? action : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 5, target ? target : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 6, detail_buf, -1, SQLITE_TRANSIENT);
+    int rc = sqlite3_step(st);
+    sqlite3_finalize(st);
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+static int sqlite_insert_md_backup_locked(const char *article_id, const char *title, const char *category,
+                                          const char *content, const char *html, const char *editor,
+                                          const char *ip, const char *save_txn_id)
+{
+    if (!article_id || !content) return -1;
+    sqlite3_stmt *st = NULL;
+    const char *sql =
+        "INSERT INTO md_backups(article_id,save_txn_id,title,category,content,html,editor,ip,created_at)"
+        "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9);";
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) != SQLITE_OK) return -1;
+    char ts[32];
+    now_iso(ts, sizeof(ts));
+    sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, save_txn_id ? save_txn_id : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, title ? title : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, category ? category : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 5, content, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 6, html ? html : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 7, editor ? editor : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 8, ip ? ip : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 9, ts, -1, SQLITE_TRANSIENT);
+    int rc = sqlite3_step(st);
+    sqlite3_finalize(st);
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+static void append_pending_jsonl(const char *line)
+{
+    if (!line || !line[0]) return;
+    FILE *fp = fopen(AUTH_DB_PENDING_LOG, "ab");
+    if (!fp) return;
+    fwrite(line, 1, strlen(line), fp);
+    fwrite("\n", 1, 1, fp);
+    fclose(fp);
+}
+
+static void queue_pending_audit(const char *ip, const char *username, const char *action,
+                                const char *target, const char *detail, const char *save_txn_id)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"type\":\"audit\",\"ip\":"); sb_json_str(&sb, ip ? ip : "");
+    SB_LIT(&sb, ",\"username\":"); sb_json_str(&sb, username ? username : "");
+    SB_LIT(&sb, ",\"action\":"); sb_json_str(&sb, action ? action : "");
+    SB_LIT(&sb, ",\"target\":"); sb_json_str(&sb, target ? target : "");
+    SB_LIT(&sb, ",\"detail\":"); sb_json_str(&sb, detail ? detail : "");
+    SB_LIT(&sb, ",\"save_txn_id\":"); sb_json_str(&sb, save_txn_id ? save_txn_id : "");
+    SB_LIT(&sb, "}");
+    if (sb.data) append_pending_jsonl(sb.data);
+    free(sb.data);
+}
+
+static void queue_pending_md_backup(const char *article_id, const char *title, const char *category,
+                                    const char *content, const char *html, const char *editor,
+                                    const char *ip, const char *save_txn_id)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"type\":\"md_backup\",\"article_id\":"); sb_json_str(&sb, article_id ? article_id : "");
+    SB_LIT(&sb, ",\"title\":"); sb_json_str(&sb, title ? title : "");
+    SB_LIT(&sb, ",\"category\":"); sb_json_str(&sb, category ? category : "");
+    SB_LIT(&sb, ",\"content\":"); sb_json_str(&sb, content ? content : "");
+    SB_LIT(&sb, ",\"html\":"); sb_json_str(&sb, html ? html : "");
+    SB_LIT(&sb, ",\"editor\":"); sb_json_str(&sb, editor ? editor : "");
+    SB_LIT(&sb, ",\"ip\":"); sb_json_str(&sb, ip ? ip : "");
+    SB_LIT(&sb, ",\"save_txn_id\":"); sb_json_str(&sb, save_txn_id ? save_txn_id : "");
+    SB_LIT(&sb, "}");
+    if (sb.data) append_pending_jsonl(sb.data);
+    free(sb.data);
+}
+
+static void auth_replay_pending_locked(void)
+{
+    FILE *in = fopen(AUTH_DB_PENDING_LOG, "rb");
+    if (!in) return;
+    char tmp_path[1024];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", AUTH_DB_PENDING_LOG);
+    FILE *out = fopen(tmp_path, "wb");
+    if (!out) {
+        fclose(in);
+        return;
+    }
+
+    int replayed = 0;
+    int kept = 0;
+    strbuf_t linebuf = {0};
+    int ch = 0;
+    while ((ch = fgetc(in)) != EOF) {
+        if (ch != '\n') {
+            char c = (char)ch;
+            sb_append(&linebuf, &c, 1);
+            continue;
+        }
+        if (!linebuf.data || linebuf.len == 0) continue;
+        size_t n = linebuf.len;
+        while (n > 0 && (linebuf.data[n - 1] == '\n' || linebuf.data[n - 1] == '\r')) n--;
+        linebuf.data[n] = '\0';
+        if (n == 0) { linebuf.len = 0; continue; }
+        char *line = linebuf.data;
+        char type[32] = {0};
+        int ok = 0;
+        json_get_str(line, "type", type, sizeof(type));
+        if (strcmp(type, "audit") == 0) {
+            char ip[64] = {0}, username[64] = {0}, action[64] = {0}, target[256] = {0}, detail[512] = {0}, save_txn_id[128] = {0};
+            json_get_str(line, "ip", ip, sizeof(ip));
+            json_get_str(line, "username", username, sizeof(username));
+            json_get_str(line, "action", action, sizeof(action));
+            json_get_str(line, "target", target, sizeof(target));
+            json_get_str(line, "detail", detail, sizeof(detail));
+            json_get_str(line, "save_txn_id", save_txn_id, sizeof(save_txn_id));
+            ok = (sqlite_insert_audit_locked(ip, username, action, target, detail, save_txn_id) == 0);
+        } else if (strcmp(type, "md_backup") == 0) {
+            char article_id[256] = {0}, title[512] = {0}, category[512] = {0}, editor[128] = {0}, ip[64] = {0}, save_txn_id[128] = {0};
+            char *content = json_get_str_alloc_local(line, "content");
+            char *html = json_get_str_alloc_local(line, "html");
+            json_get_str(line, "article_id", article_id, sizeof(article_id));
+            json_get_str(line, "title", title, sizeof(title));
+            json_get_str(line, "category", category, sizeof(category));
+            json_get_str(line, "editor", editor, sizeof(editor));
+            json_get_str(line, "ip", ip, sizeof(ip));
+            json_get_str(line, "save_txn_id", save_txn_id, sizeof(save_txn_id));
+            ok = (content && sqlite_insert_md_backup_locked(article_id, title, category, content, html ? html : "", editor, ip, save_txn_id) == 0);
+            free(content);
+            free(html);
+        }
+        if (ok) replayed++;
+        else {
+            fwrite(line, 1, n, out);
+            fwrite("\n", 1, 1, out);
+            kept++;
+        }
+        linebuf.len = 0;
+    }
+    if (linebuf.data && linebuf.len > 0) {
+        size_t n = linebuf.len;
+        while (n > 0 && (linebuf.data[n - 1] == '\n' || linebuf.data[n - 1] == '\r')) n--;
+        linebuf.data[n] = '\0';
+        if (n > 0) {
+            fwrite(linebuf.data, 1, n, out);
+            fwrite("\n", 1, 1, out);
+            kept++;
+        }
+    }
+    free(linebuf.data);
+
+    fclose(in);
+    fclose(out);
+    if (kept == 0) {
+        remove(AUTH_DB_PENDING_LOG);
+        remove(tmp_path);
+    } else {
+        remove(AUTH_DB_PENDING_LOG);
+        rename(tmp_path, AUTH_DB_PENDING_LOG);
+    }
+    if (replayed > 0) {
+        LOG_INFO("auth pending replayed=%d remain=%d", replayed, kept);
+    }
 }
 
 static int resolve_user_by_token(const char *token, auth_user_t *out_user)
@@ -393,53 +628,53 @@ int auth_require_admin(const char *req_headers, http_sock_t fd, auth_user_t *out
     return 0;
 }
 
+void auth_audit_txn(const char *ip, const char *username, const char *action,
+                    const char *target, const char *detail, const char *save_txn_id)
+{
+    if (auth_db_init() != 0) {
+        queue_pending_audit(ip, username, action, target, detail, save_txn_id);
+        return;
+    }
+    pthread_mutex_lock(&g_auth_mu);
+    auth_replay_pending_locked();
+    int ok = sqlite_insert_audit_locked(ip, username, action, target, detail, save_txn_id);
+    pthread_mutex_unlock(&g_auth_mu);
+    if (ok != 0) {
+        LOG_WARN("auth_audit sqlite failed, queued action=%s", action ? action : "");
+        queue_pending_audit(ip, username, action, target, detail, save_txn_id);
+    }
+}
+
 void auth_audit(const char *ip, const char *username, const char *action,
                 const char *target, const char *detail)
 {
-    if (auth_db_init() != 0) return;
-    pthread_mutex_lock(&g_auth_mu);
-    sqlite3_stmt *st = NULL;
-    const char *sql = "INSERT INTO audit_logs(ts,ip,username,action,target,detail) VALUES(?1,?2,?3,?4,?5,?6);";
-    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
-        char ts[32];
-        now_iso(ts, sizeof(ts));
-        sqlite3_bind_text(st, 1, ts, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 2, ip ? ip : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 3, username ? username : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 4, action ? action : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 5, target ? target : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 6, detail ? detail : "", -1, SQLITE_TRANSIENT);
-        (void)sqlite3_step(st);
+    auth_audit_txn(ip, username, action, target, detail, NULL);
+}
+
+void auth_md_backup_txn(const char *article_id, const char *title, const char *category,
+                        const char *content, const char *html, const char *editor,
+                        const char *ip, const char *save_txn_id)
+{
+    if (!article_id || !content) return;
+    if (auth_db_init() != 0) {
+        queue_pending_md_backup(article_id, title, category, content, html, editor, ip, save_txn_id);
+        return;
     }
-    if (st) sqlite3_finalize(st);
+    pthread_mutex_lock(&g_auth_mu);
+    auth_replay_pending_locked();
+    int ok = sqlite_insert_md_backup_locked(article_id, title, category, content, html, editor, ip, save_txn_id);
     pthread_mutex_unlock(&g_auth_mu);
+    if (ok != 0) {
+        LOG_WARN("auth_md_backup sqlite failed, queued article=%s", article_id);
+        queue_pending_md_backup(article_id, title, category, content, html, editor, ip, save_txn_id);
+    }
 }
 
 void auth_md_backup(const char *article_id, const char *title, const char *category,
                     const char *content, const char *html, const char *editor,
                     const char *ip)
 {
-    if (auth_db_init() != 0 || !article_id || !content) return;
-    pthread_mutex_lock(&g_auth_mu);
-    sqlite3_stmt *st = NULL;
-    const char *sql =
-        "INSERT INTO md_backups(article_id,title,category,content,html,editor,ip,created_at)"
-        "VALUES(?1,?2,?3,?4,?5,?6,?7,?8);";
-    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
-        char ts[32];
-        now_iso(ts, sizeof(ts));
-        sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 2, title ? title : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 3, category ? category : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 4, content, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 5, html ? html : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 6, editor ? editor : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 7, ip ? ip : "", -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(st, 8, ts, -1, SQLITE_TRANSIENT);
-        (void)sqlite3_step(st);
-    }
-    if (st) sqlite3_finalize(st);
-    pthread_mutex_unlock(&g_auth_mu);
+    auth_md_backup_txn(article_id, title, category, content, html, editor, ip, NULL);
 }
 
 static void log_login(const char *ip, const char *username, int ok, const char *note)
@@ -813,7 +1048,13 @@ void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs)
     char article_id[256] = {0};
     int limit = 10;
     char lim[16];
+    char with_content_s[8] = {0};
+    int with_content = 0;
     query_param_get(path_qs, "id", article_id, sizeof(article_id));
+    if (query_param_get(path_qs, "with_content", with_content_s, sizeof(with_content_s)) == 0) {
+        with_content = (atoi(with_content_s) != 0);
+    }
+    if (!article_id[0]) with_content = 0;
     if (query_param_get(path_qs, "limit", lim, sizeof(lim)) == 0) {
         int v = atoi(lim);
         if (v > 0 && v <= 500) limit = v;
@@ -823,12 +1064,12 @@ void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs)
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"items\":[");
     const char *sql_by_id =
-        "SELECT id,article_id,title,category,editor,ip,created_at,length(content) "
+        "SELECT id,article_id,save_txn_id,title,category,editor,ip,created_at,length(content),content "
         "FROM md_backups WHERE article_id=?1 ORDER BY id DESC LIMIT ?2;";
     const char *sql_all =
-        "SELECT id,article_id,title,category,editor,ip,created_at,length(content) "
+        "SELECT id,article_id,save_txn_id,title,category,editor,ip,created_at,length(content) "
         "FROM md_backups ORDER BY id DESC LIMIT ?1;";
-    if (sqlite3_prepare_v2(g_db, article_id[0] ? sql_by_id : sql_all, -1, &st, NULL) == SQLITE_OK) {
+    if (sqlite3_prepare_v2(g_db, (article_id[0] ? sql_by_id : sql_all), -1, &st, NULL) == SQLITE_OK) {
         if (article_id[0]) {
             sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
             sqlite3_bind_int(st, 2, limit);
@@ -842,12 +1083,17 @@ void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs)
             SB_LIT(&sb, "{");
             sb_appendf(&sb, "\"id\":%d,", sqlite3_column_int(st, 0));
             SB_LIT(&sb, "\"articleId\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 1)); SB_LIT(&sb, ",");
-            SB_LIT(&sb, "\"title\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 2)); SB_LIT(&sb, ",");
-            SB_LIT(&sb, "\"category\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 3)); SB_LIT(&sb, ",");
-            SB_LIT(&sb, "\"editor\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 4)); SB_LIT(&sb, ",");
-            SB_LIT(&sb, "\"ip\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 5)); SB_LIT(&sb, ",");
-            SB_LIT(&sb, "\"createdAt\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 6)); SB_LIT(&sb, ",");
-            sb_appendf(&sb, "\"contentLength\":%d", sqlite3_column_int(st, 7));
+            SB_LIT(&sb, "\"saveTxnId\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 2)); SB_LIT(&sb, ",");
+            SB_LIT(&sb, "\"title\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 3)); SB_LIT(&sb, ",");
+            SB_LIT(&sb, "\"category\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 4)); SB_LIT(&sb, ",");
+            SB_LIT(&sb, "\"editor\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 5)); SB_LIT(&sb, ",");
+            SB_LIT(&sb, "\"ip\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 6)); SB_LIT(&sb, ",");
+            SB_LIT(&sb, "\"createdAt\":"); sb_json_str(&sb, (const char *)sqlite3_column_text(st, 7)); SB_LIT(&sb, ",");
+            sb_appendf(&sb, "\"contentLength\":%d", sqlite3_column_int(st, 8));
+            if (with_content && article_id[0]) {
+                SB_LIT(&sb, ",\"content\":");
+                sb_json_str(&sb, (const char *)sqlite3_column_text(st, 9));
+            }
             SB_LIT(&sb, "}");
         }
     }
@@ -915,6 +1161,15 @@ void handle_api_wiki_user_article_rank(http_sock_t fd, const char *path_qs)
 int auth_db_init(void) { return -1; }
 void auth_db_close(void) {}
 
+void auth_gen_save_txn_id(char *out, size_t outsz)
+{
+    static unsigned long long ctr = 0;
+    ctr++;
+    unsigned long long t = (unsigned long long)time(NULL);
+    if (!out || outsz < 8) return;
+    snprintf(out, outsz, "%08llx-%08llx", t, ctr);
+}
+
 int auth_resolve_user_from_headers(const char *req_headers, auth_user_t *out_user)
 {
     (void)req_headers;
@@ -944,11 +1199,25 @@ void auth_audit(const char *ip, const char *username, const char *action,
     (void)ip; (void)username; (void)action; (void)target; (void)detail;
 }
 
+void auth_audit_txn(const char *ip, const char *username, const char *action,
+                    const char *target, const char *detail, const char *save_txn_id)
+{
+    (void)ip; (void)username; (void)action; (void)target; (void)detail; (void)save_txn_id;
+}
+
 void auth_md_backup(const char *article_id, const char *title, const char *category,
                     const char *content, const char *html, const char *editor,
                     const char *ip)
 {
     (void)article_id; (void)title; (void)category; (void)content; (void)html; (void)editor; (void)ip;
+}
+
+void auth_md_backup_txn(const char *article_id, const char *title, const char *category,
+                        const char *content, const char *html, const char *editor,
+                        const char *ip, const char *save_txn_id)
+{
+    (void)article_id; (void)title; (void)category; (void)content; (void)html;
+    (void)editor; (void)ip; (void)save_txn_id;
 }
 
 void handle_api_wiki_login(http_sock_t fd, const char *req_headers, const char *body, const char *ip)

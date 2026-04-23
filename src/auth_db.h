@@ -23,10 +23,16 @@ int auth_require_admin(const char *req_headers, http_sock_t fd, auth_user_t *out
 
 void auth_audit(const char *ip, const char *username, const char *action,
                 const char *target, const char *detail);
+void auth_audit_txn(const char *ip, const char *username, const char *action,
+                    const char *target, const char *detail, const char *save_txn_id);
 
 void auth_md_backup(const char *article_id, const char *title, const char *category,
                     const char *content, const char *html, const char *editor,
                     const char *ip);
+void auth_md_backup_txn(const char *article_id, const char *title, const char *category,
+                        const char *content, const char *html, const char *editor,
+                        const char *ip, const char *save_txn_id);
+void auth_gen_save_txn_id(char *out, size_t outsz);
 
 void handle_api_wiki_login(http_sock_t fd, const char *req_headers, const char *body, const char *ip);
 void handle_api_wiki_logout(http_sock_t fd, const char *req_headers);

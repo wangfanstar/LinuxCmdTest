@@ -194,10 +194,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
 .modal-box{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;width:340px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.modal-box.modal-wide{width:min(1100px,96vw)}
 .modal-head{padding:13px 16px 9px;border-bottom:1px solid var(--border2);font-weight:600;font-size:.88rem;color:#f0f6fc;display:flex;justify-content:space-between;align-items:center}
 .modal-body{padding:14px 16px}
 .modal-foot{padding:10px 16px 13px;border-top:1px solid var(--border2);display:flex;gap:8px;justify-content:flex-end}
 .modal-close{background:none;border:none;color:var(--dim);cursor:pointer;font-size:1.1rem;line-height:1}
+.history-summary{font-size:.76rem;color:var(--dim);margin-bottom:10px}
+.history-table-wrap{max-height:min(62vh,560px);overflow:auto;border:1px solid var(--border);border-radius:8px}
+.history-table{width:100%;border-collapse:collapse;font-size:.76rem}
+.history-table th,.history-table td{border-bottom:1px solid var(--border);padding:7px 9px;text-align:left;white-space:nowrap}
+.history-table th{position:sticky;top:0;background:#1a2236;color:#f0f6fc;z-index:1}
+.history-table td:nth-child(1),.history-table td:nth-child(5){font-family:"SFMono-Regular",Consolas,monospace}
+.history-empty{padding:22px 12px;text-align:center;color:var(--dim);font-size:.78rem}
+.hist-detail-grid{display:grid;grid-template-columns:140px 1fr;gap:8px 10px}
+.hist-detail-k{font-size:.75rem;color:var(--dim);text-align:right;padding-top:2px}
+.hist-detail-v{font-size:.8rem;color:var(--text);word-break:break-all;background:#111827;border:1px solid var(--border);border-radius:6px;padding:6px 8px}
 .field-label{font-size:.75rem;color:var(--dim);margin-bottom:4px;display:block}
 .field-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.82rem;padding:6px 8px;outline:none;margin-bottom:10px}
 .field-input:focus{border-color:var(--accent)}
@@ -261,6 +272,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="view-head">
         <div class="view-breadcrumb" id="view-breadcrumb"></div>
         <button class="btn btn-secondary btn-sm" onclick="editCurrent()">✏ 编辑</button>
+        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title="查看该文章历史修改记录">🕘 历史</button>
         <button class="btn btn-secondary btn-sm" onclick="exportMdZip()" title="导出 MD + 图片 ZIP">⬇ MD</button>
         <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF">🖨 PDF</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCurrent()">🗑 删除</button>
@@ -296,6 +308,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
         <button class="btn btn-primary btn-sm" id="btn-save" onclick="saveArticle()" disabled>💾 保存</button>
         <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并生成已发布页面（不离开当前页）">📤 发布</button>
+        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title="查看该文章历史修改记录">🕘 历史</button>
         <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF（阅读态用已打开正文，编辑态用当前草稿）">🖨 PDF</button>
         <a class="btn btn-secondary btn-sm" id="edit-html-link" href="#" target="_blank" rel="noopener noreferrer" title="已发布 HTML 页面">🔗 HTML</a>
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
@@ -511,6 +524,41 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <span class="field-label" style="margin:0">自定义</span>
         <input id="color-custom" type="color" value="#ff4d4f" onchange="pickPresetColor(this.value)">
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 历史记录 modal -->
+<div class="modal-overlay" id="modal-history">
+  <div class="modal-box modal-wide">
+    <div class="modal-head">🕘 历史修改记录<button class="modal-close" onclick="closeHistoryModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="history-summary" id="history-summary">加载中…</div>
+      <div class="history-table-wrap" id="history-wrap">
+        <div class="history-empty">加载中…</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeHistoryModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 历史详情 modal -->
+<div class="modal-overlay" id="modal-history-detail">
+  <div class="modal-box modal-wide">
+    <div class="modal-head">📌 历史详情<button class="modal-close" onclick="closeHistoryDetailModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="hist-detail-grid">
+        <div class="hist-detail-k">标题</div><div class="hist-detail-v" id="histd-title"></div>
+        <div class="hist-detail-k">分类</div><div class="hist-detail-v" id="histd-category"></div>
+        <div class="hist-detail-k">save_txn_id</div><div class="hist-detail-v" id="histd-txn"></div>
+        <div class="hist-detail-k">内容长度</div><div class="hist-detail-v" id="histd-len"></div>
+        <div class="hist-detail-k">修改内容</div><div class="hist-detail-v" id="histd-diff" style="white-space:pre-wrap;max-height:62vh;overflow:auto"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeHistoryDetailModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -1578,6 +1626,132 @@ function exportMdZip() {
   a.click();
   document.body.removeChild(a);
   setStatus('已开始下载 MD ZIP');
+}
+
+function getCurrentHistoryId() {
+  if (S.editId) return S.editId;
+  if (S.curId) return S.curId;
+  return '';
+}
+
+function closeHistoryModal() {
+  var m = document.getElementById('modal-history');
+  if (m) m.classList.remove('open');
+}
+
+var _historyItems = [];
+
+function renderHistoryRows(items) {
+  if (!items || !items.length) {
+    return '<div class="history-empty">暂无历史记录</div>';
+  }
+  var rows = items.map(function(it) {
+    return '<tr>'
+      + '<td>' + escH(String(it.id || '')) + '</td>'
+      + '<td>' + escH(String(it.createdAt || '')) + '</td>'
+      + '<td>' + escH(String(it.editor || '')) + '</td>'
+      + '<td>' + escH(String(it.ip || '')) + '</td>'
+      + '<td title="' + escH(String(it.saveTxnId || '')) + '">' + escH(String(it.saveTxnId || '')) + '</td>'
+      + '<td>' + escH(String(it.contentLength || 0)) + '</td>'
+      + '<td><button class="btn btn-secondary btn-sm" onclick="openHistoryDetailModal(' + Number(it.id || 0) + ')">详情</button></td>'
+      + '</tr>';
+  }).join('');
+  return '<table class="history-table"><thead><tr>'
+    + '<th>#</th><th>保存时间</th><th>编辑者</th><th>IP</th><th>save_txn_id</th><th>内容长度</th><th>操作</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function openHistoryModal() {
+  var id = getCurrentHistoryId();
+  if (!id) {
+    setStatus('请先打开一篇已保存文章再查看历史');
+    return;
+  }
+  var modal = document.getElementById('modal-history');
+  var summary = document.getElementById('history-summary');
+  var wrap = document.getElementById('history-wrap');
+  if (!modal || !summary || !wrap) return;
+  summary.textContent = '文章 ID：' + id + '（加载中…）';
+  wrap.innerHTML = '<div class="history-empty">加载中…</div>';
+  _historyItems = [];
+  modal.classList.add('open');
+
+  fetch('/api/wiki-md-history?id=' + encodeURIComponent(id) + '&limit=100&with_content=1')
+    .then(function(r){
+      return r.json().then(function(d){ return { ok:r.ok, data:d, status:r.status }; });
+    })
+    .then(function(resp){
+      var d = resp.data || {};
+      if (!resp.ok || !d.ok) {
+        var msg = (d && d.error) ? d.error : ('HTTP ' + resp.status);
+        summary.textContent = '文章 ID：' + id;
+        wrap.innerHTML = '<div class="history-empty">读取失败：' + escH(msg) + '</div>';
+        _historyItems = [];
+        setStatus('历史查询失败：' + msg);
+        return;
+      }
+      var items = d.items || [];
+      _historyItems = items;
+      summary.textContent = '文章 ID：' + id + '，共 ' + items.length + ' 条（按时间倒序）';
+      wrap.innerHTML = renderHistoryRows(items);
+    })
+    .catch(function(e){
+      summary.textContent = '文章 ID：' + id;
+      wrap.innerHTML = '<div class="history-empty">请求失败：' + escH(e.message || String(e)) + '</div>';
+      _historyItems = [];
+      setStatus('历史查询失败：' + (e.message || e));
+    });
+}
+
+function closeHistoryDetailModal() {
+  var m = document.getElementById('modal-history-detail');
+  if (m) m.classList.remove('open');
+}
+
+function buildHistoryDiff(currContent, prevContent) {
+  var cur = String(currContent || '').replace(/\r\n?/g, '\n').split('\n');
+  var prev = String(prevContent || '').replace(/\r\n?/g, '\n').split('\n');
+  var out = [];
+  if (!prevContent && currContent) {
+    out.push('首次存档，无上一版本可对比。\n');
+  }
+  var max = Math.max(cur.length, prev.length);
+  for (var i = 0; i < max; i++) {
+    var a = (i < prev.length) ? prev[i] : null;
+    var b = (i < cur.length) ? cur[i] : null;
+    if (a === b) continue;
+    if (a !== null) out.push('- L' + (i + 1) + ': ' + a);
+    if (b !== null) out.push('+ L' + (i + 1) + ': ' + b);
+    if (out.length > 1200) {
+      out.push('... 变更内容过长，已截断显示 ...');
+      break;
+    }
+  }
+  if (!out.length) return '该版本与上一版本内容一致。';
+  return out.join('\n');
+}
+
+function openHistoryDetailModal(historyId) {
+  var hit = null;
+  var hitIdx = -1;
+  for (var i = 0; i < _historyItems.length; i++) {
+    if (String(_historyItems[i].id || '') === String(historyId || '')) {
+      hit = _historyItems[i];
+      hitIdx = i;
+      break;
+    }
+  }
+  if (!hit) {
+    setStatus('未找到该历史记录详情');
+    return;
+  }
+  document.getElementById('histd-title').textContent = String(hit.title || '');
+  document.getElementById('histd-category').textContent = String(hit.category || '');
+  document.getElementById('histd-txn').textContent = String(hit.saveTxnId || '');
+  document.getElementById('histd-len').textContent = String(hit.contentLength || 0);
+  var prev = (hitIdx >= 0 && hitIdx + 1 < _historyItems.length) ? _historyItems[hitIdx + 1] : null;
+  document.getElementById('histd-diff').textContent = buildHistoryDiff(hit.content || '', prev ? (prev.content || '') : '');
+  document.getElementById('modal-history-detail').classList.add('open');
 }
 
 // ── Export PDF：优先 iframe.srcdoc（页脚不显示长 blob: URL）；@page margin:0+body 内边距减轻系统页眉区 ──
@@ -2842,6 +3016,8 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-table').classList.contains('open')) closeTableModal();
     if(document.getElementById('modal-link').classList.contains('open')) closeLinkModal();
     if(document.getElementById('modal-color').classList.contains('open')) closeColorModal();
+    if(document.getElementById('modal-history').classList.contains('open')) closeHistoryModal();
+    if(document.getElementById('modal-history-detail').classList.contains('open')) closeHistoryDetailModal();
     if(document.getElementById('modal-login').classList.contains('open')) closeLoginModal();
     document.getElementById('ctx-menu').classList.remove('open');
   }
@@ -2868,6 +3044,12 @@ document.getElementById('modal-link').addEventListener('click', function(e){
 });
 document.getElementById('modal-color').addEventListener('click', function(e){
   if(e.target===this) closeColorModal();
+});
+document.getElementById('modal-history').addEventListener('click', function(e){
+  if(e.target===this) closeHistoryModal();
+});
+document.getElementById('modal-history-detail').addEventListener('click', function(e){
+  if(e.target===this) closeHistoryDetailModal();
 });
 document.getElementById('modal-login').addEventListener('click', function(e){
   if(e.target===this) closeLoginModal();

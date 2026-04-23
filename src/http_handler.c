@@ -248,7 +248,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-save") == 0) {
             if (body) {
-                auth_audit(client_ip, req_user.username, "wiki_save", "", "");
                 handle_api_wiki_save(client_fd, body, req_user.username, client_ip);
             }
             else send_json(client_fd, 400, "Bad Request",
@@ -379,8 +378,12 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     if (strncmp(path, "/api/wiki-md-history", 20) == 0 &&
         (path[20] == '\0' || path[20] == '?')) {
-        auth_user_t u;
-        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        char hist_id[256] = {0};
+        query_param_get(path_qs, "id", hist_id, sizeof(hist_id));
+        if (!hist_id[0]) {
+            auth_user_t u;
+            if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        }
         handle_api_wiki_md_history(client_fd, path_qs);
         goto done;
     }

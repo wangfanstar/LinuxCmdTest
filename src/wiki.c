@@ -415,6 +415,25 @@ static int wiki_copy_file(const char *src, const char *dst)
     return 0;
 }
 
+static int wiki_fsync_file(FILE *fp)
+{
+    if (!fp) return -1;
+    if (fflush(fp) != 0) return -1;
+#ifdef _WIN32
+    return _commit(_fileno(fp));
+#else
+    return fsync(fileno(fp));
+#endif
+}
+
+static int wiki_rename_replace(const char *tmp_path, const char *final_path)
+{
+#ifdef _WIN32
+    unlink(final_path);
+#endif
+    return rename(tmp_path, final_path);
+}
+
 static int wiki_send_download_file(http_sock_t fd, const char *filepath,
                                    const char *download_name, const char *content_type)
 {
@@ -611,7 +630,9 @@ static int wiki_write_html_file(const char *filepath,
     const char *id, const char *title, const char *category,
     const char *updated, const char *html_body)
 {
-    FILE *fp = fopen(filepath, "wb");
+    char tmp_path[1152];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", filepath);
+    FILE *fp = fopen(tmp_path, "wb");
     if (!fp) return -1;
 
     /* 相对路径前缀，使 HTML 文件可离线用 file:// 打开 */
@@ -798,6 +819,7 @@ static int wiki_write_html_file(const char *filepath,
     fputs(" <a class=\"edit-btn\" href=\"/wiki/notewiki.html?edit=", fp);
     fputs(id, fp);
     fputs("\">\u270f \u7f16\u8f91</a>"
+          "<button class=\"copy-btn\" id=\"view-history-btn\" onclick=\"openHistoryModal()\">\u5386\u53f2\u8bb0\u5f55</button>"
           "<button class=\"copy-btn\" id=\"export-md-btn\" onclick=\"exportMdZip()\">\u5bfc\u51fa MD ZIP</button>"
           "<button class=\"copy-btn\" id=\"export-pdf-btn\" onclick=\"exportPdf()\">\u5bfc\u51fa PDF</button>"
           "</nav>\n", fp);
@@ -877,6 +899,26 @@ static int wiki_write_html_file(const char *filepath,
           "  a.href='/api/wiki-export-md-zip?id='+encodeURIComponent(window.WIKI_CUR_ID||'');\n"
           "  a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);\n"
           "}\n"
+          "function _wkEsc(s){return String(s==null?'':s).replace(/[&<>\\\"]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':'&quot;';});}\n"
+          "function openHistoryModal(){\n"
+          "  if(window.location.protocol==='file:'){showToast('\\u79bb\\u7ebf\\u6a21\\u5f0f\\u4e0d\\u652f\\u6301\\u5386\\u53f2\\u67e5\\u8be2');return;}\n"
+          "  var id=window.WIKI_CUR_ID||'';\n"
+          "  if(!id){showToast('\\u7f3a\\u5c11\\u6587\\u7ae0 ID');return;}\n"
+          "  fetch('/api/wiki-md-history?id='+encodeURIComponent(id)+'&limit=100')\n"
+          "    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d,status:r.status};});})\n"
+          "    .then(function(resp){\n"
+          "      var d=resp.data||{};\n"
+          "      if(!resp.ok||!d.ok){var msg=(d&&d.error)?d.error:('HTTP '+resp.status);showToast('\\u5386\\u53f2\\u67e5\\u8be2\\u5931\\u8d25\\uff1a'+msg);return;}\n"
+          "      var items=d.items||[];\n"
+          "      var rows=items.map(function(it){return [it.id||'',it.createdAt||'',it.editor||'',it.ip||'',it.saveTxnId||'',it.contentLength||0].join('\\t');}).join('\\n');\n"
+          "      var txt='\\u6587\\u7ae0 ID\\uff1a'+id+'\\n\\u603b\\u8bb0\\u5f55\\uff1a'+items.length+'\\n\\n#\\t\\u4fdd\\u5b58\\u65f6\\u95f4\\t\\u7f16\\u8f91\\u8005\\tIP\\tsave_txn_id\\t\\u5185\\u5bb9\\u957f\\u5ea6\\n'+rows;\n"
+          "      var w=window.open('','_blank','width=1100,height=700');\n"
+          "      if(!w){showToast('\\u8bf7\\u5141\\u8bb8\\u5f39\\u51fa\\u7a97\\u53e3\\u540e\\u91cd\\u8bd5');return;}\n"
+          "      w.document.write('<!doctype html><meta charset=\"utf-8\"><title>\\u5386\\u53f2\\u4fee\\u6539\\u8bb0\\u5f55</title><pre style=\"white-space:pre-wrap;font:13px/1.6 Consolas,monospace;padding:16px\">'+_wkEsc(txt)+'</pre>');\n"
+          "      w.document.close();\n"
+          "    })\n"
+          "    .catch(function(e){showToast('\\u5386\\u53f2\\u67e5\\u8be2\\u5931\\u8d25\\uff1a'+((e&&e.message)||e));});\n"
+          "}\n"
           "/* exportPdf \u7531 sidebar.js \u6ce8\u5165\uff0c\u4e0e notewiki \u4e00\u81f4 */\n"
           "document.addEventListener('click', function(e){\n"
           "  var btn = e.target.closest('.ab .code-block .copy-btn');\n"
@@ -898,7 +940,16 @@ static int wiki_write_html_file(const char *filepath,
     fputs(rp, fp);
     fputs("sidebar.js\"></script>\n</body>\n</html>\n", fp);
 
+    if (wiki_fsync_file(fp) != 0) {
+        fclose(fp);
+        unlink(tmp_path);
+        return -1;
+    }
     fclose(fp);
+    if (wiki_rename_replace(tmp_path, filepath) != 0) {
+        unlink(tmp_path);
+        return -1;
+    }
     return 0;
 }
 
@@ -1475,7 +1526,9 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
 
     char md_path[768];
     wiki_md_write_path(md_path, sizeof(md_path), id, cat);
-    FILE *fp = fopen(md_path, "wb");
+    char md_tmp_path[896];
+    snprintf(md_tmp_path, sizeof(md_tmp_path), "%s.tmp", md_path);
+    FILE *fp = fopen(md_tmp_path, "wb");
     if (!fp) { free(content); free(html); free(content_snapshot);
         send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write md\"}",33); return; }
     strbuf_t meta = {0};
@@ -1488,7 +1541,18 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     SB_LIT(&meta, "}-->\n");
     if (meta.data) fwrite(meta.data,1,meta.len,fp);
     fwrite(content,1,strlen(content),fp);
+    if (wiki_fsync_file(fp) != 0) {
+        fclose(fp);
+        unlink(md_tmp_path);
+        free(meta.data); free(content); free(html); free(content_snapshot);
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"fsync md\"}",33); return;
+    }
     fclose(fp);
+    if (wiki_rename_replace(md_tmp_path, md_path) != 0) {
+        unlink(md_tmp_path);
+        free(meta.data); free(content); free(html); free(content_snapshot);
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"rename md\"}",34); return;
+    }
     free(meta.data); free(content);
 
     if (old_md_path[0] && strcmp(old_md_path, md_path) != 0) unlink(old_md_path);
@@ -1506,12 +1570,23 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     } else {
         snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
     }
-    wiki_write_html_file(html_path, id, title, cat, now, html);
-    auth_md_backup(id, title, cat, content_snapshot, html, actor ? actor : "", ip ? ip : "");
-    free(content_snapshot);
-    free(html);
+    if (wiki_write_html_file(html_path, id, title, cat, now, html) != 0) {
+        free(content_snapshot);
+        free(html);
+        send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write html\"}",35); return;
+    }
 
     wiki_refresh_index_json();
+
+    {
+        char save_txn_id[128] = {0};
+        auth_gen_save_txn_id(save_txn_id, sizeof(save_txn_id));
+        auth_md_backup_txn(id, title, cat, content_snapshot, html, actor ? actor : "", ip ? ip : "", save_txn_id);
+        auth_audit_txn(ip ? ip : "", actor ? actor : "", "wiki_save_chain", id,
+                       "md/html/index committed", save_txn_id);
+    }
+    free(content_snapshot);
+    free(html);
 
     const char *rel = html_path + strlen(WEB_ROOT) + 1;
     strbuf_t sb = {0};

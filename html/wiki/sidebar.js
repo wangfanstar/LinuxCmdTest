@@ -334,6 +334,14 @@
         '.wrap{max-width:100%;padding:20px 28px;position:relative;min-height:1px}',
         'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
         '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
+        '.pdf-layout{display:flex;gap:18px;align-items:flex-start}',
+        '.pdf-toc{width:190px;flex:0 0 190px;border:1px solid #e5e7eb;border-radius:6px;padding:10px;background:#fafbfc;max-height:calc(100vh - 42px);overflow:auto;position:sticky;top:0}',
+        '.pdf-toc-title{font-size:.78rem;font-weight:700;color:#444;margin-bottom:8px}',
+        '.pdf-toc-empty{font-size:.72rem;color:#999}',
+        '.pdf-toc a{display:block;font-size:.72rem;line-height:1.45;color:#555;text-decoration:none;padding:2px 0;word-break:break-word}',
+        '.pdf-toc a.deepest{color:#b54708;font-weight:600}',
+        '.pdf-toc a.lv2{padding-left:10px}.pdf-toc a.lv3{padding-left:20px}.pdf-toc a.lv4{padding-left:30px}',
+        '.pdf-main{flex:1;min-width:0}',
         '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
         '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
         '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
@@ -362,7 +370,7 @@
         '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
         '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
-        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+        '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-layout{display:block}.pdf-toc{position:static;width:auto;max-height:none;margin-bottom:12px;page-break-inside:avoid}}'
       ].join('\n');
 
       var baseHref = '';
@@ -376,12 +384,17 @@
         : '';
       var boot = '<script src="/wiki/rich-render.js"><\\/script>\n' +
         '<script>(function(){' +
+        'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}' +
+        'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}' +
+        'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}' +
+        'var used={},h="",maxLv=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0>maxLv)maxLv=lv0;}' +
+        'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=[];if(lv>1)cls.push("lv"+lv);if(lv===maxLv)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}' +
         'function done(){window.__pdfReady=1;}' +
-        'try{var root=document.getElementById("pdf-article-body");if(!root||!window.createRichRenderer){done();return;}' +
-        'var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}' +
+        'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}' +
+        'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}' +
         'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});' +
-        'rr.ensure(function(){rr.render(root);setTimeout(done,220);});setTimeout(done,1400);' +
-        '}catch(e){done();}})();<\\/script>\n';
+        'rr.ensure(function(){rr.render(root);setTimeout(function(){buildPdfToc();done();},220);});setTimeout(function(){buildPdfToc();done();},1400);' +
+        '}catch(e){buildPdfToc();done();}})();<\\/script>\n';
 
       var html =
         '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
@@ -397,9 +410,9 @@
         '<div class="meta">' +
         escH(metaTxt) +
         '</div>\n' +
-        '<div class="art-content" id="pdf-article-body">\n' +
+        '<div class="pdf-layout"><aside class="pdf-toc"><div class="pdf-toc-title">目录</div><div id="pdf-toc-list"><div class="pdf-toc-empty">生成中…</div></div></aside><div class="pdf-main"><div class="art-content" id="pdf-article-body">\n' +
         body +
-        '\n</div>\n</div>\n' +
+        '\n</div></div></div>\n</div>\n' +
         boot +
         '</body>\n</html>';
 

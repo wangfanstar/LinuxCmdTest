@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C Header → YAML Config 转换工具</title>
+<style>
+:root{
+  --bg:#1e1e2e;--mantle:#181825;--crust:#11111b;
+  --s0:#313244;--s1:#45475a;--s2:#585b70;
+  --ov0:#6c7086;--ov1:#7f849c;
+  --txt:#cdd6f4;--sub0:#a6adc8;--sub1:#bac2de;
+  --blue:#89b4fa;--sky:#89dceb;--teal:#94e2d5;
+  --green:#a6e3a1;--yellow:#f9e2af;--peach:#fab387;
+  --red:#f38ba8;--mauve:#cba6f7;--pink:#f5c2e7;
+  --lavender:#b4befe;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Consolas','Courier New',monospace;background:var(--bg);color:var(--txt);
+     height:100vh;display:flex;flex-direction:column;font-size:13px;overflow:hidden}
+
+/* ── Topbar ── */
+#topbar{background:var(--mantle);border-bottom:1px solid var(--s0);
+        padding:6px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#topbar h1{font-size:14px;color:var(--mauve);font-weight:600;flex:1}
+.badge{font-size:10px;background:var(--s0);color:var(--ov1);padding:2px 8px;border-radius:10px}
+
+/* ── Buttons ── */
+button{background:var(--s0);color:var(--txt);border:1px solid var(--s1);border-radius:4px;
+       padding:5px 12px;cursor:pointer;font-size:12px;font-family:inherit;
+       transition:background .15s,border-color .15s;white-space:nowrap}
+button:hover{background:var(--s1)}
+button.primary{background:#6d28d9;border-color:#7c3aed;color:#fff}
+button.primary:hover{background:#7c3aed}
+button.success{background:#14532d;border-color:var(--green);color:var(--green)}
+button.success:hover{background:#166534}
+button.danger{border-color:var(--red);color:var(--red)}
+button.danger:hover{background:var(--s1)}
+button.sm{padding:3px 8px;font-size:11px}
+button:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+
+/* ── Layout ── */
+#main{display:flex;flex:1;overflow:hidden;min-height:0}
+#left{width:350px;min-width:220px;max-width:540px;flex-shrink:0;
+      background:var(--mantle);border-right:1px solid var(--s0);
+      display:flex;flex-direction:column;overflow:hidden}
+#resizer{width:4px;background:var(--s0);cursor:col-resize;flex-shrink:0;
+         transition:background .15s;user-select:none}
+#resizer:hover,#resizer.drag{background:var(--mauve)}
+#right{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Tabs ── */
+.tabs{display:flex;background:var(--crust);border-bottom:1px solid var(--s0);flex-shrink:0}
+.tab{padding:8px 13px;font-size:11px;color:var(--ov0);cursor:pointer;
+     border-bottom:2px solid transparent;transition:color .15s,border-color .15s;user-select:none}
+.tab:hover{color:var(--sub1)}
+.tab.active{color:var(--mauve);border-bottom-color:var(--mauve)}
+.tab-pane{display:none;overflow-y:auto;flex:1;min-height:0;flex-direction:column}
+.tab-pane.active{display:flex}
+
+/* ── Sections ── */
+.sec{padding:11px 13px;border-bottom:1px solid var(--s0)}
+.sec h3{font-size:10px;color:var(--ov0);text-transform:uppercase;letter-spacing:.9px;
+        margin-bottom:9px;font-weight:600}
+
+/* ── Fields ── */
+.field{margin-bottom:7px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;color:var(--sub0);margin-bottom:3px}
+.field input,.field select,.field textarea{
+  width:100%;background:var(--s0);border:1px solid var(--s1);border-radius:4px;
+  padding:5px 8px;color:var(--txt);font-size:12px;font-family:inherit;
+  outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--mauve)}
+.field textarea{resize:vertical;min-height:70px}
+.field select option{background:var(--s0)}
+.row2{display:flex;gap:6px}
+.row2 .field{flex:1;margin-bottom:0}
+
+/* ── Drop zone ── */
+#dropzone{border:2px dashed var(--s1);border-radius:8px;padding:18px 12px;text-align:center;
+          cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:9px}
+#dropzone:hover,#dropzone.over{border-color:var(--mauve);background:rgba(203,166,247,.05)}
+#dropzone.has{border-color:var(--green)}
+#dz-icon{font-size:22px;margin-bottom:5px;color:var(--ov0)}
+#dropzone.has #dz-icon{color:var(--green)}
+#dz-text{font-size:11px;color:var(--ov0)}
+#dz-hint{font-size:10px;color:var(--s2);margin-top:2px}
+
+/* ── Checkboxes ── */
+.opt-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;
+         font-size:11px;color:var(--sub0);cursor:pointer;user-select:none}
+.opt-row input[type=checkbox]{accent-color:var(--mauve);cursor:pointer}
+
+/* ── Quick tpl buttons ── */
+.tpl-grid{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tpl-btn{font-size:10px;padding:3px 8px;background:var(--bg);border-color:var(--s1);color:var(--sub0)}
+.tpl-btn:hover{border-color:var(--mauve);color:var(--mauve);background:rgba(203,166,247,.07)}
+
+/* ── Right toolbar ── */
+#rtbar{padding:6px 13px;background:var(--mantle);border-bottom:1px solid var(--s0);
+       display:flex;align-items:center;gap:7px;flex-shrink:0}
+#rtbar .info{flex:1;font-size:11px;color:var(--ov0);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#ftag{font-size:11px;color:var(--yellow);background:rgba(249,226,175,.1);
+      padding:2px 8px;border-radius:3px;display:none}
+
+/* ── YAML editor ── */
+#editor-wrap{flex:1;display:flex;overflow:hidden;min-height:0;position:relative}
+#lnum{width:40px;background:var(--mantle);border-right:1px solid var(--s0);
+      padding:14px 5px 14px 0;text-align:right;font-size:12px;line-height:1.6;
+      color:var(--ov0);overflow:hidden;user-select:none;flex-shrink:0;white-space:pre}
+#yaml-out{flex:1;background:var(--bg);border:none;outline:none;color:var(--txt);
+          font-family:'Consolas','Courier New',monospace;font-size:12px;
+          line-height:1.6;padding:14px 14px;resize:none;
+          white-space:pre;overflow:auto;tab-size:2;spellcheck:false}
+#yaml-out::placeholder{color:var(--s1)}
+
+/* ── Status bar ── */
+#sbar{background:var(--mantle);border-top:1px solid var(--s0);padding:3px 13px;
+      display:flex;align-items:center;gap:14px;font-size:10px;color:var(--ov0);flex-shrink:0}
+.ok{color:var(--green)} .warn{color:var(--yellow)} .err{color:var(--red)}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(12px);
+       background:var(--s1);color:var(--txt);padding:7px 20px;border-radius:20px;
+       font-size:12px;opacity:0;transition:opacity .2s,transform .2s;
+       pointer-events:none;z-index:9999}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── Help modal ── */
+#help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+              z-index:200;align-items:flex-start;justify-content:center;
+              padding:28px 16px;overflow-y:auto}
+#help-overlay.open{display:flex}
+#help-box{background:var(--bg);border:1px solid var(--s1);border-radius:10px;
+          width:100%;max-width:700px;max-height:calc(100vh - 56px);overflow-y:auto}
+#help-box header{position:sticky;top:0;background:var(--mantle);
+                 border-bottom:1px solid var(--s0);padding:11px 16px;
+                 display:flex;align-items:center}
+#help-box header h2{flex:1;font-size:14px;color:var(--mauve);font-weight:600}
+#help-box header button{background:none;border:none;color:var(--ov0);font-size:18px;
+                        cursor:pointer;padding:2px 7px}
+#help-box header button:hover{color:var(--txt)}
+.hbody{padding:16px 18px}
+.hsec{margin-bottom:22px}
+.hsec h3{font-size:10px;color:var(--ov0);text-transform:uppercase;letter-spacing:.9px;
+         margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--s0);font-weight:600}
+.hsec p,.hsec li{font-size:12px;color:var(--sub0);line-height:1.7;margin-bottom:5px}
+.hsec ul{padding-left:16px}
+.hsec code{background:var(--s0);padding:1px 5px;border-radius:3px;color:var(--yellow);font-size:11px}
+.ref-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.ref-tbl th{background:#252535;color:var(--ov0);text-align:left;padding:5px 9px;
+            border-bottom:1px solid var(--s0)}
+.ref-tbl td{padding:6px 9px;border-bottom:1px solid #252535;color:var(--txt);vertical-align:top}
+.ref-tbl tr:hover td{background:#252535}
+.ref-tbl .mono{font-family:'Consolas','Courier New',monospace;font-size:11px;color:var(--yellow)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--mantle)}
+::-webkit-scrollbar-thumb{background:var(--s1);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--s2)}
+
+/* ── File list ── */
+#file-list{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.file-item{display:flex;align-items:center;gap:5px;background:var(--s0);
+           border:1px solid var(--s1);border-radius:4px;padding:3px 6px;font-size:11px}
+.file-item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub1)}
+.file-item .dup-badge{font-size:9px;background:rgba(249,226,175,.15);color:var(--yellow);
+                      padding:1px 5px;border-radius:3px;white-space:nowrap}
+
+/* ── Baseline badge ── */
+#baseline-badge{font-size:10px;background:rgba(148,226,213,.15);color:var(--teal);
+                padding:2px 8px;border-radius:3px;display:none;max-width:180px;
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Conflict modal ── */
+#conflict-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);
+                  z-index:300;align-items:center;justify-content:center;padding:16px}
+#conflict-overlay.open{display:flex}
+#conflict-box{background:var(--bg);border:1px solid var(--s1);border-radius:10px;
+              width:100%;max-width:900px;max-height:calc(100vh - 32px);
+              display:flex;flex-direction:column;overflow:hidden}
+#conflict-box header{background:var(--mantle);border-bottom:1px solid var(--s0);
+                     padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#conflict-box header h2{flex:1;font-size:13px;color:var(--peach);font-weight:600}
+#conflict-progress{font-size:11px;color:var(--ov0);flex-shrink:0}
+#conflict-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:0}
+#conflict-info{font-size:11px;color:var(--sub0);background:var(--s0);padding:6px 10px;border-radius:4px}
+.diff-panes{display:flex;gap:10px;min-height:180px}
+.diff-pane{flex:1;display:flex;flex-direction:column;gap:5px}
+.diff-pane>label{font-size:10px;color:var(--ov0);text-transform:uppercase;letter-spacing:.8px}
+.diff-pane textarea{flex:1;background:var(--mantle);border:1px solid var(--s1);border-radius:4px;
+                    color:var(--txt);font-family:'Consolas','Courier New',monospace;
+                    font-size:11px;line-height:1.6;padding:8px 10px;resize:vertical;
+                    outline:none;min-height:140px}
+.diff-pane.baseline>label{color:var(--teal)}
+.diff-pane.baseline textarea{border-color:rgba(148,226,213,.4)}
+.diff-pane.newver>label{color:var(--yellow)}
+.diff-pane.newver textarea{border-color:rgba(249,226,175,.4)}
+#conflict-edit-wrap{display:flex;flex-direction:column;gap:5px}
+#conflict-edit-wrap>label{font-size:10px;color:var(--mauve);text-transform:uppercase;letter-spacing:.8px}
+#conflict-edit{width:100%;background:var(--s0);border:1px solid var(--mauve);border-radius:4px;
+               color:var(--txt);font-family:'Consolas','Courier New',monospace;
+               font-size:11px;line-height:1.6;padding:8px 10px;resize:vertical;
+               outline:none;min-height:100px;display:none}
+#conflict-footer{background:var(--mantle);border-top:1px solid var(--s0);
+                 padding:10px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+#conflict-skip-all{margin-left:auto;font-size:11px;color:var(--ov0);cursor:pointer;
+                   background:none;border:1px solid var(--s1);border-radius:4px;
+                   padding:4px 10px;white-space:nowrap}
+#conflict-skip-all:hover{color:var(--txt);border-color:var(--ov1)}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ TOPBAR ════════════════ -->
+<div id="topbar">
+  <a href="index.html" style="text-decoration:none;color:var(--txt);background:var(--s0);border:1px solid var(--s1);border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">&#8962; 主页</a>
+  <h1>C Header → YAML Config 转换工具</h1>
+  <span class="badge">pzz_autogen</span>
+  <input type="file" id="baseline-fi" accept=".yaml,.yml" style="display:none" onchange="onBaselineFile(event)">
+  <button onclick="document.getElementById('baseline-fi').click()" title="加载基准 YAML，合并时保留其定义">⚓ 基准 YAML</button>
+  <span id="baseline-badge"></span>
+  <button id="btn-clear-baseline" onclick="clearBaseline()" class="sm danger" style="display:none" title="清除基准">✕ 基准</button>
+  <button onclick="showHelp()">? 帮助</button>
+</div>
+
+<!-- ════════════════ MAIN ════════════════ -->
+<div id="main">
+
+  <!-- ─────────────── LEFT ─────────────── -->
+  <div id="left">
+    <div class="tabs">
+      <div class="tab active" data-tab="input"   onclick="switchTab('input')">输入</div>
+      <div class="tab"        data-tab="manual"  onclick="switchTab('manual')">手动</div>
+      <div class="tab"        data-tab="options" onclick="switchTab('options')">选项</div>
+    </div>
+
+    <!-- ── Tab: Input ── -->
+    <div class="tab-pane active" id="tab-input">
+      <div class="sec">
+        <h3>上传文件</h3>
+        <div id="dropzone"
+             onclick="document.getElementById('fi').click()"
+             ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)">
+          <div id="dz-icon">📂</div>
+          <div id="dz-text">点击或拖拽 .h / .txt 文件</div>
+          <div id="dz-hint">支持多文件，自动去重合并</div>
+        </div>
+        <input type="file" id="fi" accept=".h,.txt,.c" multiple style="display:none" onchange="onFile(event)">
+        <div id="file-list"></div>
+      </div>
+
+      <div class="sec" style="flex:1;display:flex;flex-direction:column;min-height:0">
+        <h3>粘贴 C 代码</h3>
+        <div class="field" style="flex:1;display:flex;flex-direction:column;min-height:60px">
+          <textarea id="cinput" placeholder="#define / typedef enum / typedef struct / 函数声明…"
+                    style="flex:1;height:100%" oninput="onCInput()"></textarea>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="primary" style="flex:1" onclick="doConvert()">▶ 转 换</button>
+          <button onclick="clearInput()" title="清空">清空</button>
+          <button onclick="loadExample()" class="sm" title="加载示例">示例</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Manual ── -->
+    <div class="tab-pane" id="tab-manual">
+      <div class="sec">
+        <h3>模块名</h3>
+        <div class="field">
+          <input id="man-mod" placeholder="rlm" oninput="syncModName(this.value)">
+        </div>
+      </div>
+
+      <!-- Add Macro -->
+      <div class="sec">
+        <h3>插入 Macro 字段</h3>
+        <div class="row2">
+          <div class="field"><label>宏名</label><input id="mc-name" placeholder="GT_RLM_LANE_MAX"></div>
+          <div class="field"><label>值</label><input id="mc-val" placeholder="7"></div>
+        </div>
+        <div class="field"><label>说明</label><input id="mc-brief" placeholder="最大 lane 索引"></div>
+        <div class="field"><label>所属组名 (留空=自动)</label>
+          <input id="mc-group" placeholder="rlm_constants"></div>
+        <div class="field"><label>dep_level (依赖层级，默认 0)</label>
+          <input id="mc-dep" type="number" value="0" min="0" placeholder="0" style="width:80px"></div>
+        <button onclick="insertMacro()" style="width:100%">+ 插入 Macro</button>
+      </div>
+
+      <!-- Add Enum -->
+      <div class="sec">
+        <h3>插入 Enum</h3>
+        <div class="field"><label>枚举名 (snake_case)</label>
+          <input id="en-name" placeholder="rlm_state"></div>
+        <div class="field"><label>说明</label>
+          <input id="en-brief" placeholder="RLM state type"></div>
+        <div class="field"><label>字段 (每行: NAME [值] [说明])</label>
+          <textarea id="en-fields" placeholder="GT_RLM_STATE_A 0 First&#10;GT_RLM_STATE_B 1 Second"></textarea></div>
+        <div class="row2">
+          <div class="field"><label>c_type</label>
+            <select id="en-ct"><option>uint8</option><option>uint16</option><option>uint32</option></select></div>
+          <div class="field"><label>m_type</label>
+            <select id="en-mt"><option>u8</option><option>u16</option><option>u32</option></select></div>
+        </div>
+        <div class="field"><label>dep_level (依赖层级，默认 0)</label>
+          <input id="en-dep" type="number" value="0" min="0" placeholder="0" style="width:80px"></div>
+        <button onclick="insertEnum()" style="width:100%">+ 插入 Enum</button>
+      </div>
+
+      <!-- Add Struct / Union -->
+      <div class="sec">
+        <h3>插入 Struct / Union</h3>
+        <div class="row2">
+          <div class="field"><label>名称 (snake_case)</label>
+            <input id="su-name" placeholder="rlm_fsm" oninput="autoFillCtype()"></div>
+          <div class="field"><label>类型</label>
+            <select id="su-kind"><option value="struct">struct</option><option value="union">union</option></select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>c_type</label>
+            <input id="su-ctype" placeholder="gt_rlm_fsm_t"></div>
+          <div class="field"><label>m_type</label>
+            <input id="su-mtype" placeholder="rlm_fsm"></div>
+        </div>
+        <div class="field"><label>说明</label>
+          <input id="su-brief" placeholder="TX/RX FSM state snapshot"></div>
+        <div class="field"><label>dep_level (依赖层级，默认 0)</label>
+          <input id="su-dep" type="number" value="0" min="0" placeholder="0" style="width:80px"></div>
+        <div class="field"><label>字段 (每行: name type [说明])</label>
+          <textarea id="su-fields" placeholder="tx_state uint8[8] TX FSM state per lane&#10;rx_state uint8[8] RX FSM state per lane&#10;exceed_dsk uint8 DSK bitmask" style="min-height:80px"></textarea></div>
+        <button onclick="insertStruct()" style="width:100%">+ 插入 Struct / Union</button>
+      </div>
+
+      <!-- Add Object -->
+      <div class="sec">
+        <h3>插入 Object</h3>
+        <div class="row2">
+          <div class="field"><label>Object 名</label><input id="ob-name" placeholder="rlm"></div>
+          <div class="field"><label>Key 类型</label>
+            <select id="ob-key">
+              <option value="gt_handle_t">gt_handle_t</option>
+              <option value="custom">自定义…</option>
+            </select></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:7px">
+          <label class="opt-row"><input type="checkbox" id="ob-stats"> support_stats</label>
+          <label class="opt-row"><input type="checkbox" id="ob-bulk">  support_bulk</label>
+          <label class="opt-row"><input type="checkbox" id="ob-exp" checked> exported</label>
+        </div>
+        <button onclick="insertObject()" style="width:100%">+ 插入 Object</button>
+      </div>
+
+      <!-- Add Attribute -->
+      <div class="sec">
+        <h3>插入 Attribute</h3>
+        <div class="row2">
+          <div class="field"><label>属性名</label>
+            <input id="at-name" placeholder="enable"></div>
+          <div class="field"><label>类型</label>
+            <input id="at-type" placeholder="bool" list="type-dl">
+            <datalist id="type-dl">
+              <option value="bool"><option value="uint8"><option value="uint16">
+              <option value="uint32"><option value="uint64"><option value="gt_handle_t">
+              <option value="char"><option value="float"><option value="double">
+            </datalist></div>
+        </div>
+        <div class="field"><label>说明</label><input id="at-brief" placeholder="Global enable flag"></div>
+        <div class="row2">
+          <div class="field"><label>Flags</label>
+            <select id="at-flags">
+              <option value="CREATE_AND_SET">CREATE_AND_SET</option>
+              <option value="READ_ONLY">READ_ONLY</option>
+              <option value="CREATE_ONLY">CREATE_ONLY</option>
+              <option value="MANDATORY_ON_CREATE | CREATE_ONLY">MANDATORY + CREATE_ONLY</option>
+              <option value="MANDATORY_ON_CREATE | CREATE_AND_SET">MANDATORY + CREATE_AND_SET</option>
+            </select></div>
+          <div class="field"><label>Range</label>
+            <input id="at-range" placeholder="INTEGER&lt;0-255&gt;"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Default</label>
+            <input id="at-def" placeholder="0 / false / null"></div>
+          <div class="field"><label>Condition (可选)</label>
+            <input id="at-cond" placeholder="GT_X_ATTR_Y == val"></div>
+        </div>
+        <!-- Quick templates -->
+        <div style="margin-bottom:7px">
+          <div style="font-size:10px;color:var(--ov0);margin-bottom:4px">快速模板:</div>
+          <div class="tpl-grid">
+            <button class="tpl-btn" onclick="tpl('enable',     'bool',   'Global enable flag',               'CREATE_AND_SET','{ disable | enable }','false','')">enable</button>
+            <button class="tpl-btn" onclick="tpl('lane_mask',  'uint8',  'Lane bitmask (bit N=lane N)',       'CREATE_AND_SET','INTEGER&lt;0-255&gt;', '0',   '')">lane_mask</button>
+            <button class="tpl-btn" onclick="tpl('port_mask',  'uint8',  'Port bitmask (bit N=port N, 0-3)', 'CREATE_AND_SET','INTEGER&lt;0-15&gt;',  '0',   '')">port_mask</button>
+            <button class="tpl-btn" onclick="tpl('pipe',       'uint32', 'Pipe index (0-15)',                 'MANDATORY_ON_CREATE | CREATE_ONLY','INTEGER&lt;0-15&gt;','','')">pipe</button>
+            <button class="tpl-btn" onclick="tpl('intr_mask',  'uint32', 'Interrupt enable bitmask',         'CREATE_AND_SET','INTEGER&lt;0-4294967295&gt;','0','')">intr_mask</button>
+            <button class="tpl-btn" onclick="tpl('status',     'uint32', 'Read-only status register',        'READ_ONLY','','','')">status</button>
+            <button class="tpl-btn" onclick="tpl('err_th',     'uint8',  'Error threshold (1-31)',           'CREATE_AND_SET','INTEGER&lt;1-31&gt;',  '1',   '')">err_th</button>
+          </div>
+        </div>
+        <button onclick="insertAttr()" style="width:100%">+ 插入 Attribute</button>
+      </div>
+    </div>
+
+    <!-- ── Tab: Options ── -->
+    <div class="tab-pane" id="tab-options">
+      <div class="sec">
+        <h3>模块设置</h3>
+        <div class="field"><label>模块名 (留空=自动检测)</label>
+          <input id="opt-mod" placeholder="auto" oninput="syncModName(this.value)"></div>
+      </div>
+      <div class="sec">
+        <h3>提取内容</h3>
+        <label class="opt-row"><input type="checkbox" id="o-mac" checked> 提取 #define 宏</label>
+        <label class="opt-row"><input type="checkbox" id="o-enm" checked> 提取 typedef enum</label>
+        <label class="opt-row"><input type="checkbox" id="o-str" checked> 提取 typedef struct</label>
+        <label class="opt-row"><input type="checkbox" id="o-uni" checked> 提取 typedef union</label>
+        <label class="opt-row"><input type="checkbox" id="o-def" checked> 提取 typedef (defs)</label>
+        <label class="opt-row"><input type="checkbox" id="o-fn">  函数声明注释提示</label>
+      </div>
+      <div class="sec">
+        <h3>宏过滤</h3>
+        <label class="opt-row"><input type="checkbox" id="o-skip-guard" checked> 跳过头文件保护宏</label>
+        <label class="opt-row"><input type="checkbox" id="o-skip-fn" checked> 跳过函数式宏</label>
+        <label class="opt-row"><input type="checkbox" id="o-grp" checked> 合并相邻 #define 为一组</label>
+      </div>
+      <div class="sec">
+        <h3>命名</h3>
+        <div class="field"><label>去除名称前缀 (逗号分隔)</label>
+          <input id="o-strip" value="ql_npu_,ql_,gt_"></div>
+        <div class="field"><label>宏组名 (留空=自动)</label>
+          <input id="o-mac-grp" placeholder="{module}_constants"></div>
+        <div class="field"><label>struct/union c_type 前缀</label>
+          <input id="o-ctype-pfx" value="gt_" placeholder="gt_">
+          <div style="font-size:10px;color:var(--ov0);margin-top:3px">
+            生成 c_type 时拼接: <code style="color:var(--yellow)">{前缀}{name}_t</code>
+            &nbsp;→ e.g. <code style="color:var(--green)">gt_rlm_fsm_t</code>
+          </div>
+        </div>
+      </div>
+      <div class="sec">
+        <h3>Object 默认值</h3>
+        <div class="row2">
+          <div class="field"><label>db_type</label>
+            <select id="o-db">
+              <option value="">不设置</option>
+              <option value="vector">vector</option>
+              <option value="linklist">linklist</option>
+              <option value="hash">hash</option>
+              <option value="none">none</option>
+            </select></div>
+          <div class="field"><label>db_inst_max</label>
+            <input id="o-dbmax" placeholder="64" type="number"></div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /left -->
+
+  <div id="resizer" onmousedown="rsStart(event)"></div>
+
+  <!-- ─────────────── RIGHT ─────────────── -->
+  <div id="right">
+    <div id="rtbar">
+      <div class="info" id="rtinfo">就绪 — 上传或粘贴 C 代码后点击"转换"</div>
+      <span id="ftag"></span>
+      <button id="btn-undo" onclick="undoEdit()" title="撤销 Ctrl+Z" disabled>↩ 撤销</button>
+      <button id="btn-redo" onclick="redoEdit()" title="重做 Ctrl+Y / Ctrl+Shift+Z" disabled>↪ 重做</button>
+      <button onclick="fmtYaml()" title="格式化">⟳</button>
+      <button id="btn-hide-defaults" onclick="toggleHideDefaults()" title="隐藏与默认值相同的可选字段">隐藏默认值</button>
+      <button onclick="copyYaml()" class="success">⎘ 复制</button>
+      <button onclick="dlYaml()">↓ 下载</button>
+      <button onclick="clearOut()" class="danger sm">✕</button>
+    </div>
+    <div id="editor-wrap">
+      <div id="lnum"></div>
+      <textarea id="yaml-out" wrap="off" spellcheck="false"
+                placeholder="转换结果显示在此处，支持直接编辑…"
+                oninput="onEdit()" onscroll="syncLnum()"></textarea>
+    </div>
+    <div id="sbar">
+      <span id="sb-lines">0 行</span>
+      <span id="sb-chars">0 字符</span>
+      <span id="sb-status" class="ok">就绪</span>
+      <span id="sb-mod" style="color:var(--blue)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ HELP MODAL ════════════════ -->
+<div id="help-overlay" onclick="if(event.target===this)closeHelp()">
+<div id="help-box">
+  <header><h2>C Header → YAML 转换工具 · 使用指南</h2>
+    <button onclick="closeHelp()">✕</button></header>
+  <div class="hbody">
+    <div class="hsec">
+      <h3>快速上手</h3>
+      <ul>
+        <li>将 <code>.h</code> 文件拖到左侧 "上传区"，或粘贴 C 代码，点击 <code>▶ 转换</code></li>
+        <li>也可直接在页面任意空白处 <code>Ctrl+V</code> 粘贴并自动转换</li>
+        <li>右侧 YAML 支持 <strong>实时编辑</strong>，可与自动生成内容混合修改</li>
+        <li>"手动" 标签页可在不写代码的情况下追加 Enum / Object / Attribute</li>
+      </ul>
+    </div>
+    <div class="hsec">
+      <h3>自动提取的 C 元素</h3>
+      <table class="ref-tbl">
+        <tr><th>C 语法</th><th>→ YAML 节</th><th>说明</th></tr>
+        <tr><td class="mono">#define NAME VALUE</td><td>macros → fields</td><td>相邻宏合并为一组；跳过保护宏与函数宏</td></tr>
+        <tr><td class="mono">typedef enum { ... } name_t;</td><td>enums</td><td>提取枚举值及行尾 <code>///&lt;</code> 注释</td></tr>
+        <tr><td class="mono">typedef struct { ... } name_t;</td><td>structs</td><td>提取字段名、类型、注释；数组字段 <code>uint8 x[8]</code> 自动拆分为 <code>type: uint8</code> + <code>array_size: 8</code>（模板必需格式）；自动生成 <code>c_type: gt_{name}_t</code> 和 <code>m_type: {name}</code></td></tr>
+        <tr><td class="mono">typedef union { ... } name_t;</td><td>unions</td><td>同上，同样自动补全 <code>c_type</code> / <code>m_type</code>，数组字段同样拆分</td></tr>
+        <tr><td class="mono">typedef BASE new_t;</td><td>defs</td><td>类型别名</td></tr>
+        <tr><td class="mono">gt_status_t func(...);</td><td>注释行</td><td>勾选"函数声明提示"后以注释形式列出</td></tr>
+      </table>
+    </div>
+    <div class="hsec">
+      <h3>struct / union 必需字段</h3>
+      <p>production <code>autogen.py</code> 在 <code>collect_global_data</code> 中直接访问 <code>s['c_type']</code>，没有默认值回退，缺失时会抛出 <code>KeyError: 'c_type'</code>。</p>
+      <table class="ref-tbl">
+        <tr><th>字段</th><th>含义</th><th>示例</th></tr>
+        <tr><td class="mono">c_type</td><td>生成的 C 类型名（加入 all_struct_names 集合）</td><td class="mono">gt_rlm_fsm_t</td></tr>
+        <tr><td class="mono">m_type</td><td>union member 访问名（type_map 使用）</td><td class="mono">rlm_fsm</td></tr>
+      </table>
+      <p style="margin-top:6px">本工具自动生成规则：<code>c_type = {前缀}{name}_t</code>，前缀默认 <code>gt_</code>，可在"选项"面板修改。</p>
+    </div>
+    <div class="hsec">
+      <h3>attribute flags 参考</h3>
+      <table class="ref-tbl">
+        <tr><th>Flag</th><th>含义</th></tr>
+        <tr><td class="mono">READ_ONLY</td><td>只读，只能 get</td></tr>
+        <tr><td class="mono">CREATE_AND_SET</td><td>创建时可指定，创建后可修改</td></tr>
+        <tr><td class="mono">CREATE_ONLY</td><td>仅创建时指定，之后只读</td></tr>
+        <tr><td class="mono">MANDATORY_ON_CREATE</td><td>创建时必须提供</td></tr>
+      </table>
+    </div>
+    <div class="hsec">
+      <h3>命名规则</h3>
+      <ul>
+        <li>枚举/结构名自动去除前缀（默认：<code>ql_npu_</code> <code>ql_</code> <code>gt_</code>）</li>
+        <li>去除类型后缀 <code>_t</code> / <code>_e</code> / <code>_s</code></li>
+        <li>可在"选项"面板自定义前缀列表</li>
+      </ul>
+    </div>
+    <div class="hsec">
+      <h3>基准 YAML — 多文件合并去重</h3>
+      <p>点击顶栏 <code>⚓ 基准 YAML</code> 加载一个已有的 <code>.yaml</code> 文件作为基准。之后每次转换时：</p>
+      <ul>
+        <li><strong>新文件中有、基准中没有的定义</strong> → 直接追加</li>
+        <li><strong>两者均有且内容相同</strong> → 保留基准版本（保留手动编辑的内容）</li>
+        <li><strong>两者均有但内容不同（冲突）</strong> → 弹出对比框，逐一选择：
+          <ul>
+            <li><em>保留基准</em> — 丢弃新版，保留原有</li>
+            <li><em>使用新版</em> — 以新解析结果覆盖</li>
+            <li><em>手动编辑</em> — 展开编辑框自由修改后确认</li>
+            <li><em>全部保留基准</em> — 一键跳过所有冲突，全保留基准</li>
+          </ul>
+        </li>
+        <li><strong>基准中有、新文件中没有的定义</strong> → 保留（不会丢失已有内容）</li>
+        <li><strong>基准的 <code>objects:</code> 节</strong> → 始终完整保留，不参与冲突检测</li>
+      </ul>
+      <p style="margin-top:6px">点击 <code>✕ 基准</code> 可清除基准，恢复普通转换模式。</p>
+    </div>
+    <div class="hsec">
+      <h3>显示 / 隐藏默认值字段</h3>
+      <p>工具默认对每个条目生成 <strong>所有可选字段</strong>，包括 <code>brief: ""</code>、<code>dep_level: 0</code>、<code>array_size: ~</code> 等，方便直接作为模板填写。</p>
+      <p>点击右上角 <code>隐藏默认值</code> 按钮可切换为 <strong>精简模式</strong>：凡值等于默认值的可选字段均不输出，YAML 更简洁。</p>
+      <table class="ref-tbl" style="margin-top:8px">
+        <tr><th>字段</th><th>默认值</th><th>隐藏条件</th></tr>
+        <tr><td class="mono">dep_level</td><td class="mono">0</td><td>值为 0 时隐藏</td></tr>
+        <tr><td class="mono">brief</td><td class="mono">""</td><td>无注释时隐藏</td></tr>
+        <tr><td class="mono">value (enum field)</td><td class="mono">~</td><td>C 头文件中未显式赋值时隐藏</td></tr>
+        <tr><td class="mono">array_size</td><td class="mono">~</td><td>非数组字段时隐藏</td></tr>
+      </table>
+      <p style="margin-top:6px">切换模式后自动重新转换，不影响已手动编辑的 YAML 内容（因为会重新生成）。</p>
+    </div>
+    <div class="hsec">
+      <h3>快捷键</h3>
+      <ul>
+        <li><code>Ctrl+V</code>（空白处）— 粘贴并立即转换</li>
+        <li><code>Ctrl+Enter</code>（在输入框内）— 触发转换</li>
+        <li><code>Ctrl+Z</code>（在 YAML 编辑器内）— 撤销</li>
+        <li><code>Ctrl+Y</code> / <code>Ctrl+Shift+Z</code>（在 YAML 编辑器内）— 重做</li>
+        <li><code>Escape</code> — 关闭帮助</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════════════ CONFLICT MODAL ════════════════ -->
+<div id="conflict-overlay">
+<div id="conflict-box">
+  <header>
+    <h2>⚠ 定义冲突 — 请选择保留版本</h2>
+    <span id="conflict-progress"></span>
+  </header>
+  <div id="conflict-body">
+    <div id="conflict-info"></div>
+    <div class="diff-panes">
+      <div class="diff-pane baseline">
+        <label>基准 YAML（已有版本）</label>
+        <textarea id="diff-base" readonly></textarea>
+      </div>
+      <div class="diff-pane newver">
+        <label>新解析版本</label>
+        <textarea id="diff-new" readonly></textarea>
+      </div>
+    </div>
+    <div id="conflict-edit-wrap">
+      <label>手动编辑（点击"确认编辑"后使用）</label>
+      <textarea id="conflict-edit" placeholder="在此编辑后点击"确认编辑"…"></textarea>
+    </div>
+  </div>
+  <div id="conflict-footer">
+    <button class="success" onclick="resolveConflict('baseline')">✓ 保留基准</button>
+    <button style="border-color:var(--yellow);color:var(--yellow)" onclick="resolveConflict('new')">↑ 使用新版</button>
+    <button onclick="toggleConflictEdit()" style="border-color:var(--mauve);color:var(--mauve)">✏ 手动编辑</button>
+    <button onclick="resolveConflict('edit')" style="border-color:var(--mauve);color:var(--mauve)" id="btn-confirm-edit" disabled>✓ 确认编辑</button>
+    <button id="conflict-skip-all" onclick="resolveAllBaseline()">全部保留基准</button>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════════════════
+let curFiles = []; // [{name, content}, ...]
+let baselineYaml = null; // loaded baseline YAML text
+let _conflictQueue = [];
+let _conflictResolved = {};
+let _conflictModuleHeader = '';
+
+// ════════════════════════════════════════════════════════════
+// Undo / Redo
+// ════════════════════════════════════════════════════════════
+const _undoStack = [];
+const _redoStack = [];
+const UNDO_MAX   = 100;
+let   _editCheckpoint = '';  // snapshot at last undo boundary
+let   _editTimer;
+
+/** Push a state onto the undo stack and clear redo. */
+function _pushUndo(text) {
+  const last = _undoStack[_undoStack.length - 1];
+  if (last === text) return;
+  _undoStack.push(text);
+  if (_undoStack.length > UNDO_MAX) _undoStack.shift();
+  _redoStack.length = 0;
+  _updateUndoBtns();
+}
+
+/** Unified write: saves current state to undo stack, then sets new content. */
+function writeYaml(text) {
+  const ta  = document.getElementById('yaml-out');
+  const cur = ta.value;
+  if (cur !== text) _pushUndo(cur);
+  _editCheckpoint = text;
+  ta.value = text;
+  updateLnum();
+  updateSbar();
+}
+
+function undoEdit() {
+  if (!_undoStack.length) return;
+  const ta = document.getElementById('yaml-out');
+  _redoStack.push(ta.value);
+  ta.value = _undoStack.pop();
+  _editCheckpoint = ta.value;
+  updateLnum(); updateSbar();
+  _updateUndoBtns();
+  toast('撤销');
+}
+
+function redoEdit() {
+  if (!_redoStack.length) return;
+  const ta = document.getElementById('yaml-out');
+  _undoStack.push(ta.value);
+  ta.value = _redoStack.pop();
+  _editCheckpoint = ta.value;
+  updateLnum(); updateSbar();
+  _updateUndoBtns();
+  toast('重做');
+}
+
+function _updateUndoBtns() {
+  document.getElementById('btn-undo').disabled = _undoStack.length === 0;
+  document.getElementById('btn-redo').disabled = _redoStack.length === 0;
+}
+
+// ════════════════════════════════════════════════════════════
+// UI helpers
+// ════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
+let _toastT;
+function toast(msg, dur = 2000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function showHelp()  { document.getElementById('help-overlay').classList.add('open'); }
+function closeHelp() { document.getElementById('help-overlay').classList.remove('open'); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeHelp();
+  if (e.ctrlKey && e.key === 'Enter') doConvert();
+});
+
+// Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) — only when YAML editor is focused
+document.getElementById('yaml-out').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault(); undoEdit();
+  } else if ((e.ctrlKey && e.key === 'y') ||
+             (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+    e.preventDefault(); redoEdit();
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// Drop zone
+// ════════════════════════════════════════════════════════════
+function dzOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('over'); }
+function dzLeave()  { document.getElementById('dropzone').classList.remove('over'); }
+function dzDrop(e)  { e.preventDefault(); dzLeave(); if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); }
+function onFile(e)  { if (e.target.files.length) loadFiles(e.target.files); e.target.value = ''; }
+
+function loadFiles(fileList) {
+  const arr = Array.from(fileList).filter(f => /\.(h|c|txt)$/i.test(f.name));
+  if (!arr.length) { toast('未找到 .h / .c / .txt 文件'); return; }
+  let done = 0;
+  const results = new Array(arr.length);
+  arr.forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      results[i] = { name: file.name, size: file.size, content: ev.target.result };
+      if (++done === arr.length) {
+        // Append to existing files (allow accumulating from multiple drops)
+        const existingNames = new Set(curFiles.map(f => f.name));
+        results.forEach(r => { if (!existingNames.has(r.name)) curFiles.push(r); });
+        updateDropzoneUI();
+        if (curFiles.length === 1) {
+          document.getElementById('cinput').value = curFiles[0].content;
+          const mod = detectMod(curFiles[0].content, curFiles[0].name);
+          setModName(mod);
+        }
+        doConvert();
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+function updateDropzoneUI() {
+  const dz = document.getElementById('dropzone');
+  if (!curFiles.length) {
+    document.getElementById('dz-icon').textContent = '📂';
+    document.getElementById('dz-text').textContent = '点击或拖拽 .h / .txt 文件';
+    document.getElementById('dz-hint').textContent = '支持多文件，自动去重合并';
+    dz.classList.remove('has');
+    document.getElementById('file-list').innerHTML = '';
+    return;
+  }
+  dz.classList.add('has');
+  if (curFiles.length === 1) {
+    document.getElementById('dz-icon').textContent = '📄';
+    document.getElementById('dz-text').textContent = curFiles[0].name;
+    document.getElementById('dz-hint').textContent = (curFiles[0].size / 1024).toFixed(1) + ' KB';
+  } else {
+    document.getElementById('dz-icon').textContent = '📚';
+    document.getElementById('dz-text').textContent = `${curFiles.length} 个文件已加载`;
+    document.getElementById('dz-hint').textContent = '多文件去重合并，可继续拖入追加';
+  }
+  document.getElementById('file-list').innerHTML = curFiles.map((f, i) =>
+    `<div class="file-item">
+       <span title="${f.name}">${f.name}</span>
+       <span class="dup-badge">${(f.size/1024).toFixed(1)}K</span>
+       <button class="sm danger" onclick="removeFile(${i})" title="移除">✕</button>
+     </div>`
+  ).join('');
+}
+
+function removeFile(idx) {
+  curFiles.splice(idx, 1);
+  updateDropzoneUI();
+  if (curFiles.length > 0) doConvert();
+  else clearInput();
+}
+
+function onCInput() { /* live — convert on button click */ }
+
+// Global paste shortcut (when not in a focused input)
+document.addEventListener('paste', e => {
+  const tag = document.activeElement.tagName;
+  if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+  const text = e.clipboardData.getData('text');
+  if (!text) return;
+  curFiles = [];
+  updateDropzoneUI();
+  document.getElementById('cinput').value = text;
+  const mod = detectMod(text, '');
+  setModName(mod);
+  switchTab('input');
+  doConvert();
+});
+
+// ════════════════════════════════════════════════════════════
+// C Parsing utilities
+// ════════════════════════════════════════════════════════════
+
+function detectMod(src, fn) {
+  if (fn) {
+    const m = fn.match(/(?:ql_npu_|ql_|gt_)?([a-z][a-z0-9_]*)\.(?:h|c|txt)$/i);
+    if (m) return m[1].toLowerCase();
+  }
+  let m = src.match(/#define\s+(?:QL_NPU_|QL_|GT_)?([A-Z][A-Z0-9_]*)_H\b/);
+  if (m) return m[1].toLowerCase();
+  m = src.match(/@file\s+\S*?([a-z][a-z0-9_]*)\.h/i);
+  if (m) return m[1].toLowerCase();
+  return 'module';
+}
+
+function inlineComment(line) {
+  let m = line.match(/\/\/[<]?\s*(.+)/);
+  if (m) return m[1].trim();
+  m = line.match(/\/\*[<]?\s*(.+?)\s*\*\//);
+  if (m) return m[1].trim();
+  return '';
+}
+
+function extractBrief(raw) {
+  if (!raw) return '';
+  let text = raw.replace(/\/\*[\*!]/g, '').replace(/\*\//g, '')
+                .replace(/^\s*\*\s?/gm, '').trim();
+  let m = text.match(/@brief\s+(.+?)(?=\s*@|\n\s*\n|$)/s);
+  if (m) return m[1].replace(/\s+/g, ' ').trim();
+  const first = text.split('\n').find(l => l.trim() && !l.trim().startsWith('@'));
+  return first ? first.trim() : '';
+}
+
+function commentBefore(src, idx) {
+  const pre = src.substring(0, idx).trimEnd();
+  const end = pre.lastIndexOf('*/');
+  if (end < 0) return '';
+  const start = Math.max(pre.lastIndexOf('/**', end), pre.lastIndexOf('/*!', end), pre.lastIndexOf('/*', end));
+  if (start < 0) return '';
+  // No real code between comment end and our position
+  const between = pre.substring(end + 2).trim();
+  if (between && /[;{}]/.test(between)) return '';
+  return pre.substring(start, end + 2);
+}
+
+function getStripList() {
+  return (document.getElementById('o-strip').value || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function stripPfx(name, list) {
+  for (const p of list) if (name.startsWith(p)) return name.slice(p.length);
+  return name;
+}
+
+function parseVal(s) {
+  if (s === undefined) return undefined;
+  s = s.trim();
+  if (/^0[xX][0-9a-fA-F]+[uUlL]*$/.test(s)) return parseInt(s, 16);
+  if (/^0[0-7]+$/.test(s)) return parseInt(s, 8);
+  if (/^[0-9]+[uUlL]*$/.test(s)) return parseInt(s, 10);
+  return s;
+}
+
+// ─── #define macros ────────────────────────────────────────
+function extractDefines(src) {
+  const skipGuard  = document.getElementById('o-skip-guard').checked;
+  const skipFnMac  = document.getElementById('o-skip-fn').checked;
+  const grpMode    = document.getElementById('o-grp').checked;
+  const lines = src.split('\n');
+  const groups = [];
+  let cur = [];
+  let lastDefLine = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const t = raw.trim();
+    if (!t.startsWith('#define')) {
+      if (cur.length && i > lastDefLine + 3) { groups.push([...cur]); cur = []; }
+      continue;
+    }
+    if (skipGuard && /^#define\s+\w+_H\b/.test(t)) continue;
+    if (skipGuard && /^#define\s+_\w+_/.test(t))   continue;
+    if (skipFnMac && /^#define\s+\w+\s*\(/.test(t)) continue;
+    if (t.endsWith('\\')) continue;
+
+    const m = t.match(/^#define\s+(\w+)(?:\s+(.*))?$/);
+    if (!m) continue;
+    const name = m[1];
+    let rawVal = (m[2] || '1').trim()
+      .replace(/\s*\/\/.*$/, '').replace(/\s*\/\*.*?\*\/$/, '').trim();
+
+    const val   = parseVal(rawVal) ?? rawVal;
+    const brief = inlineComment(raw);
+    cur.push({ name, value: val, brief });
+    lastDefLine = i;
+    if (!grpMode) { groups.push([...cur]); cur = []; }
+  }
+  if (cur.length) groups.push(cur);
+  return groups;
+}
+
+// ─── typedef enum ──────────────────────────────────────────
+function extractEnums(src) {
+  const pat = /typedef\s+enum\s+\w*\s*\{([\s\S]*?)\}\s*(\w+)\s*;/g;
+  const list = [];
+  let m;
+  while ((m = pat.exec(src)) !== null) {
+    const typeName = m[2];
+    let name = stripPfx(typeName.replace(/_t$/, ''), getStripList());
+    const body = m[1];
+    const fields = [];
+    const blines = body.split('\n');
+
+    for (let i = 0; i < blines.length; i++) {
+      const line = blines[i];
+      const t = line.trim();
+      if (!t || t.startsWith('//') || t.startsWith('/*')) continue;
+      const fm = t.match(/^([A-Z_][A-Z0-9_]*)(\s*=\s*([^,\/\s]+))?\s*,?/);
+      if (!fm) continue;
+      const fname = fm[1];
+      const fval  = parseVal(fm[3]);
+      let brief = inlineComment(line);
+      if (!brief && i > 0) brief = inlineComment(blines[i - 1]);
+      const f = { name: fname };
+      if (fval !== undefined) f.value = fval;
+      if (brief) f.brief = brief;
+      fields.push(f);
+    }
+    const brief = extractBrief(commentBefore(src, m.index));
+    list.push({ name, typeName, fields, brief });
+  }
+  return list;
+}
+
+// ─── typedef struct ────────────────────────────────────────
+function extractStructs(src) {
+  const pat = /typedef\s+struct\s+\w*\s*\{([\s\S]*?)\}\s*(\w+)\s*;/g;
+  return _extractFields(src, pat, 'struct');
+}
+
+// ─── typedef union ─────────────────────────────────────────
+function extractUnions(src) {
+  const pat = /typedef\s+union\s+\w*\s*\{([\s\S]*?)\}\s*(\w+)\s*;/g;
+  return _extractFields(src, pat, 'union');
+}
+
+function _extractFields(src, pat, kind) {
+  const list = [];
+  let m;
+  while ((m = pat.exec(src)) !== null) {
+    const typeName = m[2];
+    let name = stripPfx(typeName.replace(/_t$/, ''), getStripList());
+    const fields = [];
+    for (const line of m[1].split('\n')) {
+      const t = line.trim();
+      if (!t || t.startsWith('//') || t.match(/^\/\*/) || t.startsWith('#')) continue;
+      // type [*]name[N]; — skip bitfields
+      const fm = t.match(/^((?:const\s+)?[\w\s\*]+?)\s+(\w+)(?:\[(\d+)\])?\s*;/);
+      if (!fm) continue;
+      const ftype = fm[1].trim().replace(/\s+/g, ' ');
+      const fname = fm[2];
+      const brief = inlineComment(line);
+      const f = { name: fname, type: ftype };
+      if (fm[3]) f.array_size = parseInt(fm[3]);
+      if (brief) f.brief = brief;
+      fields.push(f);
+    }
+    const brief = extractBrief(commentBefore(src, m.index));
+    list.push({ name, typeName, fields, brief });
+  }
+  return list;
+}
+
+// ─── typedef (defs) ────────────────────────────────────────
+function extractDefs(src) {
+  const pat = /typedef\s+([\w\s\*]+?)\s+(\w+)\s*;/g;
+  const defs = [];
+  let m;
+  while ((m = pat.exec(src)) !== null) {
+    const base = m[1].trim();
+    const newT = m[2];
+    if (/^(enum|struct|union)\b/.test(base)) continue;
+    if (base.includes('(')) continue;
+    if (newT.endsWith('_e') || newT.endsWith('_s')) continue;
+    defs.push({ name: newT, type: base });
+  }
+  return defs;
+}
+
+// ─── functions ─────────────────────────────────────────────
+function extractFuncs(src) {
+  const pat = /\/\*\*[\s\S]*?\*\/\s*\n[\t ]*([\w_]+(?:\s*\*)?)\s+([\w_]+)\s*\(([^)]*)\)\s*;/g;
+  const list = [];
+  let m;
+  while ((m = pat.exec(src)) !== null) {
+    const brief = extractBrief(m[0].match(/\/\*\*[\s\S]*?\*\//)[0]);
+    list.push({ ret: m[1].trim(), name: m[2], params: m[3].trim().replace(/\s+/g, ' '), brief });
+  }
+  return list;
+}
+
+// ════════════════════════════════════════════════════════════
+// YAML generation
+// ════════════════════════════════════════════════════════════
+function ys(val) {
+  if (val === null || val === undefined) return 'null';
+  if (typeof val === 'boolean') return String(val);
+  if (typeof val === 'number')  return String(val);
+  const s = String(val);
+  if (!s) return '""';
+  if (/[:#{}\[\],&*!|>'"%@`?]/.test(s) || /^\s|\s$/.test(s) ||
+      /^(true|false|null|yes|no|on|off|~)$/i.test(s)) {
+    return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+  }
+  return s;
+}
+
+// ── Generate YAML from a single source string ──────────────
+function generateYaml(src, fn) {
+  let mod = document.getElementById('opt-mod').value.trim();
+  if (!mod) { mod = detectMod(src, fn); setModName(mod); }
+
+  const defGrps = document.getElementById('o-mac').checked ? extractDefines(src) : [];
+  const enms    = document.getElementById('o-enm').checked ? extractEnums(src)   : [];
+  const strs    = document.getElementById('o-str').checked ? extractStructs(src) : [];
+  const uns     = document.getElementById('o-uni').checked ? extractUnions(src)  : [];
+  const defs    = document.getElementById('o-def').checked ? extractDefs(src)    : [];
+  const fns     = document.getElementById('o-fn').checked  ? extractFuncs(src)   : [];
+
+  return buildYaml(mod, defGrps, enms, strs, uns, defs, fns);
+}
+
+// ── Generate YAML from multiple files with deduplication ───
+function generateYamlFromFiles(files) {
+  let mod = document.getElementById('opt-mod').value.trim();
+  if (!mod) { mod = detectMod(files[0].content, files[0].name); setModName(mod); }
+
+  const seenMacro  = new Set();
+  const seenEnum   = new Set();
+  const seenStruct = new Set();
+  const seenUnion  = new Set();
+  const seenDef    = new Set();
+
+  const allDefGrps = [], allEnums = [], allStructs = [], allUnions = [], allDefs = [], allFuncs = [];
+
+  files.forEach(({ content }) => {
+    if (document.getElementById('o-mac').checked) {
+      extractDefines(content).forEach(grp => {
+        const fresh = grp.filter(d => !seenMacro.has(d.name));
+        fresh.forEach(d => seenMacro.add(d.name));
+        if (fresh.length) allDefGrps.push(fresh);
+      });
+    }
+    if (document.getElementById('o-enm').checked) {
+      extractEnums(content).forEach(en => {
+        if (!seenEnum.has(en.name)) { seenEnum.add(en.name); allEnums.push(en); }
+      });
+    }
+    if (document.getElementById('o-str').checked) {
+      extractStructs(content).forEach(st => {
+        if (!seenStruct.has(st.name)) { seenStruct.add(st.name); allStructs.push(st); }
+      });
+    }
+    if (document.getElementById('o-uni').checked) {
+      extractUnions(content).forEach(un => {
+        if (!seenUnion.has(un.name)) { seenUnion.add(un.name); allUnions.push(un); }
+      });
+    }
+    if (document.getElementById('o-def').checked) {
+      extractDefs(content).forEach(d => {
+        if (!seenDef.has(d.name)) { seenDef.add(d.name); allDefs.push(d); }
+      });
+    }
+    if (document.getElementById('o-fn').checked) {
+      extractFuncs(content).forEach(f => allFuncs.push(f));
+    }
+  });
+
+  return buildYaml(mod, allDefGrps, allEnums, allStructs, allUnions, allDefs, allFuncs);
+}
+
+// ── Assemble YAML from pre-parsed data ─────────────────────
+// hideDefaults: if true, omit fields whose value equals the documented default
+let _hideDefaults = false;
+
+function hd(key, val, defaultVal, forceStr) {
+  // Returns a YAML line or '' if hiding defaults
+  if (_hideDefaults && val === defaultVal) return '';
+  const v = forceStr ? ys(String(val)) : (typeof val === 'number' ? val : ys(String(val)));
+  return `${key}${v}`;
+}
+
+function buildYaml(mod, defGrps, enms, strs, uns, defs, fns) {
+  const L    = [`module:`, `  name: ${mod}`];
+  const cpfx = document.getElementById('o-ctype-pfx').value.trim() || 'gt_';
+  const gBase = document.getElementById('o-mac-grp').value.trim() || `${mod}_constants`;
+
+  if (defGrps.length) {
+    L.push('', '  macros:');
+    defGrps.forEach((grp, gi) => {
+      if (!grp.length) return;
+      const gn = defGrps.length > 1 ? `${gBase}_${gi + 1}` : gBase;
+      const dl = hd('    dep_level: ', 0, 0);
+      L.push(`  - name: ${gn}`);
+      if (dl) L.push(dl);
+      L.push(`    fields:`);
+      grp.forEach(d => {
+        L.push(`    - name: ${d.name}`);
+        L.push(`      value: ${typeof d.value === 'number' ? d.value : ys(String(d.value))}`);
+        const br = hd('      brief: ', d.brief || '', '', true);
+        if (br) L.push(br); else if (!_hideDefaults) L.push(`      brief: ""`);
+      });
+    });
+  }
+
+  if (enms.length) {
+    L.push('', '  enums:');
+    enms.forEach(en => {
+      L.push(`  - name: ${en.name}`);
+      const dl = hd('    dep_level: ', 0, 0);
+      if (dl) L.push(dl); else if (!_hideDefaults) L.push(`    dep_level: 0`);
+      const br = hd('    brief: ', en.brief || '', '', true);
+      if (br) L.push(br); else if (!_hideDefaults) L.push(`    brief: ""`);
+      if (en.fields.length) {
+        L.push(`    fields:`);
+        en.fields.forEach(f => {
+          L.push(`    - name: ${f.name}`);
+          if (f.value !== undefined) L.push(`      value: ${f.value}`);
+          else if (!_hideDefaults) L.push(`      value: ~`);
+          const fb = hd('      brief: ', f.brief || '', '', true);
+          if (fb) L.push(fb); else if (!_hideDefaults) L.push(`      brief: ""`);
+        });
+      }
+      L.push(`    c_type: uint8`, `    m_type: u8`);
+    });
+  }
+
+  if (strs.length) {
+    L.push('', '  structs:');
+    strs.forEach(st => {
+      const ctype = `${cpfx}${st.name}_t`;
+      L.push(`  - name: ${st.name}`);
+      const dl = hd('    dep_level: ', 0, 0);
+      if (dl) L.push(dl); else if (!_hideDefaults) L.push(`    dep_level: 0`);
+      L.push(`    c_type: ${ctype}`, `    m_type: ${st.name}`);
+      const br = hd('    brief: ', st.brief || '', '', true);
+      if (br) L.push(br); else if (!_hideDefaults) L.push(`    brief: ""`);
+      if (st.fields.length) {
+        L.push(`    fields:`);
+        st.fields.forEach(f => {
+          L.push(`    - name: ${f.name}`, `      type: ${f.type}`);
+          if (f.array_size) L.push(`      array_size: ${f.array_size}`);
+          else if (!_hideDefaults) L.push(`      array_size: ~`);
+          const fb = hd('      brief: ', f.brief || '', '', true);
+          if (fb) L.push(fb); else if (!_hideDefaults) L.push(`      brief: ""`);
+        });
+      }
+    });
+  }
+
+  if (uns.length) {
+    L.push('', '  unions:');
+    uns.forEach(un => {
+      const ctype = `${cpfx}${un.name}_t`;
+      L.push(`  - name: ${un.name}`);
+      const dl = hd('    dep_level: ', 0, 0);
+      if (dl) L.push(dl); else if (!_hideDefaults) L.push(`    dep_level: 0`);
+      L.push(`    c_type: ${ctype}`, `    m_type: ${un.name}`);
+      const br = hd('    brief: ', un.brief || '', '', true);
+      if (br) L.push(br); else if (!_hideDefaults) L.push(`    brief: ""`);
+      if (un.fields.length) {
+        L.push(`    fields:`);
+        un.fields.forEach(f => {
+          L.push(`    - name: ${f.name}`, `      type: ${f.type}`);
+          if (f.array_size) L.push(`      array_size: ${f.array_size}`);
+          else if (!_hideDefaults) L.push(`      array_size: ~`);
+          const fb = hd('      brief: ', f.brief || '', '', true);
+          if (fb) L.push(fb); else if (!_hideDefaults) L.push(`      brief: ""`);
+        });
+      }
+    });
+  }
+
+  if (defs.length) {
+    L.push('', '  defs:');
+    defs.forEach(d => L.push(`  - name: ${d.name}`, `    type: ${d.type}`));
+  }
+
+  if (fns.length) {
+    L.push('', `  # ── Functions (${fns.length}) — 可参考下方添加为 object attributes:`);
+    fns.forEach(f => L.push(`  # ${f.name}(${f.params}) — ${f.brief || f.ret}`));
+  }
+
+  if (L.length <= 2) {
+    L.push('', '  objects:');
+    L.push(`  - name: ${mod}`);
+    L.push('    key: gt_handle_t', '    support_stats: false', '    support_bulk: false', '    exported: true');
+    L.push('    attributes:');
+    L.push('    - name: TODO', '      type: uint32', '      flags: CREATE_AND_SET');
+  }
+
+  return L.join('\n');
+}
+
+function toggleHideDefaults() {
+  _hideDefaults = !_hideDefaults;
+  const btn = document.getElementById('btn-hide-defaults');
+  btn.textContent = _hideDefaults ? '显示所有字段' : '隐藏默认值';
+  btn.style.borderColor = _hideDefaults ? 'var(--yellow)' : '';
+  btn.style.color       = _hideDefaults ? 'var(--yellow)' : '';
+  doConvert();
+  toast(_hideDefaults ? '已隐藏默认值字段（brief:"", dep_level:0 等）' : '已显示所有字段（含默认值）');
+}
+
+// ════════════════════════════════════════════════════════════
+// Convert action
+// ════════════════════════════════════════════════════════════
+function doConvert() {
+  let newYaml, fname = '';
+  if (curFiles.length > 0) {
+    newYaml = generateYamlFromFiles(curFiles);
+    fname   = curFiles[0].name;
+  } else {
+    const src = document.getElementById('cinput').value.trim();
+    if (!src) { toast('请先粘贴 C 代码或上传文件'); return; }
+    newYaml = generateYaml(src, '');
+  }
+
+  if (!baselineYaml) {
+    setYaml(newYaml, fname);
+    const lines = newYaml.split('\n').length;
+    const msg = curFiles.length > 1
+      ? `${curFiles.length} 文件去重合并 · ${lines} 行 YAML`
+      : `转换完成 · ${lines} 行 YAML`;
+    toast(msg);
+    return;
+  }
+
+  // Merge with baseline
+  const { resolved, conflicts } = mergeWithBaseline(newYaml);
+  const moduleHeader  = getModuleHeader(newYaml);
+  const objectsBlock  = extractObjectsBlock(baselineYaml); // preserve baseline objects section
+
+  if (!conflicts.length) {
+    const yaml = rebuildYamlFromResolved(moduleHeader, resolved, objectsBlock);
+    setYaml(yaml, fname);
+    toast(`已与基准合并（无冲突） · ${yaml.split('\n').length} 行`);
+    return;
+  }
+
+  // Has conflicts — show dialog; YAML will be written after all are resolved
+  toast(`发现 ${conflicts.length} 个定义冲突，请逐一处理…`, 4000);
+  startConflictFlow(resolved, conflicts, moduleHeader, objectsBlock);
+}
+
+// ════════════════════════════════════════════════════════════
+// YAML editor management
+// ════════════════════════════════════════════════════════════
+function setYaml(text, fileName) {
+  writeYaml(text);
+  const fname = fileName || (curFiles.length > 0 ? curFiles[0].name : '');
+  if (fname) {
+    const mod = document.getElementById('opt-mod').value || detectMod(text, fname);
+    const ft = document.getElementById('ftag');
+    ft.textContent = mod + '.yaml';
+    ft.style.display = '';
+  }
+}
+
+function onEdit() {
+  updateLnum(); updateSbar();
+  // Debounced undo snapshot: push the state before the current edit burst
+  clearTimeout(_editTimer);
+  _editTimer = setTimeout(() => {
+    const ta  = document.getElementById('yaml-out');
+    const cur = ta.value;
+    if (cur !== _editCheckpoint) {
+      _pushUndo(_editCheckpoint);
+      _editCheckpoint = cur;
+    }
+  }, 800);
+}
+
+function updateLnum() {
+  const ta = document.getElementById('yaml-out');
+  const n = ta.value.split('\n').length;
+  document.getElementById('lnum').textContent = Array.from({length: n}, (_, i) => i + 1).join('\n');
+}
+
+function syncLnum() {
+  document.getElementById('lnum').scrollTop = document.getElementById('yaml-out').scrollTop;
+}
+
+function updateSbar() {
+  const text = document.getElementById('yaml-out').value;
+  const lines = text.split('\n').length;
+  const chars = text.length;
+  document.getElementById('sb-lines').textContent = lines + ' 行';
+  document.getElementById('sb-chars').textContent = chars + ' 字符';
+  const mm = text.match(/^  name:\s*(.+)/m);
+  const modN = mm ? mm[1].trim() : '';
+  document.getElementById('sb-mod').textContent = modN ? `module: ${modN}` : '';
+
+  const s = document.getElementById('sb-status');
+  if (!text) { s.textContent = '就绪'; s.className = 'ok'; return; }
+  if (!text.startsWith('module:')) {
+    s.textContent = '⚠ 非标准格式'; s.className = 'warn';
+  } else {
+    s.textContent = '✓ 格式正常'; s.className = 'ok';
+  }
+
+  // Update topbar info
+  const enCnt  = (text.match(/^  enums:/m)   ? (text.match(/^    - name:/gm) || []).length : 0);
+  const strCnt = (text.match(/^  structs:/m)  ? 1 : 0);
+  document.getElementById('rtinfo').textContent =
+    modN ? `module: ${modN}  ·  ${lines} 行  ·  ${chars} 字符` : '就绪';
+}
+
+function clearOut() {
+  writeYaml('');
+  document.getElementById('lnum').textContent = '';
+  document.getElementById('ftag').style.display = 'none';
+}
+
+function clearInput() {
+  curFiles = [];
+  document.getElementById('cinput').value = '';
+  updateDropzoneUI();
+}
+
+// ════════════════════════════════════════════════════════════
+// Copy & Download
+// ════════════════════════════════════════════════════════════
+function copyYaml() {
+  const text = document.getElementById('yaml-out').value;
+  if (!text) { toast('没有内容可复制'); return; }
+  navigator.clipboard.writeText(text)
+    .then(() => toast('已复制到剪贴板 ✓'))
+    .catch(() => { document.getElementById('yaml-out').select(); document.execCommand('copy'); toast('已复制 ✓'); });
+}
+
+function dlYaml() {
+  const text = document.getElementById('yaml-out').value;
+  if (!text) { toast('没有内容可下载'); return; }
+  const mm = text.match(/^  name:\s*(.+)/m);
+  const fname = (mm ? mm[1].trim() : 'module').replace(/[^\w]/g, '_') + '.yaml';
+  const blob = new Blob([text], { type: 'text/yaml;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fname });
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('已下载 ' + fname);
+}
+
+// ════════════════════════════════════════════════════════════
+// Format
+// ════════════════════════════════════════════════════════════
+function fmtYaml() {
+  const ta = document.getElementById('yaml-out');
+  if (!ta.value) return;
+  const formatted = ta.value.split('\n').map(l => l.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  writeYaml(formatted);
+  toast('格式化完成');
+}
+
+// ════════════════════════════════════════════════════════════
+// Manual insertion helpers
+// ════════════════════════════════════════════════════════════
+function syncModName(v) {
+  document.getElementById('man-mod').value = v;
+  document.getElementById('opt-mod').value = v;
+}
+
+function getYamlTA() { return document.getElementById('yaml-out'); }
+
+// Insert text after the last entry in a YAML section (or create section)
+function insertIntoSection(sectionKey, content) {
+  const ta = getYamlTA();
+  let text = ta.value;
+  const idx = text.indexOf('\n' + sectionKey);
+  if (idx < 0) {
+    // Section missing — append at end
+    text = text.trimEnd() + '\n\n' + sectionKey + '\n' + content;
+  } else {
+    // Find next top-level section at same indent level
+    const searchFrom = idx + sectionKey.length + 2;
+    const nextSec = text.indexOf('\n  ' , searchFrom);
+    // Find within section: last non-whitespace position
+    const sectionEnd = nextSec < 0 ? text.length : nextSec;
+    const sectionBody = text.substring(idx, sectionEnd).trimEnd();
+    const insertAt = idx + sectionBody.length;
+    text = text.substring(0, insertAt) + '\n' + content + text.substring(insertAt);
+  }
+  writeYaml(text);
+}
+
+function insertMacro() {
+  const name  = document.getElementById('mc-name').value.trim();
+  const val   = document.getElementById('mc-val').value.trim();
+  const brief = document.getElementById('mc-brief').value.trim();
+  const dep   = parseInt(document.getElementById('mc-dep').value) || 0;
+  const grpN  = document.getElementById('mc-group').value.trim()
+              || (document.getElementById('opt-mod').value || 'module') + '_constants';
+  if (!name) { toast('请填写宏名'); return; }
+
+  const ta = getYamlTA();
+  let text = ta.value;
+  // Try to find existing group
+  const grpLine = `  - name: ${grpN}`;
+  const gi = text.indexOf(grpLine);
+  if (gi >= 0) {
+    // Append field to existing group
+    const fStart = text.indexOf('\n    fields:', gi);
+    if (fStart >= 0) {
+      // Find end of fields block
+      const afterFields = text.indexOf('\n  ', fStart + 12);
+      const insertAt = afterFields < 0 ? text.length : afterFields;
+      const blob = `\n    - name: ${name}\n      value: ${val || 0}${brief ? '\n      brief: ' + ys(brief) : ''}`;
+      writeYaml(text.substring(0, insertAt) + blob + text.substring(insertAt));
+      toast(`字段 ${name} 已追加到 ${grpN}`); return;
+    }
+  }
+
+  // Create new macros entry
+  const L = [`  - name: ${grpN}`, `    dep_level: ${dep}`, `    fields:`,
+             `    - name: ${name}`, `      value: ${val || 0}`];
+  if (brief) L.push(`      brief: ${ys(brief)}`);
+  insertIntoSection('  macros:', L.join('\n'));
+  toast('Macro 已插入');
+}
+
+function autoFillCtype() {
+  const name = document.getElementById('su-name').value.trim();
+  if (!name) return;
+  const pfx = document.getElementById('o-ctype-pfx')?.value.trim() || 'gt_';
+  document.getElementById('su-ctype').value = `${pfx}${name}_t`;
+  document.getElementById('su-mtype').value = name;
+}
+
+function insertStruct() {
+  const name  = document.getElementById('su-name').value.trim();
+  const kind  = document.getElementById('su-kind').value;
+  const ctype = document.getElementById('su-ctype').value.trim();
+  const mtype = document.getElementById('su-mtype').value.trim();
+  const brief = document.getElementById('su-brief').value.trim();
+  const dep   = parseInt(document.getElementById('su-dep').value) || 0;
+  const fieldsT = document.getElementById('su-fields').value.trim();
+  if (!name)  { toast('请填写名称'); return; }
+  if (!ctype) { toast('请填写 c_type'); return; }
+
+  const L = [`  - name: ${name}`, `    dep_level: ${dep}`,
+             `    c_type: ${ctype}`, `    m_type: ${mtype || name}`];
+  if (brief) L.push(`    brief: ${ys(brief)}`);
+  if (fieldsT) {
+    L.push(`    fields:`);
+    fieldsT.split('\n').forEach(fl => {
+      const parts = fl.trim().split(/\s+/);
+      if (parts.length < 2) return;
+      const arrM = parts[1].match(/^([\w\*]+)\[(\d+)\]$/);
+      if (arrM) {
+        L.push(`    - name: ${parts[0]}`, `      type: ${arrM[1]}`);
+        L.push(`      array_size: ${arrM[2]}`);
+      } else {
+        L.push(`    - name: ${parts[0]}`, `      type: ${parts[1]}`);
+      }
+      if (parts.length > 2) L.push(`      brief: ${ys(parts.slice(2).join(' '))}`);
+    });
+  }
+  const section = kind === 'union' ? '  unions:' : '  structs:';
+  insertIntoSection(section, L.join('\n'));
+  toast(`${kind === 'union' ? 'Union' : 'Struct'} "${name}" 已插入`);
+}
+
+function insertEnum() {
+  const name   = document.getElementById('en-name').value.trim();
+  const brief  = document.getElementById('en-brief').value.trim();
+  const fieldsT= document.getElementById('en-fields').value.trim();
+  const ct     = document.getElementById('en-ct').value;
+  const mt     = document.getElementById('en-mt').value;
+  const dep    = parseInt(document.getElementById('en-dep').value) || 0;
+  if (!name) { toast('请填写枚举名'); return; }
+
+  const L = [`  - name: ${name}`, `    dep_level: ${dep}`];
+  if (brief) L.push(`    brief: ${ys(brief)}`);
+  if (fieldsT) {
+    L.push(`    fields:`);
+    fieldsT.split('\n').forEach(fl => {
+      const parts = fl.trim().split(/\s+/);
+      if (!parts[0]) return;
+      L.push(`    - name: ${parts[0]}`);
+      if (parts[1] !== undefined) L.push(`      value: ${parts[1]}`);
+      if (parts.length > 2) L.push(`      brief: ${ys(parts.slice(2).join(' '))}`);
+    });
+  }
+  L.push(`    c_type: ${ct}`, `    m_type: ${mt}`);
+  insertIntoSection('  enums:', L.join('\n'));
+  toast('Enum 已插入');
+}
+
+function insertObject() {
+  const name     = document.getElementById('ob-name').value.trim();
+  const key      = document.getElementById('ob-key').value;
+  const stats    = document.getElementById('ob-stats').checked;
+  const bulk     = document.getElementById('ob-bulk').checked;
+  const exported = document.getElementById('ob-exp').checked;
+  const dbType   = document.getElementById('o-db').value;
+  const dbMax    = document.getElementById('o-dbmax').value;
+  if (!name) { toast('请填写 Object 名'); return; }
+
+  const L = [`  - name: ${name}`, `    key: ${key}`,
+             `    support_stats: ${stats}`, `    support_bulk: ${bulk}`,
+             `    exported: ${exported}`];
+  if (dbType) L.push(`    db_type: ${dbType}`);
+  if (dbMax)  L.push(`    db_inst_max: ${parseInt(dbMax)}`);
+  L.push(`    attributes:`, `    - name: TODO`, `      type: uint32`, `      flags: CREATE_AND_SET`);
+  insertIntoSection('  objects:', L.join('\n'));
+  toast('Object 已插入');
+}
+
+function tpl(n, tp, br, fl, rng, df, cond) {
+  document.getElementById('at-name').value  = n;
+  document.getElementById('at-type').value  = tp;
+  document.getElementById('at-brief').value = br;
+  document.getElementById('at-flags').value = fl;
+  document.getElementById('at-range').value = rng;
+  document.getElementById('at-def').value   = df;
+  document.getElementById('at-cond').value  = cond;
+}
+
+function insertAttr() {
+  const name  = document.getElementById('at-name').value.trim();
+  const type  = document.getElementById('at-type').value.trim() || 'uint32';
+  const brief = document.getElementById('at-brief').value.trim();
+  const flags = document.getElementById('at-flags').value;
+  const range = document.getElementById('at-range').value.trim();
+  const def   = document.getElementById('at-def').value.trim();
+  const cond  = document.getElementById('at-cond').value.trim();
+  if (!name) { toast('请填写属性名'); return; }
+
+  const L = [`    - name: ${name}`];
+  if (brief) L.push(`      brief: ${ys(brief)}`);
+  L.push(`      type: ${type}`);
+  if (range) L.push(`      range: ${ys(range)}`);
+  L.push(`      flags: ${flags}`);
+  if (def) {
+    const dv = /^(null|true|false)$/.test(def) || /^[0-9]+$/.test(def) ? def : ys(def);
+    L.push(`      default: ${dv}`);
+  }
+  if (cond) L.push(`      condition: ${cond}`);
+  const blob = L.join('\n');
+
+  // Append to last attributes block
+  const ta = getYamlTA();
+  let text = ta.value;
+  const lastAttr = text.lastIndexOf('\n    attributes:');
+  if (lastAttr < 0) {
+    text = text.trimEnd() + '\n\n  objects:\n  - name: ' +
+           (document.getElementById('opt-mod').value || 'module') +
+           '\n    key: gt_handle_t\n    support_stats: false\n    support_bulk: false\n    exported: true\n    attributes:\n' + blob;
+  } else {
+    const nextObjIdx = text.indexOf('\n  - name:', lastAttr + 1);
+    const insertAt = nextObjIdx < 0 ? text.trimEnd().length : nextObjIdx;
+    text = text.substring(0, insertAt) + '\n' + blob + text.substring(insertAt);
+  }
+  writeYaml(text);
+  toast(`Attribute "${name}" 已插入`);
+}
+
+// ════════════════════════════════════════════════════════════
+// Example
+// ════════════════════════════════════════════════════════════
+function loadExample() {
+  const ex = `/** @file gt_port.h
+ * @brief Port configuration API header.
+ */
+#ifndef GT_PORT_H
+#define GT_PORT_H
+
+#define GT_PORT_SPEED_MAX    400000  ///< Maximum port speed in Mbps
+#define GT_PORT_LANE_MAX     7       ///< Max lane index (0-based)
+#define GT_PORT_LANE_NUM     8       ///< Total lanes per port
+
+/** Port operational state */
+typedef enum gt_port_state_e {
+    GT_PORT_STATE_DOWN = 0,    ///< Port is down
+    GT_PORT_STATE_UP   = 1,    ///< Port is up and forwarding
+    GT_PORT_STATE_TEST = 2,    ///< Port is in test mode
+} gt_port_state_t;
+
+/** Port speed values */
+typedef enum gt_port_speed_e {
+    GT_PORT_SPEED_10G   = 10000,
+    GT_PORT_SPEED_25G   = 25000,
+    GT_PORT_SPEED_100G  = 100000,
+    GT_PORT_SPEED_400G  = 400000,
+} gt_port_speed_t;
+
+/** Port statistics snapshot */
+typedef struct gt_port_stats_s {
+    uint64 rx_pkts;    ///< Received packets
+    uint64 tx_pkts;    ///< Transmitted packets
+    uint64 rx_bytes;   ///< Received bytes
+    uint64 tx_bytes;   ///< Transmitted bytes
+    uint32 rx_drop;    ///< Receive drop count
+    uint32 tx_drop;    ///< Transmit drop count
+} gt_port_stats_t;
+
+/** ****************************************************
+ * @brief Get port operational state.
+ * @param chip   Chip index.
+ * @param handle Port handle.
+ * @param state  Output state value.
+ * @return gt_status_t
+ *****************************************************/
+gt_status_t gta_port_state_get(gt_chip_t chip, gt_handle_t handle,
+                                gt_port_state_t *state);
+
+#endif /* GT_PORT_H */
+`;
+  curFiles = [];
+  updateDropzoneUI();
+  document.getElementById('cinput').value = ex;
+  setModName('port');
+  switchTab('input');
+  doConvert();
+}
+
+// ════════════════════════════════════════════════════════════
+// Resize panel
+// ════════════════════════════════════════════════════════════
+let _rsing = false, _rsX = 0, _rsW = 0;
+function rsStart(e) {
+  _rsing = true; _rsX = e.clientX; _rsW = document.getElementById('left').offsetWidth;
+  document.getElementById('resizer').classList.add('drag');
+  document.addEventListener('mousemove', rsMove);
+  document.addEventListener('mouseup', rsEnd);
+  e.preventDefault();
+}
+function rsMove(e) {
+  if (!_rsing) return;
+  const w = Math.min(Math.max(_rsW + e.clientX - _rsX, 220), 560);
+  document.getElementById('left').style.width = w + 'px';
+}
+function rsEnd() {
+  _rsing = false;
+  document.getElementById('resizer').classList.remove('drag');
+  document.removeEventListener('mousemove', rsMove);
+  document.removeEventListener('mouseup', rsEnd);
+}
+
+// ════════════════════════════════════════════════════════════
+// Module name sync
+// ════════════════════════════════════════════════════════════
+function setModName(mod) {
+  document.getElementById('opt-mod').value  = mod;
+  document.getElementById('man-mod').value  = mod;
+}
+
+// ════════════════════════════════════════════════════════════
+// Baseline YAML
+// ════════════════════════════════════════════════════════════
+function onBaselineFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    baselineYaml = ev.target.result;
+    const badge = document.getElementById('baseline-badge');
+    badge.textContent = '⚓ ' + file.name;
+    badge.style.display = '';
+    document.getElementById('btn-clear-baseline').style.display = '';
+    toast('基准 YAML 已加载: ' + file.name, 2500);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function clearBaseline() {
+  baselineYaml = null;
+  document.getElementById('baseline-badge').style.display = 'none';
+  document.getElementById('btn-clear-baseline').style.display = 'none';
+  toast('基准 YAML 已清除');
+}
+
+// ── Parse YAML sections into Map<name, blockText> per section type ──
+function parseYamlSections(yamlText) {
+  const result = {};
+  const sectionTypes = ['macros', 'enums', 'structs', 'unions', 'defs'];
+  const boundaries = [];
+
+  // Collect all section boundary positions
+  for (const st of sectionTypes) {
+    const idx = yamlText.indexOf('\n  ' + st + ':');
+    if (idx >= 0) boundaries.push({ st, idx });
+  }
+  const objIdx = yamlText.indexOf('\n  objects:');
+  if (objIdx >= 0) boundaries.push({ st: '__objects__', idx: objIdx });
+  boundaries.sort((a, b) => a.idx - b.idx);
+
+  for (let bi = 0; bi < boundaries.length; bi++) {
+    const { st, idx } = boundaries[bi];
+    if (st === '__objects__') continue;
+    const endIdx = bi + 1 < boundaries.length ? boundaries[bi + 1].idx : yamlText.length;
+    const secBody = yamlText.substring(idx, endIdx);
+
+    const items = new Map();
+    const parts = secBody.split(/\n(?=  - name:)/);
+    for (const part of parts) {
+      const nm = part.match(/  - name:\s*(\S+)/);
+      if (nm) items.set(nm[1], part.replace(/^\n/, '').trimEnd());
+    }
+    if (items.size > 0) result[st] = items;
+  }
+  return result;
+}
+
+// Extract the objects block verbatim from YAML (to preserve it across rebuilds)
+function extractObjectsBlock(yamlText) {
+  const idx = yamlText.indexOf('\n  objects:');
+  return idx >= 0 ? yamlText.substring(idx) : '';
+}
+
+function getModuleHeader(yamlText) {
+  const m = yamlText.match(/^module:\n  name:\s*.+/m);
+  return m ? m[0] : 'module:\n  name: module';
+}
+
+function normalizeBlock(block) {
+  return block.trim().replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n');
+}
+
+function mergeWithBaseline(newYaml) {
+  const newSections  = parseYamlSections(newYaml);
+  const baseSections = parseYamlSections(baselineYaml);
+  const conflicts    = [];
+  const resolved     = {};
+  const sectionTypes = ['macros', 'enums', 'structs', 'unions', 'defs'];
+
+  for (const st of sectionTypes) {
+    const newItems  = newSections[st]  || new Map();
+    const baseItems = baseSections[st] || new Map();
+    if (!newItems.size && !baseItems.size) continue;
+    resolved[st] = new Map();
+
+    // Items in new YAML
+    for (const [name, newBlock] of newItems) {
+      if (!baseItems.has(name)) {
+        resolved[st].set(name, newBlock);            // new — add
+      } else {
+        const baseBlock = baseItems.get(name);
+        if (normalizeBlock(baseBlock) === normalizeBlock(newBlock)) {
+          resolved[st].set(name, baseBlock);         // identical — keep baseline
+        } else {
+          conflicts.push({ section: st, name, baseBlock, newBlock });
+          resolved[st].set(name, baseBlock);         // tentatively keep baseline
+        }
+      }
+    }
+    // Items only in baseline — keep them
+    for (const [name, baseBlock] of baseItems) {
+      if (!newItems.has(name)) resolved[st].set(name, baseBlock);
+    }
+  }
+  // Sections only in baseline (not generated by new parse)
+  for (const st of sectionTypes) {
+    if (!resolved[st] && baseSections[st] && baseSections[st].size > 0) {
+      resolved[st] = new Map(baseSections[st]);
+    }
+  }
+  return { resolved, conflicts };
+}
+
+function rebuildYamlFromResolved(moduleHeader, resolved, objectsBlock) {
+  const sectionOrder  = ['macros', 'enums', 'structs', 'unions', 'defs'];
+  const sectionLabels = { macros:'  macros:', enums:'  enums:', structs:'  structs:', unions:'  unions:', defs:'  defs:' };
+  const lines = [moduleHeader];
+  for (const sk of sectionOrder) {
+    if (!resolved[sk] || !resolved[sk].size) continue;
+    lines.push('', sectionLabels[sk]);
+    for (const [, block] of resolved[sk]) lines.push(block);
+  }
+  if (objectsBlock) lines.push(objectsBlock);
+  return lines.join('\n');
+}
+
+// ── Conflict dialog ──────────────────────────────────────────
+function startConflictFlow(resolved, conflicts, moduleHeader, objectsBlock) {
+  _conflictQueue        = conflicts.slice();
+  _conflictResolved     = resolved;
+  _conflictModuleHeader = moduleHeader;
+  _conflictObjectsBlock = objectsBlock;
+  _showNextConflict();
+}
+let _conflictObjectsBlock = '';
+
+function _showNextConflict() {
+  if (!_conflictQueue.length) {
+    document.getElementById('conflict-overlay').classList.remove('open');
+    const yaml = rebuildYamlFromResolved(_conflictModuleHeader, _conflictResolved, _conflictObjectsBlock);
+    writeYaml(yaml);
+    updateSbar();
+    toast(`合并完成，已解决所有冲突`);
+    return;
+  }
+  const c   = _conflictQueue[0];
+  const tot = _conflictQueue.length;
+  document.getElementById('conflict-progress').textContent = `剩余 ${tot} 个冲突`;
+  document.getElementById('conflict-info').textContent     = `[${c.section}]  ${c.name}`;
+  document.getElementById('diff-base').value  = c.baseBlock.trim();
+  document.getElementById('diff-new').value   = c.newBlock.trim();
+  document.getElementById('conflict-edit').value   = c.baseBlock.trim();
+  document.getElementById('conflict-edit').style.display = 'none';
+  document.getElementById('btn-confirm-edit').disabled    = true;
+  document.getElementById('conflict-overlay').classList.add('open');
+}
+
+function resolveConflict(choice) {
+  const c = _conflictQueue.shift();
+  let block;
+  if (choice === 'baseline') {
+    block = c.baseBlock;
+  } else if (choice === 'new') {
+    block = c.newBlock;
+  } else {
+    block = document.getElementById('conflict-edit').value.trim() || c.baseBlock;
+  }
+  _conflictResolved[c.section].set(c.name, block);
+  _showNextConflict();
+}
+
+function resolveAllBaseline() {
+  while (_conflictQueue.length) {
+    const c = _conflictQueue.shift();
+    _conflictResolved[c.section].set(c.name, c.baseBlock);
+  }
+  _showNextConflict();
+}
+
+function toggleConflictEdit() {
+  const el  = document.getElementById('conflict-edit');
+  const btn = document.getElementById('btn-confirm-edit');
+  const show = el.style.display === 'none';
+  el.style.display  = show ? '' : 'none';
+  btn.disabled      = !show;
+  if (show) {
+    const c = _conflictQueue[0];
+    if (c) el.value = c.baseBlock.trim();
+    el.focus();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Init
+// ════════════════════════════════════════════════════════════
+_editCheckpoint = document.getElementById('yaml-out').value;
+_updateUndoBtns();
+updateLnum();
+updateSbar();
+</script>
+</body>
+</html>

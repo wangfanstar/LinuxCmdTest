@@ -29,7 +29,8 @@
       "Bash(which gcc *)",
       "Bash(ls /usr/bin/gcc*)",
       "Bash(grep -v \"^E:/MCP_PROJECT/wfserver/wfwebserver/html/[^/]*\\\\.html$\")",
-      "Bash(grep -v \"^\\\\s*//\")"
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

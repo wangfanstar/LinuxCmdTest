@@ -84,6 +84,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .view-toc-list a.l4{padding-left:32px}
 .view-toc-empty{font-size:.74rem;color:var(--dim);padding:6px 8px}
 @media (max-width: 1200px){.view-toc{display:none}}
+/* ── drag resizers ── */
+.sidebar-resizer{width:5px;flex-shrink:0;background:var(--border);cursor:col-resize;transition:background .2s}
+.sidebar-resizer:hover,.sidebar-resizer.dragging{background:var(--accent)}
+.toc-resizer{width:5px;flex-shrink:0;margin:0 10px;background:var(--border);cursor:col-resize;transition:background .2s}
+.toc-resizer:hover,.toc-resizer.dragging{background:var(--accent)}
+.view-body{gap:0}
+body.col-resizing{cursor:col-resize!important;user-select:none!important;pointer-events:none}
+body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events:auto}
+@media (max-width:1200px){.toc-resizer{display:none}}
 /* article content styles */
 .art-content h1,.art-content h2,.art-content h3,.art-content h4,.art-content h5,.art-content h6{margin:1.3em 0 .5em;line-height:1.35}
 .art-content h1{font-size:1.4rem;color:#79c0ff}
@@ -246,6 +255,30 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ctx-item:hover{background:rgba(255,255,255,.07)}
 .ctx-item.danger{color:var(--red)}
 .ctx-sep{height:1px;background:var(--border);margin:3px 0}
+/* ── local-link modal ── */
+.ll-tabs{display:flex;border-bottom:1px solid var(--border2);margin-bottom:8px;gap:0}
+.ll-tab{padding:7px 16px;font-size:.8rem;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.ll-tab:hover{color:var(--text)}
+.ll-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.ll-pane{display:none;flex-direction:column;gap:7px}
+.ll-pane.active{display:flex}
+.ll-hint{background:rgba(56,139,253,.07);border:1px solid rgba(56,139,253,.18);border-radius:5px;padding:8px 11px;font-size:.74rem;color:var(--dim);line-height:1.7}
+.ll-hint code{color:#ffa657;background:rgba(255,166,87,.13);padding:1px 5px;border-radius:3px;font-size:.74rem}
+.ll-search{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 9px;font-size:.8rem;outline:none}
+.ll-search:focus{border-color:var(--accent)}
+.ll-list{max-height:188px;overflow-y:auto;border:1px solid var(--border);border-radius:5px;background:var(--bg)}
+.ll-item{padding:6px 10px;cursor:pointer;display:flex;align-items:baseline;gap:8px;font-size:.8rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.ll-item:last-child{border-bottom:none}
+.ll-item:hover{background:rgba(255,255,255,.05)}
+.ll-item.selected{background:rgba(56,139,253,.15);color:#8cc2ff}
+.ll-item-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ll-item-meta{font-size:.7rem;color:var(--dim);flex-shrink:0;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ll-item-level{font-size:.7rem;color:var(--dim);flex-shrink:0;width:20px;text-align:right}
+.ll-row{display:flex;align-items:center;gap:8px}
+.ll-row label{font-size:.75rem;color:var(--dim);white-space:nowrap;width:52px;flex-shrink:0}
+.ll-inp{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:.8rem;outline:none}
+.ll-inp:focus{border-color:var(--accent)}
+.ll-preview{flex:1;font-size:.74rem;color:#79c0ff;font-family:'Consolas','Courier New',monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:5px 8px;min-height:26px;word-break:break-all}
 </style>
 </head>
 <body>
@@ -279,6 +312,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     </div>
     <div class="sb-tree" id="sb-tree"></div>
   </div>
+  <div class="sidebar-resizer" id="sidebar-resizer"></div>
 
   <!-- main -->
   <div class="main-area">
@@ -305,6 +339,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
           <div class="view-meta" id="view-meta"></div>
           <div class="art-content" id="view-content"></div>
         </div>
+        <div class="toc-resizer" id="toc-resizer"></div>
         <aside class="view-toc" id="view-toc">
           <div class="view-toc-title">本文目录</div>
           <div class="view-toc-list" id="view-toc-list">
@@ -354,6 +389,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="tb('ol')"     title="有序列表">1. 列</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="openLinkModal()" title="插入链接">🔗</button>
+        <button class="tb-btn" onclick="openLocalLinkModal()" title="插入本地链接（Ctrl+Alt+W）">🏠</button>
         <button class="tb-btn" onclick="openImgUpload()" title="插入图片（Ctrl+Alt+I）">🖼</button>
         <button class="tb-btn" onclick="openAttachmentUpload()" title="上传附件（Ctrl+Alt+A）">📎</button>
         <button class="tb-btn" onclick="openColorPicker()" title="文字颜色">🎨</button>
@@ -525,6 +561,43 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeLinkModal()">取消</button>
       <button class="btn btn-primary" onclick="doInsertLink()">插入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 本地链接 modal -->
+<div class="modal-overlay" id="modal-local-link">
+  <div class="modal-box" style="width:min(560px,96vw)">
+    <div class="modal-head">🏠 插入本地链接<button class="modal-close" onclick="closeLocalLinkModal()">✕</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+      <div class="ll-hint">
+        💡 <b>本地页面</b>：<code>[文字](./filename.html)</code> 同目录 &nbsp;|&nbsp; <code>[文字](../cat/filename.html)</code> 跨目录<br>
+        💡 <b>本文章节</b>：<code>[文字](#view-head-N)</code> 章节锚点按顺序编号（从&nbsp;1&nbsp;起，代码块内标题不计入）
+      </div>
+      <div class="ll-tabs">
+        <div class="ll-tab active" id="ll-tab-page"    onclick="llSwitchTab('page')">📄 本地页面</div>
+        <div class="ll-tab"        id="ll-tab-section" onclick="llSwitchTab('section')">🔖 本文章节</div>
+      </div>
+      <div class="ll-pane active" id="ll-pane-page">
+        <input class="ll-search" id="ll-page-search" placeholder="搜索文章标题或文件名…" oninput="llFilterPages()" autocomplete="off">
+        <div class="ll-list" id="ll-page-list"></div>
+      </div>
+      <div class="ll-pane" id="ll-pane-section">
+        <div class="ll-list" id="ll-section-list"></div>
+      </div>
+      <div class="ll-row">
+        <label>链接文字</label>
+        <input class="ll-inp" id="ll-link-text" placeholder="留空则使用标题文字" spellcheck="false"
+               oninput="llUpdatePreview()" onkeydown="if(event.key==='Enter'){event.preventDefault();doInsertLocalLink();}">
+      </div>
+      <div class="ll-row">
+        <label>预览</label>
+        <div class="ll-preview" id="ll-preview">（请先选择目标）</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeLocalLinkModal()">取消</button>
+      <button class="btn btn-primary" id="ll-insert-btn" onclick="doInsertLocalLink()" disabled>插入</button>
     </div>
   </div>
 </div>
@@ -2388,6 +2461,11 @@ function onEditorKey(e) {
     openAttachmentUpload();
     return;
   }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'w' || e.key === 'W')) {
+    e.preventDefault();
+    openLocalLinkModal();
+    return;
+  }
   if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'l' || e.key === 'L')) {
     e.preventDefault();
     toggleLineNumbers();
@@ -2528,6 +2606,159 @@ function doInsertLink() {
   ta.focus();
   onEditorInput();
 }
+
+// ── Local link modal ──────────────────────────────────────────────────
+var _llInsertRange = { start: 0, end: 0 };
+var _llSelectedUrl = '';
+var _llSelectedText = '';
+var _llTab = 'page';
+
+function openLocalLinkModal() {
+  if (document.getElementById('pane-edit').style.display === 'none') return;
+  var ta = document.getElementById('edit-textarea');
+  _llInsertRange.start = ta.selectionStart;
+  _llInsertRange.end   = ta.selectionEnd;
+  var sel = ta.value.substring(_llInsertRange.start, _llInsertRange.end).trim();
+  _llSelectedUrl = '';
+  _llSelectedText = '';
+  document.getElementById('ll-link-text').value = sel;
+  document.getElementById('ll-preview').textContent = '（请先选择目标）';
+  document.getElementById('ll-insert-btn').disabled = true;
+  llSwitchTab('page');
+  document.getElementById('modal-local-link').classList.add('open');
+  setTimeout(function(){ document.getElementById('ll-page-search').focus(); }, 60);
+}
+
+function closeLocalLinkModal() {
+  document.getElementById('modal-local-link').classList.remove('open');
+}
+
+function llSwitchTab(tab) {
+  _llTab = tab;
+  _llSelectedUrl = '';
+  _llSelectedText = '';
+  document.getElementById('ll-tab-page').classList.toggle('active', tab === 'page');
+  document.getElementById('ll-tab-section').classList.toggle('active', tab === 'section');
+  document.getElementById('ll-pane-page').classList.toggle('active', tab === 'page');
+  document.getElementById('ll-pane-section').classList.toggle('active', tab === 'section');
+  document.getElementById('ll-preview').textContent = '（请先选择目标）';
+  document.getElementById('ll-insert-btn').disabled = true;
+  if (tab === 'page') {
+    document.getElementById('ll-page-search').value = '';
+    llBuildPageList('');
+    setTimeout(function(){ document.getElementById('ll-page-search').focus(); }, 60);
+  } else {
+    llBuildSectionList();
+  }
+}
+
+function llRelUrl(targetId, targetCat) {
+  var curMeta = S.editId ? S.articles.find(function(a){ return a.id === S.editId; }) : null;
+  var curCat  = curMeta ? (curMeta.category || '') : '';
+  targetCat   = targetCat || '';
+  if (curCat === targetCat) return './' + targetId + '.html';
+  if (!curCat && targetCat)  return './' + targetCat + '/' + targetId + '.html';
+  if (curCat && !targetCat)  return '../' + targetId + '.html';
+  return '../' + targetCat + '/' + targetId + '.html';
+}
+
+function llBuildPageList(q) {
+  var list = document.getElementById('ll-page-list');
+  var arts = S.articles || [];
+  q = (q || '').toLowerCase().trim();
+  var filtered = q ? arts.filter(function(a){
+    return (a.title||'').toLowerCase().indexOf(q)>=0 || (a.id||'').toLowerCase().indexOf(q)>=0;
+  }) : arts;
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center">无匹配文章</div>';
+    return;
+  }
+  var html = '';
+  filtered.forEach(function(a){
+    var cat = a.category || '';
+    html += '<div class="ll-item" data-id="'+escH(a.id)+'" data-cat="'+escH(cat)+'" data-title="'+escH(a.title||a.id)+'" onclick="llSelectPage(this)">'
+          + '<span class="ll-item-title">'+escH(a.title||a.id)+'</span>'
+          + '<span class="ll-item-meta">'+escH(cat||'无分类')+'</span>'
+          + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function llFilterPages() {
+  llBuildPageList(document.getElementById('ll-page-search').value);
+}
+
+function llSelectPage(el) {
+  Array.prototype.forEach.call(document.getElementById('ll-page-list').querySelectorAll('.ll-item'),
+    function(x){ x.classList.remove('selected'); });
+  el.classList.add('selected');
+  _llSelectedUrl  = llRelUrl(el.dataset.id, el.dataset.cat);
+  _llSelectedText = el.dataset.title;
+  var ltEl = document.getElementById('ll-link-text');
+  if (!ltEl.value) ltEl.value = _llSelectedText;
+  llUpdatePreview();
+  document.getElementById('ll-insert-btn').disabled = false;
+}
+
+function llBuildSectionList() {
+  var list = document.getElementById('ll-section-list');
+  var ta   = document.getElementById('edit-textarea');
+  var lines = (ta ? ta.value : '').split('\n');
+  var headings = [], inFence = false, idx = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var L = lines[i];
+    if (/^```/.test(L)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    var m = L.match(/^(#{1,4}) (.+)/);
+    if (m) { idx++; headings.push({ lv: m[1].length, text: m[2].trim(), anchor: 'view-head-' + idx }); }
+  }
+  if (!headings.length) {
+    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center">当前文章无标题（H1–H4）</div>';
+    return;
+  }
+  var html = '';
+  headings.forEach(function(h){
+    html += '<div class="ll-item" data-anchor="#'+escH(h.anchor)+'" data-text="'+escH(h.text)+'" onclick="llSelectSection(this)">'
+          + '<span class="ll-item-level">H'+h.lv+'</span>'
+          + '<span class="ll-item-title" style="padding-left:'+(h.lv-1)*10+'px">'+escH(h.text)+'</span>'
+          + '<span class="ll-item-meta">#'+escH(h.anchor)+'</span>'
+          + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function llSelectSection(el) {
+  Array.prototype.forEach.call(document.getElementById('ll-section-list').querySelectorAll('.ll-item'),
+    function(x){ x.classList.remove('selected'); });
+  el.classList.add('selected');
+  _llSelectedUrl  = el.dataset.anchor;
+  _llSelectedText = el.dataset.text;
+  var ltEl = document.getElementById('ll-link-text');
+  if (!ltEl.value) ltEl.value = _llSelectedText;
+  llUpdatePreview();
+  document.getElementById('ll-insert-btn').disabled = false;
+}
+
+function llUpdatePreview() {
+  if (!_llSelectedUrl) return;
+  var text = (document.getElementById('ll-link-text').value || '').trim() || _llSelectedText;
+  document.getElementById('ll-preview').textContent = '[' + text + '](' + _llSelectedUrl + ')';
+}
+
+function doInsertLocalLink() {
+  if (!_llSelectedUrl) return;
+  var text = (document.getElementById('ll-link-text').value || '').trim() || _llSelectedText;
+  var ins  = '[' + text + '](' + _llSelectedUrl + ')';
+  closeLocalLinkModal();
+  histFlush();
+  var ta    = document.getElementById('edit-textarea');
+  var start = _llInsertRange.start, end = _llInsertRange.end;
+  ta.value  = ta.value.substring(0, start) + ins + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + ins.length;
+  ta.focus();
+  onEditorInput();
+}
+// ── end local link modal ───────────────────────────────────────────────
 
 function insertAtCursor(text) {
   var ta = document.getElementById('edit-textarea');
@@ -4420,6 +4651,7 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-move').classList.contains('open')) closeMoveModal();
     if(document.getElementById('modal-table').classList.contains('open')) closeTableModal();
     if(document.getElementById('modal-link').classList.contains('open')) closeLinkModal();
+    if(document.getElementById('modal-local-link').classList.contains('open')) closeLocalLinkModal();
     if(document.getElementById('modal-color').classList.contains('open')) closeColorModal();
     if(document.getElementById('modal-history').classList.contains('open')) closeHistoryModal();
     if(document.getElementById('modal-history-detail').classList.contains('open')) closeHistoryDetailModal();
@@ -4446,6 +4678,9 @@ document.getElementById('modal-table').addEventListener('click', function(e){
 });
 document.getElementById('modal-link').addEventListener('click', function(e){
   if(e.target===this) closeLinkModal();
+});
+document.getElementById('modal-local-link').addEventListener('click', function(e){
+  if(e.target===this) closeLocalLinkModal();
 });
 document.getElementById('modal-color').addEventListener('click', function(e){
   if(e.target===this) closeColorModal();
@@ -4479,6 +4714,38 @@ window.addEventListener('resize', function() {
   syncMirrorMetrics();
   syncMirrorScroll();
 });
+
+// ── panel resizers ──
+(function(){
+  function makeResizer(resizerId, targetEl, direction, storageKey, minW, maxW){
+    var el = document.getElementById(resizerId);
+    if(!el || !targetEl) return;
+    var saved = parseFloat(localStorage.getItem(storageKey));
+    if(saved >= minW && saved <= maxW) targetEl.style.width = saved + 'px';
+    var dragging = false, startX, startW;
+    el.addEventListener('mousedown', function(e){
+      dragging = true; startX = e.clientX; startW = targetEl.offsetWidth;
+      el.classList.add('dragging');
+      document.body.classList.add('col-resizing');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e){
+      if(!dragging) return;
+      var dx = direction === 'right' ? startX - e.clientX : e.clientX - startX;
+      var w = Math.min(maxW, Math.max(minW, startW + dx));
+      targetEl.style.width = w + 'px';
+    });
+    document.addEventListener('mouseup', function(){
+      if(!dragging) return;
+      dragging = false;
+      el.classList.remove('dragging');
+      document.body.classList.remove('col-resizing');
+      localStorage.setItem(storageKey, targetEl.offsetWidth);
+    });
+  }
+  makeResizer('sidebar-resizer', document.querySelector('.sidebar'),  'left',  'nw-sidebar-w', 120, 540);
+  makeResizer('toc-resizer',     document.getElementById('view-toc'), 'right', 'nw-toc-w',     120, 500);
+})();
 
 init();
 </script>

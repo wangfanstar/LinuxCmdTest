@@ -1,0 +1,314 @@
+{
+  "template_type": "packetgen_stack_template_v1",
+  "version": 1,
+  "exported_at": "2026-04-26T08:45:23.169Z",
+  "showFCS": false,
+  "targetPacketLength": 0,
+  "fillInputMode": "hex",
+  "validateEnabled": false,
+  "layers": [
+    {
+      "type": "__custom__",
+      "name": "CPU2CPP",
+      "vals": {
+        "0_DMAC": "0x11223344",
+        "1_DMAC": "0x5566",
+        "1_SMAC": "0x7788",
+        "2_SMAC": "0x99AABBCC",
+        "3_0x8100": "0x8100",
+        "3_VLAN": "0xABCD",
+        "4_Ethernet Type": "0x5678",
+        "4_Message Length": "0x20",
+        "4_ST": "0x0",
+        "4_DM": "0x0",
+        "4_MDC_ID": "0x0",
+        "4_BPDU": "0x0",
+        "5_Message Type": "0x01",
+        "5_DEST_PIPE": "0x0",
+        "5_DP": "0x3",
+        "5_TC": "0x1F",
+        "5_L2_IIF": "0x003",
+        "6_PACKET LENGTH": "0x3CD2",
+        "cond_1-s": "0x0",
+        "cond_2-s": "0x0",
+        "cond_QUEUE_ID": "0x1087"
+      },
+      "condVariant": 0,
+      "customDef": {
+        "packet_name": "CPU2CPP",
+        "base_header": [
+          {
+            "word": 0,
+            "fields": [
+              {
+                "bit_range": "31~0",
+                "name": "DMAC",
+                "description": "DMAC地址",
+                "to": "/"
+              }
+            ]
+          },
+          {
+            "word": 1,
+            "fields": [
+              {
+                "bit_range": "31~16",
+                "name": "DMAC",
+                "description": "DMAC地址",
+                "to": "/"
+              },
+              {
+                "bit_range": "15~0",
+                "name": "SMAC",
+                "description": "SMAC地址",
+                "to": "/"
+              }
+            ]
+          },
+          {
+            "word": 2,
+            "fields": [
+              {
+                "bit_range": "31~0",
+                "name": "SMAC",
+                "description": "SMAC地址",
+                "to": "/"
+              }
+            ]
+          },
+          {
+            "word": 3,
+            "fields": [
+              {
+                "bit_range": "31~16",
+                "name": "0x8100",
+                "description": "TPID, 固定使用 0x8100",
+                "to": "/"
+              },
+              {
+                "bit_range": "15~0",
+                "name": "VLAN",
+                "description": "vlan id, 用于 lanswitch",
+                "to": "/"
+              }
+            ]
+          },
+          {
+            "word": 4,
+            "fields": [
+              {
+                "bit_range": "31~16",
+                "name": "Ethernet Type",
+                "description": "(1) cpp下行配置寄存器; (2) ingress parser可配置，作为健康检测特征值",
+                "to": "/"
+              },
+              {
+                "bit_range": "15~8",
+                "name": "Message Length",
+                "description": "消息头长度，合法值32B、34B、36B、38B",
+                "to": "/"
+              },
+              {
+                "bit_range": "7",
+                "name": "ST",
+                "description": "源端口聚合标志，用于 L2 转发",
+                "to": "/"
+              },
+              {
+                "bit_range": "6",
+                "name": "DM",
+                "description": "1 表示Y.1731 DM 报文，需要收集时间戳",
+                "to": "/"
+              },
+              {
+                "bit_range": "5~4",
+                "name": "MDC_ID",
+                "description": "报文所属 MDC",
+                "to": "/"
+              },
+              {
+                "bit_range": "0",
+                "name": "BPDU",
+                "description": "BPDU配置",
+                "to": "cpp_i2e_msg.bpdu"
+              }
+            ]
+          },
+          {
+            "word": 5,
+            "fields": [
+              {
+                "bit_range": "31~24",
+                "name": "Message Type",
+                "description": "消息类型: 0x1-指定端口发送(CPP)",
+                "to": "cpp/hpp_i2e_fwd_type"
+              },
+              {
+                "bit_range": "23~20",
+                "name": "DEST_PIPE",
+                "description": "入hpp pipe id",
+                "to": "cpp maci使用"
+              },
+              {
+                "bit_range": "17~16",
+                "name": "DP",
+                "description": "丢弃优先级",
+                "to": "cpp_i2e_msg.dp"
+              },
+              {
+                "bit_range": "15~11",
+                "name": "TC",
+                "description": "Traffic class, 传输优先级",
+                "to": "cpp_mmu_hdr.cos"
+              },
+              {
+                "bit_range": "10~0",
+                "name": "L2_IIF",
+                "description": "端口号，如果是健康检测报文可以指定从哪个port进 0~511: 物理端口号",
+                "to": "cpp_i2e_msg.L2_IIF"
+              }
+            ]
+          },
+          {
+            "word": 6,
+            "fields": [
+              {
+                "bit_range": "13~0",
+                "name": "PACKET LENGTH",
+                "description": "软件在填写PacketLength时，统一按此计算：包含 (负载报文长度+CPU2CPP头) 长度，不包含 (MMU+T2E) 长度；",
+                "to": "hpp"
+              }
+            ]
+          }
+        ],
+        "conditional_header": {
+          "dependent_on_field": "Message Type",
+          "word": 7,
+          "variants": [
+            {
+              "condition_value": "0x1",
+              "condition_desc": "指定端口透传",
+              "fields": [
+                {
+                  "bit_range": "31",
+                  "name": "1-s",
+                  "description": "1588 1-step 报文",
+                  "to": "cpp_i2e_msg.spec_flag=1 step"
+                },
+                {
+                  "bit_range": "30",
+                  "name": "2-s",
+                  "description": "1588 2-step 报文",
+                  "to": "cpp_i2e_msg.spec_flag=2 step"
+                },
+                {
+                  "bit_range": "29~16",
+                  "name": "QUEUE_ID",
+                  "description": "出口队列号",
+                  "to": "cpp_mmu_hdr.qid"
+                }
+              ]
+            },
+            {
+              "condition_value": "0x2",
+              "condition_desc": "指定组播组",
+              "fields": [
+                {
+                  "bit_range": "31",
+                  "name": "MC_PRIORITY",
+                  "description": "多播优先级",
+                  "to": "cpp_mmu_hdr.MC_PRIORITY"
+                },
+                {
+                  "bit_range": "14~0",
+                  "name": "MC GROUP",
+                  "description": "组播组",
+                  "to": "cpp_mmu_hdr.MC GROUP"
+                }
+              ]
+            },
+            {
+              "condition_value": "0x3",
+              "condition_desc": "返回主机",
+              "fields": [
+                {
+                  "bit_range": "29~16",
+                  "name": "QUEUE_ID",
+                  "description": "出口队列号",
+                  "to": "cpp_mmu_hdr.qid"
+                }
+              ]
+            },
+            {
+              "condition_value": "0x4",
+              "condition_desc": "支持CPU改写I2E&MMU HDR发包",
+              "fields": [
+                {
+                  "bit_range": "全量",
+                  "name": "MMU HDR+I2E MSG",
+                  "description": "软件配置MMU HDR & I2E MSG,硬件直接剥离base hdr",
+                  "to": "/"
+                }
+              ]
+            },
+            {
+              "condition_value": "0x80",
+              "condition_desc": "健康检测报文",
+              "fields": [
+                {
+                  "bit_range": "29~16",
+                  "name": "QUEUE_ID",
+                  "description": "出口队列号",
+                  "to": "cpp_mmu_hdr.qid"
+                }
+              ]
+            },
+            {
+              "condition_value": "0x81",
+              "condition_desc": "BFD报文",
+              "fields": [
+                {
+                  "bit_range": "31~30",
+                  "name": "FWD TYPE",
+                  "description": "1-端口透传 2-nexthop 转发",
+                  "to": "hpp"
+                },
+                {
+                  "bit_range": "23~16",
+                  "name": "HASH",
+                  "description": "逐包 Hash 值",
+                  "to": "hpp"
+                },
+                {
+                  "bit_range": "15~0",
+                  "name": "NEXT_HOP_IDX/ECMP_index",
+                  "description": "index",
+                  "to": "hpp"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Ethernet",
+      "name": "Ethernet",
+      "vals": {
+        "DMAC": "00:C0:CA:14:B0:52",
+        "SMAC": "00:02:2D:56:4A:FD",
+        "EtherType": "0x0800"
+      },
+      "condVariant": null
+    },
+    {
+      "type": "Payload",
+      "name": "Payload",
+      "vals": {
+        "Data": "45 00 00 64 00 00 40 00 FF 2F 1E 49 AC 1B 01 42 42 3B 6D 89 00 00 08 00 45 10 00 4C 00 00 40 00 40 11 72 15 42 3B 6F BE 12 1A 04 69 00 7B 00 7B 00 38 8F BC 23 0B 06 EF 00 00 00 00 00 00 02 D6 7F 7F 01 01 C2 90 F0 EC D9 A7 8F 25 C2 90 F0 C7 6A EB 20 00 C2 90 F0 B6 FE 03 B3 E9 C2 90 F0 F5 D9 8D 01 01 C2 90 F0 EC D9 A7 8F 25 C2 90 F0 C7 6A EB 20 00 C2 90 F0 B6 FE 03 B3 E9 C2 90 F0 F5 D9 8D AC 25 01 01 C2 90 F0 EC D9 A7 8F 25 C2 90 F0 C7 6A EB 20 00 C2 90 F0 B6 FE 03 B3 E9 C2 90 F0 F5 D9 8D",
+        "Pattern": ""
+      },
+      "condVariant": null
+    }
+  ]
+}

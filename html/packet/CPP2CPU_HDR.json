@@ -1,0 +1,93 @@
+{
+  "packet_name": "CPP2CPU",
+  "base_header": [
+    {
+      "word": 0,
+      "fields": [
+        { "bit_range": "31~0", "name": "HOST_MAC", "description": "DMAC, Host 的 mac 地址", "from": "CPP:tohost+CPP:glb cfg;" }
+      ]
+    },
+    {
+      "word": 1,
+      "fields": [
+        { "bit_range": "31~16", "name": "HOST_MAC", "description": "DMAC, Host 的 mac 地址", "from": "CPP:tohost+CPP:glb cfg;" },
+        { "bit_range": "15~0", "name": "NP_MAC", "description": "SMAC, NP 的 mac 地址", "from": "CPP:tohost+CPP:glb cfg;" }
+      ]
+    },
+    {
+      "word": 2,
+      "fields": [
+        { "bit_range": "31~0", "name": "NP_MAC", "description": "SMAC, NP 的 mac 地址", "from": "CPP:tohost+CPP:glb cfg;" }
+      ]
+    },
+    {
+      "word": 3,
+      "fields": [
+        { "bit_range": "31~16", "name": "0x8100", "description": "TPID, 固定使用 0x8100", "from": "/" },
+        { "bit_range": "15~0", "name": "VLAN", "description": "vlan id, 用于 lanswitch", "from": "CPP:Tohost" }
+      ]
+    },
+    {
+      "word": 4,
+      "fields": [
+        { "bit_range": "31~24", "name": "Ethernet Type", "description": "默认配置 0x0800，软件可配置", "from": "/" },
+        { "bit_range": "23~16", "name": "Hash", "description": "CPU多core之间负载分担，hash值", "from": "I2E.hash 16bit" },
+        { "bit_range": "15~8", "name": "Message Length", "description": "消息头长度", "from": "CPP PIPE" },
+        { "bit_range": "7~6", "name": "MDC_ID", "description": "报文所属 MDC", "from": "/" },
+        { "bit_range": "5", "name": "NS_E", "description": "上送报文为出方向NS", "from": "/" },
+        { "bit_range": "6", "name": "ST", "description": "源端口为聚合口", "from": "I2E.ST" }
+      ]
+    },
+    {
+      "word": 5,
+      "fields": [
+        { "bit_range": "31~24", "name": "Message Type", "description": "上送消息类型:\n参考《cpu_code&drop_id》", "from": "/" },
+        { "bit_range": "23~16", "name": "DISP_REG", "description": "偏移reg", "from": "I2E.DISP_REG" },
+        { "bit_range": "10~0", "name": "L2_IIF", "description": "源端口号", "from": "I2E.L2_IIF" }
+      ]
+    },
+    {
+      "word": 6,
+      "fields": [
+        { "bit_range": "29~16", "name": "VRF", "description": "报文所属VRF", "from": "I2E.VRF/VFI" },
+        { "bit_range": "11~8", "name": "DST_CHNL", "description": "指示pkt dma选择pcie dma还是上送cpis，bitmap", "from": "cpp pipe" },
+        { "bit_range": "7~0", "name": "TimeStamp", "description": "时间戳[39:32]", "from": "i2e.ts" }
+      ]
+    },
+    {
+      "word": 7,
+      "fields": [
+        { "bit_range": "31~0", "name": "TIMESTAMP", "description": "接收时间戳[31:0]", "from": "i2e.ts" }
+      ]
+    }
+  ],
+  "conditional_header": {
+    "dependent_on_field": "Message Type",
+    "word": 8,
+    "variants": [
+      {
+        "condition_value": "MAC 地址学习",
+        "condition_desc": "MAC 地址学习",
+        "fields": [
+          { "bit_range": "31", "name": "VP_V", "description": "VP 有效标志", "from": "i2e.vp" },
+          { "bit_range": "29~24", "name": "VP", "description": "端口的 VP 号", "from": "i2e.svp" },
+          { "bit_range": "13~0", "name": "VFI", "description": "MAC 转发的 vfi", "from": "i2e.vfi" }
+        ]
+      },
+      {
+        "condition_value": "BFD报文上送",
+        "condition_desc": "BFD报文上送",
+        "fields": [
+          { "bit_range": "31~0", "name": "BFD Discriminator", "description": "BFD报文的识别号", "from": "i2e.my discriminator" }
+        ]
+      },
+      {
+        "condition_value": "MOD报文上送",
+        "condition_desc": "MOD报文上送",
+        "fields": [
+          { "bit_range": "7~0", "name": "DISCARD_", "description": "丢包计数器", "from": "I2E.MOD_DISCARD" }
+        ]
+      }
+    ]
+  }
+}

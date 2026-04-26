@@ -1,0 +1,38 @@
+{
+  "packet_name": "LOOPBACK",
+  "base_header": [
+    {
+      "word": 0,
+      "fields": [
+        { "bit_range": "31~29", "name": "TC", "description": "转发优先级，用于不同队列", "from": "hpp.petx, hpp.ipfix | hpp_i2e_msg.tc", "to": "cpp_i2e_msg.tc" },
+        { "bit_range": "28~27", "name": "DP", "description": "丢弃优先级，用于wred", "from": "hpp.petx, hpp.ipfix | hpp_i2e_msg.dp", "to": "cpp_i2e_msg.dp" },
+        { "bit_range": "26~24", "name": "TYPE", "description": "0x1 egress mirr(hpp2hpp/hpp2cpp)\n0x2 ingress ipfix", "from": "0x1 hpp.petx\n0x2 hpp.ipfix | /", "to": "0x1 ->\ncpp_i2e_msg.fwd_type=0,i2e_msg.drop=1/" },
+        { "bit_range": "23~13", "name": "L2_IIF", "description": "源端口", "from": "hpp.petx | 0x1 & 0x4 & 0x5: hpp_i2e_msg.L2_IIF;\n0x2 & 0x3:ipfix tie 0;", "to": "cpp_i2e_msg.L2_IIF" },
+        { "bit_range": "7~4", "name": "MMCG3", "description": "出方向 ACL 镜像的组播复制组", "from": "hpp.petx | hpp_egress_metadata.mmcg3(EACL)", "to": "cpp_mmu_hdr.mmcg3" },
+        { "bit_range": "3~0", "name": "MMCG4", "description": "出方向 port镜像组播复制组", "from": "hpp.petx | PETx基于端口配置生成，业务复用字段；\n1.出端口镜像;", "to": "cpp_mmu_hdr.mmcg4" }
+      ]
+    },
+    {
+      "word": 1,
+      "fields": [
+        { "bit_range": "31~24", "name": "MOD DISCARD", "description": "丢弃原因，计数器地址", "from": "hpp.petx | hpp_egress_metadata.drop id", "to": "cpp_i2e_msg.MOD DISCARD" },
+        { "bit_range": "22", "name": "MOD", "description": "MOD标志", "from": "hpp.petx | /", "to": "cpp_mmu_hdr.mod" },
+        { "bit_range": "21~8", "name": "QUEUE ID", "description": "QUEUE ID", "from": "hpp.petx, hpp.ipfix | ifa head: hpp_mmu_hdr.qid;\nifa tail : petx配置;", "to": "cpp_mmu_hdr.qid" },
+        { "bit_range": "7~0", "name": "CPU_CODE", "description": "上送的 cpu code", "from": "hpp.petx, hpp.ipfix | /", "to": "cpp_i2e_msg.cpu_code(普通转发);" }
+      ]
+    },
+    {
+      "word": 2,
+      "fields": [
+        { "bit_range": "31~0", "name": "TIMESTAMP", "description": "rx时间戳，纳秒部分 (注: 环回后需要maci做时间戳替换3B动作)", "from": "hpp.petx, hpp.ipfix | /", "to": "cpp_i2e_msg.ts" }
+      ]
+    },
+    {
+      "word": 3,
+      "fields": [
+        { "bit_range": "31~24", "name": "TIMESTAMP", "description": "rx时间戳，秒部分 (注: 环回后需要maci做时间戳替换3B动作)", "from": "hpp.petx, hpp.ipfix | /", "to": "cpp_i2e_msg.ts" },
+        { "bit_range": "10~0", "name": "L2_EIF", "description": "目的端口", "from": "hpp.petx, hpp.ipfix | 0x1 : hpp_i2e_msg.L2_EIF;\n0x2 & 0x3:ipfix tie 0;", "to": "cpp_i2e_msg.L2_EIF" }
+      ]
+    }
+  ]
+}

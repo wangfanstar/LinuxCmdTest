@@ -2049,15 +2049,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     '.art-content a{color:#0969da;text-decoration:none}',
     '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
     '.art-content .code-block .copy-btn{display:none!important}',
-    '.art-content{counter-reset:sc1 sc2 sc3 sc4}',
-    '.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}',
-    '.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}',
-    '.art-content h3{counter-reset:sc4;counter-increment:sc3}',
-    '.art-content h4{counter-increment:sc4}',
-    '.art-content h1::before{content:counter(sc1)". ";color:#57606a;font-weight:400;font-size:.88em}',
-    '.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#57606a;font-weight:400;font-size:.88em}',
-    '.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#57606a;font-weight:400;font-size:.88em}',
+    '.art-content h1::before,.art-content h2::before,.art-content h3::before,.art-content h4::before{content:attr(data-secnum);color:#57606a;font-weight:400;font-size:.88em;margin-right:.1em}',
     '@media print{html,body{height:auto!important;overflow:visible!important}body{font-size:11px;margin:0!important;padding:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-layout{display:block}.pdf-toc{position:static;width:auto;max-height:none;margin-bottom:12px;page-break-inside:avoid}}'
   ].join('\n');
 
@@ -2073,7 +2065,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + 'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}'
     + 'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}'
     + 'var used={},h="",maxLv=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0>maxLv)maxLv=lv0;}'
-    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=[];if(lv>1)cls.push("lv"+lv);if(lv===maxLv)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
+    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=[];if(lv>1)cls.push("lv"+lv);if(lv===maxLv)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
     + 'function done(){window.__pdfReady=1;}'
     + 'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}'
     + 'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}'
@@ -2149,11 +2141,39 @@ function exportPdfViaServer(title, cat, updated, body) {
   });
 }
 
+function buildSecNums(hs) {
+  var minLv = 5;
+  for (var m = 0; m < hs.length; m++) {
+    var lv0 = parseInt(hs[m].tagName.slice(1), 10) || 1;
+    if (lv0 < minLv) minLv = lv0;
+  }
+  if (minLv > 4) minLv = 1;
+  var ctrs = [0, 0, 0, 0];
+  var nums = [];
+  for (var i = 0; i < hs.length; i++) {
+    var lv = parseInt(hs[i].tagName.slice(1), 10) || 1;
+    var nl = Math.min(Math.max(lv - minLv + 1, 1), 4);
+    ctrs[nl - 1]++;
+    for (var j = nl; j < 4; j++) ctrs[j] = 0;
+    nums.push(ctrs.slice(0, nl).join('.') + ' ');
+  }
+  return nums;
+}
+
 function buildStablePdfBookmarkBody(bodyHtml) {
   var root = document.createElement('div');
   root.innerHTML = String(bodyHtml || '');
   var hs = root.querySelectorAll('h1,h2,h3,h4');
   if (!hs.length) return root.innerHTML;
+
+  var secNums = buildSecNums(hs);
+
+  var minLv = 5;
+  for (var m = 0; m < hs.length; m++) {
+    var lv0 = parseInt(hs[m].tagName.slice(1), 10) || 1;
+    if (lv0 < minLv) minLv = lv0;
+  }
+  if (minLv > 4) minLv = 1;
 
   var used = {};
   function slug(t) {
@@ -2170,14 +2190,14 @@ function buildStablePdfBookmarkBody(bodyHtml) {
   var shadow = [];
   for (var i = 0; i < hs.length; i++) {
     var hd = hs[i];
+    hd.setAttribute('data-secnum', secNums[i]);
     var txt = (hd.textContent || '').replace(/\s+/g, ' ').trim();
     if (!txt) continue;
     var lv = parseInt(hd.tagName.slice(1), 10) || 1;
-    if (lv < 1) lv = 1;
-    if (lv > 4) lv = 4;
+    var normLv = Math.min(Math.max(lv - minLv + 1, 1), 4);
     var id = hd.getAttribute('id') || slug(txt);
     hd.setAttribute('id', id);
-    shadow.push('<h' + lv + ' class="pdf-bookmark-shadow">' + escH(txt) + '</h' + lv + '>');
+    shadow.push('<h' + normLv + ' class="pdf-bookmark-shadow">' + escH(secNums[i] + txt) + '</h' + normLv + '>');
   }
   if (shadow.length) {
     var box = document.createElement('div');

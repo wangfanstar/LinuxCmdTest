@@ -33,11 +33,39 @@
       : '/wiki/' + a.id + '.html';
   }
 
+  function buildSecNums(hs) {
+    var minLv = 5;
+    for (var m = 0; m < hs.length; m++) {
+      var lv0 = parseInt(hs[m].tagName.slice(1), 10) || 1;
+      if (lv0 < minLv) minLv = lv0;
+    }
+    if (minLv > 4) minLv = 1;
+    var ctrs = [0, 0, 0, 0];
+    var nums = [];
+    for (var i = 0; i < hs.length; i++) {
+      var lv = parseInt(hs[i].tagName.slice(1), 10) || 1;
+      var nl = Math.min(Math.max(lv - minLv + 1, 1), 4);
+      ctrs[nl - 1]++;
+      for (var j = nl; j < 4; j++) ctrs[j] = 0;
+      nums.push(ctrs.slice(0, nl).join('.') + ' ');
+    }
+    return nums;
+  }
+
   function buildStablePdfBookmarkBody(bodyHtml) {
     var root = document.createElement('div');
     root.innerHTML = String(bodyHtml || '');
     var hs = root.querySelectorAll('h1,h2,h3,h4');
     if (!hs.length) return root.innerHTML;
+
+    var secNums = buildSecNums(hs);
+
+    var minLv = 5;
+    for (var m = 0; m < hs.length; m++) {
+      var lv0 = parseInt(hs[m].tagName.slice(1), 10) || 1;
+      if (lv0 < minLv) minLv = lv0;
+    }
+    if (minLv > 4) minLv = 1;
 
     var used = {};
     function slug(t) {
@@ -54,14 +82,14 @@
     var shadow = [];
     for (var i = 0; i < hs.length; i++) {
       var hd = hs[i];
+      hd.setAttribute('data-secnum', secNums[i]);
       var txt = (hd.textContent || '').replace(/\s+/g, ' ').trim();
       if (!txt) continue;
       var lv = parseInt(hd.tagName.slice(1), 10) || 1;
-      if (lv < 1) lv = 1;
-      if (lv > 4) lv = 4;
+      var normLv = Math.min(Math.max(lv - minLv + 1, 1), 4);
       var id = hd.getAttribute('id') || slug(txt);
       hd.setAttribute('id', id);
-      shadow.push('<h' + lv + ' class="pdf-bookmark-shadow">' + escH(txt) + '</h' + lv + '>');
+      shadow.push('<h' + normLv + ' class="pdf-bookmark-shadow">' + escH(secNums[i] + txt) + '</h' + normLv + '>');
     }
     if (shadow.length) {
       var box = document.createElement('div');
@@ -417,5 +445,64 @@
         try { window.print(); } catch (e2) {}
       });
     };
+  }());
+
+  // ── 左右面板拖拽调整宽度 ─────────────────────────────────────────────
+  (function initResizable() {
+    var sidebar = document.getElementById('sidebar');
+    var toc     = document.getElementById('toc');
+    if (!sidebar || !toc) return;
+
+    var st = document.createElement('style');
+    st.textContent =
+      '.resize-handle{width:5px;cursor:col-resize;flex-shrink:0;background:transparent;' +
+      'transition:background .15s;z-index:10;user-select:none}' +
+      '.resize-handle:hover,.resize-handle.dragging{background:rgba(74,144,226,.45)}';
+    document.head.appendChild(st);
+
+    function makeHandle() {
+      var h = document.createElement('div');
+      h.className = 'resize-handle';
+      return h;
+    }
+
+    var lh = makeHandle();
+    var rh = makeHandle();
+    sidebar.parentNode.insertBefore(lh, sidebar.nextSibling);
+    toc.parentNode.insertBefore(rh, toc);
+
+    function attachDrag(handle, getPanel, sign, lsKey, minW, maxW) {
+      handle.addEventListener('mousedown', function (e) {
+        if (getPanel().classList.contains('collapsed')) return;
+        e.preventDefault();
+        var startX = e.clientX;
+        var startW = getPanel().offsetWidth;
+        handle.classList.add('dragging');
+        getPanel().style.transition = 'none';
+
+        function onMove(ev) {
+          var newW = Math.max(minW, Math.min(maxW, startW + sign * (ev.clientX - startX)));
+          getPanel().style.width = newW + 'px';
+        }
+        function onUp() {
+          handle.classList.remove('dragging');
+          getPanel().style.transition = '';
+          localStorage.setItem(lsKey, String(getPanel().offsetWidth));
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+
+    attachDrag(lh, function() { return sidebar; },  1, 'wiki-sb-width',  80, 520);
+    attachDrag(rh, function() { return toc; },      -1, 'wiki-toc-width', 80, 520);
+
+    // 恢复上次保存的宽度（仅在非折叠状态）
+    var sbW  = parseInt(localStorage.getItem('wiki-sb-width')  || '0', 10);
+    var tocW = parseInt(localStorage.getItem('wiki-toc-width') || '0', 10);
+    if (sbW  > 80 && sbW  < 520 && !sidebar.classList.contains('collapsed')) sidebar.style.width  = sbW  + 'px';
+    if (tocW > 80 && tocW < 520 && !toc.classList.contains('collapsed'))     toc.style.width     = tocW + 'px';
   }());
 })();

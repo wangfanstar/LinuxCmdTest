@@ -1594,15 +1594,8 @@ void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body)
           ".pdf-bookmark-shadow-root{position:absolute;left:-100000px;top:0;width:1px;height:1px;overflow:hidden}"
           ".pdf-bookmark-shadow{margin:0;padding:0;font-size:1px;line-height:1px;color:transparent;border:0}"
           ".copy-btn{display:none!important}"
-          ".art-content{counter-reset:sc1 sc2 sc3 sc4}"
-          ".art-content h1:not(.pdf-bookmark-shadow){counter-reset:sc2 sc3 sc4;counter-increment:sc1}"
-          ".art-content h2:not(.pdf-bookmark-shadow){counter-reset:sc3 sc4;counter-increment:sc2}"
-          ".art-content h3:not(.pdf-bookmark-shadow){counter-reset:sc4;counter-increment:sc3}"
-          ".art-content h4:not(.pdf-bookmark-shadow){counter-increment:sc4}"
-          ".art-content h1:not(.pdf-bookmark-shadow)::before{content:counter(sc1)\". \";color:#57606a;font-weight:400;font-size:.88em;margin-right:.15em}"
-          ".art-content h2:not(.pdf-bookmark-shadow)::before{content:counter(sc1)\".\"counter(sc2)\" \";color:#57606a;font-weight:400;font-size:.88em;margin-right:.15em}"
-          ".art-content h3:not(.pdf-bookmark-shadow)::before{content:counter(sc1)\".\"counter(sc2)\".\"counter(sc3)\" \";color:#57606a;font-weight:400;font-size:.88em;margin-right:.15em}"
-          ".art-content h4:not(.pdf-bookmark-shadow)::before{content:counter(sc1)\".\"counter(sc2)\".\"counter(sc3)\".\"counter(sc4)\" \";color:#57606a;font-weight:400;font-size:.88em;margin-right:.15em}"
+          ".art-content h1::before,.art-content h2::before,.art-content h3::before,.art-content h4::before{"
+          "content:attr(data-secnum);color:#57606a;font-weight:400;font-size:.88em;margin-right:.1em}"
           "</style></head><body>", fp);
 
     fputs("<div class=\"pdf-title\">", fp);

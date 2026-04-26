@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PacketGen — 报文生成与解析</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
+  --accent:#38bdf8;--accent2:#818cf8;
+  --text:#e2e8f0;--text2:#94a3b8;
+  --border:#334155;--success:#22c55e;
+  --warn:#f59e0b;--danger:#ef4444;
+}
+body{background:var(--bg);color:var(--text);font:13px/1.5 'Consolas','Courier New',monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+button,input,select{font:inherit}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.topbar h1{font-size:15px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-right:6px}
+.tbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 11px;border-radius:4px;cursor:pointer;font-size:12px}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.tbtn.primary{border-color:var(--accent);color:var(--accent)}
+.tbtn.primary:hover{background:#0c2a3e}
+.main{display:flex;flex:1;overflow:hidden}
+.pleft{width:176px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.psec{padding:7px 8px;border-bottom:1px solid var(--border)}
+.psec h3{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.hbtn{width:100%;text-align:left;background:transparent;border:1px solid transparent;color:var(--text);padding:4px 7px;margin-bottom:2px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px}
+.hbtn:hover{border-color:var(--border);background:var(--bg3)}
+.dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.pcenter{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.stack-bar{padding:5px 10px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);flex-shrink:0}
+.layers-list{flex-shrink:0;overflow-y:auto;padding:6px;background:var(--bg);border-bottom:1px solid var(--border);min-height:80px;max-height:220px;display:flex;flex-direction:column;gap:3px}
+.layer-item{display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;cursor:pointer;user-select:none}
+.layer-item.active{border-color:var(--accent);background:#0a1e30}
+.layer-item:hover:not(.active){border-color:var(--bg3)}
+.ldot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.lname{flex:1;font-size:12px}
+.lsz{font-size:10px;color:var(--text2);min-width:40px;text-align:right}
+.livbtn{background:none;border:none;cursor:pointer;padding:0 2px;font-size:12px;line-height:1}
+.livbtn.del{color:var(--danger);opacity:.6}
+.livbtn.del:hover{opacity:1}
+.livbtn.mv{color:var(--text2)}
+.livbtn.mv:hover{color:var(--text)}
+.empty-msg{color:var(--text2);font-size:12px;text-align:center;padding:16px}
+.feditor{flex:1;overflow-y:auto;padding:10px 12px}
+.sec-title{font-size:10px;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 5px;border-bottom:1px solid var(--border);padding-bottom:3px}
+.word-sep{font-size:10px;color:var(--text2);margin:8px 0 4px;padding-bottom:2px;border-bottom:1px dashed #1e3a5f}
+.frow{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.flabel{width:130px;flex-shrink:0}
+.fname{font-size:12px;color:var(--text)}
+.fbits{font-size:10px;color:var(--text2)}
+.fdesc{font-size:10px;color:#64748b;margin-top:1px;line-height:1.3}
+.finput{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-size:12px;min-width:0}
+.finput:focus{outline:none;border-color:var(--accent)}
+.cond-sel{background:var(--bg);border:1px solid var(--accent2);color:var(--text);padding:4px 7px;border-radius:3px;font-size:12px;width:100%;margin-bottom:8px}
+.pright{width:390px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.hex-bar{padding:6px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex-shrink:0}
+.toggle{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px}
+.toggle.on{background:#14291a;border-color:var(--success);color:var(--success)}
+.hex-view{flex:1;overflow-y:auto;padding:8px 10px;font-size:11.5px}
+.hline{display:flex;gap:0;white-space:pre;line-height:1.7}
+.hoff{color:var(--text2);width:68px;flex-shrink:0}
+.hhex{color:#a5d6ff;flex:1}
+.hasc{color:#7ee787;width:120px;flex-shrink:0}
+.fcs-byte{color:var(--warn)}
+.pkt-info{padding:5px 8px;border-top:1px solid var(--border);font-size:10.5px;color:var(--text2);flex-shrink:0}
+.decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;max-height:230px;min-height:100px}
+.dec-bar{padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.dec-bar label{font-size:11px;color:var(--text2);white-space:nowrap}
+.dec-inp{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:3px;font-size:12px;min-width:140px}
+.dec-inp:focus{outline:none;border-color:var(--accent)}
+.dec-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-size:12px}
+.dec-res{flex:1;overflow-y:auto;padding:6px 10px;font-size:12px}
+.dhdr{color:var(--accent);font-weight:700;margin:6px 0 3px;font-size:12px}
+.dfield{display:flex;gap:0;padding:2px 0;border-bottom:1px solid #0f1e30}
+.dfn{color:var(--text2);width:170px;flex-shrink:0;font-size:11px}
+.dfv{color:var(--text);flex:1;font-size:12px}
+.dfd{color:#4a6070;font-size:10px;padding-left:8px}
+.word-hdr{color:var(--accent2);font-size:10px;margin:5px 0 2px;border-bottom:1px dashed #1e3a5f;padding-bottom:2px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>&#9889; PacketGen</h1>
+  <button class="tbtn primary" onclick="genPacket()">&#9654; 生成报文</button>
+  <button class="tbtn" onclick="clearAll()">&#10005; 清空</button>
+  <button class="tbtn" onclick="loadCustomHdrs()">&#8635; 刷新自定义头</button>
+  <button class="tbtn" onclick="loadFileJson()">&#128194; 加载JSON</button>
+  <input type="file" id="file-json-inp" accept=".json" style="display:none" onchange="onFileJson(this)">
+  <span style="margin-left:auto;color:var(--text2);font-size:11px">报文生成 &middot; 解析 &middot; PCAP导出</span>
+</div>
+<div class="main">
+  <div class="pleft">
+    <div class="psec">
+      <h3>标准协议头</h3>
+      <button class="hbtn" onclick="addStd('Ethernet')"><span class="dot" style="background:#2563eb"></span>Ethernet</button>
+      <button class="hbtn" onclick="addStd('VLAN')"><span class="dot" style="background:#7c3aed"></span>VLAN 802.1Q</button>
+      <button class="hbtn" onclick="addStd('IPv4')"><span class="dot" style="background:#059669"></span>IPv4</button>
+      <button class="hbtn" onclick="addStd('TCP')"><span class="dot" style="background:#d97706"></span>TCP</button>
+      <button class="hbtn" onclick="addStd('UDP')"><span class="dot" style="background:#0891b2"></span>UDP</button>
+      <button class="hbtn" onclick="addStd('ICMP')"><span class="dot" style="background:#dc2626"></span>ICMP</button>
+      <button class="hbtn" onclick="addStd('ARP')"><span class="dot" style="background:#0f766e"></span>ARP</button>
+      <button class="hbtn" onclick="addStd('Payload')"><span class="dot" style="background:#475569"></span>Payload (Raw)</button>
+    </div>
+    <div class="psec" id="custom-list">
+      <h3>自定义报文头</h3>
+      <div style="color:var(--text2);font-size:11px;padding:2px 0">加载中...</div>
+    </div>
+  </div>
+  <div class="pcenter">
+    <div class="stack-bar">协议栈 &mdash; 点击层编辑字段 | &#9650;&#9660; 调整顺序 | &#10005; 删除</div>
+    <div class="layers-list" id="layers-list"><div class="empty-msg">&#8592; 点击左侧协议头添加到报文</div></div>
+    <div class="feditor" id="feditor"><div class="empty-msg">选择一个协议层来编辑字段</div></div>
+  </div>
+  <div class="pright">
+    <div class="hex-bar">
+      <button class="tbtn" onclick="copyHex()">&#8854; 复制Hex</button>
+      <button class="tbtn" onclick="copyHexRaw()">复制连续Hex</button>
+      <button class="tbtn" onclick="dlPcap()">&#8595; 下载.pcap</button>
+      <button id="fcs-btn" class="toggle on" onclick="toggleFcs()">FCS &#10003;</button>
+    </div>
+    <div class="hex-view" id="hex-view"><div style="color:var(--text2);text-align:center;padding:20px;font-size:12px">点击「生成报文」查看十六进制</div></div>
+    <div class="pkt-info" id="pkt-info"></div>
+  </div>
+</div>
+<div class="decoder">
+  <div class="dec-bar">
+    <label>&#128269; 解析器</label>
+    <input class="dec-inp" id="dec-inp" placeholder="粘贴十六进制 (45 00 00 28... 或 4500002800...)">
+    <label>自定义头:</label>
+    <select class="dec-sel" id="dec-csel"><option value="">自动检测标准头</option></select>
+    <label>偏移(B):</label>
+    <input class="dec-sel" id="dec-off" value="0" type="number" min="0" style="width:52px">
+    <button class="tbtn primary" onclick="decodePacket()">解析</button>
+    <button class="tbtn" onclick="decFromPkt()">从当前报文</button>
+  </div>
+  <div class="dec-res" id="dec-res"><span style="color:var(--text2)">在上方粘贴十六进制数据后点击解析</span></div>
+</div>
+
+<script>
+'use strict';
+function parseMac(s){
+  s=(s||'').replace(/[:\-\.\s]/g,'');
+  if(s.length<12)s=s.padEnd(12,'0');
+  var b=[];for(var i=0;i<12;i+=2)b.push(parseInt(s.substr(i,2),16)||0);
+  return b;
+}
+function parseIp(s){return(s||'0.0.0.0').split('.').map(function(n){return(parseInt(n)||0)&0xff;});}
+function parseNum(s,base){
+  s=String(s||'0').trim();
+  if(base===16||s.startsWith('0x')||s.startsWith('0X'))return parseInt(s,16)||0;
+  return parseInt(s)||0;
+}
+function toBytes(n,len){
+  var b=[];for(var i=len-1;i>=0;i--)b.push((n>>>(i*8))&0xff);
+  return b;
+}
+function parseHexStr(s){
+  s=(s||'').replace(/[^0-9a-fA-F]/g,'');
+  if(s.length%2)s='0'+s;
+  var r=[];for(var i=0;i<s.length;i+=2)r.push(parseInt(s.substr(i,2),16));
+  return r;
+}
+function fmtHex(n,digits){return'0x'+n.toString(16).toUpperCase().padStart(digits,'0');}
+function fmtMac(b){return Array.from(b).map(function(x){return x.toString(16).padStart(2,'0').toUpperCase();}).join(':');}
+function fmtIp(b){return Array.from(b).join('.');}
+function u16(b,i){return((b[i]||0)<<8)|(b[i+1]||0);}
+function u32(b,i){return(((b[i]||0)<<24)|((b[i+1]||0)<<16)|((b[i+2]||0)<<8)|(b[i+3]||0))>>>0;}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+var _crc32t=(function(){var t=new Uint32Array(256);for(var i=0;i<256;i++){var c=i;for(var j=0;j<8;j++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[i]=c;}return t;})();
+function crc32b(bytes){var c=0xFFFFFFFF;for(var i=0;i<bytes.length;i++)c=_crc32t[(c^bytes[i])&0xff]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
+function fcsBytesOf(data){var c=crc32b(data);return[c&0xff,(c>>8)&0xff,(c>>16)&0xff,(c>>24)&0xff];}
+function ipCksum(b){var s=0;for(var i=0;i<b.length;i+=2)s+=((b[i]||0)<<8)|(b[i+1]||0);while(s>>16)s=(s&0xffff)+(s>>16);return(~s)&0xffff;}
+
+function parseBR(br){
+  if(br==='全量')return{h:31,l:0,w:32};
+  br=String(br);
+  if(br.indexOf('~')>=0){var p=br.split('~');var a=parseInt(p[0]),b=parseInt(p[1]);return{h:a,l:b,w:a-b+1};}
+  var n=parseInt(br);return{h:n,l:n,w:1};
+}
+function getBits(word,h,l){
+  var w=h-l+1;if(w>=32)return word>>>0;
+  return((word>>>l)&((1<<w)-1))>>>0;
+}
+function setBits(word,h,l,val){
+  var w=h-l+1;
+  var mask=w>=32?0xFFFFFFFF:((1<<w)-1);
+  return(((word>>>0)&(~(mask<<l)>>>0))|((val&mask)<<l)>>>0)>>>0;
+}
+
+var layers=[];
+var activeId=null;
+var showFCS=true;
+var customDefs={};
+var lastPkt=null;
+var _lid=0;
+
+var COLORS={Ethernet:'#2563eb',VLAN:'#7c3aed',IPv4:'#059669',TCP:'#d97706',
+  UDP:'#0891b2',ICMP:'#dc2626',ARP:'#0f766e',Payload:'#475569',Custom:'#c026d3'};
+
+var STD={
+  Ethernet:{name:'Ethernet',color:COLORS.Ethernet,
+    fields:[
+      {name:'DMAC',type:'mac',def:'FF:FF:FF:FF:FF:FF',desc:'目的MAC地址'},
+      {name:'SMAC',type:'mac',def:'00:AA:BB:CC:DD:EE',desc:'源MAC地址'},
+      {name:'EtherType',type:'hex2',def:'0800',desc:'以太类型 (0800=IPv4,86DD=IPv6,0806=ARP,8100=VLAN)'}
+    ],
+    build:function(v){return[].concat(parseMac(v.DMAC),parseMac(v.SMAC),toBytes(parseNum(v.EtherType,16),2));}
+  },
+  VLAN:{name:'VLAN 802.1Q',color:COLORS.VLAN,
+    fields:[
+      {name:'TPID',type:'hex2',def:'8100',desc:'Tag协议标识 (固定0x8100)'},
+      {name:'PCP',type:'dec',def:'0',bits:3,desc:'优先级 0-7'},
+      {name:'DEI',type:'dec',def:'0',bits:1,desc:'丢弃资格指示'},
+      {name:'VID',type:'dec',def:'1',bits:12,desc:'VLAN ID 1-4094'},
+      {name:'InnerEtherType',type:'hex2',def:'0800',desc:'内层以太类型'}
+    ],
+    build:function(v){
+      var tci=((parseInt(v.PCP)||0)&7)<<13|((parseInt(v.DEI)||0)&1)<<12|(parseInt(v.VID)||1)&0xfff;
+      return[].concat(toBytes(parseNum(v.TPID,16),2),[(tci>>8)&0xff,tci&0xff],toBytes(parseNum(v.InnerEtherType,16),2));
+    }
+  },
+  IPv4:{name:'IPv4',color:COLORS.IPv4,
+    fields:[
+      {name:'Version',type:'dec',def:'4',bits:4,desc:'IP版本 (4)'},
+      {name:'IHL',type:'dec',def:'5',bits:4,desc:'头部长度x4B (5=20B)'},
+      {name:'DSCP',type:'dec',def:'0',bits:6,desc:'差分服务代码点'},
+      {name:'ECN',type:'dec',def:'0',bits:2,desc:'显式拥塞通知'},
+      {name:'TotalLen',type:'dec',def:'0',desc:'总长度 (0=自动)'},
+      {name:'ID',type:'hex2',def:'0001',desc:'标识字段'},
+      {name:'Flags',type:'dec',def:'2',bits:3,desc:'标志 (2=DF,1=MF)'},
+      {name:'FragOff',type:'dec',def:'0',bits:13,desc:'分片偏移'},
+      {name:'TTL',type:'dec',def:'64',desc:'生存时间'},
+      {name:'Protocol',type:'hex1',def:'06',desc:'上层协议 (06=TCP,11=UDP,01=ICMP)'},
+      {name:'Checksum',type:'hex2',def:'0000',desc:'头部校验和 (0=自动)'},
+      {name:'SrcIP',type:'ip',def:'192.168.1.1',desc:'源IP地址'},
+      {name:'DstIP',type:'ip',def:'192.168.1.2',desc:'目的IP地址'}
+    ],
+    build:function(v,payloadSz){
+      var ver=parseInt(v.Version)||4,ihl=parseInt(v.IHL)||5;
+      var dscp=parseInt(v.DSCP)||0,ecn=parseInt(v.ECN)||0;
+      var tlen=parseInt(v.TotalLen)||0;
+      if(tlen===0)tlen=ihl*4+(payloadSz||0);
+      var id=toBytes(parseNum(v.ID,16),2);
+      var flags=parseInt(v.Flags)||0,foff=parseInt(v.FragOff)||0;
+      var ff=((flags&7)<<13)|(foff&0x1fff);
+      var ttl=parseInt(v.TTL)||64,proto=parseNum(v.Protocol,16);
+      var src=parseIp(v.SrcIP),dst=parseIp(v.DstIP);
+      var hdr=[(ver<<4)|ihl,(dscp<<2)|ecn,(tlen>>8)&0xff,tlen&0xff,
+        id[0],id[1],(ff>>8)&0xff,ff&0xff,ttl,proto,0,0].concat(src,dst);
+      var ck=ipCksum(hdr);hdr[10]=(ck>>8)&0xff;hdr[11]=ck&0xff;
+      return hdr;
+    }
+  },
+  TCP:{name:'TCP',color:COLORS.TCP,
+    fields:[
+      {name:'SrcPort',type:'dec',def:'12345',desc:'源端口'},
+      {name:'DstPort',type:'dec',def:'80',desc:'目的端口'},
+      {name:'SeqNum',type:'hex4',def:'00000001',desc:'序列号'},
+      {name:'AckNum',type:'hex4',def:'00000000',desc:'确认号'},
+      {name:'DataOff',type:'dec',def:'5',bits:4,desc:'数据偏移 (5=20B头部)'},
+      {name:'Flags',type:'hex1',def:'02',desc:'控制位 (02=SYN,10=ACK,18=PSH+ACK,04=RST)'},
+      {name:'Window',type:'dec',def:'65535',desc:'接收窗口大小'},
+      {name:'Checksum',type:'hex2',def:'0000',desc:'校验和'},
+      {name:'Urgent',type:'hex2',def:'0000',desc:'紧急指针'}
+    ],
+    build:function(v){
+      var sp=parseInt(v.SrcPort)||0,dp=parseInt(v.DstPort)||0;
+      var seq=toBytes(parseNum(v.SeqNum,16),4),ack=toBytes(parseNum(v.AckNum,16),4);
+      var doff=(parseInt(v.DataOff)||5)&0xf,flg=parseNum(v.Flags,16);
+      var win=parseInt(v.Window)||0,urg=toBytes(parseNum(v.Urgent,16),2);
+      return[(sp>>8)&0xff,sp&0xff,(dp>>8)&0xff,dp&0xff].concat(seq,ack,
+        [(doff<<4),flg&0xff,(win>>8)&0xff,win&0xff,0,0],urg);
+    }
+  },
+  UDP:{name:'UDP',color:COLORS.UDP,
+    fields:[
+      {name:'SrcPort',type:'dec',def:'54321',desc:'源端口'},
+      {name:'DstPort',type:'dec',def:'53',desc:'目的端口'},
+      {name:'Length',type:'dec',def:'0',desc:'UDP长度 (0=自动)'},
+      {name:'Checksum',type:'hex2',def:'0000',desc:'校验和'}
+    ],
+    build:function(v,payloadSz){
+      var sp=parseInt(v.SrcPort)||0,dp=parseInt(v.DstPort)||0;
+      var len=parseInt(v.Length)||0;if(len===0)len=8+(payloadSz||0);
+      return[(sp>>8)&0xff,sp&0xff,(dp>>8)&0xff,dp&0xff,(len>>8)&0xff,len&0xff,0,0];
+    }
+  },
+  ICMP:{name:'ICMP',color:COLORS.ICMP,
+    fields:[
+      {name:'Type',type:'dec',def:'8',desc:'类型 (8=Echo请求,0=Echo响应,3=不可达)'},
+      {name:'Code',type:'dec',def:'0',desc:'代码'},
+      {name:'Checksum',type:'hex2',def:'0000',desc:'校验和 (0=自动)'},
+      {name:'Identifier',type:'hex2',def:'0001',desc:'标识符'},
+      {name:'SeqNum',type:'hex2',def:'0001',desc:'序列号'}
+    ],
+    build:function(v){
+      var t=parseInt(v.Type)||0,c=parseInt(v.Code)||0;
+      var id=toBytes(parseNum(v.Identifier,16),2),sq=toBytes(parseNum(v.SeqNum,16),2);
+      var h=[t,c,0,0].concat(id,sq);
+      var ck=ipCksum(h);h[2]=(ck>>8)&0xff;h[3]=ck&0xff;return h;
+    }
+  },
+  ARP:{name:'ARP',color:COLORS.ARP,
+    fields:[
+      {name:'HwType',type:'hex2',def:'0001',desc:'硬件类型 (0001=Ethernet)'},
+      {name:'ProtoType',type:'hex2',def:'0800',desc:'协议类型 (0800=IPv4)'},
+      {name:'HwLen',type:'dec',def:'6',desc:'硬件地址长度'},
+      {name:'ProtoLen',type:'dec',def:'4',desc:'协议地址长度'},
+      {name:'Operation',type:'hex2',def:'0001',desc:'操作 (0001=请求,0002=响应)'},
+      {name:'SenderMAC',type:'mac',def:'00:AA:BB:CC:DD:EE',desc:'发送方MAC'},
+      {name:'SenderIP',type:'ip',def:'192.168.1.1',desc:'发送方IP'},
+      {name:'TargetMAC',type:'mac',def:'00:00:00:00:00:00',desc:'目标MAC'},
+      {name:'TargetIP',type:'ip',def:'192.168.1.2',desc:'目标IP'}
+    ],
+    build:function(v){
+      return[].concat(toBytes(parseNum(v.HwType,16),2),toBytes(parseNum(v.ProtoType,16),2),
+        [parseInt(v.HwLen)||6,parseInt(v.ProtoLen)||4],toBytes(parseNum(v.Operation,16),2),
+        parseMac(v.SenderMAC),parseIp(v.SenderIP),parseMac(v.TargetMAC),parseIp(v.TargetIP));
+    }
+  },
+  Payload:{name:'Payload',color:COLORS.Payload,
+    fields:[
+      {name:'Data',type:'hex_raw',def:'DE AD BE EF CA FE BA BE 00 01 02 03 04 05 06 07',desc:'原始十六进制数据'},
+      {name:'Pattern',type:'text',def:'',desc:'填充模式: zeros N / inc N / ff N / rand N (N=字节数, 优先于Data)'}
+    ],
+    build:function(v){
+      var pat=(v.Pattern||'').trim();
+      if(pat){
+        var m=pat.match(/^(zeros|inc|ff|rand)\s+(\d+)$/i);
+        if(m){var n=parseInt(m[2])||1,t=m[1].toLowerCase(),b=[];
+          for(var i=0;i<n;i++)b.push(t==='zeros'?0:t==='inc'?i&0xff:t==='ff'?0xff:Math.floor(Math.random()*256));
+          return b;}
+      }
+      return parseHexStr(v.Data||'');
+    }
+  }
+};
+
+var KNOWN_FILES=['CPP2CPU_HDR.json','CPU2CPP_HDR.json','LOOPBACK.json'];
+
+function loadCustomHdrs(){
+  var el=document.getElementById('custom-list');
+  el.innerHTML='<h3>自定义报文头</h3>';
+  customDefs={};
+  var loaded=0;
+  KNOWN_FILES.forEach(function(fn){
+    fetch('/packet/'+fn).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(j){
+      customDefs[j.packet_name]=j;
+      var btn=document.createElement('button');
+      btn.className='hbtn';btn.dataset.pn=j.packet_name;
+      btn.innerHTML='<span class="dot" style="background:#c026d3"></span>'+esc(j.packet_name);
+      btn.onclick=(function(name){return function(){addCustom(name);};})(j.packet_name);
+      el.appendChild(btn);
+      loaded++;
+    }).catch(function(){}).finally(function(){
+      updateDecSel();
+      if(loaded===0&&el.querySelectorAll('.hbtn').length===0)
+        el.innerHTML+='<div style="color:var(--text2);font-size:11px">无自定义头文件</div>';
+    });
+  });
+}
+
+function loadFileJson(){document.getElementById('file-json-inp').click();}
+function onFileJson(inp){
+  var f=inp.files[0];if(!f)return;
+  var fr=new FileReader();
+  fr.onload=function(e){
+    try{
+      var j=JSON.parse(e.target.result);
+      if(!j.packet_name||!j.base_header)throw new Error('格式错误');
+      customDefs[j.packet_name]=j;
+      var el=document.getElementById('custom-list');
+      if(!el.querySelector('[data-pn="'+j.packet_name+'"]')){
+        var btn=document.createElement('button');
+        btn.className='hbtn';btn.dataset.pn=j.packet_name;
+        btn.innerHTML='<span class="dot" style="background:#c026d3"></span>'+esc(j.packet_name);
+        btn.onclick=(function(name){return function(){addCustom(name);};})(j.packet_name);
+        el.appendChild(btn);
+      }
+      updateDecSel();
+      alert('已加载: '+j.packet_name);
+    }catch(err){alert('加载失败: '+err.message);}
+  };
+  fr.readAsText(f);
+  inp.value='';
+}
+
+function updateDecSel(){
+  var s=document.getElementById('dec-csel');
+  s.innerHTML='<option value="">自动检测标准头</option>';
+  Object.keys(customDefs).forEach(function(k){s.innerHTML+='<option value="'+esc(k)+'">'+esc(k)+'</option>';});
+}
+
+function mkLayer(type,name,color,vals,stdDef,customDef){
+  return{id:++_lid,type:type,name:name,color:color,vals:JSON.parse(JSON.stringify(vals||{})),
+    stdDef:stdDef,customDef:customDef,condVariant:null};
+}
+function addStd(type){
+  var def=STD[type];if(!def)return;
+  var vals={};def.fields.forEach(function(f){vals[f.name]=f.def;});
+  var l=mkLayer(type,def.name,def.color,vals,def,null);
+  layers.push(l);activeId=l.id;rerender();genPacket();
+}
+function addCustom(name){
+  var def=customDefs[name];if(!def)return;
+  var vals={};
+  def.base_header.forEach(function(w){w.fields.forEach(function(f){vals[w.word+'_'+f.name]='0';});});
+  var l=mkLayer('__custom__',name,COLORS.Custom,vals,null,def);
+  layers.push(l);activeId=l.id;rerender();genPacket();
+}
+function delLayer(id){
+  layers=layers.filter(function(l){return l.id!==id;});
+  if(activeId===id)activeId=layers.length?layers[layers.length-1].id:null;
+  rerender();genPacket();
+}
+function moveLayer(id,dir){
+  var i=layers.findIndex(function(l){return l.id===id;});
+  var j=i+dir;if(j<0||j>=layers.length)return;
+  var tmp=layers[i];layers[i]=layers[j];layers[j]=tmp;
+  renderLayers();genPacket();
+}
+function selectLayer(id){activeId=id;rerender();}
+function clearAll(){layers=[];activeId=null;lastPkt=null;rerender();renderHex([],{});}
+
+function layerPayloadSize(fromIdx){
+  var sz=0;
+  for(var i=fromIdx;i<layers.length;i++){
+    var l=layers[i];
+    try{sz+=(l.stdDef?l.stdDef.build(l.vals,0):buildCustomLayer(l)).length;}catch(e){}
+  }
+  return sz;
+}
+
+function buildCustomLayer(layer){
+  var def=layer.customDef;
+  var words={};
+  var maxW=Math.max.apply(null,def.base_header.map(function(w){return w.word;}));
+  for(var i=0;i<=maxW;i++)words[i]=0;
+  def.base_header.forEach(function(w){
+    w.fields.forEach(function(f){
+      var key=w.word+'_'+f.name;
+      var vs=String(layer.vals[key]||'0').trim();
+      var br=parseBR(f.bit_range);
+      var val=vs.startsWith('0x')||vs.startsWith('0X')?parseInt(vs,16)||0:parseInt(vs)||0;
+      words[w.word]=setBits(words[w.word],br.h,br.l,val);
+    });
+  });
+  var numWords=maxW+1;
+  if(def.conditional_header&&layer.condVariant!==null&&layer.condVariant>=0){
+    var cv=def.conditional_header;
+    var variant=cv.variants[layer.condVariant];
+    if(variant){
+      words[cv.word]=0;
+      variant.fields.forEach(function(f){
+        var key='cond_'+f.name;
+        var vs=String(layer.vals[key]||'0').trim();
+        var br=parseBR(f.bit_range);
+        var val=vs.startsWith('0x')||vs.startsWith('0X')?parseInt(vs,16)||0:parseInt(vs)||0;
+        words[cv.word]=setBits(words[cv.word],br.h,br.l,val);
+      });
+      numWords=Math.max(numWords,cv.word+1);
+    }
+  }
+  var bytes=[];
+  for(var i=0;i<numWords;i++){
+    var w=(words[i]||0)>>>0;
+    bytes.push((w>>24)&0xff,(w>>16)&0xff,(w>>8)&0xff,w&0xff);
+  }
+  return bytes;
+}
+
+function buildPacket(){
+  var bytes=[],ethStart=-1,layerMap=[];
+  for(var i=0;i<layers.length;i++){
+    var l=layers[i],start=bytes.length,lb;
+    if(l.stdDef){
+      var payloadSz=(l.type==='IPv4'||l.type==='UDP')?layerPayloadSize(i+1):0;
+      lb=l.stdDef.build(l.vals,payloadSz);
+      if(l.type==='Ethernet')ethStart=start;
+    } else {
+      lb=buildCustomLayer(l);
+    }
+    layerMap.push({id:l.id,start:start,end:start+lb.length,color:l.color,name:l.name});
+    bytes=bytes.concat(lb);
+  }
+  var fcsStart=-1;
+  if(showFCS&&ethStart>=0){fcsStart=bytes.length;bytes=bytes.concat(fcsBytesOf(bytes.slice(ethStart)));}
+  return{bytes:bytes,fcsStart:fcsStart,layerMap:layerMap};
+}
+
+function genPacket(){
+  try{
+    var res=buildPacket();lastPkt=res;
+    renderHex(res.bytes,res);
+    var parts=res.layerMap.map(function(m){return m.name+'('+(m.end-m.start)+'B)';}).join(' + ');
+    document.getElementById('pkt-info').textContent=
+      '总长度: '+res.bytes.length+'B  |  '+(res.bytes.length*8)+'bit'+
+      (res.fcsStart>=0?'  |  FCS@+'+res.fcsStart:'')+
+      (parts?'  |  '+parts:'');
+  }catch(e){console.error(e);}
+}
+
+function renderHex(bytes,info){
+  var el=document.getElementById('hex-view');
+  if(!bytes||!bytes.length){
+    el.innerHTML='<div style="color:var(--text2);text-align:center;padding:20px;font-size:12px">点击「生成报文」查看十六进制</div>';
+    return;
+  }
+  var fcsStart=info&&info.fcsStart!=null?info.fcsStart:-1;
+  var html='';
+  for(var i=0;i<bytes.length;i+=16){
+    var row=bytes.slice(i,i+16);
+    var hexStr='',ascStr='';
+    for(var j=0;j<16;j++){
+      if(j<row.length){
+        var idx=i+j,b=row[j];
+        var h=b.toString(16).padStart(2,'0').toUpperCase();
+        hexStr+=(fcsStart>=0&&idx>=fcsStart)?'<span class="fcs-byte">'+h+'</span>':h;
+        ascStr+=(b>=32&&b<127)?esc(String.fromCharCode(b)):'.';
+      } else {hexStr+='  ';ascStr+=' ';}
+      if(j<15)hexStr+=j===7?'  ':' ';
+    }
+    html+='<div class="hline"><span class="hoff">'+i.toString(16).padStart(8,'0')+'  </span><span class="hhex">'+hexStr+'  </span><span class="hasc">'+ascStr+'</span></div>';
+  }
+  el.innerHTML=html;
+}
+
+function renderLayers(){
+  var el=document.getElementById('layers-list');
+  if(!layers.length){el.innerHTML='<div class="empty-msg">&#8592; 点击左侧协议头添加到报文</div>';return;}
+  var szMap={};if(lastPkt&&lastPkt.layerMap)lastPkt.layerMap.forEach(function(m){szMap[m.id]=m.end-m.start;});
+  el.innerHTML=layers.map(function(l,i){
+    return '<div class="layer-item'+(l.id===activeId?' active':'')+'" onclick="selectLayer('+l.id+')">'+
+      '<span class="ldot" style="background:'+l.color+'"></span>'+
+      '<span class="lname">'+esc(l.name)+'</span>'+
+      '<span class="lsz">'+(szMap[l.id]!=null?szMap[l.id]+'B':'')+'</span>'+
+      '<button class="livbtn mv" onclick="event.stopPropagation();moveLayer('+l.id+',-1)" title="上移">&#9650;</button>'+
+      '<button class="livbtn mv" onclick="event.stopPropagation();moveLayer('+l.id+',1)" title="下移">&#9660;</button>'+
+      '<button class="livbtn del" onclick="event.stopPropagation();delLayer('+l.id+')" title="删除">&#10005;</button>'+
+      '</div>';
+  }).join('');
+}
+
+function renderEditor(){
+  var el=document.getElementById('feditor');
+  var l=layers.find(function(x){return x.id===activeId;});
+  if(!l){el.innerHTML='<div class="empty-msg">选择一个协议层来编辑字段</div>';return;}
+  if(l.stdDef)renderStdEditor(el,l);else renderCustomEditor(el,l);
+}
+
+function mkInput(key,type,val,desc,bits){
+  var ph=type==='mac'?'AA:BB:CC:DD:EE:FF':type==='ip'?'x.x.x.x':type==='hex_raw'?'00 01 02...':type==='text'?'zeros N / inc N':'';
+  var binfo=bits?'<span style="color:#4a6070;font-size:10px"> ['+bits+'b]</span>':'';
+  return '<div class="frow"><div class="flabel"><div class="fname">'+esc(key.split('_').pop())+binfo+'</div><div class="fdesc">'+esc(desc||'')+'</div></div>'+
+    '<input class="finput" data-fkey="'+esc(key)+'" value="'+esc(val)+'" placeholder="'+esc(ph)+'"></div>';
+}
+
+function renderStdEditor(el,l){
+  var def=l.stdDef;
+  var html='<div class="sec-title" style="color:'+l.color+'">'+esc(def.name)+'</div>';
+  def.fields.forEach(function(f){html+=mkInput(f.name,f.type,l.vals[f.name]||f.def||'',f.desc,f.bits);});
+  el.innerHTML=html;
+  bindEditor(el,l);
+}
+
+function renderCustomEditor(el,l){
+  var def=l.customDef;
+  var html='<div class="sec-title" style="color:'+l.color+'">'+esc(def.packet_name)+' &mdash; 基础头</div>';
+  def.base_header.forEach(function(w){
+    html+='<div class="word-sep">Word '+w.word+'  [bits 31~0]</div>';
+    w.fields.forEach(function(f){
+      var key=w.word+'_'+f.name;
+      var br=parseBR(f.bit_range);
+      var maxV=br.w>=32?'0xFFFFFFFF':'0x'+'F'.repeat(Math.ceil(br.w/4));
+      html+='<div class="frow"><div class="flabel">'+
+        '<div class="fname">'+esc(f.name)+'</div>'+
+        '<div class="fbits">['+esc(f.bit_range)+'] '+br.w+'b &#8804;'+maxV+'</div>'+
+        '<div class="fdesc">'+esc((f.description||'').replace(/\n/g,' ').substring(0,55))+'</div></div>'+
+        '<input class="finput" data-fkey="'+esc(key)+'" value="'+esc(l.vals[key]||'0')+'"></div>';
+    });
+  });
+  if(def.conditional_header){
+    var cv=def.conditional_header;
+    html+='<div class="sec-title">条件头 Word'+cv.word+' (依赖: '+esc(cv.dependent_on_field)+')</div>';
+    html+='<select id="cond-var-sel" class="cond-sel"><option value="">-- 不添加条件头 --</option>';
+    cv.variants.forEach(function(v,i){
+      html+='<option value="'+i+'"'+(l.condVariant===i?' selected':'')+'>'+esc(v.condition_value)+': '+esc(v.condition_desc)+'</option>';
+    });
+    html+='</select>';
+    if(l.condVariant!==null&&l.condVariant>=0){
+      var variant=cv.variants[l.condVariant];
+      if(variant){
+        html+='<div class="word-sep">Word '+cv.word+' &mdash; '+esc(variant.condition_desc)+'</div>';
+        variant.fields.forEach(function(f){
+          var key='cond_'+f.name;
+          var br=parseBR(f.bit_range);
+          html+='<div class="frow"><div class="flabel">'+
+            '<div class="fname">'+esc(f.name)+'</div>'+
+            '<div class="fbits">['+esc(f.bit_range)+'] '+br.w+'b</div>'+
+            '<div class="fdesc">'+esc((f.description||'').replace(/\n/g,' ').substring(0,55))+'</div></div>'+
+            '<input class="finput" data-fkey="'+esc(key)+'" value="'+esc(l.vals[key]||'0')+'"></div>';
+        });
+      }
+    }
+  }
+  el.innerHTML=html;
+  bindEditor(el,l);
+  var cs=el.querySelector('#cond-var-sel');
+  if(cs)cs.addEventListener('change',function(e){
+    l.condVariant=e.target.value===''?null:parseInt(e.target.value);
+    renderEditor();genPacket();
+  });
+}
+
+function bindEditor(el,l){
+  el.querySelectorAll('[data-fkey]').forEach(function(inp){
+    inp.addEventListener('input',function(e){l.vals[e.target.dataset.fkey]=e.target.value;genPacket();});
+  });
+}
+
+function rerender(){renderLayers();renderEditor();}
+
+function buildPcap(bytes){
+  var buf=new ArrayBuffer(24+16+bytes.length);
+  var v=new DataView(buf);
+  v.setUint32(0,0xa1b2c3d4,true);v.setUint16(4,2,true);v.setUint16(6,4,true);
+  v.setInt32(8,0,true);v.setUint32(12,0,true);
+  v.setUint32(16,65535,true);v.setUint32(20,1,true);
+  v.setUint32(24,0,true);v.setUint32(28,0,true);
+  v.setUint32(32,bytes.length,true);v.setUint32(36,bytes.length,true);
+  new Uint8Array(buf,40).set(bytes);
+  return new Uint8Array(buf);
+}
+function dlPcap(){
+  if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([buildPcap(lastPkt.bytes)],{type:'application/octet-stream'}));
+  a.download='packet.pcap';a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+}
+function copyHex(){
+  if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
+  var hex=lastPkt.bytes.map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(' ');
+  var btn=event.currentTarget,orig=btn.textContent;
+  navigator.clipboard.writeText(hex).then(function(){btn.textContent='已复制!';setTimeout(function(){btn.textContent=orig;},1500);});
+}
+function copyHexRaw(){
+  if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
+  var hex=lastPkt.bytes.map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join('');
+  var btn=event.currentTarget,orig=btn.textContent;
+  navigator.clipboard.writeText(hex).then(function(){btn.textContent='已复制!';setTimeout(function(){btn.textContent=orig;},1500);});
+}
+function toggleFcs(){
+  showFCS=!showFCS;
+  var b=document.getElementById('fcs-btn');
+  b.textContent=showFCS?'FCS ✓':'FCS ✗';
+  b.className='toggle'+(showFCS?' on':'');
+  genPacket();
+}
+
+var ICMP_TYPES={0:'Echo Reply',3:'Dest Unreachable',8:'Echo Request',11:'Time Exceeded',
+  4:'Source Quench',5:'Redirect',12:'Parameter Problem'};
+var IP_PROTOS={1:'ICMP',2:'IGMP',6:'TCP',17:'UDP',41:'IPv6',47:'GRE',50:'ESP',89:'OSPF'};
+var ETH_TYPES={'0x0800':'IPv4','0x86DD':'IPv6','0x0806':'ARP','0x8100':'VLAN','0x88CC':'LLDP','0x8847':'MPLS'};
+
+function decFromPkt(){
+  if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
+  document.getElementById('dec-inp').value=lastPkt.bytes.map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(' ');
+  decodePacket();
+}
+function decodePacket(){
+  var raw=document.getElementById('dec-inp').value;
+  var off=parseInt(document.getElementById('dec-off').value)||0;
+  var customName=document.getElementById('dec-csel').value;
+  var bytes=parseHexStr(raw);
+  var el=document.getElementById('dec-res');
+  if(!bytes.length){el.innerHTML='<span style="color:var(--danger)">无有效十六进制数据</span>';return;}
+  var data=bytes.slice(off);
+  var html=customName&&customDefs[customName]?decodeCustom(data,0,customDefs[customName]):decodeStd(data);
+  el.innerHTML=html||'<span style="color:var(--text2)">无法识别</span>';
+}
+
+function dfRow(name,val,desc){
+  return'<div class="dfield"><span class="dfn">'+esc(name)+'</span><span class="dfv">'+esc(String(val))+'</span>'+(desc?'<span class="dfd">'+esc(desc)+'</span>':'')+'</div>';
+}
+
+function decodeStd(data){
+  var html='',pos=0;
+  if(data.length<14){
+    return'<div class="dhdr">Raw Data ('+data.length+'B)</div>'+
+      '<div style="color:#a5d6ff;word-break:break-all;font-size:11px">'+data.slice(0,256).map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(' ')+'</div>';
+  }
+  var et=(data[12]<<8)|data[13];
+  var etName=ETH_TYPES[fmtHex(et,4)]||'';
+  html+='<div class="dhdr">&#9654; Ethernet (14B @ +0)</div>';
+  html+=dfRow('DMAC',fmtMac(data.slice(0,6)),'目的MAC');
+  html+=dfRow('SMAC',fmtMac(data.slice(6,12)),'源MAC');
+  html+=dfRow('EtherType',fmtHex(et,4)+(etName?' ('+etName+')'),'');
+  pos=14;
+  var nextProto=et;
+  while((nextProto===0x8100||nextProto===0x88a8)&&data.length>=pos+4){
+    var tci=(data[pos]<<8)|data[pos+1];
+    nextProto=(data[pos+2]<<8)|data[pos+3];
+    html+='<div class="dhdr">&#9654; VLAN 802.1Q (4B @ +'+pos+')</div>';
+    html+=dfRow('PCP',(tci>>13)&7,'优先级');
+    html+=dfRow('DEI',(tci>>12)&1,'丢弃资格');
+    html+=dfRow('VID',tci&0xfff,'VLAN ID');
+    html+=dfRow('InnerEtherType',fmtHex(nextProto,4)+(ETH_TYPES[fmtHex(nextProto,4)]?' ('+ETH_TYPES[fmtHex(nextProto,4)]+')':''),'');
+    pos+=4;
+  }
+  if(nextProto===0x0806&&data.length>=pos+28){
+    var op=(data[pos+6]<<8)|data[pos+7];
+    html+='<div class="dhdr">&#9654; ARP (28B @ +'+pos+')</div>';
+    html+=dfRow('Operation',fmtHex(op,4)+(op===1?' (请求)':op===2?' (响应)':''),'');
+    html+=dfRow('SenderMAC',fmtMac(data.slice(pos+8,pos+14)),'发送方MAC');
+    html+=dfRow('SenderIP',fmtIp(data.slice(pos+14,pos+18)),'');
+    html+=dfRow('TargetMAC',fmtMac(data.slice(pos+18,pos+24)),'目标MAC');
+    html+=dfRow('TargetIP',fmtIp(data.slice(pos+24,pos+28)),'');
+    return html;
+  }
+  if(nextProto===0x0800&&data.length>=pos+20){
+    var ver=(data[pos]>>4)&0xf,ihl=(data[pos]&0xf)*4;
+    var dscp=(data[pos+1]>>2)&0x3f,ecn=data[pos+1]&3;
+    var tlen=u16(data,pos+2),id=u16(data,pos+4);
+    var flags=(data[pos+6]>>5)&7,foff=((data[pos+6]&0x1f)<<8)|data[pos+7];
+    var ttl=data[pos+8],proto=data[pos+9],cksum=u16(data,pos+10);
+    var sip=fmtIp(data.slice(pos+12,pos+16)),dip=fmtIp(data.slice(pos+16,pos+20));
+    html+='<div class="dhdr">&#9654; IPv4 ('+ihl+'B @ +'+pos+')</div>';
+    html+=dfRow('Version/IHL',ver+'/'+ihl+'B','');
+    html+=dfRow('DSCP/ECN',dscp+'/'+ecn,'QoS');
+    html+=dfRow('TotalLen',tlen,'字节');
+    html+=dfRow('ID',fmtHex(id,4),'');
+    html+=dfRow('Flags/FragOff',flags+(flags&2?' DF':'')+(flags&1?' MF':'')+'  /  '+foff,'');
+    html+=dfRow('TTL/Proto',ttl+'  /  '+fmtHex(proto,2)+(IP_PROTOS[proto]?' ('+IP_PROTOS[proto]+')':''),'');
+    html+=dfRow('Checksum',fmtHex(cksum,4),'');
+    html+=dfRow('SrcIP',sip,'');html+=dfRow('DstIP',dip,'');
+    pos+=ihl;
+    if(proto===6&&data.length>=pos+20){
+      var sp=u16(data,pos),dp=u16(data,pos+2),seq=u32(data,pos+4),ack=u32(data,pos+8);
+      var doff=((data[pos+12]>>4)&0xf)*4,flg=data[pos+13],win=u16(data,pos+14);
+      var fnames=['FIN','SYN','RST','PSH','ACK','URG'];
+      var fstr=fnames.filter(function(_,i){return flg&(1<<i);}).join(',');
+      html+='<div class="dhdr">&#9654; TCP ('+doff+'B @ +'+pos+')</div>';
+      html+=dfRow('SrcPort',sp,'');html+=dfRow('DstPort',dp,'');
+      html+=dfRow('SeqNum',fmtHex(seq,8),'');html+=dfRow('AckNum',fmtHex(ack,8),'');
+      html+=dfRow('DataOffset',doff+'B','');
+      html+=dfRow('Flags',fmtHex(flg,2)+' ('+fstr+')','');
+      html+=dfRow('Window',win,'');
+      pos+=doff;
+    } else if(proto===17&&data.length>=pos+8){
+      var sp=u16(data,pos),dp=u16(data,pos+2),ulen=u16(data,pos+4);
+      html+='<div class="dhdr">&#9654; UDP (8B @ +'+pos+')</div>';
+      html+=dfRow('SrcPort',sp,'');html+=dfRow('DstPort',dp,'');html+=dfRow('Length',ulen,'');
+      pos+=8;
+    } else if(proto===1&&data.length>=pos+8){
+      var typ=data[pos],cod=data[pos+1],ick=u16(data,pos+2);
+      html+='<div class="dhdr">&#9654; ICMP (8B @ +'+pos+')</div>';
+      html+=dfRow('Type',typ+' ('+(ICMP_TYPES[typ]||'unknown')+')','');
+      html+=dfRow('Code',cod,'');html+=dfRow('Checksum',fmtHex(ick,4),'');
+      pos+=8;
+    }
+  }
+  if(pos<data.length){
+    var rem=data.slice(pos);
+    html+='<div class="dhdr">Payload ('+rem.length+'B @ +'+pos+')</div>';
+    html+='<div style="color:#a5d6ff;font-size:11px;word-break:break-all;line-height:1.8">'+
+      rem.slice(0,128).map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(' ')+
+      (rem.length>128?' ... (+' +(rem.length-128)+'B)':'')+'</div>';
+    var asc=rem.slice(0,128).map(function(b){return(b>=32&&b<127)?String.fromCharCode(b):'.';}).join('');
+    html+='<div style="color:#7ee787;font-size:11px;margin-top:2px">'+esc(asc)+'</div>';
+  }
+  return html;
+}
+
+function decodeCustom(data,startByte,def){
+  var html='<div class="dhdr">&#9654; '+esc(def.packet_name)+' 自定义报文头</div>';
+  var controlVal=null,controlFieldName=def.conditional_header?def.conditional_header.dependent_on_field:null;
+  def.base_header.forEach(function(w){
+    var bo=startByte+w.word*4;
+    if(bo+4>data.length){html+='<div style="color:var(--danger);font-size:11px">Word'+w.word+': 数据不足</div>';return;}
+    var word=u32(data,bo);
+    html+='<div class="word-hdr">Word '+w.word+'  [+'+bo+']  = '+fmtHex(word,8)+'</div>';
+    w.fields.forEach(function(f){
+      var br=parseBR(f.bit_range);
+      var val=getBits(word,br.h,br.l);
+      if(f.name===controlFieldName)controlVal=val;
+      html+=dfRow('['+f.bit_range+'] '+f.name,fmtHex(val,Math.max(1,Math.ceil(br.w/4)))+'  ('+val+')',
+        (f.description||'').replace(/\n/g,' ').substring(0,50));
+    });
+  });
+  if(def.conditional_header&&controlVal!==null){
+    var cv=def.conditional_header;
+    var variant=null;
+    cv.variants.forEach(function(v){
+      if(variant)return;
+      var c=String(v.condition_value).trim();
+      var n=c.startsWith('0x')||c.startsWith('0X')?parseInt(c,16):parseInt(c);
+      if(!isNaN(n)&&n===controlVal)variant=v;
+    });
+    var bo=startByte+cv.word*4;
+    if(variant&&bo+4<=data.length){
+      var cword=u32(data,bo);
+      html+='<div class="dhdr" style="color:var(--accent2)">&#9654; 条件头 Word'+cv.word+' &mdash; '+esc(variant.condition_desc)+'</div>';
+      html+='<div class="word-hdr">Word '+cv.word+'  [+'+bo+']  = '+fmtHex(cword,8)+'</div>';
+      variant.fields.forEach(function(f){
+        var br=parseBR(f.bit_range);
+        var val=getBits(cword,br.h,br.l);
+        html+=dfRow('['+f.bit_range+'] '+f.name,fmtHex(val,Math.max(1,Math.ceil(br.w/4)))+'  ('+val+')',
+          (f.description||'').replace(/\n/g,' ').substring(0,50));
+      });
+    } else if(!variant){
+      html+='<div style="color:var(--text2);font-size:11px;margin:4px 0">条件头 '+esc(cv.dependent_on_field)+'='+fmtHex(controlVal,2)+' &mdash; 无匹配变体</div>';
+    }
+  }
+  return html;
+}
+
+loadCustomHdrs();
+addStd('Ethernet');addStd('IPv4');addStd('TCP');addStd('Payload');
+selectLayer(layers[0].id);
+genPacket();
+</script>
+</body>
+</html>

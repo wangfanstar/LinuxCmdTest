@@ -162,6 +162,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .editor-wrap{position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column}
 .editor-mirror{position:absolute;inset:0;padding:14px 16px;font-family:"Cascadia Mono","SFMono-Regular",Consolas,"Microsoft YaHei UI",monospace;font-size:.85rem;line-height:22px;tab-size:2;white-space:pre-wrap;word-break:break-word;pointer-events:none;overflow:hidden;background:transparent;z-index:1}
 .editor-mirror *{pointer-events:none}
+.editor-gutter{position:absolute;left:0;top:0;bottom:0;width:56px;padding:14px 6px 14px 0;background:#0b1119;border-right:1px solid var(--border);color:#6e7681;font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace;font-size:.75rem;line-height:22px;text-align:right;overflow:hidden;display:none;z-index:2;pointer-events:none}
+.editor-wrap.ln-on .editor-gutter{display:block}
+.editor-wrap.ln-on .editor-mirror{padding-left:72px}
+.editor-wrap.ln-on textarea{padding-left:72px}
 .editor-mirror .hl-h1{color:#79c0ff}
 .editor-mirror .hl-h2{color:#7ee787}
 .editor-mirror .hl-h3{color:#ffa657}
@@ -358,13 +362,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="tb('math-block')" title="块公式（Ctrl+Alt+Shift+M）">∫</button>
         <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
         <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
+        <button class="tb-btn" id="tb-lineno" onclick="toggleLineNumbers()" title="切换行号（Ctrl+Alt+L）">#</button>
+        <button class="tb-btn" id="tb-keydbg" onclick="toggleKeyDebug()" title="切换按键调试（Ctrl+Alt+K）">⌨</button>
         <button class="tb-btn" id="tb-vim" onclick="toggleVimMode()" title="切换 Vim 模式（Ctrl+Alt+V）">Vim</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
           <div class="panel-label">Markdown</div>
-          <div class="editor-wrap">
+          <div class="editor-wrap" id="editor-wrap">
+            <div id="editor-gutter" class="editor-gutter" aria-hidden="true"></div>
             <div id="editor-mirror" class="editor-mirror" aria-hidden="true"></div>
             <textarea id="edit-textarea" spellcheck="false"
               oninput="onEditorInput()"
@@ -635,6 +642,8 @@ var S = {
   editForceCreated: '',   // 被覆盖文章原有 created 字段
   viewMode: 'split',      // split | edit | prev
   previewAlign: false,    // 右侧预览是否随光标自动对齐（默认关闭）
+  showLineNumbers: true,  // 编辑区是否显示行号
+  keyDebugEnabled: false, // 键值调试显示开关（默认关闭）
   vimEnabled: false,      // 是否启用 Vim 按键模式
   vimInsert: false        // Vim 子模式：true=Insert, false=Normal
 };
@@ -735,6 +744,8 @@ function ensureWriteAuth() {
 // ── Init ─────────────────────────────────────────────────────────────
 function init() {
   richRenderer.ensure();
+  updateLineNumberUi();
+  updateKeyDebugUi();
   refreshAuthStatus().finally(function(){
     var params = new URLSearchParams(location.search);
     var editId = params.get('edit');
@@ -2340,7 +2351,7 @@ function tb(cmd) {
 }
 
 function onEditorKey(e) {
-  updateKeyDebug(e, 'editor');
+  if (S.keyDebugEnabled) updateKeyDebug(e, 'editor');
   if ((e.ctrlKey||e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); doUndo(); return;
   }
@@ -2375,6 +2386,16 @@ function onEditorKey(e) {
   if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'a' || e.key === 'A')) {
     e.preventDefault();
     openAttachmentUpload();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault();
+    toggleLineNumbers();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    toggleKeyDebug();
     return;
   }
   if (S.vimEnabled && vimHandleEditorKey(e)) return;
@@ -2524,6 +2545,7 @@ var _lastPreviewContent = null;
 var _lastHighlightContent = null;
 var _lastHighlightSearchTerm = '';
 var _lastHighlightCursorSig = '';
+var _lastLineNumberTotal = -1;
 
 function scheduleEditorRender(content) {
   _pendingContent = content;
@@ -2721,7 +2743,7 @@ function onVimCmdlineInput(e) {
 }
 
 function onVimCmdlineKey(e) {
-  updateKeyDebug(e, 'cmdline');
+  if (S.keyDebugEnabled) updateKeyDebug(e, 'cmdline');
   e.stopPropagation();
   if (vimIsEscapeLike(e)) {
     e.preventDefault();
@@ -2739,6 +2761,44 @@ function vimOpenSearchCmdline(dir) {
     if (!q) return;
     vimSearch(q, dir > 0 ? 1 : -1, 1, false);
   });
+}
+
+function toggleLineNumbers(forceOn) {
+  var next = (typeof forceOn === 'boolean') ? forceOn : !S.showLineNumbers;
+  S.showLineNumbers = !!next;
+  updateLineNumberUi();
+}
+
+function updateLineNumberUi() {
+  var wrap = document.getElementById('editor-wrap');
+  var btn = document.getElementById('tb-lineno');
+  if (wrap) wrap.classList.toggle('ln-on', !!S.showLineNumbers);
+  if (btn) btn.classList.toggle('on', !!S.showLineNumbers);
+  updateLineNumbers();
+  syncMirrorMetrics();
+  syncMirrorScroll();
+}
+
+function updateLineNumbers(content, totalOverride) {
+  var gut = document.getElementById('editor-gutter');
+  var ta = document.getElementById('edit-textarea');
+  if (!gut || !ta) return;
+  if (!S.showLineNumbers) {
+    gut.innerHTML = '';
+    _lastLineNumberTotal = -1;
+    return;
+  }
+  var text = (content === undefined) ? ta.value : content;
+  var total = (typeof totalOverride === 'number' && totalOverride > 0)
+    ? totalOverride
+    : ((text.match(/\n/g) || []).length + 1);
+  if (total !== _lastLineNumberTotal) {
+    var out = [];
+    for (var i = 1; i <= total; i++) out.push('<div>' + i + '</div>');
+    gut.innerHTML = out.join('');
+    _lastLineNumberTotal = total;
+  }
+  gut.scrollTop = ta.scrollTop;
 }
 
 function vimIsEscapeLike(e) {
@@ -2764,6 +2824,7 @@ function updateEditorHighlight(content) {
       && hl.scrollTop === ta.scrollTop) return;
   syncMirrorMetrics();
   var lines = content.split('\n');
+  updateLineNumbers(content, lines.length);
   var HCL = ['hl-h1','hl-h2','hl-h3','hl-h4','hl-h5','hl-h6'];
   var inCodeBlock = false;
   var offset = 0;
@@ -2812,10 +2873,12 @@ function syncMirrorMetrics() {
 
 function syncMirrorScroll() {
   var hl = document.getElementById('editor-mirror');
+  var gut = document.getElementById('editor-gutter');
   var ta = document.getElementById('edit-textarea');
   if (hl && ta) {
     syncMirrorMetrics();
     hl.scrollTop = ta.scrollTop;
+    if (gut) gut.scrollTop = ta.scrollTop;
   }
 }
 
@@ -3216,7 +3279,7 @@ function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function esc(s){ return (s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
 function updateKeyDebug(e, src) {
   var el = document.getElementById('status-keydbg');
-  if (!el || !e) return;
+  if (!el || !e || !S.keyDebugEnabled) return;
   var mods = [];
   if (e.ctrlKey) mods.push('C');
   if (e.altKey) mods.push('A');
@@ -3230,6 +3293,22 @@ function updateKeyDebug(e, src) {
     + ' code=' + String(e.code || '')
     + ' kc=' + String((e.keyCode == null ? '' : e.keyCode))
     + ' mods=' + (mods.join('+') || '-');
+}
+
+function toggleKeyDebug(forceOn) {
+  var next = (typeof forceOn === 'boolean') ? forceOn : !S.keyDebugEnabled;
+  S.keyDebugEnabled = !!next;
+  updateKeyDebugUi();
+}
+
+function updateKeyDebugUi() {
+  var el = document.getElementById('status-keydbg');
+  var btn = document.getElementById('tb-keydbg');
+  if (el) {
+    el.style.display = S.keyDebugEnabled ? '' : 'none';
+    if (!S.keyDebugEnabled) el.textContent = '';
+  }
+  if (btn) btn.classList.toggle('on', !!S.keyDebugEnabled);
 }
 
 var Vim = {
@@ -3307,6 +3386,22 @@ function vimGetCount(reset) {
   return n;
 }
 
+function vimDigitFromEvent(e) {
+  if (!e) return '';
+  var k = String(e.key || '');
+  if (k >= '0' && k <= '9') return k;
+  if (k >= '０' && k <= '９') return String(k.charCodeAt(0) - '０'.charCodeAt(0));
+  // 若 key 已是可见符号（如 % / & / *），不要再从 code/keyCode 反推数字。
+  if (k && k.length === 1 && !/^[\s]$/.test(k) && !/[0-9０-９]/.test(k)) return '';
+  var canFallbackByCode = (!k || k === 'Process' || k === 'Unidentified');
+  var c = String(e.code || '');
+  if (canFallbackByCode && /^Digit[0-9]$/.test(c)) return c.slice(-1);
+  if (/^Numpad[0-9]$/.test(c)) return c.slice(-1);
+  if (canFallbackByCode && e.keyCode >= 48 && e.keyCode <= 57) return String(e.keyCode - 48);
+  if (e.keyCode >= 96 && e.keyCode <= 105) return String(e.keyCode - 96);
+  return '';
+}
+
 function vimEditor() {
   return document.getElementById('edit-textarea');
 }
@@ -3363,6 +3458,7 @@ function vimSetVisualCursor(pos) {
     ta.selectionStart = s;
     ta.selectionEnd = e;
   }
+  vimEnsureCursorVisible();
   schedulePreviewScrollSync();
 }
 
@@ -3375,8 +3471,27 @@ function vimSetCursor(pos) {
     return;
   }
   ta.selectionStart = ta.selectionEnd = p;
+  vimEnsureCursorVisible();
   schedulePreviewScrollSync();
   updateEditorHighlight();
+}
+
+function vimEnsureCursorVisible() {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = ta.selectionStart;
+  var lineH = 22;
+  var line = ta.value.substring(0, p).split('\n').length - 1;
+  var top = line * lineH;
+  var bottom = top + lineH;
+  var viewTop = ta.scrollTop;
+  var viewBottom = viewTop + ta.clientHeight;
+  if (top < viewTop) {
+    ta.scrollTop = top;
+  } else if (bottom > viewBottom) {
+    ta.scrollTop = Math.max(0, bottom - ta.clientHeight);
+  }
+  syncMirrorScroll();
 }
 
 function vimLineStart(v, p) {
@@ -3620,7 +3735,12 @@ function vimMoveToLine(targetLine) {
   var v = ta.value;
   var p = 0;
   var ln = 1;
-  if (targetLine <= 1) { vimSetCursor(0); return; }
+  var req = targetLine;
+  if (targetLine <= 1) {
+    vimSetCursor(0);
+    setStatus('Vim 模式：已跳到第 1 行');
+    return;
+  }
   while (ln < targetLine && p < v.length) {
     var n = v.indexOf('\n', p);
     if (n < 0) { p = v.length; break; }
@@ -3628,6 +3748,32 @@ function vimMoveToLine(targetLine) {
     ln++;
   }
   vimSetCursor(vimFirstNonBlank(v, p));
+  setStatus('Vim 模式：已跳到第 ' + req + ' 行');
+}
+
+function vimFindMatchingPair(v, p) {
+  if (!v) return -1;
+  var pairs = { '(':')', ')':'(', '[':']', ']':'[', '{':'}', '}':'{' };
+  var ch = v.charAt(p);
+  if (!pairs[ch] && p > 0) {
+    p = p - 1;
+    ch = v.charAt(p);
+  }
+  if (!pairs[ch]) return -1;
+  var target = pairs[ch];
+  var dir = (ch === '(' || ch === '[' || ch === '{') ? 1 : -1;
+  var depth = 0;
+  var i = p;
+  while (true) {
+    i += dir;
+    if (i < 0 || i >= v.length) return -1;
+    var c = v.charAt(i);
+    if (c === ch) depth++;
+    else if (c === target) {
+      if (depth === 0) return i;
+      depth--;
+    }
+  }
 }
 
 function vimMotionTarget(v, p, key, count) {
@@ -3639,6 +3785,7 @@ function vimMotionTarget(v, p, key, count) {
   if (key === '0') return vimLineStart(v, p);
   if (key === '^') return vimFirstNonBlank(v, p);
   if (key === '$') return vimLineEnd(v, p);
+  if (key === '%') return vimFindMatchingPair(v, p);
   return p;
 }
 
@@ -3836,6 +3983,9 @@ function vimHandleEditorKey(e) {
   var ta = vimEditor();
   if (!ta) return false;
   var key = e.key;
+  var lowKey = (key || '').toLowerCase();
+  var isGKey = (lowKey === 'g' || e.code === 'KeyG' || e.keyCode === 71);
+  var isUpperG = (key === 'G' || (isGKey && !!e.shiftKey));
   var escLike = vimIsEscapeLike(e);
   if (escLike) {
     e.preventDefault();
@@ -3851,16 +4001,27 @@ function vimHandleEditorKey(e) {
     updateVimUi();
     return true;
   }
+  // 纯修饰键不应清空数字前缀（如 2G 的 Shift 事件）。
+  if (key === 'Shift' || key === 'Alt' || key === 'Control' || key === 'Meta' || key === 'CapsLock') {
+    return true;
+  }
   if (S.vimInsert) {
     return false;
   }
-  if (e.ctrlKey || e.metaKey) {
+  // 存在数字前缀时，g/G 应优先按“跳行”处理，避免被 Ctrl/Meta 分支吞掉。
+  if ((e.ctrlKey || e.metaKey) && !(Vim.count && isGKey)) {
     if ((key === 'r' || key === 'R') && !e.altKey) {
       e.preventDefault();
       doRedo();
       return true;
     }
     return false;
+  }
+  // 某些输入法会插入 Process(229) 中间事件，不能让它清空 Vim 数字前缀。
+  if ((key === 'Process' || key === 'Unidentified' || e.keyCode === 229) && !S.vimInsert) {
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
   }
   if (Vim.visualMode) {
     if (Vim.pendingTextObj) {
@@ -3911,13 +4072,13 @@ function vimHandleEditorKey(e) {
     }
     var vcount = vimGetCount();
     var lowv = key.toLowerCase();
-    if (lowv === 'h' || lowv === 'j' || lowv === 'k' || lowv === 'l' || lowv === 'w' || lowv === 'b' || lowv === 'e' || key === '0' || key === '$' || key === '^') {
+    if (lowv === 'h' || lowv === 'j' || lowv === 'k' || lowv === 'l' || lowv === 'w' || lowv === 'b' || lowv === 'e' || key === '0' || key === '$' || key === '^' || key === '%') {
       e.preventDefault();
       if (lowv === 'h') vimMoveCursorBy(-vcount);
       else if (lowv === 'l') vimMoveCursorBy(vcount);
       else if (lowv === 'j') while (vcount-- > 0) vimMoveCursorVertical(1);
       else if (lowv === 'k') while (vcount-- > 0) vimMoveCursorVertical(-1);
-      else vimSetCursor(vimMotionTarget(ta.value, vimCurrentPos(), key === '^' ? '^' : lowv, vcount));
+      else vimSetCursor(vimMotionTarget(ta.value, vimCurrentPos(), key === '^' ? '^' : (key === '%' ? '%' : lowv), vcount));
       return true;
     }
     if (!e.ctrlKey && !e.metaKey && !e.altKey && key.length === 1) {
@@ -3981,22 +4142,23 @@ function vimHandleEditorKey(e) {
     var gCount = Vim.pendingCount || 1;
     Vim.pendingG = false;
     Vim.pendingCount = 1;
-    if (key === 'g' || key === 'G') {
+    if (isGKey) {
       vimMoveToLine(gCount);
       vimCenterCursorView();
     }
     updateVimUi();
     return true;
   }
-  if (Vim.pendingOp && !e.altKey && key >= '0' && key <= '9' && (Vim.count || key !== '0')) {
+  var digitKey = vimDigitFromEvent(e);
+  if (Vim.pendingOp && !e.altKey && digitKey && (Vim.count || digitKey !== '0')) {
     e.preventDefault();
-    Vim.count += key;
+    Vim.count += digitKey;
     updateVimUi();
     return true;
   }
-  if (!Vim.pendingOp && !e.altKey && key >= '0' && key <= '9' && (Vim.count || key !== '0')) {
+  if (!Vim.pendingOp && !e.altKey && digitKey && (Vim.count || digitKey !== '0')) {
     e.preventDefault();
-    Vim.count += key;
+    Vim.count += digitKey;
     updateVimUi();
     return true;
   }
@@ -4038,9 +4200,9 @@ function vimHandleEditorKey(e) {
     vimEnterVisual(key === 'V' ? 'line' : 'char');
     return true;
   }
-  if (key === 'g' || key === 'G') {
+  if (isGKey) {
     e.preventDefault();
-    if (key === 'G') {
+    if (isUpperG || hadCountPrefix) {
       vimMoveToLine(hadCountPrefix ? count : 99999999);
       vimCenterCursorView();
     }
@@ -4168,13 +4330,13 @@ function vimHandleEditorKey(e) {
     return true;
   }
   var low = key.toLowerCase();
-  if (low === 'h' || low === 'j' || low === 'k' || low === 'l' || low === 'w' || low === 'b' || low === 'e' || key === '0' || key === '$' || key === '^') {
+  if (low === 'h' || low === 'j' || low === 'k' || low === 'l' || low === 'w' || low === 'b' || low === 'e' || key === '0' || key === '$' || key === '^' || key === '%') {
     e.preventDefault();
     if (low === 'h') vimMoveCursorBy(-count);
     else if (low === 'l') vimMoveCursorBy(count);
     else if (low === 'j') while (count-- > 0) vimMoveCursorVertical(1);
     else if (low === 'k') while (count-- > 0) vimMoveCursorVertical(-1);
-    else vimSetCursor(vimMotionTarget(ta.value, ta.selectionStart, key === '^' ? '^' : low, count));
+    else vimSetCursor(vimMotionTarget(ta.value, ta.selectionStart, key === '^' ? '^' : (key === '%' ? '%' : low), count));
     return true;
   }
   if (key.length === 1 && !e.altKey) {
@@ -4214,7 +4376,7 @@ function fallbackCopy(text, cb) {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────
 document.addEventListener('keydown', function(e){
-  updateKeyDebug(e, 'document');
+  if (S.keyDebugEnabled) updateKeyDebug(e, 'document');
   if (S && S.vimEnabled && vimIsEscapeLike(e)) {
     var taEsc = document.getElementById('edit-textarea');
     if (taEsc && document.activeElement === taEsc) {
@@ -4237,6 +4399,18 @@ document.addEventListener('keydown', function(e){
       && document.getElementById('pane-edit').style.display!=='none') {
     e.preventDefault();
     toggleVimMode();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key==='l' || e.key==='L')
+      && document.getElementById('pane-edit').style.display!=='none') {
+    e.preventDefault();
+    toggleLineNumbers();
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key==='k' || e.key==='K')
+      && document.getElementById('pane-edit').style.display!=='none') {
+    e.preventDefault();
+    toggleKeyDebug();
     return;
   }
   if (e.key==='Escape'){

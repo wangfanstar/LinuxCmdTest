@@ -3453,7 +3453,10 @@ function scheduleRichRender(root) {
   }, 40);
 }
 
-function splitRow(row){ return row.replace(/^\||\|$/g,'').split('|'); }
+function splitRow(row){
+  var PH='\x05';
+  return row.replace(/\\\|/g,PH).replace(/^\||\|$/g,'').split('|').map(function(c){return c.replace(/\x05/g,'|');});
+}
 
 function he(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 

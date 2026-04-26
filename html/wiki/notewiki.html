@@ -153,6 +153,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tb-btn{background:none;border:none;cursor:pointer;padding:3px 7px;border-radius:4px;font-size:.8rem;color:var(--dim);line-height:1.4}
 .tb-btn:hover{background:rgba(255,255,255,.07);color:var(--text)}
 .tb-btn:disabled{opacity:.3;cursor:default;pointer-events:none}
+.tb-btn.on{background:rgba(56,139,253,.18);color:#8cc2ff}
 .tb-sep{width:1px;height:16px;background:var(--border);margin:0 3px}
 
 /* editor split */
@@ -176,7 +177,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .editor-mirror .hl-strong{color:#f0f6fc}
 .editor-mirror .hl-em{color:#c4d6ec}
 .editor-mirror .hl-link{color:#79c0ff;text-decoration:underline}
+.editor-mirror .hl-search{background:rgba(255,210,77,.32);box-shadow:inset 0 0 0 1px rgba(255,210,77,.55);border-radius:2px}
+.vim-cmdline{position:fixed;left:14px;right:14px;bottom:10px;display:none;align-items:center;gap:8px;padding:8px 10px;background:#101722;border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:50}
+.vim-cmdline.open{display:flex}
+.vim-cmdline-prefix{font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace;color:#8cc2ff;font-size:.9rem}
+.vim-cmdline input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace;font-size:.85rem}
 .edit-left textarea{position:relative;z-index:0;flex:1;background:#0a0e14;color:transparent;caret-color:#c9d1d9;border:none;outline:none;resize:none;padding:14px 16px;font-family:"Cascadia Mono","SFMono-Regular",Consolas,"Microsoft YaHei UI",monospace;font-size:.85rem;line-height:22px;tab-size:2}
+#edit-textarea.vim-insert{caret-color:#c9d1d9}
+#edit-textarea.vim-normal{caret-color:transparent;caret-shape:block;font-weight:700}
+.editor-mirror .vim-block-cursor{display:inline-block;min-width:.62em;background:#ffb86b;color:#0a0e14;border-radius:2px}
 .edit-right{flex:1;overflow-y:auto;padding:16px 20px;min-width:0}
 .edit-right.hidden{display:none}
 .edit-left.full{flex:2}
@@ -349,6 +358,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <button class="tb-btn" onclick="tb('math-block')" title="块公式（Ctrl+Alt+Shift+M）">∫</button>
         <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
         <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
+        <button class="tb-btn" id="tb-vim" onclick="toggleVimMode()" title="切换 Vim 模式（Ctrl+Alt+V）">Vim</button>
         <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
       </div>
       <div class="edit-panels" id="edit-panels">
@@ -378,7 +388,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 <div class="statusbar">
   <span id="status-msg">就绪</span>
+  <span id="status-keydbg" style="margin-left:12px;color:var(--dim);font-family:'Cascadia Mono','SFMono-Regular',Consolas,monospace;font-size:.72rem"></span>
   <span id="status-count" style="margin-left:auto"></span>
+</div>
+
+<div id="vim-cmdline" class="vim-cmdline" aria-hidden="true">
+  <span id="vim-cmdline-prefix" class="vim-cmdline-prefix">/</span>
+  <input id="vim-cmdline-input" type="text" spellcheck="false"
+         onkeydown="onVimCmdlineKey(event)" oninput="onVimCmdlineInput(event)">
 </div>
 
 <!-- 新建分类 modal -->
@@ -617,7 +634,9 @@ var S = {
   editForce: false,       // 强制覆盖同名文件
   editForceCreated: '',   // 被覆盖文章原有 created 字段
   viewMode: 'split',      // split | edit | prev
-  previewAlign: false     // 右侧预览是否随光标自动对齐（默认关闭）
+  previewAlign: false,    // 右侧预览是否随光标自动对齐（默认关闭）
+  vimEnabled: false,      // 是否启用 Vim 按键模式
+  vimInsert: false        // Vim 子模式：true=Insert, false=Normal
 };
 var Auth = { loggedIn:false, user:null };
 
@@ -2321,6 +2340,7 @@ function tb(cmd) {
 }
 
 function onEditorKey(e) {
+  updateKeyDebug(e, 'editor');
   if ((e.ctrlKey||e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); doUndo(); return;
   }
@@ -2357,7 +2377,8 @@ function onEditorKey(e) {
     openAttachmentUpload();
     return;
   }
-  if (e.key === 'Tab') {
+  if (S.vimEnabled && vimHandleEditorKey(e)) return;
+  if (e.key === 'Tab' && (!S.vimEnabled || S.vimInsert)) {
     e.preventDefault();
     insertAtCursor('  ');
   }
@@ -2501,6 +2522,8 @@ var _renderRaf = 0;
 var _pendingContent = '';
 var _lastPreviewContent = null;
 var _lastHighlightContent = null;
+var _lastHighlightSearchTerm = '';
+var _lastHighlightCursorSig = '';
 
 function scheduleEditorRender(content) {
   _pendingContent = content;
@@ -2604,16 +2627,146 @@ function enhanceInlineMarkdown(line) {
   return escM(line);
 }
 
+function vimActiveSearchTerm() {
+  if (Vim && Vim.searchPreviewTerm) return String(Vim.searchPreviewTerm);
+  if (Vim && Vim.lastSearch && Vim.lastSearch.term) return String(Vim.lastSearch.term);
+  return '';
+}
+
+function vimMirrorSearchMark(line) {
+  var term = vimActiveSearchTerm();
+  if (!term) return escM(line);
+  var out = '';
+  var i = 0;
+  var n = line.length;
+  while (i < n) {
+    var p = line.indexOf(term, i);
+    if (p < 0) {
+      out += escM(line.substring(i));
+      break;
+    }
+    out += escM(line.substring(i, p));
+    out += '<span class="hl-search">' + escM(term) + '</span>';
+    i = p + term.length;
+  }
+  return out;
+}
+
+function vimRenderMirrorLine(line, term, cursorCol, showCursor) {
+  if (!term && !showCursor) return escM(line);
+  var out = '';
+  var i = 0;
+  var tlen = term ? term.length : 0;
+  while (i < line.length || (showCursor && i === line.length)) {
+    if (showCursor && i === cursorCol) {
+      var ch = (i < line.length) ? line.charAt(i) : ' ';
+      out += '<span class="vim-block-cursor">' + escM(ch) + '</span>';
+      i++;
+      continue;
+    }
+    if (tlen > 0 && line.substring(i, i + tlen) === term) {
+      out += '<span class="hl-search">' + escM(term) + '</span>';
+      i += tlen;
+      continue;
+    }
+    out += escM(line.charAt(i));
+    i++;
+  }
+  return out;
+}
+
+function vimOpenCmdline(prefix, initialValue, onSubmit) {
+  var box = document.getElementById('vim-cmdline');
+  var pre = document.getElementById('vim-cmdline-prefix');
+  var inp = document.getElementById('vim-cmdline-input');
+  if (!box || !pre || !inp) return;
+  Vim.cmdlineOpen = true;
+  Vim.cmdlinePrefix = prefix || '/';
+  Vim.cmdlineSubmit = (typeof onSubmit === 'function') ? onSubmit : null;
+  pre.textContent = Vim.cmdlinePrefix;
+  inp.value = initialValue || '';
+  Vim.searchPreviewTerm = (Vim.cmdlinePrefix === '/') ? inp.value : '';
+  box.classList.add('open');
+  box.setAttribute('aria-hidden', 'false');
+  updateEditorHighlight();
+  updateVimUi();
+  setTimeout(function() { inp.focus(); inp.select(); }, 0);
+}
+
+function vimCloseCmdline(apply) {
+  var box = document.getElementById('vim-cmdline');
+  var inp = document.getElementById('vim-cmdline-input');
+  var ta = vimEditor();
+  var val = inp ? inp.value : '';
+  var cb = Vim.cmdlineSubmit;
+  Vim.cmdlineOpen = false;
+  Vim.cmdlinePrefix = '';
+  Vim.cmdlineSubmit = null;
+  Vim.searchPreviewTerm = '';
+  if (box) {
+    box.classList.remove('open');
+    box.setAttribute('aria-hidden', 'true');
+  }
+  updateEditorHighlight();
+  updateVimUi();
+  if (apply && cb) cb(val);
+  if (ta) ta.focus();
+}
+
+function onVimCmdlineInput(e) {
+  e.stopPropagation();
+  var v = e.target ? e.target.value : '';
+  Vim.searchPreviewTerm = (Vim.cmdlineOpen && Vim.cmdlinePrefix === '/') ? (v || '') : '';
+  updateEditorHighlight();
+}
+
+function onVimCmdlineKey(e) {
+  updateKeyDebug(e, 'cmdline');
+  e.stopPropagation();
+  if (vimIsEscapeLike(e)) {
+    e.preventDefault();
+    vimCloseCmdline(false);
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    vimCloseCmdline(true);
+  }
+}
+
+function vimOpenSearchCmdline(dir) {
+  vimOpenCmdline('/', (Vim.lastSearch && Vim.lastSearch.term) ? Vim.lastSearch.term : '', function(q) {
+    if (!q) return;
+    vimSearch(q, dir > 0 ? 1 : -1, 1, false);
+  });
+}
+
+function vimIsEscapeLike(e) {
+  if (!e) return false;
+  if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) return true;
+  if (e.ctrlKey && (e.key === '[' || e.code === 'BracketLeft' || e.keyCode === 219)) return true;
+  return false;
+}
+
 function updateEditorHighlight(content) {
   var hl = document.getElementById('editor-mirror');
   var ta = document.getElementById('edit-textarea');
   if (!hl || !ta) return;
   if (content === undefined) content = ta.value;
-  if (content === _lastHighlightContent && hl.scrollTop === ta.scrollTop) return;
+  var activeTerm = vimActiveSearchTerm();
+  var showCursor = !!(S && S.vimEnabled && !S.vimInsert && !(Vim && Vim.visualMode)
+    && document.activeElement === ta && ta.selectionStart === ta.selectionEnd);
+  var cursorPos = showCursor ? ta.selectionStart : -1;
+  var cursorSig = String(showCursor ? 1 : 0) + ':' + String(cursorPos);
+  if (content === _lastHighlightContent
+      && _lastHighlightSearchTerm === activeTerm
+      && _lastHighlightCursorSig === cursorSig
+      && hl.scrollTop === ta.scrollTop) return;
   syncMirrorMetrics();
   var lines = content.split('\n');
   var HCL = ['hl-h1','hl-h2','hl-h3','hl-h4','hl-h5','hl-h6'];
   var inCodeBlock = false;
+  var offset = 0;
   var html = lines.map(function(line) {
     var cls, inner = enhanceInlineMarkdown(line);
     var hm = line.match(/^(#{1,6})(\s|$)/);
@@ -2634,12 +2787,18 @@ function updateEditorHighlight(content) {
     } else {
       cls = 'hl-norm';
     }
+    var hasCursor = showCursor && cursorPos >= offset && cursorPos <= (offset + line.length);
+    var cursorCol = hasCursor ? (cursorPos - offset) : -1;
+    inner = vimRenderMirrorLine(line, activeTerm, cursorCol, hasCursor);
+    offset += line.length + 1;
     if (!inner) inner = '&nbsp;';
     return '<div style="line-height:22px"><span class="'+cls+'">'+inner+'</span></div>';
   }).join('');
   hl.innerHTML = html;
   hl.scrollTop = ta.scrollTop;
   _lastHighlightContent = content;
+  _lastHighlightSearchTerm = activeTerm;
+  _lastHighlightCursorSig = cursorSig;
 }
 
 function syncMirrorMetrics() {
@@ -3055,6 +3214,975 @@ function il(s, footCtx){
 function setStatus(msg){ document.getElementById('status-msg').textContent = msg; }
 function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function esc(s){ return (s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+function updateKeyDebug(e, src) {
+  var el = document.getElementById('status-keydbg');
+  if (!el || !e) return;
+  var mods = [];
+  if (e.ctrlKey) mods.push('C');
+  if (e.altKey) mods.push('A');
+  if (e.shiftKey) mods.push('S');
+  if (e.metaKey) mods.push('M');
+  var mode = 'OFF';
+  if (S && S.vimEnabled) mode = S.vimInsert ? 'INSERT' : 'NORMAL';
+  el.textContent = '[' + (src || '-') + '] '
+    + 'mode=' + mode
+    + ' key=' + String(e.key || '')
+    + ' code=' + String(e.code || '')
+    + ' kc=' + String((e.keyCode == null ? '' : e.keyCode))
+    + ' mods=' + (mods.join('+') || '-');
+}
+
+var Vim = {
+  count: '',
+  pendingOp: '',
+  pendingOpCount: 1,
+  pendingG: false,
+  pendingFind: '',
+  pendingReplace: false,
+  pendingCount: 1,
+  pendingTextObj: '',
+  visualMode: '',      // '' | 'char' | 'line'
+  visualAnchor: 0,
+  visualCursor: 0,
+  lastFind: null,
+  lastSearch: null,
+  searchPreviewTerm: '',
+  cmdlineOpen: false,
+  cmdlinePrefix: '',
+  cmdlineSubmit: null,
+  regText: '',
+  regLinewise: false
+};
+
+function toggleVimMode(forceOn) {
+  var next = (typeof forceOn === 'boolean') ? forceOn : !S.vimEnabled;
+  if (!next && Vim.cmdlineOpen) vimCloseCmdline(false);
+  if (!next && Vim.visualMode) vimExitVisual(vimCurrentPos());
+  S.vimEnabled = next;
+  S.vimInsert = false;
+  vimResetPending();
+  updateVimUi();
+}
+
+function updateVimUi() {
+  var btn = document.getElementById('tb-vim');
+  var ta = document.getElementById('edit-textarea');
+  if (btn) btn.classList.toggle('on', !!S.vimEnabled);
+  if (ta) {
+    ta.classList.toggle('vim-insert', !!S.vimEnabled && !!S.vimInsert);
+    ta.classList.toggle('vim-normal', !!S.vimEnabled && !S.vimInsert);
+  }
+  if (!S.vimEnabled) {
+    setStatus('Vim 模式：关闭');
+    return;
+  }
+  var tail = '';
+  if (Vim.pendingOp) tail += ' ' + Vim.pendingOp;
+  if (Vim.pendingG) tail += ' g';
+  if (Vim.pendingFind) tail += ' ' + Vim.pendingFind;
+  if (Vim.pendingReplace) tail += ' r';
+  if (Vim.pendingTextObj) tail += ' ' + Vim.pendingTextObj;
+  if (Vim.count) tail += ' ' + Vim.count;
+  if (Vim.visualMode) tail += (Vim.visualMode === 'line') ? ' VISUAL-LINE' : ' VISUAL';
+  if (Vim.cmdlineOpen) tail += ' CMD';
+  setStatus('Vim 模式：' + (S.vimInsert ? 'INSERT' : 'NORMAL') + tail);
+  updateEditorHighlight();
+}
+
+function vimResetPending() {
+  Vim.count = '';
+  Vim.pendingOp = '';
+  Vim.pendingOpCount = 1;
+  Vim.pendingG = false;
+  Vim.pendingFind = '';
+  Vim.pendingReplace = false;
+  Vim.pendingCount = 1;
+  Vim.pendingTextObj = '';
+}
+
+function vimGetCount(reset) {
+  var n = parseInt(Vim.count || '1', 10);
+  if (isNaN(n) || n < 1) n = 1;
+  if (reset !== false) Vim.count = '';
+  return n;
+}
+
+function vimEditor() {
+  return document.getElementById('edit-textarea');
+}
+
+function vimCurrentPos() {
+  var ta = vimEditor();
+  if (!ta) return 0;
+  return Vim.visualMode ? Vim.visualCursor : ta.selectionStart;
+}
+
+function vimEnterVisual(mode) {
+  var ta = vimEditor();
+  if (!ta) return;
+  Vim.visualMode = (mode === 'line') ? 'line' : 'char';
+  Vim.visualAnchor = ta.selectionStart;
+  Vim.visualCursor = ta.selectionStart;
+  vimSetVisualCursor(Vim.visualCursor);
+  vimResetPending();
+  updateVimUi();
+}
+
+function vimExitVisual(collapsePos) {
+  var ta = vimEditor();
+  if (!ta) return;
+  if (typeof collapsePos !== 'number') collapsePos = Vim.visualCursor;
+  Vim.visualMode = '';
+  Vim.visualAnchor = 0;
+  Vim.visualCursor = 0;
+  vimSetCursor(collapsePos);
+}
+
+function vimSetVisualCursor(pos) {
+  var ta = vimEditor();
+  if (!ta || !Vim.visualMode) return;
+  var v = ta.value;
+  var p = Math.max(0, Math.min(v.length, pos));
+  var a = Math.max(0, Math.min(v.length, Vim.visualAnchor));
+  Vim.visualCursor = p;
+  if (Vim.visualMode === 'line') {
+    var ls1 = vimLineStart(v, a);
+    var le1 = vimLineEnd(v, a);
+    var ls2 = vimLineStart(v, p);
+    var le2 = vimLineEnd(v, p);
+    var s1 = Math.min(ls1, ls2);
+    var e1 = Math.max(le1, le2);
+    if (e1 < v.length) e1++;
+    ta.selectionStart = s1;
+    ta.selectionEnd = e1;
+  } else {
+    var s = Math.min(a, p);
+    var e = Math.max(a, p) + 1;
+    if (e > v.length) e = v.length;
+    if (s === e && s < v.length) e = s + 1;
+    ta.selectionStart = s;
+    ta.selectionEnd = e;
+  }
+  schedulePreviewScrollSync();
+}
+
+function vimSetCursor(pos) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = Math.max(0, Math.min(ta.value.length, pos));
+  if (Vim.visualMode) {
+    vimSetVisualCursor(p);
+    return;
+  }
+  ta.selectionStart = ta.selectionEnd = p;
+  schedulePreviewScrollSync();
+  updateEditorHighlight();
+}
+
+function vimLineStart(v, p) {
+  return v.lastIndexOf('\n', Math.max(0, p - 1)) + 1;
+}
+
+function vimLineEnd(v, p) {
+  var e = v.indexOf('\n', p);
+  return e < 0 ? v.length : e;
+}
+
+function vimFirstNonBlank(v, p) {
+  var ls = vimLineStart(v, p);
+  var le = vimLineEnd(v, p);
+  while (ls < le && (v[ls] === ' ' || v[ls] === '\t')) ls++;
+  return ls;
+}
+
+function vimMoveCursorBy(delta) {
+  vimSetCursor(vimCurrentPos() + delta);
+}
+
+function vimMoveCursorToLineEdge(toStart) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = vimCurrentPos();
+  var v = ta.value;
+  vimSetCursor(toStart ? vimLineStart(v, p) : vimLineEnd(v, p));
+}
+
+function vimMoveCursorVertical(step) {
+  var ta = document.getElementById('edit-textarea');
+  if (!ta) return;
+  var v = ta.value;
+  var p = vimCurrentPos();
+  var ls = v.lastIndexOf('\n', Math.max(0, p - 1)) + 1;
+  var col = p - ls;
+  var pls = v.lastIndexOf('\n', Math.max(0, ls - 2)) + 1;
+  var ple = (ls > 0) ? (ls - 1) : 0;
+  var nls = v.indexOf('\n', ls);
+  var targetStart = ls;
+  var targetEnd = v.length;
+  if (step < 0) {
+    targetStart = pls;
+    targetEnd = ple;
+  } else {
+    if (nls < 0) return;
+    targetStart = nls + 1;
+    targetEnd = v.indexOf('\n', targetStart);
+    if (targetEnd < 0) targetEnd = v.length;
+  }
+  var np = Math.min(targetStart + col, targetEnd);
+  vimSetCursor(np);
+}
+
+function vimIsWordChar(ch) {
+  return !!ch && /[A-Za-z0-9_]/.test(ch);
+}
+
+function vimMoveWordForward(v, p, count) {
+  var i = p, n = v.length;
+  while (count-- > 0) {
+    if (i >= n) return n;
+    if (/\s/.test(v[i])) {
+      while (i < n && /\s/.test(v[i])) i++;
+      continue;
+    }
+    if (vimIsWordChar(v[i])) {
+      while (i < n && vimIsWordChar(v[i])) i++;
+    } else {
+      while (i < n && !/\s/.test(v[i]) && !vimIsWordChar(v[i])) i++;
+    }
+    while (i < n && /\s/.test(v[i])) i++;
+  }
+  return i;
+}
+
+function vimMoveWordBackward(v, p, count) {
+  var i = Math.max(0, p - 1);
+  while (count-- > 0) {
+    while (i > 0 && /\s/.test(v[i])) i--;
+    if (vimIsWordChar(v[i])) {
+      while (i > 0 && vimIsWordChar(v[i - 1])) i--;
+    } else {
+      while (i > 0 && !/\s/.test(v[i - 1]) && !vimIsWordChar(v[i - 1])) i--;
+    }
+  }
+  return Math.max(0, i);
+}
+
+function vimMoveWordEnd(v, p, count) {
+  var i = p, n = v.length;
+  while (count-- > 0) {
+    if (i >= n) return n;
+    while (i < n && /\s/.test(v[i])) i++;
+    if (i >= n) return n;
+    if (vimIsWordChar(v[i])) {
+      while (i + 1 < n && vimIsWordChar(v[i + 1])) i++;
+    } else {
+      while (i + 1 < n && !/\s/.test(v[i + 1]) && !vimIsWordChar(v[i + 1])) i++;
+    }
+    if (count > 0) i++;
+  }
+  return i;
+}
+
+function vimFindChar(v, p, ch, dir, till, count) {
+  var i = p;
+  while (count-- > 0) {
+    if (dir > 0) i = v.indexOf(ch, i + 1);
+    else i = v.lastIndexOf(ch, i - 1);
+    if (i < 0) return -1;
+  }
+  if (till && i >= 0) i += (dir > 0 ? -1 : 1);
+  return i;
+}
+
+function vimGetLineRange(v, p, count) {
+  var s = vimLineStart(v, p), e = s, i = 0;
+  while (i < count) {
+    var n = v.indexOf('\n', e);
+    if (n < 0) { e = v.length; break; }
+    e = n + 1;
+    i++;
+  }
+  return { start: s, end: e };
+}
+
+function vimSetRegister(text, linewise) {
+  Vim.regText = text || '';
+  Vim.regLinewise = !!linewise;
+}
+
+function vimApplyTextChange(start, end, repl, cursorPos) {
+  var ta = vimEditor();
+  if (!ta) return;
+  histFlush();
+  var v = ta.value;
+  ta.value = v.substring(0, start) + repl + v.substring(end);
+  ta.selectionStart = ta.selectionEnd = Math.max(0, Math.min(ta.value.length, cursorPos));
+  onEditorInput();
+}
+
+function vimDeleteChar(count, backward) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = ta.selectionStart;
+  var v = ta.value;
+  var s = backward ? Math.max(0, p - count) : p;
+  var e = backward ? p : Math.min(v.length, p + count);
+  if (e <= s) return;
+  vimSetRegister(v.substring(s, e), false);
+  vimApplyTextChange(s, e, '', s);
+}
+
+function vimYankLine(count) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var r = vimGetLineRange(ta.value, ta.selectionStart, count);
+  vimSetRegister(ta.value.substring(r.start, r.end), true);
+  setStatus('Vim 模式：已复制 ' + count + ' 行');
+}
+
+function vimDeleteLine(count, changeMode) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var r = vimGetLineRange(ta.value, ta.selectionStart, count);
+  vimSetRegister(ta.value.substring(r.start, r.end), true);
+  vimApplyTextChange(r.start, r.end, '', r.start);
+  if (changeMode) {
+    S.vimInsert = true;
+    updateVimUi();
+  }
+}
+
+function vimPaste(after) {
+  var ta = vimEditor();
+  if (!ta || !Vim.regText) return;
+  var p = ta.selectionStart;
+  var v = ta.value;
+  if (Vim.regLinewise) {
+    var ls = vimLineStart(v, p);
+    var le = vimLineEnd(v, p);
+    var ins = after ? (le < v.length ? le + 1 : v.length) : ls;
+    vimApplyTextChange(ins, ins, Vim.regText, ins + Math.max(0, Vim.regText.length - 1));
+    return;
+  }
+  var insPos = after ? Math.min(v.length, p + 1) : p;
+  vimApplyTextChange(insPos, insPos, Vim.regText, insPos + Math.max(0, Vim.regText.length - 1));
+}
+
+function vimOpenNewLine(below) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var v = ta.value;
+  var p = ta.selectionStart;
+  var ins = below ? vimLineEnd(v, p) : vimLineStart(v, p);
+  var text = below ? '\n' : '';
+  if (!below && ins > 0) text = '\n';
+  vimApplyTextChange(ins, ins, text, ins + text.length);
+  S.vimInsert = true;
+  updateVimUi();
+}
+
+function vimReplaceChar(ch, count) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = ta.selectionStart;
+  var v = ta.value;
+  var end = Math.min(v.length, p + count);
+  if (end <= p) return;
+  var repl = '';
+  while (repl.length < (end - p)) repl += ch;
+  vimSetRegister(v.substring(p, end), false);
+  vimApplyTextChange(p, end, repl, p);
+}
+
+function vimJoinLines(count) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var p = ta.selectionStart;
+  var v = ta.value;
+  var i = 0;
+  while (i < count) {
+    var le = vimLineEnd(v, p);
+    if (le >= v.length) break;
+    var next = le + 1;
+    while (next < v.length && (v[next] === ' ' || v[next] === '\t')) next++;
+    v = v.substring(0, le) + ' ' + v.substring(next);
+    i++;
+  }
+  histFlush();
+  ta.value = v;
+  ta.selectionStart = ta.selectionEnd = p;
+  onEditorInput();
+}
+
+function vimMoveToLine(targetLine) {
+  var ta = vimEditor();
+  if (!ta) return;
+  var v = ta.value;
+  var p = 0;
+  var ln = 1;
+  if (targetLine <= 1) { vimSetCursor(0); return; }
+  while (ln < targetLine && p < v.length) {
+    var n = v.indexOf('\n', p);
+    if (n < 0) { p = v.length; break; }
+    p = n + 1;
+    ln++;
+  }
+  vimSetCursor(vimFirstNonBlank(v, p));
+}
+
+function vimMotionTarget(v, p, key, count) {
+  if (key === 'h') return Math.max(0, p - count);
+  if (key === 'l') return Math.min(v.length, p + count);
+  if (key === 'w') return vimMoveWordForward(v, p, count);
+  if (key === 'b') return vimMoveWordBackward(v, p, count);
+  if (key === 'e') return vimMoveWordEnd(v, p, count);
+  if (key === '0') return vimLineStart(v, p);
+  if (key === '^') return vimFirstNonBlank(v, p);
+  if (key === '$') return vimLineEnd(v, p);
+  return p;
+}
+
+function vimCenterCursorView() {
+  var ta = vimEditor();
+  if (!ta) return;
+  var lineH = 22;
+  var p = vimCurrentPos();
+  var line = ta.value.substring(0, p).split('\n').length - 1;
+  var targetTop = Math.max(0, line * lineH - Math.floor(ta.clientHeight / 2) + Math.floor(lineH / 2));
+  try {
+    ta.scrollTo({ top: targetTop, behavior: 'smooth' });
+  } catch (e) {
+    ta.scrollTop = targetTop;
+  }
+  syncMirrorScroll();
+  schedulePreviewScrollSync();
+}
+
+function vimWordUnderCursor() {
+  var ta = vimEditor();
+  if (!ta) return '';
+  var v = ta.value;
+  var p = vimCurrentPos();
+  if (!v) return '';
+  if (p >= v.length) p = v.length - 1;
+  if (p < 0) return '';
+  if (!vimIsWordChar(v[p]) && p > 0 && vimIsWordChar(v[p - 1])) p = p - 1;
+  if (!vimIsWordChar(v[p])) return '';
+  var s = p, e = p + 1;
+  while (s > 0 && vimIsWordChar(v[s - 1])) s--;
+  while (e < v.length && vimIsWordChar(v[e])) e++;
+  return v.substring(s, e);
+}
+
+function vimSearch(term, dir, count, centerView) {
+  var ta = vimEditor();
+  if (!ta || !term) return false;
+  var v = ta.value;
+  var p = vimCurrentPos();
+  var i, n = Math.max(1, count || 1);
+  var from = p;
+  for (i = 0; i < n; i++) {
+    var idx = -1;
+    if (dir > 0) idx = v.indexOf(term, from + 1);
+    else idx = v.lastIndexOf(term, from - 1);
+    if (idx < 0) {
+      if (dir > 0) idx = v.indexOf(term, 0);
+      else idx = v.lastIndexOf(term);
+    }
+    if (idx < 0) {
+      setStatus('Vim 搜索：未找到 "' + term + '"');
+      return false;
+    }
+    from = idx;
+  }
+  Vim.lastSearch = { term: term, dir: dir };
+  vimSetCursor(from);
+  updateEditorHighlight();
+  if (centerView) vimCenterCursorView();
+  return true;
+}
+
+function vimGetTextObjectRange(v, p, kind, obj) {
+  var s = -1, e = -1, i, j;
+  if (obj === 'w') {
+    i = p;
+    while (i < v.length && /\s/.test(v[i])) i++;
+    if (i >= v.length) return null;
+    if (!vimIsWordChar(v[i])) return null;
+    s = i;
+    while (s > 0 && vimIsWordChar(v[s - 1])) s--;
+    e = i;
+    while (e < v.length && vimIsWordChar(v[e])) e++;
+    if (kind === 'a') {
+      while (e < v.length && /\s/.test(v[e])) e++;
+      if (e === s) while (s > 0 && /\s/.test(v[s - 1])) s--;
+    }
+    return { start:s, end:e, linewise:false };
+  }
+  if (obj === '(') {
+    var dep = 0, open = -1, close = -1;
+    for (i = p - 1; i >= 0; i--) {
+      if (v[i] === ')') dep++;
+      else if (v[i] === '(') {
+        if (dep === 0) { open = i; break; }
+        dep--;
+      }
+    }
+    dep = 0;
+    for (j = p; j < v.length; j++) {
+      if (v[j] === '(') dep++;
+      else if (v[j] === ')') {
+        if (dep === 0) { close = j; break; }
+        dep--;
+      }
+    }
+    if (open < 0 || close < 0 || close <= open) return null;
+    return kind === 'a'
+      ? { start:open, end:close + 1, linewise:false }
+      : { start:open + 1, end:close, linewise:false };
+  }
+  if (obj === '"') {
+    var lq = -1, rq = -1;
+    for (i = p - 1; i >= 0; i--) {
+      if (v[i] === '"' && v[i - 1] !== '\\') { lq = i; break; }
+    }
+    for (j = p; j < v.length; j++) {
+      if (v[j] === '"' && v[j - 1] !== '\\') { rq = j; break; }
+    }
+    if (lq < 0 || rq < 0 || rq <= lq) return null;
+    return kind === 'a'
+      ? { start:lq, end:rq + 1, linewise:false }
+      : { start:lq + 1, end:rq, linewise:false };
+  }
+  return null;
+}
+
+function vimSelectRange(range, mode) {
+  var ta = vimEditor();
+  if (!ta || !range) return;
+  var v = ta.value;
+  var s = Math.max(0, Math.min(v.length, range.start));
+  var e = Math.max(s, Math.min(v.length, range.end));
+  Vim.visualMode = (mode === 'line') ? 'line' : 'char';
+  Vim.visualAnchor = s;
+  Vim.visualCursor = Math.max(s, e - 1);
+  ta.selectionStart = s;
+  ta.selectionEnd = e;
+  schedulePreviewScrollSync();
+  updateVimUi();
+}
+
+function vimApplyVisualOp(op) {
+  var ta = vimEditor();
+  if (!ta || !Vim.visualMode) return false;
+  var s = Math.min(ta.selectionStart, ta.selectionEnd);
+  var e = Math.max(ta.selectionStart, ta.selectionEnd);
+  var v = ta.value;
+  if (e <= s) return false;
+  var txt = v.substring(s, e);
+  vimSetRegister(txt, Vim.visualMode === 'line');
+  if (op === 'y') {
+    vimExitVisual(s);
+    setStatus('Vim 模式：已复制可视区');
+    updateVimUi();
+    return true;
+  }
+  vimExitVisual(s);
+  vimApplyTextChange(s, e, '', s);
+  if (op === 'c') {
+    S.vimInsert = true;
+    updateVimUi();
+  } else {
+    updateVimUi();
+  }
+  return true;
+}
+
+function vimApplyOperator(op, motionKey, count) {
+  var ta = vimEditor();
+  if (!ta) return false;
+  var v = ta.value;
+  var p = ta.selectionStart;
+  var s = p, e = p;
+  if (motionKey === 'j' || motionKey === 'k') {
+    var lineCount = Math.max(1, count + (motionKey === 'k' ? 0 : 1));
+    var range = vimGetLineRange(v, motionKey === 'k' ? vimLineStart(v, p) : p, lineCount);
+    s = range.start; e = range.end;
+  } else {
+    var t = vimMotionTarget(v, p, motionKey, count);
+    s = Math.min(p, t);
+    e = Math.max(p, t);
+    if (motionKey === 'e' || motionKey === 'l') e = Math.min(v.length, e + 1);
+    if (e === s && motionKey !== '$' && motionKey !== '0' && motionKey !== '^') return false;
+  }
+  var text = v.substring(s, e);
+  if (!text) return false;
+  if (op === 'y') {
+    vimSetRegister(text, (motionKey === 'j' || motionKey === 'k'));
+    setStatus('Vim 模式：已复制');
+    return true;
+  }
+  vimSetRegister(text, (motionKey === 'j' || motionKey === 'k'));
+  vimApplyTextChange(s, e, '', s);
+  if (op === 'c') {
+    S.vimInsert = true;
+    updateVimUi();
+  }
+  return true;
+}
+
+function vimHandleEditorKey(e) {
+  if (!S.vimEnabled) return false;
+  var ta = vimEditor();
+  if (!ta) return false;
+  var key = e.key;
+  var escLike = vimIsEscapeLike(e);
+  if (escLike) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (S.vimInsert) {
+      S.vimInsert = false;
+      vimResetPending();
+      updateVimUi();
+      return true;
+    }
+    if (Vim.visualMode) vimExitVisual(vimCurrentPos());
+    vimResetPending();
+    updateVimUi();
+    return true;
+  }
+  if (S.vimInsert) {
+    return false;
+  }
+  if (e.ctrlKey || e.metaKey) {
+    if ((key === 'r' || key === 'R') && !e.altKey) {
+      e.preventDefault();
+      doRedo();
+      return true;
+    }
+    return false;
+  }
+  if (Vim.visualMode) {
+    if (Vim.pendingTextObj) {
+      e.preventDefault();
+      var vr1 = vimGetTextObjectRange(ta.value, vimCurrentPos(), Vim.pendingTextObj, key);
+      Vim.pendingTextObj = '';
+      if (vr1) vimSelectRange(vr1, vr1.linewise ? 'line' : 'char');
+      else setStatus('Vim 模式：不支持文本对象 ' + key);
+      return true;
+    }
+    if (key === 'v' || key === 'V') {
+      e.preventDefault();
+      if (key === 'v' && Vim.visualMode === 'char') vimExitVisual(vimCurrentPos());
+      else if (key === 'V' && Vim.visualMode === 'line') vimExitVisual(vimCurrentPos());
+      else vimEnterVisual(key === 'V' ? 'line' : 'char');
+      return true;
+    }
+    if (key === 'd' || key === 'c' || key === 'y') {
+      e.preventDefault();
+      vimApplyVisualOp(key);
+      return true;
+    }
+    if (key === 'i' || key === 'a') {
+      e.preventDefault();
+      Vim.pendingTextObj = key;
+      updateVimUi();
+      return true;
+    }
+    if (key === '/') {
+      e.preventDefault();
+      vimOpenSearchCmdline(1);
+      return true;
+    }
+    if (key === '*' || key === '#') {
+      e.preventDefault();
+      var wv = vimWordUnderCursor();
+      if (wv) vimSearch(wv, key === '*' ? 1 : -1, 1, false);
+      return true;
+    }
+    if (key === 'n' || key === 'N') {
+      e.preventDefault();
+      if (Vim.lastSearch && Vim.lastSearch.term) {
+        var d0 = Vim.lastSearch.dir || 1;
+        if (key === 'N') d0 = -d0;
+        vimSearch(Vim.lastSearch.term, d0, vimGetCount(), true);
+      }
+      return true;
+    }
+    var vcount = vimGetCount();
+    var lowv = key.toLowerCase();
+    if (lowv === 'h' || lowv === 'j' || lowv === 'k' || lowv === 'l' || lowv === 'w' || lowv === 'b' || lowv === 'e' || key === '0' || key === '$' || key === '^') {
+      e.preventDefault();
+      if (lowv === 'h') vimMoveCursorBy(-vcount);
+      else if (lowv === 'l') vimMoveCursorBy(vcount);
+      else if (lowv === 'j') while (vcount-- > 0) vimMoveCursorVertical(1);
+      else if (lowv === 'k') while (vcount-- > 0) vimMoveCursorVertical(-1);
+      else vimSetCursor(vimMotionTarget(ta.value, vimCurrentPos(), key === '^' ? '^' : lowv, vcount));
+      return true;
+    }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && key.length === 1) {
+      e.preventDefault();
+      return true;
+    }
+    return false;
+  }
+  if (Vim.pendingReplace) {
+    e.preventDefault();
+    var replaceCount = Vim.pendingCount || 1;
+    Vim.pendingReplace = false;
+    Vim.pendingCount = 1;
+    vimReplaceChar(key, replaceCount);
+    updateVimUi();
+    return true;
+  }
+  if (Vim.pendingTextObj) {
+    e.preventDefault();
+    var tr = vimGetTextObjectRange(ta.value, vimCurrentPos(), Vim.pendingTextObj, key);
+    var top = Vim.pendingOp;
+    Vim.pendingTextObj = '';
+    Vim.pendingOp = '';
+    Vim.pendingOpCount = 1;
+    if (!tr || !top) {
+      setStatus('Vim 模式：不支持文本对象 ' + key);
+      updateVimUi();
+      return true;
+    }
+    var txt0 = ta.value.substring(tr.start, tr.end);
+    if (!txt0) return true;
+    vimSetRegister(txt0, !!tr.linewise);
+    if (top === 'y') {
+      setStatus('Vim 模式：已复制');
+      updateVimUi();
+      return true;
+    }
+    vimApplyTextChange(tr.start, tr.end, '', tr.start);
+    if (top === 'c') S.vimInsert = true;
+    updateVimUi();
+    return true;
+  }
+  if (Vim.pendingFind) {
+    e.preventDefault();
+    var cmd = Vim.pendingFind;
+    var findCount = Vim.pendingCount || 1;
+    Vim.pendingFind = '';
+    Vim.pendingCount = 1;
+    var dir = (cmd === 'f' || cmd === 't') ? 1 : -1;
+    var till = (cmd === 't' || cmd === 'T');
+    var pos = vimFindChar(ta.value, ta.selectionStart, key, dir, till, findCount);
+    if (pos >= 0) {
+      vimSetCursor(pos);
+      Vim.lastFind = { ch:key, dir:dir, till:till };
+    }
+    updateVimUi();
+    return true;
+  }
+  if (Vim.pendingG) {
+    e.preventDefault();
+    var gCount = Vim.pendingCount || 1;
+    Vim.pendingG = false;
+    Vim.pendingCount = 1;
+    if (key === 'g' || key === 'G') {
+      vimMoveToLine(gCount);
+      vimCenterCursorView();
+    }
+    updateVimUi();
+    return true;
+  }
+  if (Vim.pendingOp && !e.altKey && key >= '0' && key <= '9' && (Vim.count || key !== '0')) {
+    e.preventDefault();
+    Vim.count += key;
+    updateVimUi();
+    return true;
+  }
+  if (!Vim.pendingOp && !e.altKey && key >= '0' && key <= '9' && (Vim.count || key !== '0')) {
+    e.preventDefault();
+    Vim.count += key;
+    updateVimUi();
+    return true;
+  }
+  var hadCountPrefix = (Vim.count !== '');
+  var count = vimGetCount();
+  if (Vim.pendingOp) {
+    e.preventDefault();
+    if (key === 'i' || key === 'a') {
+      Vim.pendingTextObj = key;
+      updateVimUi();
+      return true;
+    }
+    var op = Vim.pendingOp;
+    var opCount = Vim.pendingOpCount || 1;
+    Vim.pendingOp = '';
+    Vim.pendingOpCount = 1;
+    count = Math.max(1, opCount * count);
+    if (key === op) {
+      if (op === 'd') vimDeleteLine(count, false);
+      else if (op === 'c') vimDeleteLine(count, true);
+      else if (op === 'y') vimYankLine(count);
+      updateVimUi();
+      return true;
+    }
+    var ok = vimApplyOperator(op, key.toLowerCase(), count);
+    if (!ok) setStatus('Vim 模式：不支持的组合 ' + op + key);
+    updateVimUi();
+    return true;
+  }
+  if (key === 'd' || key === 'c' || key === 'y') {
+    e.preventDefault();
+    Vim.pendingOp = key;
+    Vim.pendingOpCount = count;
+    updateVimUi();
+    return true;
+  }
+  if (key === 'v' || key === 'V') {
+    e.preventDefault();
+    vimEnterVisual(key === 'V' ? 'line' : 'char');
+    return true;
+  }
+  if (key === 'g' || key === 'G') {
+    e.preventDefault();
+    if (key === 'G') {
+      vimMoveToLine(hadCountPrefix ? count : 99999999);
+      vimCenterCursorView();
+    }
+    else {
+      Vim.pendingG = true;
+      Vim.pendingCount = count;
+    }
+    updateVimUi();
+    return true;
+  }
+  if (key === 'f' || key === 'F' || key === 't' || key === 'T') {
+    e.preventDefault();
+    Vim.pendingFind = key;
+    Vim.pendingCount = count;
+    updateVimUi();
+    return true;
+  }
+  if (key === '/') {
+    e.preventDefault();
+    vimOpenSearchCmdline(1);
+    return true;
+  }
+  if (key === '*' || key === '#') {
+    e.preventDefault();
+    var w = vimWordUnderCursor();
+    if (w) vimSearch(w, key === '*' ? 1 : -1, 1, false);
+    return true;
+  }
+  if (key === 'n' || key === 'N') {
+    e.preventDefault();
+    if (Vim.lastSearch && Vim.lastSearch.term) {
+      var d = Vim.lastSearch.dir || 1;
+      if (key === 'N') d = -d;
+      vimSearch(Vim.lastSearch.term, d, count, true);
+    }
+    return true;
+  }
+  if (key === ';' || key === ',') {
+    e.preventDefault();
+    if (Vim.lastFind) {
+      var dir2 = key === ';' ? Vim.lastFind.dir : -Vim.lastFind.dir;
+      var pos2 = vimFindChar(ta.value, ta.selectionStart, Vim.lastFind.ch, dir2, Vim.lastFind.till, count);
+      if (pos2 >= 0) vimSetCursor(pos2);
+    }
+    return true;
+  }
+  if (key === 'i' || key === 'I') {
+    e.preventDefault();
+    if (key === 'I') vimSetCursor(vimFirstNonBlank(ta.value, ta.selectionStart));
+    S.vimInsert = true;
+    updateVimUi();
+    return true;
+  }
+  if (key === 'a' || key === 'A') {
+    e.preventDefault();
+    if (key === 'A') vimSetCursor(vimLineEnd(ta.value, ta.selectionStart));
+    else vimMoveCursorBy(1);
+    S.vimInsert = true;
+    updateVimUi();
+    return true;
+  }
+  if (key === 'o' || key === 'O') {
+    e.preventDefault();
+    vimOpenNewLine(key === 'o');
+    return true;
+  }
+  if (key === 'x' || key === 'X') {
+    e.preventDefault();
+    vimDeleteChar(count, key === 'X');
+    return true;
+  }
+  if (key === 'D') {
+    e.preventDefault();
+    vimApplyOperator('d', '$', count);
+    return true;
+  }
+  if (key === 'C') {
+    e.preventDefault();
+    vimApplyOperator('c', '$', count);
+    return true;
+  }
+  if (key === 'Y') {
+    e.preventDefault();
+    vimYankLine(count);
+    return true;
+  }
+  if (key === 'p' || key === 'P') {
+    e.preventDefault();
+    vimPaste(key === 'p');
+    return true;
+  }
+  if (key === 'u' || key === 'U') {
+    e.preventDefault();
+    doUndo();
+    return true;
+  }
+  if (key === 'J') {
+    e.preventDefault();
+    vimJoinLines(count);
+    return true;
+  }
+  if (key === '~') {
+    e.preventDefault();
+    var cp = ta.selectionStart;
+    var cv = ta.value;
+    if (cp < cv.length) {
+      var ch = cv[cp];
+      vimApplyTextChange(cp, cp + 1, ch === ch.toUpperCase() ? ch.toLowerCase() : ch.toUpperCase(), cp + 1);
+    }
+    return true;
+  }
+  if (key === 's' || key === 'S') {
+    e.preventDefault();
+    if (key === 's') vimDeleteChar(count, false);
+    else vimDeleteLine(count, false);
+    S.vimInsert = true;
+    updateVimUi();
+    return true;
+  }
+  if (key === 'r' || key === 'R') {
+    e.preventDefault();
+    Vim.pendingReplace = true;
+    Vim.pendingCount = count;
+    updateVimUi();
+    return true;
+  }
+  var low = key.toLowerCase();
+  if (low === 'h' || low === 'j' || low === 'k' || low === 'l' || low === 'w' || low === 'b' || low === 'e' || key === '0' || key === '$' || key === '^') {
+    e.preventDefault();
+    if (low === 'h') vimMoveCursorBy(-count);
+    else if (low === 'l') vimMoveCursorBy(count);
+    else if (low === 'j') while (count-- > 0) vimMoveCursorVertical(1);
+    else if (low === 'k') while (count-- > 0) vimMoveCursorVertical(-1);
+    else vimSetCursor(vimMotionTarget(ta.value, ta.selectionStart, key === '^' ? '^' : low, count));
+    return true;
+  }
+  if (key.length === 1 && !e.altKey) {
+    e.preventDefault();
+    return true;
+  }
+  return false;
+}
 
 // ── Copy code button ──────────────────────────────────────────────────
 document.addEventListener('click', function(e) {
@@ -3086,8 +4214,30 @@ function fallbackCopy(text, cb) {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────
 document.addEventListener('keydown', function(e){
+  updateKeyDebug(e, 'document');
+  if (S && S.vimEnabled && vimIsEscapeLike(e)) {
+    var taEsc = document.getElementById('edit-textarea');
+    if (taEsc && document.activeElement === taEsc) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (S.vimInsert) {
+        S.vimInsert = false;
+      }
+      if (Vim && Vim.visualMode) vimExitVisual(vimCurrentPos());
+      if (Vim) vimResetPending();
+      updateVimUi();
+      return;
+    }
+  }
+  if (Vim && Vim.cmdlineOpen) return;
   if ((e.ctrlKey||e.metaKey) && e.key==='s' && document.getElementById('pane-edit').style.display!=='none'){
     e.preventDefault(); saveArticle();
+  }
+  if ((e.ctrlKey||e.metaKey) && e.altKey && (e.key==='v' || e.key==='V')
+      && document.getElementById('pane-edit').style.display!=='none') {
+    e.preventDefault();
+    toggleVimMode();
+    return;
   }
   if (e.key==='Escape'){
     if(document.getElementById('modal-newarticle').classList.contains('open')) closeNewArticleModal();
@@ -3143,6 +4293,12 @@ document.getElementById('modal-login').addEventListener('click', function(e){
 // （已知浏览器 bug），屏蔽会导致 _composing 卡住，后续所有输入全部失效。
 document.getElementById('edit-textarea').addEventListener('compositionend', function() {
   setTimeout(onEditorInput, 0);
+});
+document.getElementById('edit-textarea').addEventListener('focus', function() {
+  updateEditorHighlight();
+});
+document.getElementById('edit-textarea').addEventListener('blur', function() {
+  updateEditorHighlight();
 });
 
 window.addEventListener('resize', function() {

@@ -219,13 +219,13 @@
       hs4.forEach(function (el, i) { el.setAttribute('data-secnum', snums[i]); });
 
       // 动态注入修正样式，覆盖旧 HTML 中嵌入的 CSS counter 方案（0.1 问题）
-      // JS 注入的 <style> 出现在 <head> 末尾，优先级高于旧嵌入样式
+      // 使用属性选择器 [data-secnum]（specificity 0-2-1）> 元素选择器 h2（0-1-2），确保覆盖旧规则
       if (!document.getElementById('_ab_secnum_fix')) {
         var _st = document.createElement('style');
         _st.id = '_ab_secnum_fix';
         _st.textContent =
-          '.ab h1::before,.ab h2::before,.ab h3::before,.ab h4::before,.ab h5::before{' +
-          'content:attr(data-secnum);color:#8b949e;font-weight:400;font-size:.88em;margin-right:.1em}';
+          '.ab [data-secnum]::before{' +
+          'content:attr(data-secnum)!important;color:#8b949e;font-weight:400;font-size:.88em;margin-right:.1em}';
         document.head.appendChild(_st);
       }
     }

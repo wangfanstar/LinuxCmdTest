@@ -32,6 +32,7 @@
 #define WIKI_ROOT    WEB_ROOT "/wiki"
 #define WIKI_MD_DB   WIKI_ROOT "/md_db"
 #define WIKI_UPLOADS WIKI_ROOT "/uploads"
+#define WIKI_ADOC_DB WIKI_ROOT "/adoc_db"
 
 /* ── 前向声明 ─────────────────────────────────────────────── */
 
@@ -1839,6 +1840,66 @@ void handle_api_wiki_rebuild_html(http_sock_t client_fd)
     int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"rebuilt\":%d}", count);
     send_json(client_fd, 200, "OK", resp, (size_t)rlen);
     LOG_INFO("wiki_rebuild_html count=%d", count);
+}
+
+/* ── POST /api/wiki-adoc-rebuild ──────────────────────────── */
+
+static int wiki_adoc_has_tool(void)
+{
+#ifdef _WIN32
+    return system("where asciidoctor >nul 2>nul") == 0;
+#else
+    return system("command -v asciidoctor >/dev/null 2>&1") == 0;
+#endif
+}
+
+/* 递归扫描 dir，将每个 *.adoc 转换为同目录下同名 .html */
+static void wiki_adoc_scan_dir(int *pok, int *pfail, const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) { wiki_adoc_scan_dir(pok, pfail, child); continue; }
+        size_t nl = strlen(de->d_name);
+        if (nl < 6 || strcmp(de->d_name + nl - 5, ".adoc") != 0) continue;
+
+        /* 构建输出路径：同目录，.adoc → .html */
+        char out[1024];
+        snprintf(out, sizeof(out), "%s/%.*s.html", dir, (int)(nl - 5), de->d_name);
+
+        /* 安全检查：路径不含单引号 */
+        if (strchr(child, '\'') || strchr(out, '\'')) { (*pfail)++; continue; }
+
+        char cmd[2400];
+        snprintf(cmd, sizeof(cmd),
+                 "asciidoctor -b html5 -o '%s' '%s' >/dev/null 2>&1",
+                 out, child);
+        if (system(cmd) == 0) (*pok)++;
+        else                   (*pfail)++;
+    }
+    closedir(d);
+}
+
+void handle_api_wiki_adoc_rebuild(http_sock_t client_fd)
+{
+    if (!wiki_adoc_has_tool()) {
+        const char *err = "{\"ok\":false,\"error\":\"asciidoctor not found on server\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        return;
+    }
+    int ok = 0, fail = 0;
+    wiki_adoc_scan_dir(&ok, &fail, WIKI_ADOC_DB);
+    char resp[128];
+    int rlen = snprintf(resp, sizeof(resp),
+                        "{\"ok\":true,\"count\":%d,\"fail\":%d}", ok, fail);
+    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+    LOG_INFO("wiki_adoc_rebuild ok=%d fail=%d", ok, fail);
 }
 
 /* ── POST /api/wiki-rename-article ───────────────────────── */

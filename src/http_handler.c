@@ -40,6 +40,7 @@ static int is_wiki_write_api(const char *path)
            strcmp(path, "/api/wiki-upload") == 0 ||
            strcmp(path, "/api/wiki-refresh-index") == 0 ||
            strcmp(path, "/api/wiki-rebuild-html") == 0 ||
+           strcmp(path, "/api/wiki-adoc-rebuild") == 0 ||
            strcmp(path, "/api/wiki-cleanup-uploads") == 0;
 }
 
@@ -409,6 +410,14 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
         auth_audit(client_ip, u.username, "wiki_rebuild_html", "", "");
         handle_api_wiki_rebuild_html(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-adoc-rebuild") == 0) {
+        auth_user_t u;
+        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
+        auth_audit(client_ip, u.username, "wiki_adoc_rebuild", "", "");
+        handle_api_wiki_adoc_rebuild(client_fd);
         goto done;
     }
 

@@ -13,6 +13,7 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
 void handle_api_wiki_delete(http_sock_t client_fd, const char *body);
 void handle_api_wiki_search(http_sock_t client_fd, const char *path_qs);
 void handle_api_wiki_rebuild_html(http_sock_t client_fd);
+void handle_api_wiki_adoc_rebuild(http_sock_t client_fd);
 void handle_api_wiki_export_md_zip(http_sock_t client_fd, const char *path_qs);
 void handle_api_wiki_export_pdf(http_sock_t client_fd, const char *body);
 void handle_api_wiki_rename_article(http_sock_t client_fd, const char *body);

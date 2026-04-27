@@ -293,6 +293,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <a href="/wiki/notewikiindex.html">📑 文章索引</a>
     <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAdocPages()" title="将 adoc_db/ 中所有 .adoc 文件用 asciidoctor 发布为 HTML 网页">更新 adoc</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
     <a href="/index.html">← 返回首页</a>
   </div>
@@ -929,6 +930,10 @@ function renderTree() {
     arts = localMatches.concat(ftExtra);
   }
 
+  // 隐藏 adoc_db 分类（adoc 文件由独立流程管理，不在编辑器侧栏显示）
+  function isAdocCat(c) { return c === 'adoc_db' || c.startsWith('adoc_db/'); }
+  arts = arts.filter(function(a) { return !isAdocCat(a.category || ''); });
+
   var bycat = {};
   arts.forEach(function(a){
     var c = a.category||'';
@@ -937,7 +942,7 @@ function renderTree() {
   });
 
   // include empty categories (e.g. just created, no articles yet)
-  S.categories.forEach(function(c){ if(!(c in bycat)) bycat[c]=[]; });
+  S.categories.forEach(function(c){ if(!isAdocCat(c) && !(c in bycat)) bycat[c]=[]; });
 
   // sort each bucket by updated desc
   Object.keys(bycat).forEach(function(c){
@@ -1712,6 +1717,27 @@ function rebuildAllHtml() {
         refreshAll();
       } else {
         setStatus('更新失败：' + (d.error || '未知错误'));
+      }
+    })
+    .catch(function(e){ setStatus('请求失败：' + e.message); });
+}
+
+function rebuildAdocPages() {
+  if (!ensureWriteAuth()) return;
+  setStatus('正在发布 adoc 网页…');
+  fetch('/api/wiki-adoc-rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) {
+        var msg = '✓ 已发布 ' + (d.count|0) + ' 个 adoc 网页';
+        if (d.fail) msg += '，' + (d.fail|0) + ' 个失败';
+        setStatus(msg);
+      } else {
+        setStatus('发布失败：' + (d.error || '未知错误'));
       }
     })
     .catch(function(e){ setStatus('请求失败：' + e.message); });

@@ -212,6 +212,13 @@
     // 给每个标题打上 id
     headings.forEach(function (el, i) { el.id = 'toc-h-' + i; });
 
+    // 计算 h1-h4 章节号并写入 data-secnum（与 PDF 保持一致）
+    var hs4 = Array.prototype.slice.call(ab.querySelectorAll('h1,h2,h3,h4'));
+    if (hs4.length) {
+      var snums = buildSecNums(hs4);
+      hs4.forEach(function (el, i) { el.setAttribute('data-secnum', snums[i]); });
+    }
+
     // 构建树形结构
     function buildTree(items) {
       var root = { children: [], level: 0 };
@@ -240,8 +247,9 @@
         } else {
           h += '<span class="toc-tog-sp"></span>';
         }
+        var _sn = child.el.getAttribute('data-secnum') || '';
         h += '<a class="toc-item" data-idx="' + child.idx + '" href="#toc-h-' + child.idx + '">'
-           + escH(child.el.textContent) + '</a>';
+           + escH(_sn + child.el.textContent) + '</a>';
         h += '</div>';
         if (hasCh) {
           h += '<div class="toc-children" id="toc-c-' + child.idx + '">';
@@ -382,6 +390,112 @@
     document.head.appendChild(st);
   }());
 
+  // ── 客户端 PDF 构建（服务端 wkhtmltopdf 不可用时的回退）──────────────────
+  function _wkBuildPdfHtml(title, meta, bodyHtml) {
+    var esc = function (s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    };
+    var css = [
+      '@page{size:A4;margin:14mm 14mm 18mm}',
+      '*{box-sizing:border-box;margin:0;padding:0}',
+      'body{background:#fff;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.7}',
+      '.wrap{padding:20px 28px}',
+      'h1.art-title{font-size:1.6rem;color:#111;margin-bottom:5px;border-bottom:2px solid #e0e0e0;padding-bottom:8px}',
+      '.meta{font-size:.72rem;color:#666;margin-bottom:16px}',
+      '.pdf-layout{display:flex;gap:18px;align-items:flex-start}',
+      '.pdf-toc{width:190px;flex:0 0 190px;border:1px solid #e5e7eb;border-radius:6px;padding:10px;background:#fafbfc;position:sticky;top:0;max-height:calc(100vh - 40px);overflow:auto}',
+      '.pdf-toc-title{font-size:.78rem;font-weight:700;color:#444;margin-bottom:8px}',
+      '.pdf-toc-empty{font-size:.72rem;color:#999}',
+      '.pdf-toc a{display:block;font-size:.72rem;line-height:1.45;color:#555;text-decoration:none;padding:2px 0;word-break:break-word}',
+      '.pdf-toc a.lv2{padding-left:10px}.pdf-toc a.lv3{padding-left:20px}.pdf-toc a.lv4{padding-left:30px}',
+      '.pdf-main{flex:1;min-width:0}',
+      '.art-content h1,.art-content h2,.art-content h3,.art-content h4{color:#111;margin:1.2em 0 .4em;line-height:1.3;page-break-after:avoid}',
+      '.art-content h1{font-size:1.3rem;border-bottom:1px solid #ddd;padding-bottom:4px}',
+      '.art-content h2{font-size:1.15rem}.art-content h3{font-size:1.05rem}',
+      '.art-content h1::before,.art-content h2::before,.art-content h3::before,.art-content h4::before{content:attr(data-secnum);color:#57606a;font-weight:400;font-size:.88em;margin-right:.1em}',
+      '.art-content p{margin:.6em 0;line-height:1.75}',
+      '.art-content pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;padding:10px;overflow-x:auto;margin:.8em 0;font-size:.8rem;page-break-inside:avoid}',
+      '.art-content code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.85em}',
+      '.art-content pre code{color:#1a1a2e}',
+      '.art-content :not(pre)>code{background:#f6f8fa;padding:1px 5px;border-radius:3px;color:#0550ae;border:1px solid #d0d7de}',
+      '.art-content blockquote{border-left:3px solid #0969da;padding:.4em 1em;color:#57606a;margin:.8em 0}',
+      '.art-content table{border-collapse:collapse;width:100%;margin:.8em 0;page-break-inside:avoid}',
+      '.art-content th,.art-content td{border:1px solid #d0d7de;padding:5px 9px;text-align:left}',
+      '.art-content th{background:#f6f8fa;font-weight:600}',
+      '.art-content img{max-width:100%;page-break-inside:avoid}',
+      '.art-content ul,.art-content ol{padding-left:1.5em;margin:.5em 0}',
+      '.art-content li{margin:.15em 0}',
+      '.art-content a{color:#0969da;text-decoration:none}',
+      '.art-content hr{border:none;border-top:1px solid #d0d7de;margin:1em 0}',
+      '.art-content .copy-btn{display:none!important}',
+      '.pdf-bookmark-shadow-root{position:absolute;left:-100000px;top:0;width:1px;height:1px;overflow:hidden}',
+      '.pdf-bookmark-shadow{margin:0;padding:0;font-size:1px;line-height:1px;color:transparent;border:0}',
+      '@media print{.pdf-layout{display:block}.pdf-toc{position:static;width:auto;max-height:none;margin-bottom:12px;page-break-inside:avoid}}'
+    ].join('\n');
+
+    var boot = '<script>(function(){'
+      + 'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}'
+      + 'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}'
+      + 'function buildToc(){var root=document.getElementById("_pb"),list=document.getElementById("_ptl");if(!root||!list)return;'
+      + 'var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}'
+      + 'var used={},h="";'
+      + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=lv>1?(" class=\\"lv"+lv+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+cls+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}'
+      + 'list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
+      + 'try{buildToc();}catch(e){}window.__pdfReady=1;'
+      + '})();<\\/script>';
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n'
+      + '<title>' + esc(title) + '</title>\n'
+      + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
+      + '<div class="wrap">\n'
+      + '<h1 class="art-title">' + esc(title) + '</h1>\n'
+      + (meta ? '<div class="meta">' + esc(meta) + '</div>\n' : '')
+      + '<div class="pdf-layout">'
+      + '<aside class="pdf-toc"><div class="pdf-toc-title">目录</div>'
+      + '<div id="_ptl"><div class="pdf-toc-empty">生成中…</div></div></aside>'
+      + '<div class="pdf-main"><div class="art-content" id="_pb">\n'
+      + bodyHtml + '\n</div></div></div>\n</div>\n'
+      + boot + '\n</body>\n</html>';
+  }
+
+  function _wkPrintPdf(html) {
+    var ifr = document.createElement('iframe');
+    ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    ifr.setAttribute('aria-hidden', 'true');
+    var url = null;
+    if (String(html).length < 2000000) {
+      try { ifr.srcdoc = html; } catch (e) { ifr.removeAttribute('srcdoc'); }
+    }
+    if (!ifr.srcdoc) {
+      var blob = new Blob(['﻿', html], { type: 'text/html;charset=utf-8' });
+      url = URL.createObjectURL(blob);
+      ifr.src = url;
+    }
+    var cleaned = false;
+    function cleanup() {
+      if (cleaned) return; cleaned = true;
+      try { if (url) URL.revokeObjectURL(url); } catch (e) {}
+      if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+    }
+    ifr.onload = function () {
+      setTimeout(function () {
+        var cw = ifr.contentWindow;
+        if (!cw) { cleanup(); return; }
+        try { cw.addEventListener('afterprint', cleanup); } catch (e) {}
+        var tries = 0;
+        (function waitAndPrint() {
+          var ready = false;
+          try { ready = !!cw.__pdfReady; } catch (e) {}
+          if (ready || tries > 20) { try { cw.print(); } catch (e2) {} return; }
+          tries++;
+          setTimeout(waitAndPrint, 80);
+        }());
+        setTimeout(cleanup, 60000);
+      }, 80);
+    };
+    document.body.appendChild(ifr);
+  }
+
   // ── 导出 PDF：新开窗口仅含正文（覆盖页面内联脚本，与 notewiki 行为一致）──
   (function installWikiExportPdf() {
     if (!document.getElementById('article-body')) return;
@@ -439,10 +553,9 @@
         setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
         if (typeof showToast === 'function') showToast('PDF 已下载（服务端书签版）');
       }).catch(function(err) {
-        var msg = '服务端 PDF 导出失败：' + (err && err.message ? err.message : err);
+        var msg = '服务端 PDF 导出失败，已回退本地导出：' + (err && err.message ? err.message : err);
         if (typeof showToast === 'function') showToast(msg);
-        else alert(msg);
-        try { window.print(); } catch (e2) {}
+        try { _wkPrintPdf(_wkBuildPdfHtml(title, metaTxt, body)); } catch (e2) {}
       });
     };
   }());

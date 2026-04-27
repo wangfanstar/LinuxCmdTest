@@ -737,6 +737,7 @@ static int wiki_write_html_file(const char *filepath,
           ".ab h3{color:#ffa657}\n"
           ".ab h4{color:#ff7b72}\n"
           ".ab h5,.ab h6{color:#d2a8ff}\n"
+          ".ab h1::before,.ab h2::before,.ab h3::before,.ab h4::before{content:attr(data-secnum);color:#8b949e;font-weight:400;font-size:.88em;margin-right:.1em}\n"
           ".ab p{margin:.7em 0}\n"
           ".ab .code-block pre,.ab pre{background:#0d1117;border:1px solid #30363d;"
                   "border-left:3px solid #3f6fb2;border-radius:6px;padding:12px 14px;"

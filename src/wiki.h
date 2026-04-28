@@ -22,6 +22,8 @@ void handle_api_wiki_delete_cat(http_sock_t client_fd, const char *body);
 void handle_api_wiki_move_article(http_sock_t client_fd, const char *body);
 void handle_api_wiki_mkdir(http_sock_t client_fd, const char *body);
 void handle_api_wiki_cleanup_uploads(http_sock_t client_fd);
+void handle_api_wiki_cleanup_adoc_db(http_sock_t client_fd);
+void handle_api_wiki_adoc_list(http_sock_t client_fd);
 void handle_api_wiki_upload(http_sock_t client_fd, const char *req_headers,
                              const char *body, size_t body_len);
 

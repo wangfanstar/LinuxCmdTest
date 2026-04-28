@@ -41,7 +41,8 @@ static int is_wiki_write_api(const char *path)
            strcmp(path, "/api/wiki-refresh-index") == 0 ||
            strcmp(path, "/api/wiki-rebuild-html") == 0 ||
            strcmp(path, "/api/wiki-adoc-rebuild") == 0 ||
-           strcmp(path, "/api/wiki-cleanup-uploads") == 0;
+           strcmp(path, "/api/wiki-cleanup-uploads") == 0 ||
+           strcmp(path, "/api/wiki-cleanup-adoc-db") == 0;
 }
 
 /* ── 主处理入口 ──────────────────────────────────────────────── */
@@ -292,6 +293,18 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         } else if (strcmp(path, "/api/wiki-cleanup-uploads") == 0) {
             auth_audit(client_ip, req_user.username, "wiki_cleanup_uploads", "", "");
             handle_api_wiki_cleanup_uploads(client_fd);
+        } else if (strcmp(path, "/api/wiki-cleanup-adoc-db") == 0) {
+            auth_audit(client_ip, req_user.username, "wiki_cleanup_adoc_db", "", "");
+            handle_api_wiki_cleanup_adoc_db(client_fd);
+        } else if (strcmp(path, "/api/wiki-adoc-rebuild") == 0) {
+            auth_audit(client_ip, req_user.username, "wiki_adoc_rebuild", "", "");
+            handle_api_wiki_adoc_rebuild(client_fd);
+        } else if (strcmp(path, "/api/wiki-rebuild-html") == 0) {
+            auth_audit(client_ip, req_user.username, "wiki_rebuild_html", "", "");
+            handle_api_wiki_rebuild_html(client_fd);
+        } else if (strcmp(path, "/api/wiki-refresh-index") == 0) {
+            auth_audit(client_ip, req_user.username, "wiki_refresh_index", "", "");
+            handle_api_wiki_refresh_index(client_fd);
         } else if (strcmp(path, "/api/wiki-user-save") == 0) {
             if (body) {
                 auth_audit(client_ip, req_user.username, "user_save", "", "");
@@ -418,6 +431,11 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
         auth_audit(client_ip, u.username, "wiki_adoc_rebuild", "", "");
         handle_api_wiki_adoc_rebuild(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-adoc-list") == 0) {
+        handle_api_wiki_adoc_list(client_fd);
         goto done;
     }
 

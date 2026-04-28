@@ -1,4 +1,4 @@
-#include "wiki.h"
+﻿#include "wiki.h"
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
@@ -33,6 +33,7 @@
 #define WIKI_MD_DB   WIKI_ROOT "/md_db"
 #define WIKI_UPLOADS WIKI_ROOT "/uploads"
 #define WIKI_ADOC_DB WIKI_ROOT "/adoc_db"
+#define WIKI_ADOC_HTML WIKI_ROOT "/adoc_html"
 
 /* ── 前向声明 ─────────────────────────────────────────────── */
 
@@ -339,6 +340,8 @@ static void wiki_ensure_dirs(void)
 {
     mkdir_p(WIKI_MD_DB);
     mkdir_p(WIKI_UPLOADS);
+    mkdir_p(WIKI_ADOC_DB);
+    mkdir_p(WIKI_ADOC_HTML);
 }
 
 static void wiki_fhtml(FILE *fp, const char *s)
@@ -1842,7 +1845,21 @@ void handle_api_wiki_rebuild_html(http_sock_t client_fd)
     LOG_INFO("wiki_rebuild_html count=%d", count);
 }
 
-/* ── POST /api/wiki-adoc-rebuild ──────────────────────────── */
+/* ── ADOC 发布（asciidoctor + asciidoctor-pdf）─────────────── */
+
+static void wiki_sb_html_esc(strbuf_t *sb, const char *s)
+{
+    if (!sb || !s) return;
+    for (; *s; s++) {
+        switch (*s) {
+            case '&': SB_LIT(sb, "&amp;");  break;
+            case '<': SB_LIT(sb, "&lt;");   break;
+            case '>': SB_LIT(sb, "&gt;");   break;
+            case '"': SB_LIT(sb, "&quot;"); break;
+            default:  sb_append(sb, s, 1);  break;
+        }
+    }
+}
 
 static int wiki_adoc_has_tool(void)
 {
@@ -1853,54 +1870,303 @@ static int wiki_adoc_has_tool(void)
 #endif
 }
 
-/* 递归扫描 dir，将每个 *.adoc 转换为同目录下同名 .html */
-static void wiki_adoc_scan_dir(int *pok, int *pfail, const char *dir)
+static int wiki_adoc_has_pdf_tool(void)
 {
-    DIR *d = opendir(dir);
-    if (!d) return;
+#ifdef _WIN32
+    return system("where asciidoctor-pdf >nul 2>nul") == 0;
+#else
+    return system("command -v asciidoctor-pdf >/dev/null 2>&1") == 0;
+#endif
+}
+
+/* ── 文件条目链表（供 adoc_index.html 分类统计使用）────────── */
+
+typedef struct adoc_entry_s {
+    char html_rel[512]; /* 相对 adoc_html 根路径，如 "subdir/doc.html" */
+    char dir[256];      /* 目录部分，如 "subdir" 或 "" */
+    int  has_pdf;       /* 是否已生成对应 PDF */
+    struct adoc_entry_s *next;
+} adoc_entry_t;
+
+static void adoc_entry_free(adoc_entry_t *h)
+{ while(h){ adoc_entry_t *n=h->next; free(h); h=n; } }
+
+/* ── 递归扫描 adoc_db，用 asciidoctor 生成 html + 可选 pdf ── */
+
+static void wiki_adoc_scan_dir(int *pok, int *pfail,
+                                const char *src_dir, const char *dst_dir,
+                                adoc_entry_t **entries, int do_pdf)
+{
+    DIR *d=opendir(src_dir); if(!d)return;
     struct dirent *de;
-    while ((de = readdir(d)) != NULL) {
-        if (de->d_name[0] == '.') continue;
-        char child[1024];
-        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
-        struct stat st;
-        if (stat(child, &st) != 0) continue;
-        if (S_ISDIR(st.st_mode)) { wiki_adoc_scan_dir(pok, pfail, child); continue; }
-        size_t nl = strlen(de->d_name);
-        if (nl < 6 || strcmp(de->d_name + nl - 5, ".adoc") != 0) continue;
-
-        /* 构建输出路径：同目录，.adoc → .html */
-        char out[1024];
-        snprintf(out, sizeof(out), "%s/%.*s.html", dir, (int)(nl - 5), de->d_name);
-
-        /* 安全检查：路径不含单引号 */
-        if (strchr(child, '\'') || strchr(out, '\'')) { (*pfail)++; continue; }
-
+    while ((de=readdir(d))!=NULL) {
+        if (de->d_name[0]=='.') continue;
+        char sc[1024],dc[1024];
+        snprintf(sc,sizeof(sc),"%s/%s",src_dir,de->d_name);
+        snprintf(dc,sizeof(dc),"%s/%s",dst_dir,de->d_name);
+        struct stat st; if(stat(sc,&st)!=0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            mkdir_p(dc);
+            wiki_adoc_scan_dir(pok,pfail,sc,dc,entries,do_pdf);
+            continue;
+        }
+        size_t nl=strlen(de->d_name);
+        if (nl<6||strcmp(de->d_name+nl-5,".adoc")!=0) continue;
+        char out_html[1024];
+        snprintf(out_html,sizeof(out_html),"%s/%.*s.html",dst_dir,(int)(nl-5),de->d_name);
+#ifdef _WIN32
+        if (strchr(sc,'"')||strchr(out_html,'"')) { (*pfail)++; continue; }
         char cmd[2400];
-        snprintf(cmd, sizeof(cmd),
-                 "asciidoctor -b html5 -o '%s' '%s' >/dev/null 2>&1",
-                 out, child);
-        if (system(cmd) == 0) (*pok)++;
-        else                   (*pfail)++;
+        snprintf(cmd,sizeof(cmd),"asciidoctor -b html5 -o \"%s\" \"%s\" >nul 2>nul",out_html,sc);
+#else
+        if (strchr(sc,'\'')||strchr(out_html,'\'')) { (*pfail)++; continue; }
+        char cmd[2400];
+        snprintf(cmd,sizeof(cmd),"asciidoctor -b html5 -o '%s' '%s' >/dev/null 2>&1",out_html,sc);
+#endif
+        if (system(cmd)==0) {
+            (*pok)++;
+            int has_pdf=0;
+            if (do_pdf) {
+                char out_pdf[1024];
+                snprintf(out_pdf,sizeof(out_pdf),"%s/%.*s.pdf",dst_dir,(int)(nl-5),de->d_name);
+#ifdef _WIN32
+                if (!strchr(out_pdf,'"')) {
+                    char pcmd[2400];
+                    snprintf(pcmd,sizeof(pcmd),"asciidoctor-pdf -o \"%s\" \"%s\" >nul 2>nul",out_pdf,sc);
+                    has_pdf=(system(pcmd)==0);
+                }
+#else
+                if (!strchr(out_pdf,'\'')) {
+                    char pcmd[2400];
+                    snprintf(pcmd,sizeof(pcmd),"asciidoctor-pdf -o '%s' '%s' >/dev/null 2>&1",out_pdf,sc);
+                    has_pdf=(system(pcmd)==0);
+                }
+#endif
+            }
+            if (entries) {
+                const char *rel=out_html;
+                size_t root_len=strlen(WIKI_ADOC_HTML);
+                if (strncmp(out_html,WIKI_ADOC_HTML,root_len)==0 &&
+                    (out_html[root_len]=='/'||out_html[root_len]=='\\'))
+                    rel=out_html+root_len+1;
+                adoc_entry_t *e=(adoc_entry_t*)calloc(1,sizeof(adoc_entry_t));
+                if (e) {
+                    strncpy(e->html_rel,rel,sizeof(e->html_rel)-1);
+                    e->has_pdf=has_pdf;
+                    const char *sl=strrchr(rel,'/');
+                    if (sl) {
+                        size_t dl=(size_t)(sl-rel);
+                        if(dl>=sizeof(e->dir))dl=sizeof(e->dir)-1;
+                        memcpy(e->dir,rel,dl);
+                    }
+                    e->next=*entries; *entries=e;
+                }
+            }
+        } else (*pfail)++;
     }
     closedir(d);
 }
 
+/* ── 生成 adoc_index.html（含分类统计 + PDF 链接）──────────── */
+
+static int wiki_adoc_write_index(adoc_entry_t *entries, int ok, int fail)
+{
+    char idx[1024]; snprintf(idx,sizeof(idx),"%s/adoc_index.html",WIKI_ADOC_HTML);
+    FILE *fp=fopen(idx,"wb"); if(!fp)return -1;
+
+    typedef struct { char dir[256]; int count; } dstat_t;
+    dstat_t dirs[128]; int ndir=0, total=0, pdf_total=0;
+    for (adoc_entry_t *e=entries; e; e=e->next) {
+        total++;
+        if (e->has_pdf) pdf_total++;
+        int found=0;
+        for (int i=0; i<ndir; i++) {
+            if (strcmp(dirs[i].dir,e->dir)==0) { dirs[i].count++; found=1; break; }
+        }
+        if (!found && ndir<128) {
+            strncpy(dirs[ndir].dir,e->dir,sizeof(dirs[0].dir)-1);
+            dirs[ndir].count=1; ndir++;
+        }
+    }
+    for (int i=0;i<ndir-1;i++)
+        for (int j=i+1;j<ndir;j++)
+            if (strcmp(dirs[i].dir,dirs[j].dir)>0) {
+                dstat_t tmp=dirs[i]; dirs[i]=dirs[j]; dirs[j]=tmp;
+            }
+
+    strbuf_t sb={0};
+    SB_LIT(&sb,"<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+               "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+               "<title>ADOC \346\226\207\346\241\243\347\264\242\345\274\225</title><style>"
+               ":root{--bg:#0d1117;--surf:#161b22;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--accent:#4a90e2}"
+               "*{box-sizing:border-box;margin:0;padding:0}"
+               "body{background:var(--bg);color:var(--text);"
+               "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}"
+               ".topbar{height:50px;background:var(--surf);border-bottom:1px solid var(--border);"
+               "display:flex;align-items:center;padding:0 20px;gap:14px}"
+               ".topbar h1{font-size:.95rem;font-weight:700;color:#f0f6fc}"
+               ".topbar a{font-size:12px;color:var(--dim);text-decoration:none}"
+               ".topbar a:hover{color:var(--text)}"
+               ".wrap{max-width:920px;margin:0 auto;padding:28px 20px 48px}"
+               ".stats{display:flex;gap:16px;margin-bottom:22px;flex-wrap:wrap}"
+               ".stat{background:var(--surf);border:1px solid var(--border);border-radius:8px;"
+               "padding:12px 20px;font-size:.83rem;color:var(--dim);min-width:110px}"
+               ".stat strong{display:block;font-size:1.5rem;color:#f0f6fc;font-weight:700;"
+               "line-height:1.2;margin-bottom:2px}"
+               ".cat-block{margin-bottom:20px;border:1px solid var(--border);border-radius:8px;"
+               "overflow:hidden;background:var(--surf)}"
+               ".cat-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--accent);"
+               "background:#161b22;border-bottom:1px solid var(--border)}"
+               ".cat-body{padding:4px 0}"
+               ".row{display:flex;align-items:center;padding:7px 14px;gap:10px;"
+               "border-bottom:1px solid #21262d;font-size:.86rem}"
+               ".row:last-child{border-bottom:none}.row:hover{background:rgba(255,255,255,.04)}"
+               ".row a.html-link{color:var(--text);text-decoration:none;flex:1}"
+               ".row a.html-link:hover{color:var(--accent)}"
+               ".row a.pdf-link{font-size:.73rem;color:#f85149;border:1px solid #f8514940;"
+               "border-radius:4px;padding:1px 7px;text-decoration:none;white-space:nowrap}"
+               ".row a.pdf-link:hover{background:#f8514920}"
+               ".warn{color:#f85149;font-size:.8rem;padding:12px 14px}"
+               "</style></head><body>\n"
+               "<div class=\"topbar\">"
+               "<h1>\360\237\223\232 ADOC \346\226\207\346\241\243\347\264\242\345\274\225</h1>"
+               "<div style=\"flex:1\"></div>"
+               "<a href=\"/wiki/notewikiindex.html\">"
+               "\342\206\220 NoteWiki \347\264\242\345\274\225</a></div>\n"
+               "<div class=\"wrap\">\n");
+
+    sb_appendf(&sb,
+               "<div class=\"stats\">"
+               "<div class=\"stat\"><strong>%d</strong>HTML \346\200\273\346\225\260</div>"
+               "<div class=\"stat\"><strong>%d</strong>PDF \346\200\273\346\225\260</div>"
+               "<div class=\"stat\"><strong>%d</strong>"
+               "\347\233\256\345\275\225\345\210\206\347\261\273</div>"
+               "<div class=\"stat\"><strong>%d</strong>"
+               "\350\275\254\346\215\242\345\244\261\350\264\245</div>"
+               "</div>\n", total, pdf_total, ndir, fail);
+
+    for (int i=0; i<ndir; i++) {
+        const char *dname=dirs[i].dir[0]
+            ? dirs[i].dir
+            : "\346\240\271\347\233\256\345\275\225";
+        SB_LIT(&sb,"<div class=\"cat-block\">"
+                   "<div class=\"cat-head\">\360\237\223\202 ");
+        wiki_sb_html_esc(&sb,dname);
+        sb_appendf(&sb,
+                   " <span style=\"font-weight:400;color:var(--dim)\">(%d)</span>"
+                   "</div><div class=\"cat-body\">\n",dirs[i].count);
+        for (adoc_entry_t *e=entries; e; e=e->next) {
+            if (strcmp(e->dir,dirs[i].dir)!=0) continue;
+            const char *fname=e->html_rel;
+            const char *sl=strrchr(e->html_rel,'/');
+            if (sl) fname=sl+1;
+            SB_LIT(&sb,"<div class=\"row\">"
+                       "<a class=\"html-link\" href=\"");
+            wiki_sb_html_esc(&sb,e->html_rel);
+            SB_LIT(&sb,"\">");
+            wiki_sb_html_esc(&sb,fname);
+            SB_LIT(&sb,"</a>");
+            if (e->has_pdf) {
+                char pdf_rel[512]; strncpy(pdf_rel,e->html_rel,sizeof(pdf_rel)-1);
+                size_t hl=strlen(pdf_rel);
+                if (hl>=5 && strcmp(pdf_rel+hl-5,".html")==0) {
+                    strcpy(pdf_rel+hl-5,".pdf");
+                    SB_LIT(&sb," <a class=\"pdf-link\" href=\"");
+                    wiki_sb_html_esc(&sb,pdf_rel);
+                    SB_LIT(&sb,"\" download>PDF\342\206\223</a>");
+                }
+            }
+            SB_LIT(&sb,"</div>\n");
+        }
+        SB_LIT(&sb,"</div></div>\n");
+    }
+    if (fail>0)
+        sb_appendf(&sb,
+                   "<p class=\"warn\">\342\232\240 \346\234\211 %d \344\270\252\346\226\207\344\273\266"
+                   "\350\275\254\346\215\242\345\244\261\350\264\245\343\200\202</p>\n",fail);
+    SB_LIT(&sb,"</div></body></html>\n");
+    if (sb.data) fwrite(sb.data,1,sb.len,fp);
+    fclose(fp); free(sb.data);
+    return 0;
+}
+
+/* ── POST /api/wiki-adoc-rebuild ──────────────────────────── */
+
 void handle_api_wiki_adoc_rebuild(http_sock_t client_fd)
 {
+    wiki_ensure_dirs();
     if (!wiki_adoc_has_tool()) {
-        const char *err = "{\"ok\":false,\"error\":\"asciidoctor not found on server\"}";
-        send_json(client_fd, 500, "Internal Server Error", err, strlen(err));
+        const char *err="{\"ok\":false,\"error\":\"asciidoctor not found on server\"}";
+        send_json(client_fd,500,"Internal Server Error",err,strlen(err));
         return;
     }
-    int ok = 0, fail = 0;
-    wiki_adoc_scan_dir(&ok, &fail, WIKI_ADOC_DB);
-    char resp[128];
-    int rlen = snprintf(resp, sizeof(resp),
-                        "{\"ok\":true,\"count\":%d,\"fail\":%d}", ok, fail);
-    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
-    LOG_INFO("wiki_adoc_rebuild ok=%d fail=%d", ok, fail);
+    int do_pdf=wiki_adoc_has_pdf_tool();
+    rmdir_recursive(WIKI_ADOC_HTML);
+    mkdir_p(WIKI_ADOC_HTML);
+    int ok=0, fail=0;
+    adoc_entry_t *entries=NULL;
+    wiki_adoc_scan_dir(&ok,&fail,WIKI_ADOC_DB,WIKI_ADOC_HTML,&entries,do_pdf);
+    if (wiki_adoc_write_index(entries,ok,fail)!=0) fail++;
+    int pdf_count=0;
+    for (adoc_entry_t *e=entries; e; e=e->next) if (e->has_pdf) pdf_count++;
+    adoc_entry_free(entries);
+    char resp[160];
+    int rlen=snprintf(resp,sizeof(resp),
+                      "{\"ok\":true,\"count\":%d,\"fail\":%d,\"pdf\":%d}",
+                      ok,fail,pdf_count);
+    send_json(client_fd,200,"OK",resp,(size_t)rlen);
+    LOG_INFO("wiki_adoc_rebuild ok=%d fail=%d pdf=%d out=%s",ok,fail,pdf_count,WIKI_ADOC_HTML);
 }
+
+/* ── GET /api/wiki-adoc-list ──────────────────────────────── */
+
+static void wiki_adoc_list_scan(strbuf_t *sb, int *pfirst, int *pcount,
+                                  const char *dir, const char *root)
+{
+    DIR *d=opendir(dir); if(!d)return;
+    struct dirent *de;
+    while ((de=readdir(d))!=NULL) {
+        if (de->d_name[0]=='.') continue;
+        char child[1024]; snprintf(child,sizeof(child),"%s/%s",dir,de->d_name);
+        struct stat st; if(stat(child,&st)!=0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            wiki_adoc_list_scan(sb,pfirst,pcount,child,root); continue;
+        }
+        size_t nl=strlen(de->d_name);
+        if (nl<6||strcmp(de->d_name+nl-5,".adoc")!=0) continue;
+        const char *rel=child;
+        size_t rl=strlen(root);
+        if (strncmp(child,root,rl)==0&&(child[rl]=='/'||child[rl]=='\\'))
+            rel=child+rl+1;
+        char dpart[256]={0};
+        const char *sl=strrchr(rel,'/');
+        if (sl) {
+            size_t dl=(size_t)(sl-rel);
+            if(dl>=sizeof(dpart))dl=sizeof(dpart)-1;
+            memcpy(dpart,rel,dl);
+        }
+        if (!*pfirst) SB_LIT(sb,","); *pfirst=0; (*pcount)++;
+        SB_LIT(sb,"{\"path\":"); sb_json_str(sb,rel);
+        SB_LIT(sb,",\"dir\":"); sb_json_str(sb,dpart);
+        SB_LIT(sb,"}");
+    }
+    closedir(d);
+}
+
+void handle_api_wiki_adoc_list(http_sock_t client_fd)
+{
+    wiki_ensure_dirs();
+    strbuf_t sb={0};
+    SB_LIT(&sb,"{\"ok\":true,\"files\":[");
+    int first=1, count=0;
+    wiki_adoc_list_scan(&sb,&first,&count,WIKI_ADOC_DB,WIKI_ADOC_DB);
+    SB_LIT(&sb,"],");
+    sb_appendf(&sb,"\"count\":%d}",count);
+    if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
+    else send_json(client_fd,200,"OK","{\"ok\":true,\"files\":[],\"count\":0}",37);
+    free(sb.data);
+}
+
 
 /* ── POST /api/wiki-rename-article ───────────────────────── */
 
@@ -2221,6 +2487,78 @@ void handle_api_wiki_cleanup_uploads(http_sock_t client_fd)
     int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"deleted\":%d,\"kept\":%d}", deleted, kept);
     send_json(client_fd, 200, "OK", resp, (size_t)rlen);
     LOG_INFO("wiki_cleanup_uploads deleted=%d kept=%d", deleted, kept);
+}
+
+/* ── POST /api/wiki-cleanup-adoc-db ─────────────────────────
+ * 删除 adoc_db 下所有非 .adoc 后缀的条目（含符号链接等非目录），
+ * 自下而上删除空子目录（保留 adoc_db 根目录本身）。 */
+
+static int wiki_fname_is_adoc(const char *name)
+{
+    size_t n = strlen(name);
+    if (n < 5) return 0;
+    return strcasecmp(name + n - 5, ".adoc") == 0;
+}
+
+static void wiki_cleanup_adoc_db_recursive(const char *path, const char *root,
+                                           int *removed_files, int *removed_dirs)
+{
+    DIR *d = opendir(path);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.' && de->d_name[1] == '\0') continue;
+        if (de->d_name[0] == '.' && de->d_name[1] == '.' && de->d_name[2] == '\0') continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            wiki_cleanup_adoc_db_recursive(child, root, removed_files, removed_dirs);
+            continue;
+        }
+        if (!wiki_fname_is_adoc(de->d_name)) {
+            if (unlink(child) == 0) {
+                (*removed_files)++;
+                LOG_INFO("wiki_cleanup_adoc_db: delete %s", child);
+            } else {
+                LOG_INFO("wiki_cleanup_adoc_db: unlink failed %s (%s)", child, strerror(errno));
+            }
+        }
+    }
+    closedir(d);
+
+    if (strcmp(path, root) != 0) {
+        DIR *d2 = opendir(path);
+        int empty = 1;
+        if (d2) {
+            while ((de = readdir(d2)) != NULL) {
+                if (de->d_name[0] == '.' && de->d_name[1] == '\0') continue;
+                if (de->d_name[0] == '.' && de->d_name[1] == '.' && de->d_name[2] == '\0') continue;
+                empty = 0;
+                break;
+            }
+            closedir(d2);
+        }
+        if (empty && rmdir(path) == 0) {
+            (*removed_dirs)++;
+            LOG_INFO("wiki_cleanup_adoc_db: rmdir %s", path);
+        }
+    }
+}
+
+void handle_api_wiki_cleanup_adoc_db(http_sock_t client_fd)
+{
+    wiki_ensure_dirs();
+    int removed_files = 0, removed_dirs = 0;
+    wiki_cleanup_adoc_db_recursive(WIKI_ADOC_DB, WIKI_ADOC_DB, &removed_files, &removed_dirs);
+    mkdir_p(WIKI_ADOC_DB);
+    char resp[160];
+    int rlen = snprintf(resp, sizeof(resp),
+                        "{\"ok\":true,\"deletedFiles\":%d,\"removedEmptyDirs\":%d}",
+                        removed_files, removed_dirs);
+    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+    LOG_INFO("wiki_cleanup_adoc_db deletedFiles=%d removedEmptyDirs=%d", removed_files, removed_dirs);
 }
 
 /* ── POST /api/wiki-upload ────────────────────────────────── */

@@ -45,6 +45,28 @@ a.tb-btn{display:inline-block;line-height:1.2}
 .row .meta{font-size:.72rem;color:var(--dim);white-space:nowrap;flex-shrink:0;padding-top:2px}
 .empty{padding:14px;color:var(--dim);font-size:.8rem;text-align:center}
 .err{color:#f85149;font-size:.86rem;padding:20px}
+.adoc-panel{display:none;margin-bottom:18px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surf);font-size:.82rem;line-height:1.5}
+.adoc-panel.adoc-visible{display:block}
+.adoc-panel.adoc-busy{border-color:#388bfd}
+.adoc-panel .adoc-title{font-weight:600;color:#f0f6fc;margin-bottom:6px;font-size:.84rem}
+.adoc-run{color:#79c0ff}
+.adoc-ok{color:#56d364}
+.adoc-err{color:#f85149}
+.adoc-sub{margin-top:4px;font-size:.75rem;color:var(--dim)}
+.adoc-sub a{color:var(--accent);text-decoration:none}
+.adoc-sub a:hover{text-decoration:underline}
+.adoc-list-panel{display:none;margin-bottom:18px;border:1px solid var(--border);border-radius:8px;background:var(--surf);overflow:hidden}
+.adoc-list-panel.alp-visible{display:block}
+.alp-head{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px}
+.alp-title{font-size:.84rem;font-weight:600;color:#f0f6fc;flex:1}
+.alp-close{font-size:.75rem;color:var(--dim);cursor:pointer;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text)}
+.alp-close:hover{background:#21262d}
+.alp-stats{font-size:.75rem;color:var(--dim);padding:8px 14px;border-bottom:1px solid var(--border)}
+.alp-cat{margin:0}
+.alp-cat-head{padding:7px 14px;font-size:.78rem;font-weight:600;color:var(--accent);border-bottom:1px solid #21262d;background:#0d1117}
+.alp-file{padding:6px 14px 6px 28px;font-size:.82rem;color:var(--dim);border-bottom:1px solid #21262d}
+.alp-file:last-child{border-bottom:none}
+.alp-empty{padding:12px 14px;color:var(--dim);font-size:.8rem;text-align:center}
 </style>
 </head>
 <body>
@@ -53,10 +75,31 @@ a.tb-btn{display:inline-block;line-height:1.2}
   <div style="flex:1"></div>
   <a id="link-edit" href="/wiki/notewiki.html">📝 NoteWiki 编辑</a>
   <button type="button" class="tb-btn" id="wiki-refresh-index" title="在服务器上重写 html/wiki/wiki-index.json">🔄 更新离线索引</button>
+  <button type="button" class="tb-btn" id="btn-adoc-list" title="查看 adoc_db/ 中所有 .adoc 文件" style="display:none">📂 浏览 adoc_db</button>
+  <button type="button" class="tb-btn" id="btn-adoc-publish" title="遍历 adoc_db/ 全量发布到 adoc_html/（保留目录层级），并生成 adoc_html/adoc_index.html 总链接页（需要安装 asciidoctor）" style="display:none">发布 adoc→html/pdf</button>
+  <button type="button" class="tb-btn" id="btn-adoc-clean" title="删除 adoc_db/ 下所有非 .adoc 文件，并移除因此变空的子文件夹（不删除 adoc_db 根目录）" style="display:none">清理 adoc_db</button>
   <a id="link-wiki-index-dl" class="tb-btn" href="/wiki/wiki-index.json" download="wiki-index.json" title="下载当前 wiki-index.json 用于本地备份/离线" style="display:none;text-decoration:none">⬇ wiki-index.json</a>
   <a id="link-home" href="/index.html">← 网站首页</a>
 </div>
 <div class="wrap">
+  <div id="adoc-panel" class="adoc-panel" aria-live="polite">
+    <div class="adoc-title">ADOC 发布状态</div>
+    <div id="adoc-status-main" class="adoc-run"></div>
+    <div id="adoc-status-sub" class="adoc-sub"></div>
+  </div>
+  <div id="adoc-clean-panel" class="adoc-panel" aria-live="polite">
+    <div class="adoc-title">adoc_db 清理结果</div>
+    <div id="adoc-clean-main" class="adoc-run"></div>
+    <div id="adoc-clean-sub" class="adoc-sub"></div>
+  </div>
+  <div id="adoc-list-panel" class="adoc-list-panel" aria-live="polite">
+    <div class="alp-head">
+      <span class="alp-title">📂 adoc_db 文件列表</span>
+      <span id="adoc-list-count" style="font-size:.75rem;color:var(--dim)"></span>
+      <button type="button" class="alp-close" id="btn-adoc-list-close">关闭</button>
+    </div>
+    <div id="adoc-list-body"></div>
+  </div>
   <div class="search-bar">
     <input type="search" id="wiki-search-q" placeholder="搜索标题与正文…" autocomplete="off" aria-label="搜索文章">
     <button type="button" id="wiki-search-go">搜索</button>
@@ -85,8 +128,14 @@ if (_isFileMode) {
   if (homeLink) homeLink.href = '../index.html';
   var rHide = document.getElementById('wiki-refresh-index');
   var dHide = document.getElementById('link-wiki-index-dl');
+  var adocHide = document.getElementById('btn-adoc-publish');
+  var adocCleanHide = document.getElementById('btn-adoc-clean');
+  var adocListHide = document.getElementById('btn-adoc-list');
   if (rHide) rHide.style.display = 'none';
   if (dHide) dHide.style.display = 'none';
+  if (adocHide) adocHide.style.display = 'none';
+  if (adocCleanHide) adocCleanHide.style.display = 'none';
+  if (adocListHide) adocListHide.style.display = 'none';
 } else {
   var rbi = document.getElementById('wiki-refresh-index');
   var dli = document.getElementById('link-wiki-index-dl');
@@ -109,6 +158,28 @@ if (_isFileMode) {
     });
   }
   if (dli) dli.style.display = 'inline-block';
+  var adocListBtn = document.getElementById('btn-adoc-list');
+  if (adocListBtn) {
+    adocListBtn.style.display = 'inline-block';
+    adocListBtn.addEventListener('click', runAdocList);
+  }
+  var adocBtn = document.getElementById('btn-adoc-publish');
+  if (adocBtn) {
+    adocBtn.style.display = 'inline-block';
+    adocBtn.addEventListener('click', runAdocPublish);
+  }
+  var adocCleanBtn = document.getElementById('btn-adoc-clean');
+  if (adocCleanBtn) {
+    adocCleanBtn.style.display = 'inline-block';
+    adocCleanBtn.addEventListener('click', runAdocDbClean);
+  }
+  var adocListClose = document.getElementById('btn-adoc-list-close');
+  if (adocListClose) {
+    adocListClose.addEventListener('click', function() {
+      var p = document.getElementById('adoc-list-panel');
+      if (p) p.classList.remove('alp-visible');
+    });
+  }
 }
 
 function wikiArticleHref(cat, id) {
@@ -124,7 +195,10 @@ function wikiArticleHref(cat, id) {
 }
 
 function isHiddenCategory(cat) {
-  return !!cat && (cat === 'vendor' || cat.indexOf('vendor/') === 0);
+  return !!cat && (
+    cat === 'vendor' || cat.indexOf('vendor/') === 0 ||
+    cat === 'adoc_db' || cat.indexOf('adoc_db/') === 0
+  );
 }
 
 function render(data, leadText) {
@@ -353,6 +427,244 @@ function tryOfflineCandidates(list, i) {
 function errText(e) {
   if (!e) return '未知错误';
   return (e.message || String(e)).replace(/\s+/g, ' ').trim();
+}
+
+var _adocTickTimer = null;
+var _adocStartMs = 0;
+
+function adocClearTick() {
+  if (_adocTickTimer) {
+    clearInterval(_adocTickTimer);
+    _adocTickTimer = null;
+  }
+}
+
+function adocElapsedSec() {
+  if (!_adocStartMs) return '0.0';
+  return ((Date.now() - _adocStartMs) / 1000).toFixed(1);
+}
+
+function runAdocPublish() {
+  var btn = document.getElementById('btn-adoc-publish');
+  var cleanBtn = document.getElementById('btn-adoc-clean');
+  var panel = document.getElementById('adoc-panel');
+  var main = document.getElementById('adoc-status-main');
+  var sub = document.getElementById('adoc-status-sub');
+  if (!btn || !panel || !main || !sub) return;
+  if (btn.disabled) return;
+
+  btn.disabled = true;
+  if (cleanBtn) cleanBtn.disabled = true;
+  panel.classList.add('adoc-visible', 'adoc-busy');
+  main.className = 'adoc-run';
+  main.textContent = '发布中：正在从 adoc_db 发布到 adoc_html…';
+  sub.className = 'adoc-sub';
+  sub.textContent = '已用时 0.0 秒';
+  _adocStartMs = Date.now();
+  adocClearTick();
+  _adocTickTimer = setInterval(function() {
+    sub.textContent = '已用时 ' + adocElapsedSec() + ' 秒 · 服务器全量转换中，请稍候';
+  }, 120);
+
+  fetch('/api/wiki-adoc-rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+    credentials: 'same-origin'
+  })
+    .then(function(r) {
+      return r.text().then(function(t) {
+        var d = null;
+        try { d = JSON.parse(t); } catch (e) {}
+        return { httpOk: r.ok, status: r.status, raw: t, d: d };
+      });
+    })
+    .then(function(res) {
+      adocClearTick();
+      var elapsed = adocElapsedSec();
+      _adocStartMs = 0;
+      if (!res.d) {
+        main.className = 'adoc-err';
+        main.textContent = '发布失败：无法解析服务器响应（HTTP ' + res.status + '）';
+        sub.textContent = '已用时 ' + elapsed + ' 秒' + (res.raw ? ' · ' + res.raw.slice(0, 240) : '');
+        return;
+      }
+      if (!res.d.ok) {
+        main.className = 'adoc-err';
+        var msg = res.d.error || '未知错误';
+        if (res.status === 401 || res.d.needLogin) {
+          msg = '需要登录。请打开「NoteWiki 编辑」页登录作者或管理员后再试。';
+        } else if (res.status === 403) {
+          msg = '无发布权限（需要作者或管理员）。';
+        }
+        main.textContent = '发布失败：' + msg;
+        sub.textContent = '已用时 ' + elapsed + ' 秒';
+        return;
+      }
+      var n = res.d.count || 0;
+      var f = res.d.fail || 0;
+      var p = res.d.pdf || 0;
+      var pdfNote = p > 0 ? '，PDF ' + p + ' 个' : '（未生成 PDF，需安装 asciidoctor-pdf）';
+      if (f > 0) {
+        main.className = 'adoc-err';
+        main.textContent = '发布结束：HTML ' + n + ' 个' + pdfNote + '，失败 ' + f + ' 个';
+      } else {
+        main.className = 'adoc-ok';
+        main.textContent = '发布成功：HTML ' + n + ' 个' + pdfNote;
+      }
+      sub.innerHTML = '已用时 ' + elapsed + ' 秒 · <a href="/wiki/adoc_html/adoc_index.html">打开 adoc_index.html</a>'
+        + (f > 0 ? '（索引页仍可能列出已成功转换的条目）' : '');
+    })
+    .catch(function(e) {
+      adocClearTick();
+      _adocStartMs = 0;
+      main.className = 'adoc-err';
+      main.textContent = '请求失败';
+      sub.textContent = errText(e);
+    })
+    .then(function() {
+      btn.disabled = false;
+      var cbtn = document.getElementById('btn-adoc-clean');
+      if (cbtn) cbtn.disabled = false;
+      if (panel) panel.classList.remove('adoc-busy');
+    });
+}
+
+function runAdocList() {
+  var btn = document.getElementById('btn-adoc-list');
+  var panel = document.getElementById('adoc-list-panel');
+  var body = document.getElementById('adoc-list-body');
+  var countEl = document.getElementById('adoc-list-count');
+  if (!btn || !panel || !body) return;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  panel.classList.add('alp-visible');
+  body.innerHTML = '<div class="alp-empty">加载中…</div>';
+  if (countEl) countEl.textContent = '';
+  fetch('/api/wiki-adoc-list', { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok) { body.innerHTML = '<div class="alp-empty">加载失败</div>'; return; }
+      var files = d.files || [];
+      if (!files.length) { body.innerHTML = '<div class="alp-empty">adoc_db 中暂无 .adoc 文件</div>'; return; }
+      if (countEl) countEl.textContent = '共 ' + files.length + ' 个文件';
+      /* group by dir */
+      var byDir = {}, dirOrder = [];
+      files.forEach(function(f) {
+        var dir = f.dir || '';
+        if (!byDir[dir]) { byDir[dir] = []; dirOrder.push(dir); }
+        byDir[dir].push(f);
+      });
+      dirOrder.sort(function(a,b){ return a.localeCompare(b); });
+      var html = '';
+      dirOrder.forEach(function(dir) {
+        var list = byDir[dir];
+        html += '<div class="alp-cat"><div class="alp-cat-head">📂 '
+          + esc(dir || '根目录') + ' (' + list.length + ')</div>';
+        list.forEach(function(f) {
+          var fname = f.path.split('/').pop();
+          html += '<div class="alp-file">' + esc(fname) + '</div>';
+        });
+        html += '</div>';
+      });
+      body.innerHTML = html;
+    })
+    .catch(function(e) { body.innerHTML = '<div class="alp-empty">请求失败：' + esc(e.message) + '</div>'; })
+    .then(function() { btn.disabled = false; });
+}
+
+var _adocCleanTickTimer = null;
+var _adocCleanStartMs = 0;
+
+function adocCleanClearTick() {
+  if (_adocCleanTickTimer) {
+    clearInterval(_adocCleanTickTimer);
+    _adocCleanTickTimer = null;
+  }
+}
+
+function adocCleanElapsedSec() {
+  if (!_adocCleanStartMs) return '0.0';
+  return ((Date.now() - _adocCleanStartMs) / 1000).toFixed(1);
+}
+
+function runAdocDbClean() {
+  if (!confirm('将删除服务器上 wiki/adoc_db 内所有「非 .adoc」文件（如误放的 .md、临时文件等），并删除因此变空的子文件夹（保留 adoc_db 根目录）。\n\n后缀为 .adoc 的文件不会被删除。是否继续？'))
+    return;
+  var btn = document.getElementById('btn-adoc-clean');
+  var pubBtn = document.getElementById('btn-adoc-publish');
+  var panel = document.getElementById('adoc-clean-panel');
+  var main = document.getElementById('adoc-clean-main');
+  var sub = document.getElementById('adoc-clean-sub');
+  if (!btn || !panel || !main || !sub) return;
+  if (btn.disabled) return;
+
+  btn.disabled = true;
+  if (pubBtn) pubBtn.disabled = true;
+  panel.classList.add('adoc-visible', 'adoc-busy');
+  main.className = 'adoc-run';
+  main.textContent = '清理中：正在扫描并删除 adoc_db 内非 .adoc 文件…';
+  sub.className = 'adoc-sub';
+  sub.textContent = '已用时 0.0 秒';
+  _adocCleanStartMs = Date.now();
+  adocCleanClearTick();
+  _adocCleanTickTimer = setInterval(function() {
+    sub.textContent = '已用时 ' + adocCleanElapsedSec() + ' 秒 · 服务器处理中…';
+  }, 120);
+
+  fetch('/api/wiki-cleanup-adoc-db', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+    credentials: 'same-origin'
+  })
+    .then(function(r) {
+      return r.text().then(function(t) {
+        var d = null;
+        try { d = JSON.parse(t); } catch (e) {}
+        return { status: r.status, raw: t, d: d };
+      });
+    })
+    .then(function(res) {
+      adocCleanClearTick();
+      var elapsed = adocCleanElapsedSec();
+      _adocCleanStartMs = 0;
+      if (!res.d) {
+        main.className = 'adoc-err';
+        main.textContent = '清理失败：无法解析服务器响应（HTTP ' + res.status + '）';
+        sub.textContent = '已用时 ' + elapsed + ' 秒' + (res.raw ? ' · ' + res.raw.slice(0, 240) : '');
+        return;
+      }
+      if (!res.d.ok) {
+        main.className = 'adoc-err';
+        var msg = res.d.error || '未知错误';
+        if (res.status === 401 || res.d.needLogin) {
+          msg = '需要登录。请打开「NoteWiki 编辑」页登录作者或管理员后再试。';
+        } else if (res.status === 403) {
+          msg = '无权限（需要作者或管理员）。';
+        }
+        main.textContent = '清理失败：' + msg;
+        sub.textContent = '已用时 ' + elapsed + ' 秒';
+        return;
+      }
+      var nf = res.d.deletedFiles || 0;
+      var nd = res.d.removedEmptyDirs || 0;
+      main.className = 'adoc-ok';
+      main.textContent = '清理完成：删除非 .adoc 文件 ' + nf + ' 个，移除空文件夹 ' + nd + ' 个';
+      sub.textContent = '已用时 ' + elapsed + ' 秒';
+    })
+    .catch(function(e) {
+      adocCleanClearTick();
+      _adocCleanStartMs = 0;
+      main.className = 'adoc-err';
+      main.textContent = '请求失败';
+      sub.textContent = errText(e);
+    })
+    .then(function() {
+      btn.disabled = false;
+      if (pubBtn) pubBtn.disabled = false;
+      if (panel) panel.classList.remove('adoc-busy');
+    });
 }
 
 function buildOfflineFallbackCandidates() {

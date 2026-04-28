@@ -128,15 +128,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .art-content a:hover{color:#79c0ff;border-bottom-color:#79c0ff}
 .art-content hr{border:none;border-top:1px solid var(--border);margin:1.4em 0;opacity:.9}
 .art-content del{color:var(--dim);text-decoration:line-through}
-.art-content{counter-reset:sc1 sc2 sc3 sc4}
-.art-content h1{counter-reset:sc2 sc3 sc4;counter-increment:sc1}
-.art-content h2{counter-reset:sc3 sc4;counter-increment:sc2}
-.art-content h3{counter-reset:sc4;counter-increment:sc3}
-.art-content h4{counter-increment:sc4}
-.art-content h1::before{content:counter(sc1)". ";color:#8b949e;font-weight:400;font-size:.88em}
-.art-content h2::before{content:counter(sc1)"."counter(sc2)" ";color:#8b949e;font-weight:400;font-size:.88em}
-.art-content h3::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)" ";color:#8b949e;font-weight:400;font-size:.88em}
-.art-content h4::before{content:counter(sc1)"."counter(sc2)"."counter(sc3)"."counter(sc4)" ";color:#8b949e;font-weight:400;font-size:.88em}
+.art-content h1::before,.art-content h2::before,.art-content h3::before,.art-content h4::before{content:attr(data-secnum);color:#8b949e;font-weight:400;font-size:.88em;margin-right:.1em}
 .art-content .math-block{margin:1em 0;overflow-x:auto}
 .art-content .mermaid-block{margin:1em 0;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#101722;overflow:auto}
 .art-content .mermaid{min-width:220px}
@@ -293,7 +285,6 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <a href="/wiki/notewikiindex.html">📑 文章索引</a>
     <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAdocPages()" title="将 adoc_db/ 中所有 .adoc 文件用 asciidoctor 发布为 HTML 网页">更新 adoc</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
     <a href="/index.html">← 返回首页</a>
   </div>
@@ -835,7 +826,8 @@ function init() {
 function isHiddenCategory(cat) {
   return !!cat && (
     cat === 'vendor' || cat.indexOf('vendor/') === 0 ||
-    cat === 'sqlite_db' || cat.indexOf('sqlite_db/') === 0
+    cat === 'sqlite_db' || cat.indexOf('sqlite_db/') === 0 ||
+    cat === 'adoc_html' || cat.indexOf('adoc_html/') === 0
   );
 }
 
@@ -930,8 +922,11 @@ function renderTree() {
     arts = localMatches.concat(ftExtra);
   }
 
-  // 隐藏 adoc_db 分类（adoc 文件由独立流程管理，不在编辑器侧栏显示）
-  function isAdocCat(c) { return c === 'adoc_db' || c.startsWith('adoc_db/'); }
+  // 隐藏 adoc_db/adoc_html 分类（adoc 文件由独立流程管理，不在编辑器侧栏显示）
+  function isAdocCat(c) {
+    return c === 'adoc_db' || c.startsWith('adoc_db/') ||
+           c === 'adoc_html' || c.startsWith('adoc_html/');
+  }
   arts = arts.filter(function(a) { return !isAdocCat(a.category || ''); });
 
   var bycat = {};
@@ -1089,6 +1084,7 @@ function openArticle(id) {
       if(data.ok) {
         var vc = document.getElementById('view-content');
         vc.innerHTML = md2html(data.content||'');
+        applySectionNumbers(vc);
         buildViewToc(vc);
         scheduleRichRender(vc);
       } else {
@@ -1116,12 +1112,19 @@ function buildViewToc(root) {
     resetViewToc('本文无标题目录');
     return;
   }
+  var minLv = 5;
+  for (var m = 0; m < heads.length; m++) {
+    var lv0 = parseInt((heads[m].tagName || 'H2').substring(1), 10) || 2;
+    if (lv0 < minLv) minLv = lv0;
+  }
+  if (minLv > 4) minLv = 1;
   var html = '';
   for (var i = 0; i < heads.length; i++) {
     var h = heads[i];
     var lv = parseInt((h.tagName || 'H2').substring(1), 10) || 2;
+    var normLv = Math.min(Math.max(lv - minLv + 1, 1), 4);
     if (!h.id) h.id = 'view-head-' + (i + 1);
-    html += '<a class="l' + lv + '" href="#' + escH(h.id) + '" data-target="' + escH(h.id) + '">' + escH((h.textContent || '').trim() || ('标题 ' + (i + 1))) + '</a>';
+    html += '<a class="l' + normLv + '" href="#' + escH(h.id) + '" data-target="' + escH(h.id) + '">' + escH((h.textContent || '').trim() || ('标题 ' + (i + 1))) + '</a>';
   }
   list.innerHTML = html;
   Array.prototype.forEach.call(list.querySelectorAll('a[data-target]'), function(a){
@@ -1722,27 +1725,6 @@ function rebuildAllHtml() {
     .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-function rebuildAdocPages() {
-  if (!ensureWriteAuth()) return;
-  setStatus('正在发布 adoc 网页…');
-  fetch('/api/wiki-adoc-rebuild', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}'
-  })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (d.ok) {
-        var msg = '✓ 已发布 ' + (d.count|0) + ' 个 adoc 网页';
-        if (d.fail) msg += '，' + (d.fail|0) + ' 个失败';
-        setStatus(msg);
-      } else {
-        setStatus('发布失败：' + (d.error || '未知错误'));
-      }
-    })
-    .catch(function(e){ setStatus('请求失败：' + e.message); });
-}
-
 /** 写回 html/wiki/wiki-index.json，结构与 /api/wiki-list 相同，供 notewikiindex 离线与备份 */
 function wikiRefreshIndexJson(silent) {
   if (!ensureWriteAuth()) return Promise.resolve();
@@ -2090,8 +2072,8 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + 'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}'
     + 'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}'
     + 'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}'
-    + 'var used={},h="",maxLv=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0>maxLv)maxLv=lv0;}'
-    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var cls=[];if(lv>1)cls.push("lv"+lv);if(lv===maxLv)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
+    + 'var used={},h="",minLv=5,maxNorm=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0<minLv)minLv=lv0;}if(minLv>4)minLv=1;for(var k=0;k<hs.length;k++){var lv1=parseInt(hs[k].tagName.slice(1),10)||1;var nl1=Math.min(Math.max(lv1-minLv+1,1),4);if(nl1>maxNorm)maxNorm=nl1;}'
+    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var nl=Math.min(Math.max(lv-minLv+1,1),4);var cls=[];if(nl>1)cls.push("lv"+nl);if(nl===maxNorm)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
     + 'function done(){window.__pdfReady=1;}'
     + 'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}'
     + 'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}'
@@ -2184,6 +2166,16 @@ function buildSecNums(hs) {
     nums.push(ctrs.slice(0, nl).join('.') + ' ');
   }
   return nums;
+}
+
+function applySectionNumbers(root) {
+  if (!root) return;
+  var hs = root.querySelectorAll('h1,h2,h3,h4');
+  if (!hs.length) return;
+  var secNums = buildSecNums(hs);
+  for (var i = 0; i < hs.length; i++) {
+    hs[i].setAttribute('data-secnum', secNums[i]);
+  }
 }
 
 function buildStablePdfBookmarkBody(bodyHtml) {
@@ -2857,6 +2849,7 @@ function updatePreview(content) {
   if (!right || right.style.display === 'none') return;
   right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
                   + md2html(content, !!S.previewAlign);
+  applySectionNumbers(right);
   scheduleRichRender(right);
   _lastPreviewContent = previewKey;
   if (S.previewAlign)

@@ -106,12 +106,24 @@ pacman -Su
 pacman -S mingw-w64-x86_64-sqlite3
 ```
 
-验证：
+验证（MSYS2 终端内）：
 
 ```bash
 sqlite3 --version
-ls /mingw64/include/sqlite3.h
+ls "$MINGW_PREFIX/include/sqlite3.h"
 ```
+
+若你在 **PowerShell / cmd** 里使用 WinLibs 的 `gcc`，默认 **没有** `sqlite3.h`。任选其一：
+
+1. 打开 **「MSYS2 MinGW 64-bit」** 终端（不是 MSYS2），在项目目录执行 `mingw32-make SQLITE3=1`（会自动使用 `$MINGW_PREFIX/include`）。
+2. 仍在 PowerShell，但已安装 MSYS2 与 `mingw-w64-x86_64-sqlite3` 时，手动指定前缀（路径按你本机安装调整）：
+   ```powershell
+   mingw32-make SQLITE3=1 SQLITE3_PREFIX=C:/msys64/mingw64
+   ```
+3. 或使用自定义包含目录与库目录：
+   ```powershell
+   mingw32-make SQLITE3=1 SQLITE3_CFLAGS=-IC:/msys64/mingw64/include SQLITE3_LDFLAGS=-LC:/msys64/mingw64/lib
+   ```
 
 #### Linux
 
@@ -133,6 +145,18 @@ sudo yum install -y sqlite sqlite-devel
 
 ```bash
 make SQLITE3=1
+```
+
+若 SQLite 自行安装在用户目录（例如头文件为 `~/local/sqlite3/include/sqlite3.h`，库在 `~/local/sqlite3/lib/`），**无需改源码**，编译时指定前缀即可：
+
+```bash
+make SQLITE3=1 SQLITE3_PREFIX="$HOME/local/sqlite3"
+```
+
+或分别指定包含目录与库目录：
+
+```bash
+make SQLITE3=1 SQLITE3_INCLUDE="$HOME/local/sqlite3/include" SQLITE3_LIBDIR="$HOME/local/sqlite3/lib"
 ```
 
 ## 项目结构

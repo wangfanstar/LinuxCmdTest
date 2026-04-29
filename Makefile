@@ -10,9 +10,51 @@ CFLAGS  = -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE \
           -Isrc
 LDFLAGS = -lpthread
 SQLITE3 ?= 0
+
+# SQLite3（SQLITE3=1）：需要 sqlite3.h 与 libsqlite3。
+# - Linux: sudo apt install libsqlite3-dev 等
+# - 自定义安装前缀（头文件在 $(PREFIX)/include/sqlite3.h ，库在 $(PREFIX)/lib/）：
+#     make SQLITE3=1 SQLITE3_PREFIX=$(HOME)/local/sqlite3
+# - 头文件与库路径不一致时再单独指定：
+#     make SQLITE3=1 SQLITE3_INCLUDE=$(HOME)/local/sqlite3/include SQLITE3_LIBDIR=$(HOME)/local/sqlite3/lib
+# - MSYS2: pacman -S mingw-w64-x86_64-sqlite3 ，并在「MSYS2 MinGW 64-bit」终端编译（会自动带上 MINGW_PREFIX）
+# - 纯 WinLibs / 无头文件时：
+#     mingw32-make SQLITE3=1 SQLITE3_PREFIX=C:/msys64/mingw64
+#     mingw32-make SQLITE3=1 SQLITE3_CFLAGS=-IC:/msys64/mingw64/include SQLITE3_LDFLAGS=-LC:/msys64/mingw64/lib
+SQLITE3_CFLAGS  ?=
+SQLITE3_LDFLAGS ?=
+
+# 启用 SQLITE3=1 但未指定包含路径时：若存在 ~/local/sqlite3/include/sqlite3.h 则自动作为前缀
+#（编译服务器上常把自编译 SQLite 装在此路径；亦可通过 SQLITE3_PREFIX / SQLITE3_INCLUDE 手动指定）
 ifeq ($(SQLITE3),1)
-CFLAGS  += -DENABLE_SQLITE3
-LDFLAGS += -lsqlite3
+ifeq ($(strip $(SQLITE3_PREFIX))$(strip $(SQLITE3_INCLUDE)),)
+SQLITE3_AUTO_PREFIX := $(shell home='$(HOME)'; \
+  [ -z "$$home" ] && home="$$HOME"; \
+  [ -n "$$home" ] && [ -f "$$home/local/sqlite3/include/sqlite3.h" ] && printf '%s' "$$home/local/sqlite3")
+ifneq ($(strip $(SQLITE3_AUTO_PREFIX)),)
+SQLITE3_PREFIX := $(SQLITE3_AUTO_PREFIX)
+endif
+endif
+endif
+
+ifneq ($(strip $(SQLITE3_PREFIX)),)
+SQLITE3_CFLAGS  += -I$(SQLITE3_PREFIX)/include
+SQLITE3_LDFLAGS += -L$(SQLITE3_PREFIX)/lib
+endif
+ifneq ($(strip $(SQLITE3_INCLUDE)),)
+SQLITE3_CFLAGS += -I$(SQLITE3_INCLUDE)
+endif
+ifneq ($(strip $(SQLITE3_LIBDIR)),)
+SQLITE3_LDFLAGS += -L$(SQLITE3_LIBDIR)
+endif
+ifneq ($(strip $(MINGW_PREFIX)),)
+SQLITE3_CFLAGS  += -I$(MINGW_PREFIX)/include
+SQLITE3_LDFLAGS += -L$(MINGW_PREFIX)/lib
+endif
+
+ifeq ($(SQLITE3),1)
+CFLAGS  += -DENABLE_SQLITE3 $(SQLITE3_CFLAGS)
+LDFLAGS += -lsqlite3 $(SQLITE3_LDFLAGS)
 endif
 
 SRC_DIR = src
@@ -39,7 +81,8 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/ssh_api.c \
        $(SRC_DIR)/monitor.c \
        $(SRC_DIR)/ssh_exec.c \
-       $(SRC_DIR)/auth_db.c
+       $(SRC_DIR)/auth_db.c \
+       $(SRC_DIR)/webdata.c
 
 ifeq ($(OS),Windows_NT)
 LDFLAGS += -lws2_32

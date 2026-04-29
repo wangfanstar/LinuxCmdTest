@@ -3,6 +3,7 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
+#include "webdata.h"
 
 #ifdef ENABLE_SQLITE3
 #define AUTH_SQLITE_AVAILABLE 1
@@ -194,6 +195,21 @@ static int ensure_schema(void)
         "ip TEXT DEFAULT '',"
         "created_at TEXT NOT NULL"
         ");";
+    const char *sql_wiki_meta =
+        "CREATE TABLE IF NOT EXISTS wiki_md_meta ("
+        "article_id TEXT PRIMARY KEY,"
+        "title TEXT NOT NULL DEFAULT '',"
+        "category TEXT NOT NULL DEFAULT '',"
+        "created TEXT NOT NULL,"
+        "updated TEXT NOT NULL,"
+        "last_author TEXT NOT NULL DEFAULT 'Admin',"
+        "authors_json TEXT NOT NULL DEFAULT '[\"Admin\"]'"
+        ");";
+    const char *sql_notewiki_prefs =
+        "CREATE TABLE IF NOT EXISTS wiki_notewiki_prefs ("
+        "username TEXT PRIMARY KEY,"
+        "folder_filter_json TEXT NOT NULL DEFAULT ''"
+        ");";
     const char *sql_idx1 = "CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_logs(ts DESC);";
     const char *sql_idx2 = "CREATE INDEX IF NOT EXISTS idx_md_article ON md_backups(article_id, id DESC);";
     const char *sql_alt1 = "ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT '';";
@@ -206,6 +222,8 @@ static int ensure_schema(void)
     if (exec_sql(sql_audit)) return -1;
     if (exec_sql(sql_login)) return -1;
     if (exec_sql(sql_md)) return -1;
+    if (exec_sql(sql_wiki_meta)) return -1;
+    if (exec_sql(sql_notewiki_prefs)) return -1;
     if (exec_sql(sql_idx1)) return -1;
     if (exec_sql(sql_idx2)) return -1;
     return 0;
@@ -677,15 +695,286 @@ void auth_md_backup(const char *article_id, const char *title, const char *categ
     auth_md_backup_txn(article_id, title, category, content, html, editor, ip, NULL);
 }
 
+static void wiki_meta_escape_json_str(const char *s, char *out, size_t cap)
+{
+    size_t j = 0;
+    if (!s) {
+        out[0] = '\0';
+        return;
+    }
+    for (size_t i = 0; s[i] && j + 2 < cap; i++) {
+        if (s[i] == '"' || s[i] == '\\') {
+            if (j + 1 >= cap) break;
+            out[j++] = '\\';
+        }
+        out[j++] = s[i];
+    }
+    out[j] = '\0';
+}
+
+static void wiki_meta_authors_json_add(char *buf, size_t cap, const char *name)
+{
+    if (!buf || cap < 8 || !name || !name[0]) return;
+    char esc[256];
+    wiki_meta_escape_json_str(name, esc, sizeof(esc));
+    char needle[320];
+    snprintf(needle, sizeof(needle), "\"%s\"", esc);
+    if (strstr(buf, needle)) return;
+    size_t L = strlen(buf);
+    if (L < 2 || buf[0] != '[') {
+        snprintf(buf, cap, "[\"%s\"]", esc);
+        return;
+    }
+    if (buf[0] == '[' && buf[1] == ']') {
+        snprintf(buf, cap, "[\"%s\"]", esc);
+        return;
+    }
+    if (buf[L - 1] != ']') return;
+    buf[L - 1] = '\0';
+    strncat(buf, ",\"", cap - 1);
+    strncat(buf, esc, cap - 1);
+    strncat(buf, "\"]", cap - 1);
+}
+
+int auth_wiki_md_meta_get(const char *article_id, wiki_md_meta_row_t *out)
+{
+    if (!article_id || !article_id[0] || !out) return -1;
+    memset(out, 0, sizeof(*out));
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "SELECT title,category,created,updated,last_author,authors_json "
+                      "FROM wiki_md_meta WHERE article_id=?1 LIMIT 1;";
+    int rc = -1;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(st) == SQLITE_ROW) {
+            const unsigned char *t = sqlite3_column_text(st, 0);
+            const unsigned char *c = sqlite3_column_text(st, 1);
+            const unsigned char *cr = sqlite3_column_text(st, 2);
+            const unsigned char *up = sqlite3_column_text(st, 3);
+            const unsigned char *la = sqlite3_column_text(st, 4);
+            const unsigned char *aj = sqlite3_column_text(st, 5);
+            snprintf(out->title, sizeof(out->title), "%s", t ? (const char *)t : "");
+            snprintf(out->category, sizeof(out->category), "%s", c ? (const char *)c : "");
+            snprintf(out->created, sizeof(out->created), "%s", cr ? (const char *)cr : "");
+            snprintf(out->updated, sizeof(out->updated), "%s", up ? (const char *)up : "");
+            snprintf(out->last_author, sizeof(out->last_author), "%s", la ? (const char *)la : "Admin");
+            snprintf(out->authors_json, sizeof(out->authors_json), "%s",
+                     aj && aj[0] ? (const char *)aj : "[\"Admin\"]");
+            out->found = 1;
+            rc = 0;
+        }
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return rc;
+}
+
+int auth_wiki_md_meta_ensure_scan_plain(const char *article_id, const char *category,
+                                        const char *title, const char *iso_now)
+{
+    if (!article_id || !article_id[0] || !iso_now || !iso_now[0]) return -1;
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *ins =
+        "INSERT OR IGNORE INTO wiki_md_meta(article_id,title,category,created,updated,last_author,authors_json) "
+        "VALUES(?1,?2,?3,?4,?4,'Admin','[\"Admin\"]');";
+    if (sqlite3_prepare_v2(g_db, ins, -1, &st, NULL) != SQLITE_OK) {
+        pthread_mutex_unlock(&g_auth_mu);
+        return -1;
+    }
+    sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, title ? title : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, category ? category : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, iso_now, -1, SQLITE_TRANSIENT);
+    (void)sqlite3_step(st);
+    sqlite3_finalize(st);
+
+    st = NULL;
+    const char *upd =
+        "UPDATE wiki_md_meta SET title=?2, category=?3 WHERE article_id=?1;";
+    if (sqlite3_prepare_v2(g_db, upd, -1, &st, NULL) != SQLITE_OK) {
+        pthread_mutex_unlock(&g_auth_mu);
+        return -1;
+    }
+    sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, title ? title : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, category ? category : "", -1, SQLITE_TRANSIENT);
+    (void)sqlite3_step(st);
+    sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return 0;
+}
+
+int auth_wiki_md_meta_upsert_scan_meta(const char *article_id, const char *title,
+                                     const char *category, const char *created,
+                                     const char *updated)
+{
+    if (!article_id || !article_id[0]) return -1;
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql =
+        "INSERT INTO wiki_md_meta(article_id,title,category,created,updated,last_author,authors_json) "
+        "VALUES(?1,?2,?3,?4,?5,'Admin','[\"Admin\"]') "
+        "ON CONFLICT(article_id) DO UPDATE SET "
+        "title=excluded.title, category=excluded.category, created=excluded.created, updated=excluded.updated;";
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) != SQLITE_OK) {
+        pthread_mutex_unlock(&g_auth_mu);
+        return -1;
+    }
+    sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, title ? title : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 3, category ? category : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 4, created && created[0] ? created : updated, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 5, updated && updated[0] ? updated : created, -1, SQLITE_TRANSIENT);
+    int ok = (sqlite3_step(st) == SQLITE_DONE) ? 0 : -1;
+    sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return ok;
+}
+
+int auth_wiki_md_meta_on_editor_save(const char *article_id, const char *title,
+                                     const char *category, const char *updated_iso,
+                                     const char *editor_username)
+{
+    if (!article_id || !article_id[0] || !updated_iso || !updated_iso[0]) return -1;
+    const char *who = (editor_username && editor_username[0]) ? editor_username : "Admin";
+    if (auth_db_init() != 0) return -1;
+
+    pthread_mutex_lock(&g_auth_mu);
+    char authors_buf[2048] = "[\"Admin\"]";
+    sqlite3_stmt *st_sel = NULL;
+    const char *sel = "SELECT authors_json FROM wiki_md_meta WHERE article_id=?1;";
+    if (sqlite3_prepare_v2(g_db, sel, -1, &st_sel, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st_sel, 1, article_id, -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(st_sel) == SQLITE_ROW) {
+            const unsigned char *aj = sqlite3_column_text(st_sel, 0);
+            if (aj && aj[0])
+                snprintf(authors_buf, sizeof(authors_buf), "%s", (const char *)aj);
+        }
+    }
+    if (st_sel) sqlite3_finalize(st_sel);
+    wiki_meta_authors_json_add(authors_buf, sizeof(authors_buf), who);
+
+    sqlite3_stmt *st = NULL;
+    const char *sql =
+        "INSERT INTO wiki_md_meta(article_id,title,category,created,updated,last_author,authors_json) "
+        "VALUES(?1,?2,?3,?4,?5,?6,?7) "
+        "ON CONFLICT(article_id) DO UPDATE SET "
+        "title=excluded.title, category=excluded.category, updated=excluded.updated, "
+        "last_author=excluded.last_author, authors_json=excluded.authors_json;";
+    int ok = -1;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 2, title ? title : "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 3, category ? category : "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 4, updated_iso, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 5, updated_iso, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 6, who, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 7, authors_buf, -1, SQLITE_TRANSIENT);
+        ok = (sqlite3_step(st) == SQLITE_DONE) ? 0 : -1;
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return ok;
+}
+
+int auth_wiki_md_meta_update_category(const char *article_id, const char *new_category,
+                                      const char *updated_iso)
+{
+    if (!article_id || !article_id[0] || !updated_iso || !updated_iso[0]) return -1;
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "UPDATE wiki_md_meta SET category=?2, updated=?3 WHERE article_id=?1;";
+    int ok = -1;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 2, new_category ? new_category : "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 3, updated_iso, -1, SQLITE_TRANSIENT);
+        ok = (sqlite3_step(st) == SQLITE_DONE) ? 0 : -1;
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return ok;
+}
+
+void auth_wiki_md_meta_delete(const char *article_id)
+{
+    if (!article_id || !article_id[0]) return;
+    if (auth_db_init() != 0) return;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "DELETE FROM wiki_md_meta WHERE article_id=?1;";
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, article_id, -1, SQLITE_TRANSIENT);
+        (void)sqlite3_step(st);
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+}
+
+int auth_notewiki_prefs_get(const char *username, char *folder_filter_json_out, size_t cap)
+{
+    if (!folder_filter_json_out || cap < 1) return -1;
+    folder_filter_json_out[0] = '\0';
+    const char *u = (username && username[0]) ? username : "__guest__";
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "SELECT folder_filter_json FROM wiki_notewiki_prefs WHERE username=?1 LIMIT 1;";
+    int rc = -1;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, u, -1, SQLITE_TRANSIENT);
+        int sr = sqlite3_step(st);
+        if (sr == SQLITE_ROW) {
+            const unsigned char *fj = sqlite3_column_text(st, 0);
+            if (fj)
+                snprintf(folder_filter_json_out, cap, "%s", (const char *)fj);
+            rc = 0;
+        } else if (sr == SQLITE_DONE)
+            rc = 0;
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return rc;
+}
+
+int auth_notewiki_prefs_set(const char *username, const char *folder_filter_json)
+{
+    const char *u = (username && username[0]) ? username : "__guest__";
+    const char *fj = folder_filter_json ? folder_filter_json : "";
+    if (auth_db_init() != 0) return -1;
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "INSERT INTO wiki_notewiki_prefs(username, folder_filter_json) VALUES(?1, ?2) "
+                      "ON CONFLICT(username) DO UPDATE SET folder_filter_json=excluded.folder_filter_json;";
+    int ok = -1;
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, u, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 2, fj, -1, SQLITE_TRANSIENT);
+        ok = (sqlite3_step(st) == SQLITE_DONE) ? 0 : -1;
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+    return ok;
+}
+
 static void log_login(const char *ip, const char *username, int ok, const char *note)
 {
-    if (auth_db_init() != 0) return;
+    char ts[32];
+    now_iso(ts, sizeof(ts));
+    if (auth_db_init() != 0) {
+        webdata_login_event(ts, ip, username, ok, note);
+        return;
+    }
     pthread_mutex_lock(&g_auth_mu);
     sqlite3_stmt *st = NULL;
     const char *sql = "INSERT INTO login_logs(ts,ip,username,ok,note) VALUES(?1,?2,?3,?4,?5);";
     if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
-        char ts[32];
-        now_iso(ts, sizeof(ts));
         sqlite3_bind_text(st, 1, ts, -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(st, 2, ip ? ip : "", -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(st, 3, username ? username : "", -1, SQLITE_TRANSIENT);
@@ -695,6 +984,7 @@ static void log_login(const char *ip, const char *username, int ok, const char *
     }
     if (st) sqlite3_finalize(st);
     pthread_mutex_unlock(&g_auth_mu);
+    webdata_login_event(ts, ip, username, ok, note);
 }
 
 void handle_api_wiki_login(http_sock_t fd, const char *req_headers, const char *body, const char *ip)
@@ -1218,6 +1508,62 @@ void auth_md_backup_txn(const char *article_id, const char *title, const char *c
 {
     (void)article_id; (void)title; (void)category; (void)content; (void)html;
     (void)editor; (void)ip; (void)save_txn_id;
+}
+
+int auth_wiki_md_meta_get(const char *article_id, wiki_md_meta_row_t *out)
+{
+    (void)article_id;
+    if (out) memset(out, 0, sizeof(*out));
+    return -1;
+}
+
+int auth_wiki_md_meta_ensure_scan_plain(const char *article_id, const char *category,
+                                        const char *title, const char *iso_now)
+{
+    (void)article_id; (void)category; (void)title; (void)iso_now;
+    return -1;
+}
+
+int auth_wiki_md_meta_upsert_scan_meta(const char *article_id, const char *title,
+                                       const char *category, const char *created,
+                                       const char *updated)
+{
+    (void)article_id; (void)title; (void)category; (void)created; (void)updated;
+    return -1;
+}
+
+int auth_wiki_md_meta_on_editor_save(const char *article_id, const char *title,
+                                     const char *category, const char *updated_iso,
+                                     const char *editor_username)
+{
+    (void)article_id; (void)title; (void)category; (void)updated_iso; (void)editor_username;
+    return -1;
+}
+
+int auth_wiki_md_meta_update_category(const char *article_id, const char *new_category,
+                                      const char *updated_iso)
+{
+    (void)article_id; (void)new_category; (void)updated_iso;
+    return -1;
+}
+
+void auth_wiki_md_meta_delete(const char *article_id)
+{
+    (void)article_id;
+}
+
+int auth_notewiki_prefs_get(const char *username, char *folder_filter_json_out, size_t cap)
+{
+    (void)username;
+    if (folder_filter_json_out && cap) folder_filter_json_out[0] = '\0';
+    return -1;
+}
+
+int auth_notewiki_prefs_set(const char *username, const char *folder_filter_json)
+{
+    (void)username;
+    (void)folder_filter_json;
+    return -1;
 }
 
 void handle_api_wiki_login(http_sock_t fd, const char *req_headers, const char *body, const char *ip)

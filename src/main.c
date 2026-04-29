@@ -22,6 +22,7 @@
 #endif
 
 #include "log.h"
+#include "webdata.h"
 #include "threadpool.h"
 #include "http_handler.h"
 #include "monitor.h"
@@ -188,6 +189,9 @@ int main(int argc, char *argv[])
     if (log_init(log_dir) != 0) {
         fprintf(stderr, "failed to init log system\n");
         return 1;
+    }
+    if (webdata_init(log_dir) != 0) {
+        fprintf(stderr, "webdata_init failed (WebData.db unavailable)\n");
     }
 
     platform_net_init();

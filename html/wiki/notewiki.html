@@ -271,6 +271,17 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .ll-inp{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:.8rem;outline:none}
 .ll-inp:focus{border-color:var(--accent)}
 .ll-preview{flex:1;font-size:.74rem;color:#79c0ff;font-family:'Consolas','Courier New',monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:5px 8px;min-height:26px;word-break:break-all}
+/* 文件夹筛选面板 */
+.sb-fold-panel{border-bottom:1px solid var(--border2);flex-shrink:0;background:rgba(0,0,0,.12)}
+.sb-fold-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:.74rem;color:var(--dim);cursor:pointer;user-select:none}
+.sb-fold-head:hover{color:var(--text)}
+.sb-fold-arrow{font-size:.65rem;transition:transform .15s}
+.sb-fold-arrow.open{transform:rotate(90deg)}
+.sb-fold-body{padding:0 10px 8px;max-height:min(42vh,280px);overflow-y:auto}
+.sb-fold-all{display:flex;align-items:center;gap:6px;font-size:.74rem;color:var(--dim);margin-bottom:6px;cursor:pointer}
+.sb-fold-list{display:flex;flex-direction:column;gap:3px}
+.sb-fold-row{display:flex;align-items:flex-start;gap:6px;font-size:.72rem;color:var(--text);cursor:pointer;line-height:1.35;padding:2px 0}
+.sb-fold-row input{margin-top:3px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -301,6 +312,17 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <div class="sb-search">
       <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
       <div id="sb-search-hint" style="font-size:.72rem;color:var(--dim);padding:2px 2px 0;display:none"></div>
+    </div>
+    <div class="sb-fold-panel" id="sb-fold-panel">
+      <div class="sb-fold-head" id="sb-fold-head" onclick="toggleFolderPanel()" title="展开/收起">
+        <span>文件夹筛选</span>
+        <span class="sb-fold-arrow" id="sb-fold-arrow">▶</span>
+      </div>
+      <div class="sb-fold-body" id="sb-fold-body" style="display:none">
+        <label class="sb-fold-all"><input type="checkbox" id="sb-fold-all" onchange="onFolderFilterAllChange()"> 显示全部文件夹</label>
+        <div class="sb-fold-list" id="sb-fold-list" onclick="onFolderFilterListClick(event)"></div>
+        <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px" onclick="applyFolderFilterSave()">应用并保存</button>
+      </div>
     </div>
     <div class="sb-tree" id="sb-tree"></div>
   </div>
@@ -710,7 +732,8 @@ var S = {
   showLineNumbers: true,  // 编辑区是否显示行号
   keyDebugEnabled: false, // 键值调试显示开关（默认关闭）
   vimEnabled: false,      // 是否启用 Vim 按键模式
-  vimInsert: false        // Vim 子模式：true=Insert, false=Normal
+  vimInsert: false,       // Vim 子模式：true=Insert, false=Normal
+  folderFilter: null       // null = 显示全部；字符串数组 = 仅显示这些分类路径（含子文件夹）
 };
 var Auth = { loggedIn:false, user:null };
 
@@ -827,7 +850,9 @@ function isHiddenCategory(cat) {
   return !!cat && (
     cat === 'vendor' || cat.indexOf('vendor/') === 0 ||
     cat === 'sqlite_db' || cat.indexOf('sqlite_db/') === 0 ||
-    cat === 'adoc_html' || cat.indexOf('adoc_html/') === 0
+    cat === 'adoc_html' || cat.indexOf('adoc_html/') === 0 ||
+    cat === 'code_html' || cat.indexOf('code_html/') === 0 ||
+    cat === 'ci_html' || cat.indexOf('ci_html/') === 0
   );
 }
 
@@ -848,6 +873,22 @@ function refreshAll(onDone) {
       });
       S.categories = S.categories.filter(function(c){ return !isHiddenCategory(c); });
       S.categories.sort();
+      return fetch('/api/wiki-notewiki-prefs', { credentials: 'same-origin' })
+        .then(function(r){ return r.ok ? r.json() : {}; });
+    })
+    .then(function(pref){
+      if (pref && pref.ok && Object.prototype.hasOwnProperty.call(pref, 'folderFilter')) {
+        if (pref.folderFilter === null || pref.folderFilter === undefined)
+          S.folderFilter = null;
+        else if (Array.isArray(pref.folderFilter) && pref.folderFilter.length === 0)
+          S.folderFilter = null;
+        else if (Array.isArray(pref.folderFilter))
+          S.folderFilter = pref.folderFilter.slice();
+        else
+          S.folderFilter = null;
+      } else
+        S.folderFilter = null;
+      rebuildFolderFilterUi();
       renderTree();
       setStatus('共 ' + S.articles.length + ' 篇文章');
       document.getElementById('status-count').textContent = S.articles.length + ' 篇';
@@ -862,6 +903,114 @@ function buildCats(arts) {
     if (a.category && !isHiddenCategory(a.category)) set[a.category]=true;
   });
   return Object.keys(set).filter(Boolean).sort();
+}
+
+function toggleFolderPanel() {
+  var body = document.getElementById('sb-fold-body');
+  var ar = document.getElementById('sb-fold-arrow');
+  if (!body || !ar) return;
+  var open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  if (open) ar.classList.add('open'); else ar.classList.remove('open');
+}
+
+function rebuildFolderFilterUi() {
+  var list = document.getElementById('sb-fold-list');
+  var allCb = document.getElementById('sb-fold-all');
+  if (!list || !allCb) return;
+  var rows = [{ v: '__ROOT__', t: '📁 根目录（无分类）' }];
+  S.categories.forEach(function(c){ rows.push({ v: c, t: '📂 ' + c }); });
+  list.innerHTML = rows.map(function(r){
+    var dc = r.v === '__ROOT__' ? '__ROOT__' : escH(r.v);
+    return '<label class="sb-fold-row"><input type="checkbox" data-cat="'+dc+'"> '+escH(r.t)+'</label>';
+  }).join('');
+  if (!S.folderFilter || !S.folderFilter.length) {
+    allCb.checked = true;
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  } else {
+    allCb.checked = false;
+    var want = {};
+    S.folderFilter.forEach(function(x){
+      if (x === '' || x === '__ROOT__') want['__ROOT__'] = true;
+      want[String(x)] = true;
+    });
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      var k = cb.getAttribute('data-cat');
+      if (k === '__ROOT__') cb.checked = !!want['__ROOT__'];
+      else cb.checked = !!want[k];
+    });
+  }
+}
+
+function catMatchesFolderFilter(cat, filter) {
+  if (!filter || !filter.length) return true;
+  var c = cat || '';
+  for (var i = 0; i < filter.length; i++) {
+    var f = filter[i];
+    if (f === '' || f === '__ROOT__') {
+      if (c === '') return true;
+    } else {
+      if (c === f) return true;
+      if (c.indexOf(f + '/') === 0) return true;
+    }
+  }
+  return false;
+}
+
+function filterBycatForFolder(bycat, filter) {
+  if (!filter || !filter.length) return bycat;
+  var out = {};
+  Object.keys(bycat).forEach(function(c) {
+    if (catMatchesFolderFilter(c, filter)) out[c] = bycat[c];
+  });
+  return out;
+}
+
+function onFolderFilterAllChange() {
+  var allCb = document.getElementById('sb-fold-all');
+  var list = document.getElementById('sb-fold-list');
+  if (!allCb || !list) return;
+  if (allCb.checked)
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+}
+
+function onFolderFilterListClick(ev) {
+  var t = ev.target;
+  if (t && t.tagName === 'INPUT' && t.type === 'checkbox') {
+    var allCb = document.getElementById('sb-fold-all');
+    if (allCb) allCb.checked = false;
+  }
+}
+
+function applyFolderFilterSave() {
+  var allCb = document.getElementById('sb-fold-all');
+  var list = document.getElementById('sb-fold-list');
+  if (!allCb || !list) return;
+  var sel = [];
+  if (allCb.checked)
+    S.folderFilter = null;
+  else {
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      if (cb.checked) {
+        var k = cb.getAttribute('data-cat');
+        if (k === '__ROOT__') sel.push('');
+        else sel.push(k || '');
+      }
+    });
+    S.folderFilter = sel.length ? sel : null;
+  }
+  fetch('/api/wiki-notewiki-prefs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ folderFilter: S.folderFilter })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.ok) { setStatus('文件夹筛选已保存'); renderTree(); }
+      else setStatus('保存失败：' + ((d && d.error) || '未知错误'));
+    })
+    .catch(function(e){ setStatus('保存失败：' + e.message); });
 }
 
 // ── Tree ─────────────────────────────────────────────────────────────
@@ -927,7 +1076,10 @@ function renderTree() {
     return c === 'adoc_db' || c.startsWith('adoc_db/') ||
            c === 'adoc_html' || c.startsWith('adoc_html/');
   }
-  arts = arts.filter(function(a) { return !isAdocCat(a.category || ''); });
+  arts = arts.filter(function(a) {
+    var c = a.category || '';
+    return !isAdocCat(c) && !isHiddenCategory(c);
+  });
 
   var bycat = {};
   arts.forEach(function(a){
@@ -937,7 +1089,9 @@ function renderTree() {
   });
 
   // include empty categories (e.g. just created, no articles yet)
-  S.categories.forEach(function(c){ if(!isAdocCat(c) && !(c in bycat)) bycat[c]=[]; });
+  S.categories.forEach(function(c){ if(!isAdocCat(c) && !isHiddenCategory(c) && !(c in bycat)) bycat[c]=[]; });
+
+  bycat = filterBycatForFolder(bycat, S.folderFilter);
 
   // sort each bucket by updated desc
   Object.keys(bycat).forEach(function(c){
@@ -1067,8 +1221,12 @@ function openArticle(id) {
 
   showPane('view');
   document.getElementById('view-title').textContent = meta.title||'';
-  document.getElementById('view-meta').textContent =
-    '分类：'+(meta.category||'根目录') + '  |  更新：'+(meta.updated||'').replace('T',' ').replace('Z','');
+  var vm = '分类：'+(meta.category||'根目录') + '  |  更新：'+(meta.updated||'').replace('T',' ').replace('Z','');
+  if (meta.lastAuthor)
+    vm += '  |  最后编辑：' + meta.lastAuthor;
+  if (meta.authors && meta.authors.length)
+    vm += '  |  贡献者：' + meta.authors.join('、');
+  document.getElementById('view-meta').textContent = vm;
 
   var cat = meta.category||'';
   document.getElementById('view-html-link').href = publishedHtmlUrl(id, cat);

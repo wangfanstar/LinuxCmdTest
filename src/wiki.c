@@ -130,6 +130,90 @@ static void wiki_md_write_path(char *buf, size_t sz, const char *id, const char 
     }
 }
 
+/* 由 md 文件绝对路径得到 category（相对 md_db）与 id（不含 .md） */
+static void wiki_cat_id_from_md_abspath(const char *abspath, char *cat, size_t catsz, char *id, size_t idsz)
+{
+    if (cat) cat[0] = '\0';
+    if (id) id[0] = '\0';
+    if (!abspath || !cat || !id) return;
+    size_t rl = strlen(WIKI_MD_DB);
+    if (strncmp(abspath, WIKI_MD_DB, rl) != 0) return;
+    const char *p = abspath + rl;
+    while (*p == '/' || *p == '\\') p++;
+    char tmp[1024];
+    snprintf(tmp, sizeof(tmp), "%s", p);
+    for (char *q = tmp; *q; q++) {
+        if (*q == '\\') *q = '/';
+    }
+    char *slash = strrchr(tmp, '/');
+    if (!slash) {
+        snprintf(id, idsz, "%s", tmp);
+        size_t li = strlen(id);
+        if (li > 3 && strcmp(id + li - 3, ".md") == 0) id[li - 3] = '\0';
+        return;
+    }
+    *slash = '\0';
+    snprintf(cat, catsz, "%s", tmp);
+    snprintf(id, idsz, "%s", slash + 1);
+    size_t li = strlen(id);
+    if (li > 3 && strcmp(id + li - 3, ".md") == 0) id[li - 3] = '\0';
+}
+
+/* 从正文提取首个 # 标题；若无则 out 为空 */
+static void wiki_extract_md_title(const char *md_text, char *out, size_t outsz)
+{
+    if (!out || outsz == 0) return;
+    out[0] = '\0';
+    if (!md_text) return;
+    const char *p = md_text;
+    while (*p) {
+        const char *nl = strchr(p, '\n');
+        size_t linelen = nl ? (size_t)(nl - p) : strlen(p);
+        const char *s = p;
+        while (linelen > 0 && isspace((unsigned char)*s)) {
+            s++;
+            linelen--;
+        }
+        if (linelen > 0 && *s == '#') {
+            s++;
+            while (*s == '#' || isspace((unsigned char)*s)) s++;
+            size_t tlen = nl ? (size_t)(nl - s) : strlen(s);
+            while (tlen > 0 && (s[tlen - 1] == '\r' || s[tlen - 1] == '\n')) tlen--;
+            while (tlen > 0 && isspace((unsigned char)s[tlen - 1])) tlen--;
+            if (tlen >= outsz) tlen = outsz - 1;
+            memcpy(out, s, tlen);
+            out[tlen] = '\0';
+            return;
+        }
+        if (!nl) break;
+        p = nl + 1;
+    }
+}
+
+static void wiki_append_article_json_record(strbuf_t *sb, const char *id, const char *title,
+                                            const char *cat, const char *cre, const char *upd,
+                                            const char *last_author, const char *authors_json_arr)
+{
+    SB_LIT(sb, "{\"id\":");
+    sb_json_str(sb, id);
+    SB_LIT(sb, ",\"title\":");
+    sb_json_str(sb, title ? title : "");
+    SB_LIT(sb, ",\"category\":");
+    sb_json_str(sb, cat ? cat : "");
+    SB_LIT(sb, ",\"created\":");
+    sb_json_str(sb, cre ? cre : "");
+    SB_LIT(sb, ",\"updated\":");
+    sb_json_str(sb, upd ? upd : "");
+    SB_LIT(sb, ",\"lastAuthor\":");
+    sb_json_str(sb, last_author && last_author[0] ? last_author : "Admin");
+    SB_LIT(sb, ",\"authors\":");
+    if (authors_json_arr && authors_json_arr[0])
+        sb_append(sb, authors_json_arr, strlen(authors_json_arr));
+    else
+        SB_LIT(sb, "[\"Admin\"]");
+    SB_LIT(sb, "}");
+}
+
 static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
 {
     DIR *d = opendir(dir);
@@ -137,28 +221,94 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_name[0] == '.') continue;
-        char child[1024]; snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
-        struct stat st; if (stat(child, &st) != 0) continue;
-        if (S_ISDIR(st.st_mode)) { wiki_scan_md_dir(sb, pfirst, child); continue; }
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            wiki_scan_md_dir(sb, pfirst, child);
+            continue;
+        }
         size_t nl = strlen(de->d_name);
         if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
-        FILE *fp = fopen(child, "r"); if (!fp) continue;
-        char line[4096] = {0}; int ok = (fgets(line, sizeof(line), fp) != NULL); fclose(fp);
-        if (!ok || strncmp(line, "<!--META ", 9) != 0) continue;
-        char *end = strstr(line, "-->"); if (!end) continue; *end = '\0';
-        const char *mj = line + 9;
-        char id[128]={0},title[512]={0},cat[512]={0},cre[64]={0},upd[64]={0};
-        json_get_str(mj,"id",id,sizeof(id)); json_get_str(mj,"title",title,sizeof(title));
-        json_get_str(mj,"category",cat,sizeof(cat)); json_get_str(mj,"created",cre,sizeof(cre));
-        json_get_str(mj,"updated",upd,sizeof(upd));
-        if (!id[0]) continue;
-        if (!*pfirst) SB_LIT(sb, ","); *pfirst = 0;
-        SB_LIT(sb,"{\"id\":"); sb_json_str(sb,id);
-        SB_LIT(sb,",\"title\":"); sb_json_str(sb,title);
-        SB_LIT(sb,",\"category\":"); sb_json_str(sb,cat);
-        SB_LIT(sb,",\"created\":"); sb_json_str(sb,cre);
-        SB_LIT(sb,",\"updated\":"); sb_json_str(sb,upd);
-        SB_LIT(sb,"}");
+        FILE *fp = fopen(child, "rb");
+        if (!fp) continue;
+        char line[4096] = {0};
+        int ok = (fgets(line, sizeof(line), fp) != NULL);
+        strbuf_t rest = {0};
+        char buf[8192];
+        size_t nr;
+        while (ok && (nr = fread(buf, 1, sizeof(buf), fp)) > 0)
+            sb_append(&rest, buf, nr);
+        fclose(fp);
+        if (!ok) {
+            free(rest.data);
+            continue;
+        }
+
+        char path_cat[512] = {0}, path_id[128] = {0};
+        wiki_cat_id_from_md_abspath(child, path_cat, sizeof(path_cat), path_id, sizeof(path_id));
+
+        char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
+        char last_author_out[128] = "Admin";
+        char authors_json_out[2048] = "[\"Admin\"]";
+
+        char now_iso[64];
+        wiki_now_iso(now_iso, sizeof(now_iso));
+
+        if (strncmp(line, "<!--META ", 9) == 0) {
+            char *end = strstr(line, "-->");
+            if (!end) {
+                free(rest.data);
+                continue;
+            }
+            *end = '\0';
+            const char *mj = line + 9;
+            json_get_str(mj, "id", id, sizeof(id));
+            json_get_str(mj, "title", title, sizeof(title));
+            json_get_str(mj, "category", cat, sizeof(cat));
+            json_get_str(mj, "created", cre, sizeof(cre));
+            json_get_str(mj, "updated", upd, sizeof(upd));
+            if (!id[0]) {
+                free(rest.data);
+                continue;
+            }
+            if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
+            if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
+        } else {
+            snprintf(id, sizeof(id), "%s", path_id);
+            snprintf(cat, sizeof(cat), "%s", path_cat);
+            strbuf_t fulltxt = {0};
+            sb_append(&fulltxt, line, strlen(line));
+            if (rest.data && rest.len)
+                sb_append(&fulltxt, rest.data, rest.len);
+            wiki_extract_md_title(fulltxt.data ? fulltxt.data : "", title, sizeof(title));
+            free(fulltxt.data);
+            if (!title[0]) snprintf(title, sizeof(title), "%s", id);
+            strncpy(cre, now_iso, sizeof(cre) - 1);
+            strncpy(upd, now_iso, sizeof(upd) - 1);
+            (void)auth_wiki_md_meta_ensure_scan_plain(id, cat, title, now_iso);
+        }
+        free(rest.data);
+
+        wiki_md_meta_row_t row;
+        memset(&row, 0, sizeof(row));
+        if (auth_wiki_md_meta_get(id, &row) == 0 && row.found) {
+            if (strncmp(line, "<!--META ", 9) != 0) {
+                if (row.created[0]) strncpy(cre, row.created, sizeof(cre) - 1);
+                if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
+                if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+            }
+            snprintf(last_author_out, sizeof(last_author_out), "%s",
+                     row.last_author[0] ? row.last_author : "Admin");
+            snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                     row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+        }
+
+        if (!*pfirst) SB_LIT(sb, ",");
+        *pfirst = 0;
+        wiki_append_article_json_record(sb, id, title, cat, cre, upd, last_author_out, authors_json_out);
     }
     closedir(d);
 }
@@ -170,20 +320,48 @@ static void wiki_rebuild_md_dir(int *pcount, const char *dir)
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_name[0] == '.') continue;
-        char child[1024]; snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
-        struct stat st; if (stat(child, &st) != 0) continue;
-        if (S_ISDIR(st.st_mode)) { wiki_rebuild_md_dir(pcount, child); continue; }
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            wiki_rebuild_md_dir(pcount, child);
+            continue;
+        }
         size_t nl = strlen(de->d_name);
         if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
-        FILE *fp = fopen(child, "r"); if (!fp) continue;
-        char ml[4096] = {0}; fgets(ml, sizeof(ml), fp); fclose(fp);
-        if (strncmp(ml,"<!--META ",9)!=0) continue;
-        char *mend = strstr(ml,"-->"); if (!mend) continue; *mend='\0';
-        const char *mj = ml + 9;
-        char id[128]={0},title[512]={0},cat[512]={0},upd[64]={0};
-        json_get_str(mj,"id",id,sizeof(id)); json_get_str(mj,"title",title,sizeof(title));
-        json_get_str(mj,"category",cat,sizeof(cat)); json_get_str(mj,"updated",upd,sizeof(upd));
-        if (!id[0]) continue;
+        FILE *fp = fopen(child, "rb");
+        if (!fp) continue;
+        char ml[4096] = {0};
+        fgets(ml, sizeof(ml), fp);
+        fclose(fp);
+        char id[128] = {0}, title[512] = {0}, cat[512] = {0}, upd[64] = {0};
+        char now_iso[64];
+        wiki_now_iso(now_iso, sizeof(now_iso));
+
+        if (strncmp(ml, "<!--META ", 9) == 0) {
+            char *mend = strstr(ml, "-->");
+            if (!mend) continue;
+            *mend = '\0';
+            const char *mj = ml + 9;
+            json_get_str(mj, "id", id, sizeof(id));
+            json_get_str(mj, "title", title, sizeof(title));
+            json_get_str(mj, "category", cat, sizeof(cat));
+            json_get_str(mj, "updated", upd, sizeof(upd));
+            if (!id[0]) continue;
+            if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+        } else {
+            wiki_cat_id_from_md_abspath(child, cat, sizeof(cat), id, sizeof(id));
+            if (!id[0]) continue;
+            wiki_md_meta_row_t row;
+            memset(&row, 0, sizeof(row));
+            if (auth_wiki_md_meta_get(id, &row) == 0 && row.found) {
+                if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
+                if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+            }
+            if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            if (!title[0]) snprintf(title, sizeof(title), "%s", id);
+        }
         wiki_rewrite_html(id, title, cat[0] ? cat : NULL, upd);
         (*pcount)++;
     }
@@ -628,6 +806,70 @@ static void wiki_md_rewrite_uploads_to_assets(strbuf_t *sb)
     sb->len = out.len;
 }
 
+/* 将 wiki_md_meta.authors_json（JSON 数组）格式化为可读「、」分隔 */
+static void wiki_fprint_authors_json_readable(FILE *fp, const char *aj)
+{
+    if (!aj || !aj[0]) {
+        fputs("Admin", fp);
+        return;
+    }
+    const char *p = aj;
+    while (*p && *p != '[') p++;
+    if (*p != '[') {
+        fputs("Admin", fp);
+        return;
+    }
+    p++;
+    int first = 1;
+    for (;;) {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ']' || !*p) break;
+        if (*p == ',') {
+            p++;
+            continue;
+        }
+        if (*p != '"') break;
+        p++;
+        char buf[256];
+        size_t j = 0;
+        while (*p && *p != '"' && j < sizeof(buf) - 1) {
+            if (*p == '\\' && p[1]) {
+                p++;
+                buf[j++] = *p++;
+            } else
+                buf[j++] = *p++;
+        }
+        buf[j] = '\0';
+        if (*p == '"') p++;
+        if (!first) fputs("\xe3\x80\x81", fp); /* 顿号 */
+        first = 0;
+        wiki_fhtml(fp, buf);
+    }
+    if (first) fputs("Admin", fp);
+}
+
+/* 已发布 HTML：文首元信息（更新 / 最后编辑 / 贡献者），数据来自 SQLite wiki_md_meta */
+static void wiki_fputs_am_block(FILE *fp, const char *article_id, const char *updated_fallback)
+{
+    wiki_md_meta_row_t row;
+    memset(&row, 0, sizeof(row));
+    const char *upd = updated_fallback ? updated_fallback : "";
+    const char *la = "Admin";
+    const char *aj = "[\"Admin\"]";
+    if (auth_wiki_md_meta_get(article_id, &row) == 0 && row.found) {
+        if (row.updated[0]) upd = row.updated;
+        if (row.last_author[0]) la = row.last_author;
+        if (row.authors_json[0]) aj = row.authors_json;
+    }
+    fputs("<div class=\"am\">\u66f4\u65b0\uff1a", fp);
+    wiki_fhtml(fp, upd);
+    fputs(" \xc2\xb7 \xe6\x9c\x80\xe5\x90\x8e\xe7\xbc\x96\xe8\xbe\x91\xef\xbc\x9a", fp);
+    wiki_fhtml(fp, la);
+    fputs("<br>\u8d21\u732e\u8005\uff1a", fp);
+    wiki_fprint_authors_json_readable(fp, aj);
+    fputs("</div>\n<div class=\"ab\" id=\"article-body\">\n", fp);
+}
+
 /* ── wiki_write_html_file ─────────────────────────────────── */
 
 static int wiki_write_html_file(const char *filepath,
@@ -904,9 +1146,8 @@ static int wiki_write_html_file(const char *filepath,
           "<div class=\"content\">\n"
           "<article>\n<h1 class=\"at\">", fp);
     wiki_fhtml(fp, title);
-    fputs("</h1>\n<div class=\"am\">\u66f4\u65b0\uff1a", fp);
-    fputs(updated, fp);
-    fputs("</div>\n<div class=\"ab\" id=\"article-body\">\n", fp);
+    fputs("</h1>\n", fp);
+    wiki_fputs_am_block(fp, id, updated);
     if (html_body) wiki_fwrite_body(fp, html_body, rp);
     if (html_body) wiki_write_related_attachments(fp, html_body, rp);
     fputs("\n</div>\n</article>\n</div>\n"
@@ -1270,25 +1511,89 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_name[0] == '.') continue;
-        char child[1024]; snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
-        struct stat st; if (stat(child, &st) != 0) continue;
-        if (S_ISDIR(st.st_mode)) { wiki_search_dir(sb, pfirst, child, q); continue; }
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            wiki_search_dir(sb, pfirst, child, q);
+            continue;
+        }
         size_t nl = strlen(de->d_name);
         if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
-        FILE *fp = fopen(child, "r"); if (!fp) continue;
-        char ml[4096] = {0}; fgets(ml, sizeof(ml), fp);
-        strbuf_t body = {0}; char buf[8192]; size_t nr;
-        while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0) sb_append(&body, buf, nr);
+        FILE *fp = fopen(child, "rb");
+        if (!fp) continue;
+        char ml[4096] = {0};
+        int ok = (fgets(ml, sizeof(ml), fp) != NULL);
+        strbuf_t body = {0};
+        char buf[8192];
+        size_t nr;
+        while (ok && (nr = fread(buf, 1, sizeof(buf), fp)) > 0)
+            sb_append(&body, buf, nr);
         fclose(fp);
-        char id[128]={0},title[512]={0},cat[512]={0},cre[64]={0},upd[64]={0};
-        if (strncmp(ml,"<!--META ",9)==0) {
-            char *end=strstr(ml,"-->"); if (end) { *end='\0';
-                const char *mj=ml+9;
-                json_get_str(mj,"id",id,sizeof(id)); json_get_str(mj,"title",title,sizeof(title));
-                json_get_str(mj,"category",cat,sizeof(cat)); json_get_str(mj,"created",cre,sizeof(cre));
-                json_get_str(mj,"updated",upd,sizeof(upd)); }
+        if (!ok) {
+            free(body.data);
+            continue;
         }
-        if (!id[0]) { free(body.data); continue; }
+
+        char path_cat[512] = {0}, path_id[128] = {0};
+        wiki_cat_id_from_md_abspath(child, path_cat, sizeof(path_cat), path_id, sizeof(path_id));
+
+        char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
+        char last_author_out[128] = "Admin";
+        char authors_json_out[2048] = "[\"Admin\"]";
+        char now_iso[64];
+        wiki_now_iso(now_iso, sizeof(now_iso));
+
+        if (strncmp(ml, "<!--META ", 9) == 0) {
+            char *end = strstr(ml, "-->");
+            if (!end) {
+                free(body.data);
+                continue;
+            }
+            *end = '\0';
+            const char *mj = ml + 9;
+            json_get_str(mj, "id", id, sizeof(id));
+            json_get_str(mj, "title", title, sizeof(title));
+            json_get_str(mj, "category", cat, sizeof(cat));
+            json_get_str(mj, "created", cre, sizeof(cre));
+            json_get_str(mj, "updated", upd, sizeof(upd));
+            if (!id[0]) {
+                free(body.data);
+                continue;
+            }
+            if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
+            if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
+        } else {
+            snprintf(id, sizeof(id), "%s", path_id);
+            snprintf(cat, sizeof(cat), "%s", path_cat);
+            strbuf_t fulltxt = {0};
+            sb_append(&fulltxt, ml, strlen(ml));
+            if (body.data && body.len)
+                sb_append(&fulltxt, body.data, body.len);
+            wiki_extract_md_title(fulltxt.data ? fulltxt.data : "", title, sizeof(title));
+            free(fulltxt.data);
+            if (!title[0]) snprintf(title, sizeof(title), "%s", id);
+            strncpy(cre, now_iso, sizeof(cre) - 1);
+            strncpy(upd, now_iso, sizeof(upd) - 1);
+            (void)auth_wiki_md_meta_ensure_scan_plain(id, cat, title, now_iso);
+        }
+
+        wiki_md_meta_row_t row;
+        memset(&row, 0, sizeof(row));
+        if (auth_wiki_md_meta_get(id, &row) == 0 && row.found) {
+            if (strncmp(ml, "<!--META ", 9) != 0) {
+                if (row.created[0]) strncpy(cre, row.created, sizeof(cre) - 1);
+                if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
+                if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+            }
+            snprintf(last_author_out, sizeof(last_author_out), "%s",
+                     row.last_author[0] ? row.last_author : "Admin");
+            snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                     row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+        }
+
         size_t qlen = strlen(q);
         size_t ti = WIKI_FIND_NONE;
         size_t bi = WIKI_FIND_NONE;
@@ -1320,14 +1625,25 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
             free(snippet.data);
             continue;
         }
-        if (!*pfirst) SB_LIT(sb, ","); *pfirst = 0;
-        SB_LIT(sb,"{\"id\":"); sb_json_str(sb,id);
-        SB_LIT(sb,",\"title\":"); sb_json_str(sb,title);
-        SB_LIT(sb,",\"category\":"); sb_json_str(sb,cat);
-        SB_LIT(sb,",\"created\":"); sb_json_str(sb,cre);
-        SB_LIT(sb,",\"updated\":"); sb_json_str(sb,upd);
-        SB_LIT(sb,",\"snippet\":"); sb_json_str(sb, snippet.data ? snippet.data : "");
-        SB_LIT(sb,"}");
+        if (!*pfirst) SB_LIT(sb, ",");
+        *pfirst = 0;
+        SB_LIT(sb, "{\"id\":");
+        sb_json_str(sb, id);
+        SB_LIT(sb, ",\"title\":");
+        sb_json_str(sb, title);
+        SB_LIT(sb, ",\"category\":");
+        sb_json_str(sb, cat);
+        SB_LIT(sb, ",\"created\":");
+        sb_json_str(sb, cre);
+        SB_LIT(sb, ",\"updated\":");
+        sb_json_str(sb, upd);
+        SB_LIT(sb, ",\"lastAuthor\":");
+        sb_json_str(sb, last_author_out);
+        SB_LIT(sb, ",\"authors\":");
+        sb_append(sb, authors_json_out, strlen(authors_json_out));
+        SB_LIT(sb, ",\"snippet\":");
+        sb_json_str(sb, snippet.data ? snippet.data : "");
+        SB_LIT(sb, "}");
         free(snippet.data);
     }
     closedir(d);
@@ -1434,8 +1750,14 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
     }
     FILE *fp = fopen(path, "r");
     if (!fp) { send_json(client_fd,404,"Not Found","{\"ok\":false,\"error\":\"not found\"}",32); return; }
-    char line[4096]; fgets(line, sizeof(line), fp);
-    strbuf_t body = {0}; char buf[8192]; size_t nr;
+    char line[4096];
+    if (!fgets(line, sizeof(line), fp)) { fclose(fp);
+        send_json(client_fd,404,"Not Found","{\"ok\":false,\"error\":\"not found\"}",32); return; }
+    strbuf_t body = {0};
+    if (strncmp(line, "<!--META ", 9) != 0)
+        sb_append(&body, line, strlen(line));
+    char buf[8192];
+    size_t nr;
     while ((nr = fread(buf,1,sizeof(buf),fp)) > 0) sb_append(&body,buf,nr);
     fclose(fp);
     strbuf_t sb = {0};
@@ -1473,7 +1795,11 @@ void handle_api_wiki_export_md_zip(http_sock_t client_fd, const char *path_qs)
     if (!fp) { send_json(client_fd, 404, "Not Found", "{\"ok\":false,\"error\":\"not found\"}", 32); return; }
     char meta_line[4096] = {0};
     fgets(meta_line, sizeof(meta_line), fp);
-    strbuf_t body = {0}; char tmp[8192]; size_t nr;
+    strbuf_t body = {0};
+    char tmp[8192];
+    size_t nr;
+    if (strncmp(meta_line, "<!--META ", 9) != 0)
+        sb_append(&body, meta_line, strlen(meta_line));
     while ((nr = fread(tmp, 1, sizeof(tmp), fp)) > 0) sb_append(&body, tmp, nr);
     fclose(fp);
 
@@ -1746,6 +2072,7 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     } else {
         snprintf(html_path, sizeof(html_path), "%s/%s.html", WIKI_ROOT, id);
     }
+    (void)auth_wiki_md_meta_on_editor_save(id, title, cat, now, actor ? actor : "Admin");
     if (wiki_write_html_file(html_path, id, title, cat, now, html) != 0) {
         free(content_snapshot);
         free(html);
@@ -1798,6 +2125,11 @@ void handle_api_wiki_delete(http_sock_t client_fd, const char *body)
         }
         unlink(md_path);
     }
+    if (!cat[0] && md_path[0]) {
+        char tmp_id[128];
+        wiki_cat_id_from_md_abspath(md_path, cat, sizeof(cat), tmp_id, sizeof(tmp_id));
+    }
+    auth_wiki_md_meta_delete(id);
     char html_path[1024];
     if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
     else        snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
@@ -2202,8 +2534,21 @@ void handle_api_wiki_rename_article(http_sock_t client_fd, const char *body)
         if (end) { *end='\0'; const char *mj=meta_line+9;
             json_get_str(mj,"category",cat,sizeof(cat));
             json_get_str(mj,"created",created,sizeof(created)); }
+    } else {
+        char tid[128];
+        wiki_cat_id_from_md_abspath(md_path, cat, sizeof(cat), tid, sizeof(tid));
+        strbuf_t merged = {0};
+        sb_append(&merged, meta_line, strlen(meta_line));
+        if (cbuf.data) sb_append(&merged, cbuf.data, cbuf.len);
+        free(cbuf.data);
+        cbuf = merged;
     }
-    char now[64]; wiki_now_iso(now, sizeof(now));
+    char now[64];
+    wiki_now_iso(now, sizeof(now));
+    if (!created[0]) {
+        strncpy(created, now, sizeof(created)-1);
+        created[sizeof(created)-1] = '\0';
+    }
 
     fp = fopen(md_path, "wb");
     if (!fp) { free(cbuf.data);
@@ -2219,6 +2564,7 @@ void handle_api_wiki_rename_article(http_sock_t client_fd, const char *body)
     if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
     fclose(fp); free(mb.data); free(cbuf.data);
 
+    (void)auth_wiki_md_meta_on_editor_save(id, new_title, cat, now, "Admin");
     wiki_rewrite_html(id, new_title, cat, now);
     wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
@@ -2330,11 +2676,28 @@ void handle_api_wiki_move_article(http_sock_t client_fd, const char *body)
             json_get_str(mj,"category",old_cat,sizeof(old_cat));
             json_get_str(mj,"title",title,sizeof(title));
             json_get_str(mj,"created",created,sizeof(created)); }
+    } else {
+        char tid[128];
+        wiki_cat_id_from_md_abspath(md_path, old_cat, sizeof(old_cat), tid, sizeof(tid));
+        strbuf_t merged = {0};
+        sb_append(&merged, meta_line, strlen(meta_line));
+        if (cbuf.data) sb_append(&merged, cbuf.data, cbuf.len);
+        free(cbuf.data);
+        cbuf = merged;
+        wiki_extract_md_title(cbuf.data ? cbuf.data : "", title, sizeof(title));
+        if (!title[0]) snprintf(title, sizeof(title), "%s", id);
     }
 
     if (strcmp(old_cat,new_cat)==0) {
         free(cbuf.data);
         send_json(client_fd,200,"OK","{\"ok\":true}",11); return;
+    }
+
+    char now_move[64];
+    wiki_now_iso(now_move, sizeof(now_move));
+    if (!created[0]) {
+        strncpy(created, now_move, sizeof(created)-1);
+        created[sizeof(created)-1] = '\0';
     }
 
     char old_html[1024];
@@ -2352,8 +2715,9 @@ void handle_api_wiki_move_article(http_sock_t client_fd, const char *body)
         mkdir_p(new_dir);
     }
 
-    char now[64]; wiki_now_iso(now,sizeof(now));
-    wiki_write_html_file(new_html, id, title, new_cat, now, hbody.data ? hbody.data : "");
+    (void)auth_wiki_md_meta_update_category(id, new_cat, now_move);
+
+    wiki_write_html_file(new_html, id, title, new_cat, now_move, hbody.data ? hbody.data : "");
     free(hbody.data);
     unlink(old_html);
 
@@ -2366,7 +2730,7 @@ void handle_api_wiki_move_article(http_sock_t client_fd, const char *body)
         SB_LIT(&mb,",\"title\":"); sb_json_str(&mb,title);
         SB_LIT(&mb,",\"category\":"); sb_json_str(&mb,new_cat);
         SB_LIT(&mb,",\"created\":"); sb_json_str(&mb,created);
-        SB_LIT(&mb,",\"updated\":"); sb_json_str(&mb,now);
+        SB_LIT(&mb,",\"updated\":"); sb_json_str(&mb,now_move);
         SB_LIT(&mb,"}-->\n");
         if (mb.data) fwrite(mb.data,1,mb.len,fp);
         if (cbuf.data) fwrite(cbuf.data,1,cbuf.len,fp);
@@ -2606,4 +2970,91 @@ void handle_api_wiki_upload(http_sock_t client_fd, const char *req_headers,
     else send_json(client_fd,200,"OK","{\"ok\":true}",11);
     free(sb.data);
     LOG_INFO("wiki_upload %s (%zu bytes)",filepath,body_len);
+}
+
+/* ── GET/POST /api/wiki-notewiki-prefs ─────────────────────────
+ * 侧栏「文件夹筛选」JSON：空串表示显示全部；否则为非空 JSON 数组如 ["a","b"] */
+static int wiki_json_extract_folder_filter(const char *body, char *out, size_t cap)
+{
+    if (!body || !out || cap < 2) return -1;
+    out[0] = '\0';
+    const char *p = strstr(body, "\"folderFilter\"");
+    if (!p) return -1;
+    p = strchr(p, ':');
+    if (!p) return -1;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    if (strncmp(p, "null", 4) == 0) return 0;
+    if (*p != '[') return -1;
+    const char *start = p;
+    int depth = 0;
+    for (; *p; p++) {
+        if (*p == '[') depth++;
+        else if (*p == ']') {
+            depth--;
+            if (depth == 0) {
+                p++;
+                break;
+            }
+        }
+    }
+    if (depth != 0) return -1;
+    size_t len = (size_t)(p - start);
+    if (len >= cap) len = cap - 1;
+    memcpy(out, start, len);
+    out[len] = '\0';
+    return 0;
+}
+
+void handle_api_wiki_notewiki_prefs_get(http_sock_t client_fd, const char *req_headers)
+{
+    char userkey[96] = "__guest__";
+    auth_user_t u;
+    if (auth_resolve_user_from_headers(req_headers, &u) == 0 && u.logged_in && u.username[0])
+        snprintf(userkey, sizeof(userkey), "%s", u.username);
+
+    char stored[4096];
+    stored[0] = '\0';
+    if (auth_notewiki_prefs_get(userkey, stored, sizeof(stored)) != 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"prefs read failed\"}", 42);
+        return;
+    }
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"folderFilter\":");
+    if (!stored[0])
+        SB_LIT(&sb, "null}");
+    else {
+        sb_append(&sb, stored, strlen(stored));
+        SB_LIT(&sb, "}");
+    }
+    if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else send_json(client_fd, 200, "OK", "{\"ok\":true,\"folderFilter\":null}", 32);
+    free(sb.data);
+}
+
+void handle_api_wiki_notewiki_prefs_post(http_sock_t client_fd, const char *req_headers,
+                                          const char *body)
+{
+    if (!body || !body[0]) {
+        send_json(client_fd, 400, "Bad Request", "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        return;
+    }
+    char userkey[96] = "__guest__";
+    auth_user_t u;
+    if (auth_resolve_user_from_headers(req_headers, &u) == 0 && u.logged_in && u.username[0])
+        snprintf(userkey, sizeof(userkey), "%s", u.username);
+
+    char extracted[4096];
+    if (wiki_json_extract_folder_filter(body, extracted, sizeof(extracted)) != 0) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"bad folderFilter\"}", 39);
+        return;
+    }
+    if (auth_notewiki_prefs_set(userkey, extracted) != 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"prefs save failed\"}", 42);
+        return;
+    }
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
 }

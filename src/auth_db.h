@@ -44,4 +44,32 @@ void handle_api_wiki_audit_logs(http_sock_t fd, const char *path_qs);
 void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs);
 void handle_api_wiki_user_article_rank(http_sock_t fd, const char *path_qs);
 
+/* Markdown 文章元数据（无首行 META 的 md 依赖 SQLite 记录作者与时间） */
+typedef struct {
+    char title[512];
+    char category[512];
+    char created[80];
+    char updated[80];
+    char last_author[128];
+    char authors_json[2048];
+    int  found;
+} wiki_md_meta_row_t;
+
+int auth_wiki_md_meta_get(const char *article_id, wiki_md_meta_row_t *out);
+int auth_wiki_md_meta_ensure_scan_plain(const char *article_id, const char *category,
+                                        const char *title, const char *iso_now);
+int auth_wiki_md_meta_upsert_scan_meta(const char *article_id, const char *title,
+                                       const char *category, const char *created,
+                                       const char *updated);
+int auth_wiki_md_meta_on_editor_save(const char *article_id, const char *title,
+                                     const char *category, const char *updated_iso,
+                                     const char *editor_username);
+int auth_wiki_md_meta_update_category(const char *article_id, const char *new_category,
+                                      const char *updated_iso);
+void auth_wiki_md_meta_delete(const char *article_id);
+
+/* NoteWiki 侧栏「文件夹筛选」偏好（按用户名存 SQLite） */
+int auth_notewiki_prefs_get(const char *username, char *folder_filter_json_out, size_t cap);
+int auth_notewiki_prefs_set(const char *username, const char *folder_filter_json);
+
 #endif

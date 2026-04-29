@@ -9,6 +9,7 @@
 #include "register_api.h"
 #include "wiki.h"
 #include "auth_db.h"
+#include "webdata.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,7 +86,8 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     int is_poll_api = (strncmp(path, "/api/monitor", 12) == 0 ||
                        strncmp(path, "/api/procs",   10) == 0 ||
-                       strcmp(path, "/api/client-info") == 0);
+                       strcmp(path, "/api/client-info") == 0 ||
+                       strncmp(path, "/api/webdata-", 13) == 0);
     if (!is_poll_api)
         LOG_INFO("request  %s:%d \"%s %s %s\"",
                  client_ip, client_port, method, path, version);
@@ -321,6 +323,12 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                 send_json(client_fd, 400, "Bad Request",
                           "{\"ok\":false,\"error\":\"empty body\"}", 35);
             }
+        } else if (strcmp(path, "/api/wiki-notewiki-prefs") == 0) {
+            if (body)
+                handle_api_wiki_notewiki_prefs_post(client_fd, req_buf, body);
+            else
+                send_json(client_fd, 400, "Bad Request",
+                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else {
             send_response(client_fd, 404, "Not Found",
                           "<h1>404 Not Found</h1>");
@@ -367,6 +375,11 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/wiki-list") == 0) {
         handle_api_wiki_list(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/wiki-notewiki-prefs") == 0) {
+        handle_api_wiki_notewiki_prefs_get(client_fd, req_buf);
         goto done;
     }
 
@@ -511,6 +524,18 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             if (pp) port_num = atoi(pp + 5);
         }
         handle_api_port(client_fd, port_num);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/webdata-login-stats", 24) == 0 &&
+        (path[24] == '\0' || path[24] == '?')) {
+        handle_api_webdata_login_stats(client_fd, path_qs);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/webdata-app-logs", 21) == 0 &&
+        (path[21] == '\0' || path[21] == '?')) {
+        handle_api_webdata_app_logs(client_fd, path_qs);
         goto done;
     }
 

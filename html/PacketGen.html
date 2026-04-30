@@ -277,6 +277,9 @@ button,input,select{font:inherit}
             <label>包长</label>
             <input id="rc-pkt-len2" class="rc-inp" value="64" placeholder="B" oninput="calcUnitConv()" style="width:44px">
             <span style="color:var(--text2);font-size:9px">Byte</span>
+            <span style="font-size:9px;color:#4a6070;margin-left:2px">+IPG</span>
+            <input id="rc-unit-ifg" class="rc-inp" value="20" oninput="calcUnitConv()" style="width:30px">
+            <span style="font-size:9px;color:var(--text2)">B</span>
           </div>
           <div class="rc-row">
             <label>输入</label>
@@ -3092,21 +3095,24 @@ function calcUnitConv(){
   var unitSelVal=document.getElementById('rc-unit-from').value;
   var parsed=parseRateInput(rawVal,unitSelVal);
   var pktLen=parseInt(document.getElementById('rc-pkt-len2').value)||0;
+  var ifgBytes=parseInt(document.getElementById('rc-unit-ifg').value)||0;
+  var wireBytes=pktLen+ifgBytes;
+  var wireNote=wireBytes>0?' @'+(pktLen>0?pktLen:'')+'B'+(ifgBytes>0?'+'+ifgBytes+'B':'')+'/pkt':'';
   if(!parsed){renderPanel([]);return;}
 
   var sections=[];
   if(parsed.type==='pps'){
     var pps=parsed.base;
     sections.push({title:'pps 各量级',sub:'',rows:ppsRows(pps)});
-    if(pktLen>0){
-      sections.push({title:'对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(pps*pktLen*8)});
+    if(wireBytes>0){
+      sections.push({title:'对应线速带宽',sub:wireNote,rows:bpsRows(pps*wireBytes*8)});
     }
   }else{
     var bps=parsed.base;
     sections.push({title:'bps 各量级',sub:'',rows:bpsRows(bps)});
-    if(pktLen>0){
-      var ppsFromBps=bps/(pktLen*8);
-      sections.push({title:'对应包速率',sub:' @'+pktLen+'B/pkt',rows:ppsRows(ppsFromBps)});
+    if(wireBytes>0){
+      var ppsFromBps=bps/(wireBytes*8);
+      sections.push({title:'对应线速包速率',sub:wireNote,rows:ppsRows(ppsFromBps)});
     }
   }
   renderPanel(sections);

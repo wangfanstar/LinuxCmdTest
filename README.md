@@ -12,7 +12,7 @@
 | 配置导入导出 | SSH 连接配置与命令列表可保存为 JSON 文件复用；可选字段 `reportRemark`（整份报告备注） |
 | 报告存档与列表 | 执行结果可存档到 `html/report/`；`reports.html` 浏览 HTML/JSON，支持筛选、排序、删除 |
 | 域段解析 | `TableParse.html`：Length/Range 解析 hex/dec/bin，嵌套域段与 JSON 配置 |
-| 日志查看器 | 实时查看服务器日志，支持级别过滤、关键字搜索、本地文件上传 |
+| 日志查看器 | 实时查看服务器日志（文件 + SQLite WebData 双源），支持级别过滤、关键字搜索、本地文件上传 |
 | Wiki 权限与审计（可选） | 基于 SQLite 的登录、角色权限（admin/author/guest）、操作日志、MD 历史备份 |
 
 ## 快速开始
@@ -147,7 +147,7 @@ sudo yum install -y sqlite sqlite-devel
 make SQLITE3=1
 ```
 
-若 SQLite 自行安装在用户目录（例如头文件为 `~/local/sqlite3/include/sqlite3.h`，库在 `~/local/sqlite3/lib/`），**无需改源码**，编译时指定前缀即可：
+若 SQLite 自行安装在用户目录（例如头文件为 `~/local/sqlite3/include/sqlite3.h`，库在 `~/local/sqlite3/lib/`），Makefile 会**自动检测**该路径，无需额外参数。也可手动指定前缀：
 
 ```bash
 make SQLITE3=1 SQLITE3_PREFIX="$HOME/local/sqlite3"
@@ -176,13 +176,14 @@ make SQLITE3=1 SQLITE3_INCLUDE="$HOME/local/sqlite3/include" SQLITE3_LIBDIR="$HO
 │   ├── monitor.c/h         # 系统监控（CPU、内存、进程、在线用户统计）
 │   ├── ssh_exec.c/h        # SSH 底层执行引擎（fork/pipe/execvpe）
 │   ├── threadpool.c/h      # 线程池（生产者-消费者，循环队列）
+│   ├── webdata.c/h          # 日志/登录事件写入 SQLite，提供查询 API
 │   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
 ├── html/
 │   ├── index.html           # 工具导航首页
 │   ├── linux_cmd_test.html  # SSH 命令行测试主页面
 │   ├── reports.html         # 已存档报告列表（调用 /api/reports）
 │   ├── TableParse.html      # 域段解析工具
-│   ├── logviewer.html       # 日志查看器
+│   ├── logviewer.html       # 日志查看器（文件 + WebData SQLite 双源）
 │   └── wiki/               # Wiki 阅读 / 编辑页面
 │       ├── notewiki.html
 │       └── wiki-auth-admin.html   # Wiki 账号权限与日志查询页（管理员）
@@ -203,7 +204,8 @@ make SQLITE3=1 SQLITE3_INCLUDE="$HOME/local/sqlite3/include" SQLITE3_LIBDIR="$HO
 | `report_api` | 报告与 SSH 配置文件的存取、列表扫描、删除 |
 | `register_api` | 注册表 JSON/XML 文件的上传、重命名、删除及目录管理 |
 | `wiki` | Markdown 文章的读写、HTML 渲染、全文搜索、分类/重命名/移动、图片上传 |
-| `auth_db` | Wiki 认证与权限：用户、会话、审计日志、MD 历史备份（SQLite） |
+| `auth_db` | Wiki 认证与权限：用户、会话、审计日志、MD 历史备份、偏好设置持久化（SQLite） |
+| `webdata` | 将运行日志与登录事件双写至 SQLite（WebData.db），提供登录统计与日志查询 API |
 | `svn_api` | 调用系统 `svn log --xml`，透传 XML 结果给前端 |
 | `ssh_api` | 调用 `ssh_exec` 引擎，支持单条、批量、SSE 流式三种执行模式 |
 | `monitor` | 读取 `/proc/stat`、`/proc/meminfo`、`/proc/[pid]/stat` 等，输出 CPU / 内存 / 进程 / 在线用户 JSON |
@@ -310,6 +312,14 @@ make clean      # 清除构建产物
 | `/api/wiki-user-delete` | POST | 删除用户（管理员） |
 | `/api/wiki-audit-logs` | GET | 查询操作审计日志（管理员） |
 | `/api/wiki-md-history` | GET | 查询文章历史备份（作者/管理员） |
+| `/api/wiki-notewiki-prefs` | GET/POST | Wiki 页面偏好设置（排序、布局等，需登录） |
+
+### WebData API（日志与统计）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/webdata-login-stats?user_sort=last&ip_sort=last` | GET | 登录统计（按用户 / IP 聚合，支持 last / count 排序） |
+| `/api/webdata-app-logs?limit=N` | GET | 从 SQLite 查询最近 N 条应用日志 |
 
 默认账号：`Admin / 123456`（首次初始化 SQLite 库时自动创建）。
 

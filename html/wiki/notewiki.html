@@ -856,6 +856,12 @@ function isHiddenCategory(cat) {
   );
 }
 
+// adoc 文件由独立流程管理，不在编辑器侧栏显示，也不参与文件夹筛选
+function isAdocCat(c) {
+  return c === 'adoc_db' || c.startsWith('adoc_db/') ||
+         c === 'adoc_html' || c.startsWith('adoc_html/');
+}
+
 function refreshAll(onDone) {
   setStatus('加载中…');
   fetch('/api/wiki-list')
@@ -919,7 +925,7 @@ function rebuildFolderFilterUi() {
   var allCb = document.getElementById('sb-fold-all');
   if (!list || !allCb) return;
   var rows = [{ v: '__ROOT__', t: '📁 根目录（无分类）' }];
-  S.categories.forEach(function(c){ rows.push({ v: c, t: '📂 ' + c }); });
+  S.categories.forEach(function(c){ if (!isAdocCat(c)) rows.push({ v: c, t: '📂 ' + c }); });
   list.innerHTML = rows.map(function(r){
     var dc = r.v === '__ROOT__' ? '__ROOT__' : escH(r.v);
     return '<label class="sb-fold-row"><input type="checkbox" data-cat="'+dc+'"> '+escH(r.t)+'</label>';
@@ -999,6 +1005,7 @@ function applyFolderFilterSave() {
     });
     S.folderFilter = sel.length ? sel : null;
   }
+  renderTree();
   fetch('/api/wiki-notewiki-prefs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1007,7 +1014,7 @@ function applyFolderFilterSave() {
   })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (d && d.ok) { setStatus('文件夹筛选已保存'); renderTree(); }
+      if (d && d.ok) { setStatus('文件夹筛选已保存'); }
       else setStatus('保存失败：' + ((d && d.error) || '未知错误'));
     })
     .catch(function(e){ setStatus('保存失败：' + e.message); });
@@ -1071,11 +1078,6 @@ function renderTree() {
     arts = localMatches.concat(ftExtra);
   }
 
-  // 隐藏 adoc_db/adoc_html 分类（adoc 文件由独立流程管理，不在编辑器侧栏显示）
-  function isAdocCat(c) {
-    return c === 'adoc_db' || c.startsWith('adoc_db/') ||
-           c === 'adoc_html' || c.startsWith('adoc_html/');
-  }
   arts = arts.filter(function(a) {
     var c = a.category || '';
     return !isAdocCat(c) && !isHiddenCategory(c);

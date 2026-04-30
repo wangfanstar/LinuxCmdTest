@@ -35,10 +35,33 @@
   header h1 { font-size: 1.25rem; font-weight: 700; color: #f0f6fc; }
   header p  { margin-left: auto; font-size: 13px; color: var(--dim); }
 
-  /* ── 网格 ── */
-  .grid {
+  /* ── 分组 ── */
+  .group {
     max-width: 860px;
     margin: 0 auto;
+    padding: 32px 0 36px;
+    border-top: 1px solid var(--border);
+  }
+  .group:first-child { border-top: none; padding-top: 0; }
+  .group-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e6edf3;
+    letter-spacing: .3px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .group-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* ── 网格 ── */
+  .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
@@ -89,42 +112,54 @@
   <p id="clock"></p>
 </header>
 
-<div class="grid">
+<!-- ── 文档与资料 ── -->
+<section class="group">
+  <h2 class="group-title"><span class="group-dot"></span>文档与资料</h2>
+  <div class="grid">
 
-  <a class="card" target="_blank" href="logviewer.html">
+  <a class="card" target="_blank" href="wiki/notewiki.html">
+    <div class="card-icon ic-purple">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+    </div>
+    <div class="card-title">NoteWiki</div>
+    <div class="card-desc">分类笔记管理，支持 Markdown 编辑与实时预览，图片上传，自动生成独立 HTML 文章页。</div>
+    <div class="card-link">wiki/notewiki.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="wiki/ci_html/GT_SDK_UserGuide_CN_v1.0.0.html">
     <div class="card-icon ic-blue">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+        <path d="M12 6v8M8 10h8"/>
       </svg>
     </div>
-    <div class="card-title">日志查看器</div>
-    <div class="card-desc">实时查看服务器访问日志，支持级别过滤、关键字搜索与本地文件上传。</div>
-    <div class="card-link">logviewer.html →</div>
+    <div class="card-title">GT 文档中心</div>
+    <div class="card-desc">GT SDK 用户手册（每日 CI 自动更新），支持 Asciidoctor HTML 全量发布。</div>
+    <div class="card-link">wiki/ci_html/GT_SDK_UserGuide_CN_v1.0.0.html →</div>
   </a>
 
-
-  <a class="card" target="_blank" href="extract.html">
+  <a class="card" target="_blank" href="svntools.html">
     <div class="card-icon ic-green">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M4 6h16M4 12h10M4 18h7"/><path d="M15 15l5 5m0-5l-5 5"/>
+        <circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+        <path d="M12 7v4M7 19h10M10 11l-3 6M14 11l3 6"/>
       </svg>
     </div>
-    <div class="card-title">文本行提取工具</div>
-    <div class="card-desc">按规则从文本中批量提取指定行内容，快速整理日志或数据。</div>
-    <div class="card-link">extract.html →</div>
+    <div class="card-title">SVN 日志查询</div>
+    <div class="card-desc">输入仓库地址与凭据，按作者、日期范围查询提交记录，支持文件去重汇总与 CSV 导出。</div>
+    <div class="card-link">svntools.html →</div>
   </a>
 
-  <a class="card" target="_blank" href="TableParse.html">
-    <div class="card-icon ic-yellow">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <path d="M3 9h18M9 21V9"/>
-      </svg>
-    </div>
-    <div class="card-title">域段解析</div>
-    <div class="card-desc">按 Length / Range 解析 hex、dec、bin 数据，支持嵌套域段、正向与反向合成及 JSON 配置存取。</div>
-    <div class="card-link">TableParse.html →</div>
-  </a>
+  </div>
+</section>
+
+<!-- ── 测试与执行 ── -->
+<section class="group">
+  <h2 class="group-title"><span class="group-dot"></span>测试与执行</h2>
+  <div class="grid">
 
   <a class="card" target="_blank" href="linux_cmd_test.html">
     <div class="card-icon ic-green">
@@ -136,29 +171,6 @@
     <div class="card-title">Linux 命令行测试</div>
     <div class="card-desc">通过 SSH 批量执行命令，生成报告，支持预期结果比对与命令匹配标记。</div>
     <div class="card-link">linux_cmd_test.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="reports.html">
-    <div class="card-icon ic-purple">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-        <path d="M12 11v6M9 14h6"/>
-      </svg>
-    </div>
-    <div class="card-title">已存档报告</div>
-    <div class="card-desc">浏览服务器 <code style="font-size:11px;color:#8b949e">html/report/SSH用户名/年月/</code> 下已存档的 HTML 报告（兼容旧路径 <code>report/年月/</code>），按用户与月份分组打开。</div>
-    <div class="card-link">reports.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="monitor.html">
-    <div class="card-icon ic-red">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-      </svg>
-    </div>
-    <div class="card-title">服务器监控</div>
-    <div class="card-desc">实时查看 CPU、内存占用、在线人数、历史峰值及累计请求等服务器运行状态。</div>
-    <div class="card-link">monitor.html →</div>
   </a>
 
   <a class="card" target="_blank" href="test_plan.html">
@@ -173,6 +185,124 @@
     <div class="card-desc">查看系统测试计划与用例，包含测试环境、执行流程与结果记录。</div>
     <div class="card-link">test_plan.html →</div>
   </a>
+
+  <a class="card" target="_blank" href="reports.html">
+    <div class="card-icon ic-purple">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        <path d="M12 11v6M9 14h6"/>
+      </svg>
+    </div>
+    <div class="card-title">已存档报告</div>
+    <div class="card-desc">浏览服务器 <code style="font-size:11px;color:#8b949e">html/report/SSH用户名/年月/</code> 下已存档的 HTML 报告（兼容旧路径 <code>report/年月/</code>），按用户与月份分组打开。</div>
+    <div class="card-link">reports.html →</div>
+  </a>
+
+  </div>
+</section>
+
+<!-- ── 日志与监控 ── -->
+<section class="group">
+  <h2 class="group-title"><span class="group-dot"></span>日志与监控</h2>
+  <div class="grid">
+
+  <a class="card" target="_blank" href="logviewer.html">
+    <div class="card-icon ic-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <div class="card-title">日志查看器</div>
+    <div class="card-desc">实时查看服务器访问日志（文件 + WebData SQLite 双源），支持级别过滤、关键字搜索与本地文件上传。</div>
+    <div class="card-link">logviewer.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="monitor.html">
+    <div class="card-icon ic-red">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+    </div>
+    <div class="card-title">服务器监控</div>
+    <div class="card-desc">实时查看 CPU、内存占用、在线人数、历史峰值及累计请求等服务器运行状态。</div>
+    <div class="card-link">monitor.html →</div>
+  </a>
+
+  </div>
+</section>
+
+<!-- ── 解析与转换 ── -->
+<section class="group">
+  <h2 class="group-title"><span class="group-dot"></span>解析与转换</h2>
+  <div class="grid">
+
+  <a class="card" target="_blank" href="TableParse.html">
+    <div class="card-icon ic-yellow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M3 9h18M9 21V9"/>
+      </svg>
+    </div>
+    <div class="card-title">域段解析</div>
+    <div class="card-desc">按 Length / Range 解析 hex、dec、bin 数据，支持嵌套域段、正向与反向合成及 JSON 配置存取。</div>
+    <div class="card-link">TableParse.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="PacketGen.html">
+    <div class="card-icon ic-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        <path d="M12 12v4M10 14h4"/>
+      </svg>
+    </div>
+    <div class="card-title">报文生成与解析</div>
+    <div class="card-desc">可视化构造与解析以太网报文（MAC/IP/TCP/UDP/VLAN），支持多种协议模板与 PCAP 导出。</div>
+    <div class="card-link">PacketGen.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="extract.html">
+    <div class="card-icon ic-green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6h16M4 12h10M4 18h7"/><path d="M15 15l5 5m0-5l-5 5"/>
+      </svg>
+    </div>
+    <div class="card-title">文本行提取工具</div>
+    <div class="card-desc">按规则从文本中批量提取指定行内容，快速整理日志或数据。</div>
+    <div class="card-link">extract.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="text-base64-converter.html">
+    <div class="card-icon ic-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/><line x1="12" y1="5" x2="12" y2="19"/>
+      </svg>
+    </div>
+    <div class="card-title">文本 ↔ Base64 转换</div>
+    <div class="card-desc">在任意文本与 Base64 编码之间互转，支持中文、XML、JSON，离线可用。</div>
+    <div class="card-link">text-base64-converter.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="c_header_to_yaml.html">
+    <div class="card-icon ic-yellow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <path d="M8 13h8M8 17h5"/>
+      </svg>
+    </div>
+    <div class="card-title">C Header → YAML 转换</div>
+    <div class="card-desc">解析 C 头文件中的结构体与枚举，自动生成 pzz_autogen 格式 YAML 配置，支持基准合并与冲突编辑。</div>
+    <div class="card-link">c_header_to_yaml.html →</div>
+  </a>
+
+  </div>
+</section>
+
+<!-- ── 寄存器工具 ── -->
+<section class="group">
+  <h2 class="group-title"><span class="group-dot"></span>寄存器工具</h2>
+  <div class="grid">
 
   <a class="card" target="_blank" href="register-viewer.html">
     <div class="card-icon ic-purple">
@@ -198,67 +328,8 @@
     <div class="card-link">register.html →</div>
   </a>
 
-  <a class="card" target="_blank" href="text-base64-converter.html">
-    <div class="card-icon ic-blue">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/><line x1="12" y1="5" x2="12" y2="19"/>
-      </svg>
-    </div>
-    <div class="card-title">文本 ↔ Base64 转换</div>
-    <div class="card-desc">在任意文本与 Base64 编码之间互转，支持中文、XML、JSON，离线可用。</div>
-    <div class="card-link">text-base64-converter.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="wiki/notewiki.html">
-    <div class="card-icon ic-purple">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-      </svg>
-    </div>
-    <div class="card-title">NoteWiki</div>
-    <div class="card-desc">分类笔记管理，支持 Markdown 编辑与实时预览，图片上传，自动生成独立 HTML 文章页。</div>
-    <div class="card-link">wiki/notewiki.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="svntools.html">
-    <div class="card-icon ic-green">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
-        <path d="M12 7v4M7 19h10M10 11l-3 6M14 11l3 6"/>
-      </svg>
-    </div>
-    <div class="card-title">SVN 日志查询</div>
-    <div class="card-desc">输入仓库地址与凭据，按作者、日期范围查询提交记录，支持文件去重汇总与 CSV 导出。</div>
-    <div class="card-link">svntools.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="PacketGen.html">
-    <div class="card-icon ic-blue">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="7" width="20" height="14" rx="2"/>
-        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
-        <path d="M12 12v4M10 14h4"/>
-      </svg>
-    </div>
-    <div class="card-title">报文生成与解析</div>
-    <div class="card-desc">可视化构造与解析以太网报文（MAC/IP/TCP/UDP/VLAN），支持多种协议模板与 PCAP 导出。</div>
-    <div class="card-link">PacketGen.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="c_header_to_yaml.html">
-    <div class="card-icon ic-yellow">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <path d="M8 13h8M8 17h5"/>
-      </svg>
-    </div>
-    <div class="card-title">C Header → YAML 转换</div>
-    <div class="card-desc">解析 C 头文件中的结构体与枚举，自动生成 pzz_autogen 格式 YAML 配置，支持基准合并与冲突编辑。</div>
-    <div class="card-link">c_header_to_yaml.html →</div>
-  </a>
-
-</div>
+  </div>
+</section>
 
 <script>
   const cl = document.getElementById('clock');

@@ -1,5 +1,6 @@
 #include "webdata.h"
 #include "http_utils.h"
+#include "log.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -69,18 +70,28 @@ int webdata_init(const char *log_dir)
                              SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
                              NULL);
     if (rc != SQLITE_OK || !g_wd_db) {
-        if (g_wd_db) sqlite3_close(g_wd_db);
+        char errcopy[256];
+        errcopy[0] = '\0';
+        if (g_wd_db)
+            snprintf(errcopy, sizeof(errcopy), "%s", sqlite3_errmsg(g_wd_db));
+        if (g_wd_db)
+            sqlite3_close(g_wd_db);
         g_wd_db = NULL;
         pthread_mutex_unlock(&g_wd_mu);
+        /* 须在释放 g_wd_mu 之后再 LOG_*：否则 log_write→webdata_append_log 会再次抢同一把锁而死锁 */
+        LOG_ERROR("webdata: failed to open %s: %s", g_wd_path,
+                  errcopy[0] ? errcopy : "out of memory");
         return -1;
     }
     if (wd_open_schema() != 0) {
         sqlite3_close(g_wd_db);
         g_wd_db = NULL;
         pthread_mutex_unlock(&g_wd_mu);
+        LOG_ERROR("webdata: failed to create schema in %s", g_wd_path);
         return -1;
     }
     pthread_mutex_unlock(&g_wd_mu);
+    LOG_INFO("webdata: WebData.db opened at %s", g_wd_path);
     return 0;
 }
 
@@ -262,9 +273,15 @@ void handle_api_webdata_login_stats(http_sock_t client_fd, const char *path_with
 
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"ip_sort\":");
-    SB_LIT(&sb, ip_by_count ? "\"count\"" : "\"last\"");
+    {
+		const char *v = ip_by_count ? "\"count\"" : "\"last\"";
+		sb_append(&sb, v, strlen(v));
+	}
     SB_LIT(&sb, ",\"user_sort\":");
-    SB_LIT(&sb, user_by_count ? "\"count\"" : "\"last\"");
+    {
+		const char *v = user_by_count ? "\"count\"" : "\"last\"";
+		sb_append(&sb, v, strlen(v));
+	}
     SB_LIT(&sb, ",\"byIp\":[");
 
     sqlite3_stmt *st = NULL;
@@ -427,7 +444,8 @@ void handle_api_webdata_app_logs(http_sock_t client_fd, const char *path_with_qu
 int webdata_init(const char *log_dir)
 {
     (void)log_dir;
-    return 0;
+    LOG_WARN("webdata: SQLITE3 not enabled at compile time, WebData.db features unavailable");
+    return -1;
 }
 
 void webdata_close(void) {}

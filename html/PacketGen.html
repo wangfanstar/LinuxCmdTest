@@ -345,8 +345,8 @@ button,input,select{font:inherit}
   <div class="col-resizer" id="right-resizer" title="拖动调整右侧面板宽度"></div>
   <div class="pright">
     <div class="hex-bar">
-      <button class="tbtn" onclick="copyHex()">&#8854; 复制Hex</button>
-      <button class="tbtn" onclick="copyHexRaw()">复制连续Hex</button>
+      <button class="tbtn" onclick="copyHex(this)">&#8854; 复制Hex</button>
+      <button class="tbtn" onclick="copyHexRaw(this)">复制连续Hex</button>
       <button class="tbtn" onclick="dlPcap()">&#8595; 下载.pcap</button>
       <button id="hex-edit-btn" class="tbtn" onclick="startHexEdit()">编辑Hex</button>
       <button id="hex-apply-btn" class="tbtn primary" onclick="applyHexEdit()" style="display:none">应用Hex</button>
@@ -2259,17 +2259,30 @@ function dlPcap(){
   a.download='packet.pcap';a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
 }
-function copyHex(){
+function copyToClipboard(text,btnEl){
+  var orig=btnEl.textContent;
+  var done=function(){btnEl.textContent='已复制!';setTimeout(function(){btnEl.textContent=orig;},1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(function(){fallbackCopy(text,btnEl,orig);});
+  }else{fallbackCopy(text,btnEl,orig);}
+}
+function fallbackCopy(text,btnEl,orig){
+  var ta=document.createElement('textarea');
+  ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand('copy');btnEl.textContent='已复制!';}catch(e){btnEl.textContent='复制失败';}
+  document.body.removeChild(ta);
+  setTimeout(function(){btnEl.textContent=orig;},1500);
+}
+function copyHex(btn){
   if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
   var hex=lastPkt.bytes.map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(' ');
-  var btn=event.currentTarget,orig=btn.textContent;
-  navigator.clipboard.writeText(hex).then(function(){btn.textContent='已复制!';setTimeout(function(){btn.textContent=orig;},1500);});
+  copyToClipboard(hex,btn);
 }
-function copyHexRaw(){
+function copyHexRaw(btn){
   if(!lastPkt||!lastPkt.bytes.length){alert('请先生成报文');return;}
   var hex=lastPkt.bytes.map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join('');
-  var btn=event.currentTarget,orig=btn.textContent;
-  navigator.clipboard.writeText(hex).then(function(){btn.textContent='已复制!';setTimeout(function(){btn.textContent=orig;},1500);});
+  copyToClipboard(hex,btn);
 }
 function toggleFcs(){
   packetBytesOverride=null;
@@ -3137,12 +3150,12 @@ function copyRcResult(){
 }
 
 function rcCopyVal(btn,val){
-  navigator.clipboard.writeText(val.trim()).then(function(){
-    var orig=btn.textContent;
-    btn.textContent='✓';
-    btn.classList.add('copied');
-    setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);
-  }).catch(function(){});
+  var orig=btn.textContent;
+  var done=function(){btn.textContent='✓';btn.classList.add('copied');setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);};
+  val=val.trim();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(val).then(done).catch(function(){fallbackCopy(val,btn,orig);});
+  }else{fallbackCopy(val,btn,orig);}
 }
 
 function initRateConv(){

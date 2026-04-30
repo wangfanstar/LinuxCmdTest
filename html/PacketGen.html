@@ -105,8 +105,13 @@ button,input,select{font:inherit}
 .rc-result b{color:var(--success)}
 .rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0}
 .rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rc-copy-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;flex-shrink:0;transition:all .15s}
+.rc-copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rc-copy-btn.copied{border-color:var(--success);color:var(--success)}
 .rc-all-units{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.2);border-radius:3px;border:1px solid #1a2a3a;display:flex;flex-direction:column;gap:0;font-size:9px;color:var(--text2)}
 .rc-all-units .rc-unit-group{display:flex;flex-direction:column;gap:1px}
+.rc-all-units .rc-unit-row{display:flex;align-items:center;gap:3px}
+.rc-all-units .rc-unit-row span{color:#7ee787;flex:1}
 .rc-all-units .rc-unit-group span{color:#7ee787}
 #left-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
 .decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;min-height:100px;height:220px}
@@ -211,6 +216,7 @@ button,input,select{font:inherit}
           <span class="rc-arrow" id="rc-arrow">→</span>
           <label id="rc-eq-label">等效</label>
           <span class="rc-result"><b id="rc-equiv-display">-</b></span>
+          <button class="rc-copy-btn" id="rc-equiv-copy" onclick="copyRcResult()" title="复制结果">⎘</button>
           <button class="rc-swap-btn" onclick="swapRateConvDir()" title="切换换算方向">&#8644;</button>
         </div>
         <div class="rc-all-units" id="rc-all-units"></div>
@@ -2793,6 +2799,29 @@ function fmtRateAllUnits(n){
   return lines;
 }
 
+function copyRcResult(){
+  var el=document.getElementById('rc-equiv-display');
+  var btn=document.getElementById('rc-equiv-copy');
+  var val=el?el.textContent.trim():'';
+  if(!val||val==='-')return;
+  navigator.clipboard.writeText(val).then(function(){
+    if(!btn)return;
+    var orig=btn.textContent;
+    btn.textContent='✓';
+    btn.classList.add('copied');
+    setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);
+  }).catch(function(){});
+}
+
+function rcCopyVal(btn,val){
+  navigator.clipboard.writeText(val.trim()).then(function(){
+    var orig=btn.textContent;
+    btn.textContent='✓';
+    btn.classList.add('copied');
+    setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);
+  }).catch(function(){});
+}
+
 function calcRateConv(){
   var refHz=freqToHz(document.getElementById('rc-ref-freq').value,document.getElementById('rc-ref-unit').value);
   var opHz=freqToHz(document.getElementById('rc-op-freq').value,document.getElementById('rc-op-unit').value);
@@ -2823,14 +2852,20 @@ function calcRateConv(){
   if(allUnitsEl){
     var html='';
     var ppsLines=fmtRateAllUnits(result);
-    html+='<div class="rc-unit-group"><span style="color:var(--text2)">pps</span>';
-    for(var i=0;i<ppsLines.length;i++)html+='<span>'+esc(ppsLines[i])+'</span>';
+    html+='<div class="rc-unit-group"><span style="color:var(--text2);margin-bottom:2px">pps</span>';
+    for(var i=0;i<ppsLines.length;i++){
+      var rawVal=esc(ppsLines[i]);
+      html+='<div class="rc-unit-row"><span>'+rawVal+'pps</span><button class="rc-copy-btn" onclick="rcCopyVal(this,\''+rawVal.replace(/'/g,"\\'")+'pps\')" title="复制">⎘</button></div>';
+    }
     html+='</div>';
     if(pktLen>0){
       var bpsResult=result*pktLen*8;
       var bpsLines=fmtRateAllUnits(bpsResult);
-      html+='<div class="rc-unit-group" style="margin-top:2px;padding-top:2px;border-top:1px solid #1a2a3a"><span style="color:var(--text2)">bps @'+pktLen+'B</span>';
-      for(var j=0;j<bpsLines.length;j++)html+='<span>'+esc(bpsLines[j])+'</span>';
+      html+='<div class="rc-unit-group" style="margin-top:2px;padding-top:2px;border-top:1px solid #1a2a3a"><span style="color:var(--text2);margin-bottom:2px">bps @'+pktLen+'B</span>';
+      for(var j=0;j<bpsLines.length;j++){
+        var brawVal=esc(bpsLines[j]);
+        html+='<div class="rc-unit-row"><span>'+brawVal+'bps</span><button class="rc-copy-btn" onclick="rcCopyVal(this,\''+brawVal.replace(/'/g,"\\'")+'bps\')" title="复制">⎘</button></div>';
+      }
       html+='</div>';
     }
     allUnitsEl.innerHTML=html;

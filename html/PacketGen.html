@@ -331,6 +331,12 @@ button,input,select{font:inherit}
           <div class="rc-hint">IFG=20B(以太网标准帧间隙12B+前导8B)</div>
         </div>
 
+        <!-- 复制选项 -->
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 0 4px 0">
+          <label style="font-size:9px;color:var(--text2);display:flex;align-items:center;gap:3px;cursor:pointer">
+            <input type="checkbox" id="rc-copy-numonly" style="width:auto;margin:0;vertical-align:middle"> 仅复制数值（不含单位）
+          </label>
+        </div>
         <!-- 统一结果面板 -->
         <div class="rc-results-panel" id="rc-results-panel">
           <div style="color:var(--text2);font-size:9px;text-align:center;padding:4px">输入参数后显示结果</div>
@@ -2913,6 +2919,10 @@ function fmtNum(n,digits){
   if(digits===undefined)digits=6;
   return Number(n).toLocaleString('en-US',{maximumFractionDigits:digits,useGrouping:true});
 }
+function fmtNumRaw(n,digits){
+  if(digits===undefined)digits=6;
+  return Number(n).toLocaleString('en-US',{maximumFractionDigits:digits,useGrouping:false});
+}
 
 /* 解析带单位选择器的值，返回 {pps,bps} 其中一个非null，type='pps'|'bps' */
 function parseRateInput(val,unitSel){
@@ -2929,11 +2939,11 @@ function parseRateInput(val,unitSel){
 function ppsRows(pps){
   var rows=[];
   var absP=Math.abs(pps);
-  if(absP>=1e12)rows.push({val:fmtNum(pps/1e12),unit:'Tpps (×10¹²)',raw:fmtNum(pps/1e12)+'Tpps',hi:false});
-  if(absP>=1e9) rows.push({val:fmtNum(pps/1e9), unit:'Gpps (×10⁹)', raw:fmtNum(pps/1e9)+'Gpps', hi:absP>=1e9&&absP<1e12});
-  if(absP>=1e6) rows.push({val:fmtNum(pps/1e6), unit:'Mpps (×10⁶)', raw:fmtNum(pps/1e6)+'Mpps', hi:absP>=1e6&&absP<1e9});
-  if(absP>=1e3) rows.push({val:fmtNum(pps/1e3), unit:'Kpps (×10³)', raw:fmtNum(pps/1e3)+'Kpps', hi:absP>=1e3&&absP<1e6});
-  rows.push({val:fmtNum(pps,0),unit:'pps',raw:fmtNum(pps,0)+'pps',hi:absP<1e3});
+  if(absP>=1e12)rows.push({val:fmtNum(pps/1e12),unit:'Tpps (×10¹²)',raw:fmtNum(pps/1e12)+'Tpps',hi:false,rawNum:fmtNumRaw(pps/1e12)});
+  if(absP>=1e9) rows.push({val:fmtNum(pps/1e9), unit:'Gpps (×10⁹)', raw:fmtNum(pps/1e9)+'Gpps', hi:absP>=1e9&&absP<1e12,rawNum:fmtNumRaw(pps/1e9)});
+  if(absP>=1e6) rows.push({val:fmtNum(pps/1e6), unit:'Mpps (×10⁶)', raw:fmtNum(pps/1e6)+'Mpps', hi:absP>=1e6&&absP<1e9,rawNum:fmtNumRaw(pps/1e6)});
+  if(absP>=1e3) rows.push({val:fmtNum(pps/1e3), unit:'Kpps (×10³)', raw:fmtNum(pps/1e3)+'Kpps', hi:absP>=1e3&&absP<1e6,rawNum:fmtNumRaw(pps/1e3)});
+  rows.push({val:fmtNum(pps,0),unit:'pps',raw:fmtNum(pps,0)+'pps',hi:absP<1e3,rawNum:fmtNumRaw(pps,0)});
   return rows;
 }
 
@@ -2941,11 +2951,11 @@ function ppsRows(pps){
 function bpsRows(bps){
   var rows=[];
   var absB=Math.abs(bps);
-  if(absB>=1e12)rows.push({val:fmtNum(bps/1e12),unit:'Tbps (×10¹²)',raw:fmtNum(bps/1e12)+'Tbps',hi:absB>=1e12&&absB<1e15});
-  if(absB>=1e9) rows.push({val:fmtNum(bps/1e9), unit:'Gbps (×10⁹)', raw:fmtNum(bps/1e9)+'Gbps', hi:absB>=1e9&&absB<1e12});
-  if(absB>=1e6) rows.push({val:fmtNum(bps/1e6), unit:'Mbps (×10⁶)', raw:fmtNum(bps/1e6)+'Mbps', hi:absB>=1e6&&absB<1e9});
-  if(absB>=1e3) rows.push({val:fmtNum(bps/1e3), unit:'Kbps (×10³)', raw:fmtNum(bps/1e3)+'Kbps', hi:absB>=1e3&&absB<1e6});
-  rows.push({val:fmtNum(bps,0),unit:'bps',raw:fmtNum(bps,0)+'bps',hi:absB<1e3});
+  if(absB>=1e12)rows.push({val:fmtNum(bps/1e12),unit:'Tbps (×10¹²)',raw:fmtNum(bps/1e12)+'Tbps',hi:absB>=1e12&&absB<1e15,rawNum:fmtNumRaw(bps/1e12)});
+  if(absB>=1e9) rows.push({val:fmtNum(bps/1e9), unit:'Gbps (×10⁹)', raw:fmtNum(bps/1e9)+'Gbps', hi:absB>=1e9&&absB<1e12,rawNum:fmtNumRaw(bps/1e9)});
+  if(absB>=1e6) rows.push({val:fmtNum(bps/1e6), unit:'Mbps (×10⁶)', raw:fmtNum(bps/1e6)+'Mbps', hi:absB>=1e6&&absB<1e9,rawNum:fmtNumRaw(bps/1e6)});
+  if(absB>=1e3) rows.push({val:fmtNum(bps/1e3), unit:'Kbps (×10³)', raw:fmtNum(bps/1e3)+'Kbps', hi:absB>=1e3&&absB<1e6,rawNum:fmtNumRaw(bps/1e3)});
+  rows.push({val:fmtNum(bps,0),unit:'bps',raw:fmtNum(bps,0)+'bps',hi:absB<1e3,rawNum:fmtNumRaw(bps,0)});
   return rows;
 }
 
@@ -2958,7 +2968,7 @@ function renderResRows(rows){
     h+='<div class="rc-res-row">';
     h+='<span class="'+vc+'">'+esc(r.val)+'</span>';
     h+='<span class="rc-res-unit">'+esc(r.unit)+'</span>';
-    h+='<button class="rc-copy-btn" onclick="rcCopyVal(this,\''+safeRaw.replace(/'/g,"\\'")+'\')" title="复制">⎘</button>';
+    h+='<button class="rc-copy-btn" onclick="rcCopyVal(this,\''+safeRaw.replace(/'/g,"\\'")+'\',\''+(r.rawNum||r.val).replace(/'/g,"\\'")+'\')" title="复制">⎘</button>';
     h+='</div>';
   }
   return h;
@@ -3144,7 +3154,7 @@ function calcLineRate(){
     var mpps=(linerateBps/fb);
     var hi=ps===pktB;
     var vStr=mpps>=1e6?fmtNum(mpps/1e6)+'Mpps':mpps>=1e3?fmtNum(mpps/1e3)+'Kpps':fmtNum(mpps,2)+'pps';
-    refRows.push({val:(ps===pktB?'▶ ':'')+ps+'B',unit:vStr,raw:vStr+'@'+ps+'B',hi:hi});
+    refRows.push({val:(ps===pktB?'▶ ':'')+ps+'B',unit:vStr,raw:vStr+'@'+ps+'B',hi:hi,rawNum:fmtNumRaw(mpps,2)});
   }
   sections.push({title:'各包长线速对照',sub:' (含IFG '+ifgB+'B)',rows:refRows});
   renderPanel(sections);
@@ -3155,8 +3165,10 @@ function copyRcResult(){
   // 兼容旧调用，现在由 rcCopyVal 统一处理
 }
 
-function rcCopyVal(btn,val){
+function rcCopyVal(btn,val,rawNum){
   var orig=btn.textContent;
+  var cb=document.getElementById('rc-copy-numonly');
+  if(cb&&cb.checked&&rawNum!==undefined)val=rawNum;
   var done=function(){btn.textContent='✓';btn.classList.add('copied');setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);};
   val=val.trim();
   if(navigator.clipboard&&navigator.clipboard.writeText){

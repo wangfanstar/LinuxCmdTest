@@ -105,8 +105,9 @@ button,input,select{font:inherit}
 .rc-result b{color:var(--success)}
 .rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0}
 .rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
-.rc-all-units{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.2);border-radius:3px;border:1px solid #1a2a3a;display:flex;flex-direction:column;gap:1px;font-size:9px;color:var(--text2)}
-.rc-all-units span{color:#7ee787}
+.rc-all-units{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.2);border-radius:3px;border:1px solid #1a2a3a;display:flex;flex-direction:column;gap:0;font-size:9px;color:var(--text2)}
+.rc-all-units .rc-unit-group{display:flex;flex-direction:column;gap:1px}
+.rc-all-units .rc-unit-group span{color:#7ee787}
 #left-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
 .decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;min-height:100px;height:220px}
 .dec-resizer{height:8px;cursor:ns-resize;background:linear-gradient(to bottom,#2b3b52,#1e293b)}
@@ -191,6 +192,11 @@ button,input,select{font:inherit}
           </select>
         </div>
         <div class="rc-ratio" id="rc-ratio-display">降频比: 3125MHz:373KHz</div>
+        <div class="rc-row">
+          <label>包长</label>
+          <input id="rc-pkt-len" class="rc-inp" value="64" placeholder="B" oninput="calcRateConv()" style="width:50px">
+          <span style="color:var(--text2);font-size:9px">B</span>
+        </div>
         <div class="rc-row">
           <label id="rc-cur-label">当前</label>
           <input id="rc-cur-rate" class="rc-inp" placeholder="输入速率" oninput="calcRateConv()" style="width:68px">
@@ -2807,6 +2813,7 @@ function calcRateConv(){
     if(allUnitsEl)allUnitsEl.innerHTML='';
     return;
   }
+  var pktLen=parseInt(document.getElementById('rc-pkt-len').value)||0;
   var rateScale=parseFloat(document.getElementById('rc-rate-unit').value)||1;
   curRate=curRate*rateScale;
   var result;
@@ -2814,8 +2821,19 @@ function calcRateConv(){
   else result=curRate/ratio;
   eqEl.textContent=fmtRate(result);
   if(allUnitsEl){
-    var unitLines=fmtRateAllUnits(result);
-    allUnitsEl.innerHTML=unitLines.map(function(l){return'<span>'+esc(l)+'</span>';}).join('');
+    var html='';
+    var ppsLines=fmtRateAllUnits(result);
+    html+='<div class="rc-unit-group"><span style="color:var(--text2)">pps</span>';
+    for(var i=0;i<ppsLines.length;i++)html+='<span>'+esc(ppsLines[i])+'</span>';
+    html+='</div>';
+    if(pktLen>0){
+      var bpsResult=result*pktLen*8;
+      var bpsLines=fmtRateAllUnits(bpsResult);
+      html+='<div class="rc-unit-group" style="margin-top:2px;padding-top:2px;border-top:1px solid #1a2a3a"><span style="color:var(--text2)">bps @'+pktLen+'B</span>';
+      for(var j=0;j<bpsLines.length;j++)html+='<span>'+esc(bpsLines[j])+'</span>';
+      html+='</div>';
+    }
+    allUnitsEl.innerHTML=html;
   }
 }
 

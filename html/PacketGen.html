@@ -106,8 +106,9 @@ button,input,select{font:inherit}
 .rc-arrow{color:var(--text2);font-size:10px;margin:0 1px}
 .rc-result{font-size:10px;white-space:nowrap}
 .rc-result b{color:var(--success)}
-.rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0}
+.rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:10px;flex-shrink:0;white-space:nowrap}
 .rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rc-swap-btn.active{border-color:var(--accent);color:var(--accent);background:#0c2a3e}
 .rc-copy-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:0 4px;border-radius:3px;cursor:pointer;font-size:9px;flex-shrink:0;transition:all .15s;line-height:1.6}
 .rc-copy-btn:hover{border-color:var(--accent);color:var(--accent)}
 .rc-copy-btn.copied{border-color:var(--success);color:var(--success)}
@@ -257,7 +258,8 @@ button,input,select{font:inherit}
           </div>
           <div class="rc-row" style="justify-content:flex-end;gap:4px">
             <span style="font-size:9px;color:var(--text2)">方向</span>
-            <button class="rc-swap-btn" id="rc-arrow" onclick="swapRateConvDir()" title="切换换算方向">当前 → 等效</button>
+            <button class="rc-swap-btn active" id="rc-btn-curr2eq" onclick="setRateConvDir(0)">TC输入 → 等效</button>
+            <button class="rc-swap-btn" id="rc-btn-eq2curr" onclick="setRateConvDir(1)">等效 → TC输入</button>
           </div>
         </div>
 
@@ -3034,10 +3036,12 @@ function calcRateConv(){
   renderPanel(sections);
 }
 
-function swapRateConvDir(){
-  rateConvDir=rateConvDir?0:1;
-  var arrowBtn=document.getElementById('rc-arrow');
-  if(arrowBtn)arrowBtn.textContent=rateConvDir===0?'当前 → 等效':'等效 → 当前';
+function setRateConvDir(dir){
+  rateConvDir=dir;
+  var b0=document.getElementById('rc-btn-curr2eq');
+  var b1=document.getElementById('rc-btn-eq2curr');
+  if(b0){b0.className=dir===0?'rc-swap-btn active':'rc-swap-btn';}
+  if(b1){b1.className=dir===1?'rc-swap-btn active':'rc-swap-btn';}
   calcRateConv();
 }
 

@@ -92,6 +92,22 @@ button,input,select{font:inherit}
 .picker-actions{margin-top:12px;display:flex;justify-content:flex-end;gap:8px}
 .picker-grid{display:grid;grid-template-columns:1fr;gap:8px}
 .picker-grid label{font-size:11px;color:var(--text2)}
+.rc-body{display:flex;flex-direction:column;gap:5px}
+.rc-row{display:flex;align-items:center;gap:3px;font-size:10px}
+.rc-row label{color:var(--text2);white-space:nowrap;min-width:30px;font-size:10px}
+.rc-inp{width:58px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:3px;font-size:10px;text-align:right;flex-shrink:0}
+.rc-inp:focus{outline:none;border-color:var(--accent)}
+.rc-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:1px 1px;border-radius:3px;font-size:9px;flex-shrink:0}
+.rc-sel:focus{outline:none;border-color:var(--accent)}
+.rc-ratio{color:var(--accent2);font-size:9px;word-break:break-all;line-height:1.3}
+.rc-arrow{color:var(--text2);font-size:10px;margin:0 1px}
+.rc-result{font-size:10px;white-space:nowrap}
+.rc-result b{color:var(--success)}
+.rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0}
+.rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rc-all-units{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.2);border-radius:3px;border:1px solid #1a2a3a;display:flex;flex-direction:column;gap:1px;font-size:9px;color:var(--text2)}
+.rc-all-units span{color:#7ee787}
+#left-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
 .decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;min-height:100px;height:220px}
 .dec-resizer{height:8px;cursor:ns-resize;background:linear-gradient(to bottom,#2b3b52,#1e293b)}
 .dec-bar{padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
@@ -153,7 +169,49 @@ button,input,select{font:inherit}
       <h3>自定义报文头</h3>
       <div style="color:var(--text2);font-size:11px;padding:2px 0">加载中...</div>
     </div>
+    <div class="psec" id="rate-conv-sec">
+      <h3>&#9889; 速率转换</h3>
+      <div class="rc-body">
+        <div class="rc-row">
+          <label>参考</label>
+          <input id="rc-ref-freq" class="rc-inp" value="3125" oninput="calcRateConv()">
+          <select id="rc-ref-unit" class="rc-sel" onchange="calcRateConv()">
+            <option value="MHz">MHz</option>
+            <option value="KHz">KHz</option>
+            <option value="Hz">Hz</option>
+          </select>
+        </div>
+        <div class="rc-row">
+          <label>运行</label>
+          <input id="rc-op-freq" class="rc-inp" value="373" oninput="calcRateConv()">
+          <select id="rc-op-unit" class="rc-sel" onchange="calcRateConv()">
+            <option value="KHz" selected>KHz</option>
+            <option value="MHz">MHz</option>
+            <option value="Hz">Hz</option>
+          </select>
+        </div>
+        <div class="rc-ratio" id="rc-ratio-display">降频比: 3125MHz:373KHz</div>
+        <div class="rc-row">
+          <label id="rc-cur-label">当前</label>
+          <input id="rc-cur-rate" class="rc-inp" placeholder="输入速率" oninput="calcRateConv()" style="width:68px">
+          <select id="rc-rate-unit" class="rc-sel" onchange="calcRateConv()">
+            <option value="1" selected></option>
+            <option value="1e3">K</option>
+            <option value="1e6">M</option>
+            <option value="1e9">G</option>
+          </select>
+        </div>
+        <div class="rc-row">
+          <span class="rc-arrow" id="rc-arrow">→</span>
+          <label id="rc-eq-label">等效</label>
+          <span class="rc-result"><b id="rc-equiv-display">-</b></span>
+          <button class="rc-swap-btn" onclick="swapRateConvDir()" title="切换换算方向">&#8644;</button>
+        </div>
+        <div class="rc-all-units" id="rc-all-units"></div>
+      </div>
+    </div>
   </div>
+  <div id="left-resizer" title="拖动调整左侧面板宽度"></div>
   <div class="pcenter">
     <div class="stack-bar">协议栈 &mdash; 点击层编辑字段 | &#9650;&#9660; 调整顺序 | &#10005; 删除</div>
     <div class="layers-list" id="layers-list"><div class="empty-msg">&#8592; 点击左侧协议头添加到报文</div></div>
@@ -550,6 +608,7 @@ var templatePickerOnConfirm=null;
 var decodeHighlightRange=null;
 var decoderDragState=null;
 var rightPanelDragState=null;
+var leftPanelDragState=null;
 var validateEnabled=false;
 var packetBytesOverride=null;
 
@@ -2682,6 +2741,130 @@ function decodeCustom(data,startByte,def){
   return html;
 }
 
+var rateConvDir=0;
+
+function freqToHz(val,unit){
+  var n=parseFloat(val)||0;
+  if(unit==='MHz')return n*1e6;
+  if(unit==='KHz')return n*1e3;
+  return n;
+}
+
+function fmtFreqHz(hz){
+  if(hz>=1e9)return(hz/1e9).toFixed(3)+' GHz';
+  if(hz>=1e6)return(hz/1e6).toFixed(3)+' MHz';
+  if(hz>=1e3)return(hz/1e3).toFixed(3)+' KHz';
+  return hz.toFixed(1)+' Hz';
+}
+
+function fmtRate(n){
+  if(n===0)return'0';
+  if(Math.abs(n)>=1e9)return(n/1e9).toFixed(4)+' G';
+  if(Math.abs(n)>=1e6)return(n/1e6).toFixed(4)+' M';
+  if(Math.abs(n)>=1e3)return(n/1e3).toFixed(2)+' K';
+  return n.toFixed(2);
+}
+
+function fmtRateFullPrecision(n){
+  return Number(n).toLocaleString('en-US',{maximumFractionDigits:6,useGrouping:true});
+}
+
+function fmtRateAllUnits(n){
+  if(n===0)return['0'];
+  var absN=Math.abs(n);
+  var lines=[];
+  if(absN>=1e12)lines.push(fmtRateFullPrecision(n/1e12)+' T');
+  if(absN>=1e9)lines.push(fmtRateFullPrecision(n/1e9)+' G');
+  if(absN>=1e6)lines.push(fmtRateFullPrecision(n/1e6)+' M');
+  if(absN>=1e3)lines.push(fmtRateFullPrecision(n/1e3)+' K');
+  lines.push(fmtRateFullPrecision(n)+' ');
+  if(absN<1){
+    var m=n*1e3;
+    if(Math.abs(m)>=0.001)lines.push(fmtRateFullPrecision(m)+' m');
+    var u=n*1e6;
+    if(Math.abs(u)>=0.001)lines.push(fmtRateFullPrecision(u)+' µ');
+  }
+  return lines;
+}
+
+function calcRateConv(){
+  var refHz=freqToHz(document.getElementById('rc-ref-freq').value,document.getElementById('rc-ref-unit').value);
+  var opHz=freqToHz(document.getElementById('rc-op-freq').value,document.getElementById('rc-op-unit').value);
+  var ratioEl=document.getElementById('rc-ratio-display');
+  var eqEl=document.getElementById('rc-equiv-display');
+  var allUnitsEl=document.getElementById('rc-all-units');
+  if(!refHz||!opHz||refHz<=0||opHz<=0){
+    ratioEl.textContent='降频比: -';
+    eqEl.textContent='-';
+    if(allUnitsEl)allUnitsEl.innerHTML='';
+    return;
+  }
+  var ratio=refHz/opHz;
+  ratioEl.textContent='降频比: '+fmtFreqHz(refHz)+':'+fmtFreqHz(opHz)+' = '+ratio.toFixed(4);
+  var curRate=parseFloat(document.getElementById('rc-cur-rate').value);
+  if(isNaN(curRate)){
+    eqEl.textContent='-';
+    if(allUnitsEl)allUnitsEl.innerHTML='';
+    return;
+  }
+  var rateScale=parseFloat(document.getElementById('rc-rate-unit').value)||1;
+  curRate=curRate*rateScale;
+  var result;
+  if(rateConvDir===0)result=curRate*ratio;
+  else result=curRate/ratio;
+  eqEl.textContent=fmtRate(result);
+  if(allUnitsEl){
+    var unitLines=fmtRateAllUnits(result);
+    allUnitsEl.innerHTML=unitLines.map(function(l){return'<span>'+esc(l)+'</span>';}).join('');
+  }
+}
+
+function swapRateConvDir(){
+  rateConvDir=rateConvDir?0:1;
+  var curLabel=document.getElementById('rc-cur-label');
+  var eqLabel=document.getElementById('rc-eq-label');
+  var arrow=document.getElementById('rc-arrow');
+  if(rateConvDir===0){
+    curLabel.textContent='当前';
+    eqLabel.textContent='等效';
+    arrow.innerHTML='→';
+  }else{
+    curLabel.textContent='等效';
+    eqLabel.textContent='当前';
+    arrow.innerHTML='←';
+  }
+  calcRateConv();
+}
+
+function initRateConv(){
+  document.getElementById('rc-cur-rate').value='';
+  calcRateConv();
+}
+
+function initLeftPanelResize(){
+  var bar=document.getElementById('left-resizer');
+  var panel=document.querySelector('.pleft');
+  if(!bar||!panel)return;
+  bar.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    leftPanelDragState={startX:e.clientX,startW:panel.getBoundingClientRect().width};
+    document.body.style.userSelect='none';
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!leftPanelDragState)return;
+    var dx=e.clientX-leftPanelDragState.startX;
+    var w=leftPanelDragState.startW+dx;
+    var minW=168,maxW=Math.max(240,window.innerWidth-600);
+    w=Math.max(minW,Math.min(maxW,w));
+    panel.style.width=w+'px';
+  });
+  window.addEventListener('mouseup',function(){
+    if(!leftPanelDragState)return;
+    leftPanelDragState=null;
+    document.body.style.userSelect='';
+  });
+}
+
 loadCustomHdrs();
 addStd('Ethernet');addStd('IPv4');addStd('TCP');addStd('Payload');
 selectLayer(layers[0].id);
@@ -2690,6 +2873,8 @@ refreshValidateBtn();
 genPacket();
 initDecoderResize();
 initRightPanelResize();
+initLeftPanelResize();
+initRateConv();
 
 if(/^https?:$/.test(location.protocol)){
   var mf=document.createElement('link');

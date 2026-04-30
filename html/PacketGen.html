@@ -238,6 +238,13 @@ button,input,select{font:inherit}
             <span style="color:var(--text2);font-size:9px">Byte</span>
           </div>
           <div class="rc-row">
+            <label>IPG</label>
+            <input id="rc-ipg" class="rc-inp" value="20" placeholder="B" oninput="calcRateConv()" style="width:44px">
+            <span style="color:var(--text2);font-size:9px">Byte</span>
+            <span style="font-size:9px;color:#4a6070;margin-left:2px" title="帧间隙：Preamble 8B + IFG 12B = 20B">(?)</span>
+          </div>
+          <div class="rc-hint">帧间隙: Preamble 8B + IFG 12B = 20B</div>
+          <div class="rc-row">
             <label id="rc-cur-label">当前</label>
             <input id="rc-cur-rate" class="rc-inp wide" placeholder="速率值" oninput="calcRateConv()">
             <select id="rc-rate-unit" class="rc-sel wide" onchange="calcRateConv()">
@@ -2996,42 +3003,62 @@ function calcRateConv(){
   if(!parsed){renderPanel([]);return;}
 
   var pktLen=parseInt(document.getElementById('rc-pkt-len').value)||0;
+  var ipg=parseInt(document.getElementById('rc-ipg').value);
+  if(isNaN(ipg)||ipg<0)ipg=0;
+  var frameLen=pktLen+ipg; // 含IPG的帧占用字节数
+
   var inPps=null,inBps=null;
-  if(parsed.type==='pps'){inPps=parsed.base;}
-  else{inBps=parsed.base;if(pktLen>0)inPps=inBps/(pktLen*8);}
+  if(parsed.type==='pps'){
+    inPps=parsed.base;
+    // pps→bps 需计入 IPG：实际带宽 = pps × (pktLen+IPG) × 8
+    if(frameLen>0)inBps=inPps*frameLen*8;
+  }else{
+    inBps=parsed.base;
+    // bps→pps 需计入 IPG：pps = bps / ((pktLen+IPG) × 8)
+    if(frameLen>0)inPps=inBps/(frameLen*8);
+  }
 
   var outPps=null,outBps=null;
   if(rateConvDir===0){
-    // 当前→等效：乘以降频比（等效域速率更慢）
     if(inPps!==null)outPps=inPps*ratio;
     if(inBps!==null)outBps=inBps*ratio;
   }else{
-    // 等效→当前
     if(inPps!==null)outPps=inPps/ratio;
     if(inBps!==null)outBps=inBps/ratio;
   }
+  // 从输出pps/bps反推另一个（含IPG）
+  if(outPps!==null&&outBps===null&&frameLen>0)outBps=outPps*frameLen*8;
+  if(outBps!==null&&outPps===null&&frameLen>0)outPps=outBps/(frameLen*8);
+
+  var ipgNote=ipg>0?' (含IPG '+ipg+'B)':'';
+  var frameLenNote=frameLen>0?' 帧'+frameLen+'B'+ipgNote:'';
 
   var sections=[];
-  // 输入展示
   var inRows=[];
-  if(inPps!==null)inRows=ppsRows(inPps);
-  else if(inBps!==null)inRows=bpsRows(inBps);
+  if(parsed.type==='pps'){inRows=ppsRows(inPps);}
+  else{inRows=bpsRows(inBps);}
   sections.push({title:'输入速率',sub:rateConvDir===0?' (当前域)':' (等效域)',rows:inRows});
 
-  // pps对应bps
-  if(inPps!==null&&pktLen>0){
-    sections.push({title:'输入对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(inPps*pktLen*8)});
+  // 输入对应的另一维度
+  if(parsed.type==='pps'&&inBps!==null){
+    sections.push({title:'输入带宽',sub:frameLenNote,rows:bpsRows(inBps)});
+  }else if(parsed.type==='bps'&&inPps!==null){
+    sections.push({title:'输入包速率',sub:frameLenNote,rows:ppsRows(inPps)});
   }
 
-  // 输出
-  var outRows=[];
-  if(outPps!==null)outRows=ppsRows(outPps);
-  else if(outBps!==null)outRows=bpsRows(outBps);
   var outTitle=rateConvDir===0?'等效速率 (÷降频比)':'当前速率 (×降频比)';
+  var outRows=[];
+  if(outPps!==null&&parsed.type==='pps')outRows=ppsRows(outPps);
+  else if(outBps!==null&&parsed.type==='bps')outRows=bpsRows(outBps);
+  else if(outPps!==null)outRows=ppsRows(outPps);
+  else if(outBps!==null)outRows=bpsRows(outBps);
   sections.push({title:outTitle,sub:'',rows:outRows});
 
-  if(outPps!==null&&pktLen>0){
-    sections.push({title:'输出对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(outPps*pktLen*8)});
+  // 输出对应的另一维度
+  if(parsed.type==='pps'&&outBps!==null){
+    sections.push({title:'输出带宽',sub:frameLenNote,rows:bpsRows(outBps)});
+  }else if(parsed.type==='bps'&&outPps!==null){
+    sections.push({title:'输出包速率',sub:frameLenNote,rows:ppsRows(outPps)});
   }
   renderPanel(sections);
 }

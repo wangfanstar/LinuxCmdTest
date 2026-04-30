@@ -92,27 +92,47 @@ button,input,select{font:inherit}
 .picker-actions{margin-top:12px;display:flex;justify-content:flex-end;gap:8px}
 .picker-grid{display:grid;grid-template-columns:1fr;gap:8px}
 .picker-grid label{font-size:11px;color:var(--text2)}
-.rc-body{display:flex;flex-direction:column;gap:5px}
+/* ── 速率转换模块 ── */
+.rc-body{display:flex;flex-direction:column;gap:4px}
 .rc-row{display:flex;align-items:center;gap:3px;font-size:10px}
-.rc-row label{color:var(--text2);white-space:nowrap;min-width:30px;font-size:10px}
-.rc-inp{width:58px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:3px;font-size:10px;text-align:right;flex-shrink:0}
+.rc-row label{color:var(--text2);white-space:nowrap;min-width:28px;font-size:10px}
+.rc-inp{width:62px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:3px;font-size:10px;text-align:right;flex-shrink:0}
 .rc-inp:focus{outline:none;border-color:var(--accent)}
-.rc-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:1px 1px;border-radius:3px;font-size:9px;flex-shrink:0}
+.rc-inp.wide{width:80px}
+.rc-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:1px 2px;border-radius:3px;font-size:9px;flex-shrink:0}
 .rc-sel:focus{outline:none;border-color:var(--accent)}
-.rc-ratio{color:var(--accent2);font-size:9px;word-break:break-all;line-height:1.3}
+.rc-sel.wide{font-size:9px;max-width:68px}
+.rc-ratio{color:var(--accent2);font-size:9px;word-break:break-all;line-height:1.4;padding:2px 4px;background:rgba(0,0,0,.2);border-radius:3px;border-left:2px solid var(--accent2)}
 .rc-arrow{color:var(--text2);font-size:10px;margin:0 1px}
 .rc-result{font-size:10px;white-space:nowrap}
 .rc-result b{color:var(--success)}
 .rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0}
 .rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
-.rc-copy-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 5px;border-radius:3px;cursor:pointer;font-size:10px;flex-shrink:0;transition:all .15s}
+.rc-copy-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:0 4px;border-radius:3px;cursor:pointer;font-size:9px;flex-shrink:0;transition:all .15s;line-height:1.6}
 .rc-copy-btn:hover{border-color:var(--accent);color:var(--accent)}
 .rc-copy-btn.copied{border-color:var(--success);color:var(--success)}
-.rc-all-units{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.2);border-radius:3px;border:1px solid #1a2a3a;display:flex;flex-direction:column;gap:0;font-size:9px;color:var(--text2)}
-.rc-all-units .rc-unit-group{display:flex;flex-direction:column;gap:1px}
-.rc-all-units .rc-unit-row{display:flex;align-items:center;gap:3px}
-.rc-all-units .rc-unit-row span{color:#7ee787;flex:1}
-.rc-all-units .rc-unit-group span{color:#7ee787}
+/* 分隔线标题 */
+.rc-divider{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;padding:3px 0 1px;border-bottom:1px dashed #1e3a5f;margin:3px 0 2px;display:flex;align-items:center;gap:4px}
+.rc-divider span{opacity:.6}
+/* 模式标签 */
+.rc-mode-tabs{display:flex;gap:2px;margin-bottom:3px}
+.rc-tab{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:2px 0;border-radius:3px;cursor:pointer;font-size:9px;text-align:center;transition:all .15s}
+.rc-tab.active{background:#0c2a3e;border-color:var(--accent);color:var(--accent)}
+/* 结果展示区 */
+.rc-results-panel{background:rgba(0,0,0,.25);border:1px solid #1a2a3a;border-radius:4px;padding:5px 6px;margin-top:3px;display:flex;flex-direction:column;gap:2px}
+.rc-res-section{display:flex;flex-direction:column;gap:1px}
+.rc-res-hdr{font-size:9px;color:var(--text2);padding:1px 0;border-bottom:1px solid #1a2a3a;margin-bottom:2px;display:flex;align-items:center;gap:4px}
+.rc-res-hdr b{color:var(--accent2)}
+.rc-res-row{display:flex;align-items:center;gap:3px;padding:1px 0}
+.rc-res-val{flex:1;font-size:10px;color:#7ee787;font-family:'Consolas','Courier New',monospace}
+.rc-res-unit{font-size:9px;color:var(--text2);min-width:32px}
+.rc-res-full{font-size:9px;color:#4a8060}
+.rc-highlight{color:var(--success)!important;font-size:11px!important;font-weight:700}
+/* 线速快算 */
+.rc-linerate-row{display:flex;align-items:center;gap:3px;padding:2px 0;font-size:9px;color:var(--text2)}
+.rc-linerate-val{color:#f0c040;font-size:10px;font-weight:700}
+/* 工具提示 */
+.rc-hint{font-size:9px;color:#4a6070;font-style:italic;padding:1px 0}
 #left-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
 .decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;min-height:100px;height:220px}
 .dec-resizer{height:8px;cursor:ns-resize;background:linear-gradient(to bottom,#2b3b52,#1e293b)}
@@ -178,48 +198,132 @@ button,input,select{font:inherit}
     <div class="psec" id="rate-conv-sec">
       <h3>&#9889; 速率转换</h3>
       <div class="rc-body">
-        <div class="rc-row">
-          <label>参考</label>
-          <input id="rc-ref-freq" class="rc-inp" value="3125" oninput="calcRateConv()">
-          <select id="rc-ref-unit" class="rc-sel" onchange="calcRateConv()">
-            <option value="MHz">MHz</option>
-            <option value="KHz">KHz</option>
-            <option value="Hz">Hz</option>
-          </select>
+
+        <!-- 模式切换 -->
+        <div class="rc-mode-tabs">
+          <button class="rc-tab active" id="rc-tab-freq" onclick="rcSetMode('freq')">降频换算</button>
+          <button class="rc-tab" id="rc-tab-unit" onclick="rcSetMode('unit')">单位换算</button>
+          <button class="rc-tab" id="rc-tab-line" onclick="rcSetMode('line')">线速计算</button>
         </div>
-        <div class="rc-row">
-          <label>运行</label>
-          <input id="rc-op-freq" class="rc-inp" value="373" oninput="calcRateConv()">
-          <select id="rc-op-unit" class="rc-sel" onchange="calcRateConv()">
-            <option value="KHz" selected>KHz</option>
-            <option value="MHz">MHz</option>
-            <option value="Hz">Hz</option>
-          </select>
+
+        <!-- ① 降频换算模式 -->
+        <div id="rc-pane-freq">
+          <div class="rc-divider"><span>时钟频率</span></div>
+          <div class="rc-row">
+            <label>参考</label>
+            <input id="rc-ref-freq" class="rc-inp" value="3125" oninput="calcRateConv()">
+            <select id="rc-ref-unit" class="rc-sel" onchange="calcRateConv()">
+              <option value="GHz">GHz</option>
+              <option value="MHz" selected>MHz</option>
+              <option value="KHz">KHz</option>
+              <option value="Hz">Hz</option>
+            </select>
+          </div>
+          <div class="rc-row">
+            <label>运行</label>
+            <input id="rc-op-freq" class="rc-inp" value="373" oninput="calcRateConv()">
+            <select id="rc-op-unit" class="rc-sel" onchange="calcRateConv()">
+              <option value="GHz">GHz</option>
+              <option value="MHz">MHz</option>
+              <option value="KHz" selected>KHz</option>
+              <option value="Hz">Hz</option>
+            </select>
+          </div>
+          <div class="rc-ratio" id="rc-ratio-display">降频比: -</div>
+          <div class="rc-divider"><span>输入速率</span></div>
+          <div class="rc-row">
+            <label>包长</label>
+            <input id="rc-pkt-len" class="rc-inp" value="64" placeholder="B" oninput="calcRateConv()" style="width:44px">
+            <span style="color:var(--text2);font-size:9px">Byte</span>
+          </div>
+          <div class="rc-row">
+            <label id="rc-cur-label">当前</label>
+            <input id="rc-cur-rate" class="rc-inp wide" placeholder="速率值" oninput="calcRateConv()">
+            <select id="rc-rate-unit" class="rc-sel wide" onchange="calcRateConv()">
+              <optgroup label="— pps —">
+                <option value="pps:1" selected>pps</option>
+                <option value="pps:1e3">Kpps (×10³)</option>
+                <option value="pps:1e6">Mpps (×10⁶)</option>
+                <option value="pps:1e9">Gpps (×10⁹)</option>
+              </optgroup>
+              <optgroup label="— bps —">
+                <option value="bps:1">bps</option>
+                <option value="bps:1e3">Kbps (×10³)</option>
+                <option value="bps:1e6">Mbps (×10⁶)</option>
+                <option value="bps:1e9">Gbps (×10⁹)</option>
+                <option value="bps:1e12">Tbps (×10¹²)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="rc-row" style="justify-content:flex-end;gap:4px">
+            <span style="font-size:9px;color:var(--text2)">方向</span>
+            <button class="rc-swap-btn" id="rc-arrow" onclick="swapRateConvDir()" title="切换换算方向">当前 → 等效</button>
+          </div>
         </div>
-        <div class="rc-ratio" id="rc-ratio-display">降频比: 3125MHz:373KHz</div>
-        <div class="rc-row">
-          <label>包长</label>
-          <input id="rc-pkt-len" class="rc-inp" value="64" placeholder="B" oninput="calcRateConv()" style="width:50px">
-          <span style="color:var(--text2);font-size:9px">B</span>
+
+        <!-- ② 单位换算模式 -->
+        <div id="rc-pane-unit" style="display:none">
+          <div class="rc-divider"><span>直接单位换算（无需时钟）</span></div>
+          <div class="rc-row">
+            <label>包长</label>
+            <input id="rc-pkt-len2" class="rc-inp" value="64" placeholder="B" oninput="calcUnitConv()" style="width:44px">
+            <span style="color:var(--text2);font-size:9px">Byte</span>
+          </div>
+          <div class="rc-row">
+            <label>输入</label>
+            <input id="rc-unit-inp" class="rc-inp wide" placeholder="数值" oninput="calcUnitConv()">
+            <select id="rc-unit-from" class="rc-sel wide" onchange="calcUnitConv()">
+              <optgroup label="— pps —">
+                <option value="pps:1">pps</option>
+                <option value="pps:1e3">Kpps</option>
+                <option value="pps:1e6" selected>Mpps</option>
+                <option value="pps:1e9">Gpps</option>
+              </optgroup>
+              <optgroup label="— bps —">
+                <option value="bps:1">bps</option>
+                <option value="bps:1e3">Kbps</option>
+                <option value="bps:1e6">Mbps</option>
+                <option value="bps:1e9">Gbps</option>
+                <option value="bps:1e12">Tbps</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="rc-hint">自动换算全部 pps/bps 单位及互转</div>
         </div>
-        <div class="rc-row">
-          <label id="rc-cur-label">当前</label>
-          <input id="rc-cur-rate" class="rc-inp" placeholder="输入速率" oninput="calcRateConv()" style="width:68px">
-          <select id="rc-rate-unit" class="rc-sel" onchange="calcRateConv()">
-            <option value="1" selected></option>
-            <option value="1e3">K</option>
-            <option value="1e6">M</option>
-            <option value="1e9">G</option>
-          </select>
+
+        <!-- ③ 线速计算模式 -->
+        <div id="rc-pane-line" style="display:none">
+          <div class="rc-divider"><span>链路线速 → 最大 pps</span></div>
+          <div class="rc-row">
+            <label>链路</label>
+            <input id="rc-line-bw" class="rc-inp wide" value="100" oninput="calcLineRate()">
+            <select id="rc-line-unit" class="rc-sel wide" onchange="calcLineRate()">
+              <option value="1e6">Mbps</option>
+              <option value="1e9" selected>Gbps</option>
+              <option value="1e12">Tbps</option>
+            </select>
+          </div>
+          <div class="rc-row">
+            <label>帧长</label>
+            <input id="rc-line-pkt" class="rc-inp" value="64" oninput="calcLineRate()" style="width:44px">
+            <span style="color:var(--text2);font-size:9px">Byte</span>
+            <span style="font-size:9px;color:#4a6070;margin-left:2px">+IFG</span>
+            <input id="rc-line-ifg" class="rc-inp" value="20" oninput="calcLineRate()" style="width:30px">
+            <span style="font-size:9px;color:var(--text2)">B</span>
+          </div>
+          <div class="rc-row">
+            <label>利用率</label>
+            <input id="rc-line-util" class="rc-inp" value="100" oninput="calcLineRate()" style="width:36px">
+            <span style="font-size:9px;color:var(--text2)">%</span>
+          </div>
+          <div class="rc-hint">IFG=20B(以太网标准帧间隙12B+前导8B)</div>
         </div>
-        <div class="rc-row">
-          <span class="rc-arrow" id="rc-arrow">→</span>
-          <label id="rc-eq-label">等效</label>
-          <span class="rc-result"><b id="rc-equiv-display">-</b></span>
-          <button class="rc-copy-btn" id="rc-equiv-copy" onclick="copyRcResult()" title="复制结果">⎘</button>
-          <button class="rc-swap-btn" onclick="swapRateConvDir()" title="切换换算方向">&#8644;</button>
+
+        <!-- 统一结果面板 -->
+        <div class="rc-results-panel" id="rc-results-panel">
+          <div style="color:var(--text2);font-size:9px;text-align:center;padding:4px">输入参数后显示结果</div>
         </div>
-        <div class="rc-all-units" id="rc-all-units"></div>
+
       </div>
     </div>
   </div>
@@ -2754,19 +2858,22 @@ function decodeCustom(data,startByte,def){
 }
 
 var rateConvDir=0;
+var rcMode='freq';
 
+/* ── 单位换算辅助 ── */
 function freqToHz(val,unit){
   var n=parseFloat(val)||0;
+  if(unit==='GHz')return n*1e9;
   if(unit==='MHz')return n*1e6;
   if(unit==='KHz')return n*1e3;
   return n;
 }
 
 function fmtFreqHz(hz){
-  if(hz>=1e9)return(hz/1e9).toFixed(3)+' GHz';
-  if(hz>=1e6)return(hz/1e6).toFixed(3)+' MHz';
-  if(hz>=1e3)return(hz/1e3).toFixed(3)+' KHz';
-  return hz.toFixed(1)+' Hz';
+  if(hz>=1e9)return(hz/1e9).toPrecision(6).replace(/\.?0+$/,'')+' GHz';
+  if(hz>=1e6)return(hz/1e6).toPrecision(6).replace(/\.?0+$/,'')+' MHz';
+  if(hz>=1e3)return(hz/1e3).toPrecision(6).replace(/\.?0+$/,'')+' KHz';
+  return hz+' Hz';
 }
 
 function fmtRate(n){
@@ -2774,43 +2881,228 @@ function fmtRate(n){
   if(Math.abs(n)>=1e9)return(n/1e9).toFixed(4)+' G';
   if(Math.abs(n)>=1e6)return(n/1e6).toFixed(4)+' M';
   if(Math.abs(n)>=1e3)return(n/1e3).toFixed(2)+' K';
-  return n.toFixed(2);
+  return n.toFixed(4);
 }
 
-function fmtRateFullPrecision(n){
-  return Number(n).toLocaleString('en-US',{maximumFractionDigits:6,useGrouping:true});
+function fmtNum(n,digits){
+  if(digits===undefined)digits=6;
+  return Number(n).toLocaleString('en-US',{maximumFractionDigits:digits,useGrouping:true});
 }
 
-function fmtRateAllUnits(n){
-  if(n===0)return['0'];
-  var absN=Math.abs(n);
-  var lines=[];
-  if(absN>=1e12)lines.push(fmtRateFullPrecision(n/1e12)+' T');
-  if(absN>=1e9)lines.push(fmtRateFullPrecision(n/1e9)+' G');
-  if(absN>=1e6)lines.push(fmtRateFullPrecision(n/1e6)+' M');
-  if(absN>=1e3)lines.push(fmtRateFullPrecision(n/1e3)+' K');
-  lines.push(fmtRateFullPrecision(n)+' ');
-  if(absN<1){
-    var m=n*1e3;
-    if(Math.abs(m)>=0.001)lines.push(fmtRateFullPrecision(m)+' m');
-    var u=n*1e6;
-    if(Math.abs(u)>=0.001)lines.push(fmtRateFullPrecision(u)+' µ');
+/* 解析带单位选择器的值，返回 {pps,bps} 其中一个非null，type='pps'|'bps' */
+function parseRateInput(val,unitSel){
+  var n=parseFloat(val);
+  if(isNaN(n))return null;
+  var parts=unitSel.split(':');
+  var type=parts[0]; // 'pps' or 'bps'
+  var scale=parseFloat(parts[1])||1;
+  var base=n*scale;
+  return{type:type,base:base};
+}
+
+/* 把 pps 转成多行显示结构 [{label,val,unit,copy}] */
+function ppsRows(pps){
+  var rows=[];
+  var absP=Math.abs(pps);
+  if(absP>=1e12)rows.push({val:fmtNum(pps/1e12),unit:'Tpps (×10¹²)',raw:fmtNum(pps/1e12)+'Tpps',hi:false});
+  if(absP>=1e9) rows.push({val:fmtNum(pps/1e9), unit:'Gpps (×10⁹)', raw:fmtNum(pps/1e9)+'Gpps', hi:absP>=1e9&&absP<1e12});
+  if(absP>=1e6) rows.push({val:fmtNum(pps/1e6), unit:'Mpps (×10⁶)', raw:fmtNum(pps/1e6)+'Mpps', hi:absP>=1e6&&absP<1e9});
+  if(absP>=1e3) rows.push({val:fmtNum(pps/1e3), unit:'Kpps (×10³)', raw:fmtNum(pps/1e3)+'Kpps', hi:absP>=1e3&&absP<1e6});
+  rows.push({val:fmtNum(pps,0),unit:'pps',raw:fmtNum(pps,0)+'pps',hi:absP<1e3});
+  return rows;
+}
+
+/* 把 bps 转成多行显示结构 */
+function bpsRows(bps){
+  var rows=[];
+  var absB=Math.abs(bps);
+  if(absB>=1e12)rows.push({val:fmtNum(bps/1e12),unit:'Tbps (×10¹²)',raw:fmtNum(bps/1e12)+'Tbps',hi:absB>=1e12&&absB<1e15});
+  if(absB>=1e9) rows.push({val:fmtNum(bps/1e9), unit:'Gbps (×10⁹)', raw:fmtNum(bps/1e9)+'Gbps', hi:absB>=1e9&&absB<1e12});
+  if(absB>=1e6) rows.push({val:fmtNum(bps/1e6), unit:'Mbps (×10⁶)', raw:fmtNum(bps/1e6)+'Mbps', hi:absB>=1e6&&absB<1e9});
+  if(absB>=1e3) rows.push({val:fmtNum(bps/1e3), unit:'Kbps (×10³)', raw:fmtNum(bps/1e3)+'Kbps', hi:absB>=1e3&&absB<1e6});
+  rows.push({val:fmtNum(bps,0),unit:'bps',raw:fmtNum(bps,0)+'bps',hi:absB<1e3});
+  return rows;
+}
+
+function renderResRows(rows){
+  var h='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    var vc=r.hi?'rc-res-val rc-highlight':'rc-res-val';
+    var safeRaw=r.raw.replace(/'/g,'&apos;');
+    h+='<div class="rc-res-row">';
+    h+='<span class="'+vc+'">'+esc(r.val)+'</span>';
+    h+='<span class="rc-res-unit">'+esc(r.unit)+'</span>';
+    h+='<button class="rc-copy-btn" onclick="rcCopyVal(this,\''+safeRaw.replace(/'/g,"\\'")+'\')" title="复制">⎘</button>';
+    h+='</div>';
   }
-  return lines;
+  return h;
 }
 
+function renderPanel(sections){
+  var panel=document.getElementById('rc-results-panel');
+  if(!panel)return;
+  if(!sections||sections.length===0){
+    panel.innerHTML='<div style="color:var(--text2);font-size:9px;text-align:center;padding:4px">输入参数后显示结果</div>';
+    return;
+  }
+  var h='';
+  for(var i=0;i<sections.length;i++){
+    var s=sections[i];
+    h+='<div class="rc-res-section">';
+    h+='<div class="rc-res-hdr"><b>'+esc(s.title)+'</b><span style="color:#4a6070">'+esc(s.sub||'')+'</span></div>';
+    h+=renderResRows(s.rows);
+    h+='</div>';
+    if(i<sections.length-1)h+='<div style="border-top:1px solid #1a2a3a;margin:3px 0"></div>';
+  }
+  panel.innerHTML=h;
+}
+
+/* ── 模式切换 ── */
+function rcSetMode(m){
+  rcMode=m;
+  var modes=['freq','unit','line'];
+  for(var i=0;i<modes.length;i++){
+    var tab=document.getElementById('rc-tab-'+modes[i]);
+    var pane=document.getElementById('rc-pane-'+modes[i]);
+    if(tab)tab.classList.toggle('active',modes[i]===m);
+    if(pane)pane.style.display=modes[i]===m?'':'none';
+  }
+  renderPanel([]);
+  if(m==='freq')calcRateConv();
+  if(m==='unit')calcUnitConv();
+  if(m==='line')calcLineRate();
+}
+
+/* ── 模式①：降频换算 ── */
+function calcRateConv(){
+  if(rcMode!=='freq')return;
+  var refHz=freqToHz(document.getElementById('rc-ref-freq').value,document.getElementById('rc-ref-unit').value);
+  var opHz=freqToHz(document.getElementById('rc-op-freq').value,document.getElementById('rc-op-unit').value);
+  var ratioEl=document.getElementById('rc-ratio-display');
+  if(!refHz||!opHz||refHz<=0||opHz<=0){
+    ratioEl.textContent='降频比: -';
+    renderPanel([]);
+    return;
+  }
+  var ratio=refHz/opHz;
+  ratioEl.innerHTML='降频比 '+fmtFreqHz(refHz)+' : '+fmtFreqHz(opHz)+' = <b style="color:var(--success)">'+ratio.toFixed(6)+'</b>';
+
+  var rawVal=document.getElementById('rc-cur-rate').value;
+  var unitSelVal=document.getElementById('rc-rate-unit').value;
+  var parsed=parseRateInput(rawVal,unitSelVal);
+  if(!parsed){renderPanel([]);return;}
+
+  var pktLen=parseInt(document.getElementById('rc-pkt-len').value)||0;
+  var inPps=null,inBps=null;
+  if(parsed.type==='pps'){inPps=parsed.base;}
+  else{inBps=parsed.base;if(pktLen>0)inPps=inBps/(pktLen*8);}
+
+  var outPps=null,outBps=null;
+  if(rateConvDir===0){
+    // 当前→等效：乘以降频比（等效域速率更慢）
+    if(inPps!==null)outPps=inPps*ratio;
+    if(inBps!==null)outBps=inBps*ratio;
+  }else{
+    // 等效→当前
+    if(inPps!==null)outPps=inPps/ratio;
+    if(inBps!==null)outBps=inBps/ratio;
+  }
+
+  var sections=[];
+  // 输入展示
+  var inRows=[];
+  if(inPps!==null)inRows=ppsRows(inPps);
+  else if(inBps!==null)inRows=bpsRows(inBps);
+  sections.push({title:'输入速率',sub:rateConvDir===0?' (当前域)':' (等效域)',rows:inRows});
+
+  // pps对应bps
+  if(inPps!==null&&pktLen>0){
+    sections.push({title:'输入对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(inPps*pktLen*8)});
+  }
+
+  // 输出
+  var outRows=[];
+  if(outPps!==null)outRows=ppsRows(outPps);
+  else if(outBps!==null)outRows=bpsRows(outBps);
+  var outTitle=rateConvDir===0?'等效速率 (÷降频比)':'当前速率 (×降频比)';
+  sections.push({title:outTitle,sub:'',rows:outRows});
+
+  if(outPps!==null&&pktLen>0){
+    sections.push({title:'输出对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(outPps*pktLen*8)});
+  }
+  renderPanel(sections);
+}
+
+function swapRateConvDir(){
+  rateConvDir=rateConvDir?0:1;
+  var arrowBtn=document.getElementById('rc-arrow');
+  if(arrowBtn)arrowBtn.textContent=rateConvDir===0?'当前 → 等效':'等效 → 当前';
+  calcRateConv();
+}
+
+/* ── 模式②：单位换算 ── */
+function calcUnitConv(){
+  if(rcMode!=='unit')return;
+  var rawVal=document.getElementById('rc-unit-inp').value;
+  var unitSelVal=document.getElementById('rc-unit-from').value;
+  var parsed=parseRateInput(rawVal,unitSelVal);
+  var pktLen=parseInt(document.getElementById('rc-pkt-len2').value)||0;
+  if(!parsed){renderPanel([]);return;}
+
+  var sections=[];
+  if(parsed.type==='pps'){
+    var pps=parsed.base;
+    sections.push({title:'pps 各量级',sub:'',rows:ppsRows(pps)});
+    if(pktLen>0){
+      sections.push({title:'对应带宽',sub:' @'+pktLen+'B/pkt',rows:bpsRows(pps*pktLen*8)});
+    }
+  }else{
+    var bps=parsed.base;
+    sections.push({title:'bps 各量级',sub:'',rows:bpsRows(bps)});
+    if(pktLen>0){
+      var ppsFromBps=bps/(pktLen*8);
+      sections.push({title:'对应包速率',sub:' @'+pktLen+'B/pkt',rows:ppsRows(ppsFromBps)});
+    }
+  }
+  renderPanel(sections);
+}
+
+/* ── 模式③：线速计算 ── */
+function calcLineRate(){
+  if(rcMode!=='line')return;
+  var bwVal=parseFloat(document.getElementById('rc-line-bw').value)||0;
+  var bwScale=parseFloat(document.getElementById('rc-line-unit').value)||1e9;
+  var pktB=parseInt(document.getElementById('rc-line-pkt').value)||64;
+  var ifgB=parseInt(document.getElementById('rc-line-ifg').value)||20;
+  var util=parseFloat(document.getElementById('rc-line-util').value)||100;
+  if(bwVal<=0){renderPanel([]);return;}
+
+  var linerateBps=bwVal*bwScale*(util/100);
+  var frameBits=(pktB+ifgB)*8;
+  var maxPps=linerateBps/frameBits;
+
+  var sections=[];
+  sections.push({title:'有效带宽 @'+util+'%利用率',sub:'',rows:bpsRows(linerateBps)});
+  sections.push({title:'最大包速率',sub:' 帧长'+(pktB+ifgB)+'B (含IFG)',rows:ppsRows(maxPps)});
+  // 不同包长下的最大pps表
+  var pktSizes=[64,128,256,512,1024,1280,1518,9000];
+  var refRows=[];
+  for(var i=0;i<pktSizes.length;i++){
+    var ps=pktSizes[i];
+    var fb=(ps+ifgB)*8;
+    var mpps=(linerateBps/fb);
+    var hi=ps===pktB;
+    var vStr=mpps>=1e6?fmtNum(mpps/1e6)+'Mpps':mpps>=1e3?fmtNum(mpps/1e3)+'Kpps':fmtNum(mpps,2)+'pps';
+    refRows.push({val:(ps===pktB?'▶ ':'')+ps+'B',unit:vStr,raw:vStr+'@'+ps+'B',hi:hi});
+  }
+  sections.push({title:'各包长线速对照',sub:' (含IFG '+ifgB+'B)',rows:refRows});
+  renderPanel(sections);
+}
+
+/* ── 复制 ── */
 function copyRcResult(){
-  var el=document.getElementById('rc-equiv-display');
-  var btn=document.getElementById('rc-equiv-copy');
-  var val=el?el.textContent.trim():'';
-  if(!val||val==='-')return;
-  navigator.clipboard.writeText(val).then(function(){
-    if(!btn)return;
-    var orig=btn.textContent;
-    btn.textContent='✓';
-    btn.classList.add('copied');
-    setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},1200);
-  }).catch(function(){});
+  // 兼容旧调用，现在由 rcCopyVal 统一处理
 }
 
 function rcCopyVal(btn,val){
@@ -2822,77 +3114,10 @@ function rcCopyVal(btn,val){
   }).catch(function(){});
 }
 
-function calcRateConv(){
-  var refHz=freqToHz(document.getElementById('rc-ref-freq').value,document.getElementById('rc-ref-unit').value);
-  var opHz=freqToHz(document.getElementById('rc-op-freq').value,document.getElementById('rc-op-unit').value);
-  var ratioEl=document.getElementById('rc-ratio-display');
-  var eqEl=document.getElementById('rc-equiv-display');
-  var allUnitsEl=document.getElementById('rc-all-units');
-  if(!refHz||!opHz||refHz<=0||opHz<=0){
-    ratioEl.textContent='降频比: -';
-    eqEl.textContent='-';
-    if(allUnitsEl)allUnitsEl.innerHTML='';
-    return;
-  }
-  var ratio=refHz/opHz;
-  ratioEl.textContent='降频比: '+fmtFreqHz(refHz)+':'+fmtFreqHz(opHz)+' = '+ratio.toFixed(4);
-  var curRate=parseFloat(document.getElementById('rc-cur-rate').value);
-  if(isNaN(curRate)){
-    eqEl.textContent='-';
-    if(allUnitsEl)allUnitsEl.innerHTML='';
-    return;
-  }
-  var pktLen=parseInt(document.getElementById('rc-pkt-len').value)||0;
-  var rateScale=parseFloat(document.getElementById('rc-rate-unit').value)||1;
-  curRate=curRate*rateScale;
-  var result;
-  if(rateConvDir===0)result=curRate*ratio;
-  else result=curRate/ratio;
-  eqEl.textContent=fmtRate(result);
-  if(allUnitsEl){
-    var html='';
-    var ppsLines=fmtRateAllUnits(result);
-    html+='<div class="rc-unit-group"><span style="color:var(--text2);margin-bottom:2px">pps</span>';
-    for(var i=0;i<ppsLines.length;i++){
-      var rawVal=esc(ppsLines[i]);
-      html+='<div class="rc-unit-row"><span>'+rawVal+'pps</span><button class="rc-copy-btn" onclick="rcCopyVal(this,\''+rawVal.replace(/'/g,"\\'")+'pps\')" title="复制">⎘</button></div>';
-    }
-    html+='</div>';
-    if(pktLen>0){
-      var bpsResult=result*pktLen*8;
-      var bpsLines=fmtRateAllUnits(bpsResult);
-      html+='<div class="rc-unit-group" style="margin-top:2px;padding-top:2px;border-top:1px solid #1a2a3a"><span style="color:var(--text2);margin-bottom:2px">bps @'+pktLen+'B</span>';
-      for(var j=0;j<bpsLines.length;j++){
-        var brawVal=esc(bpsLines[j]);
-        html+='<div class="rc-unit-row"><span>'+brawVal+'bps</span><button class="rc-copy-btn" onclick="rcCopyVal(this,\''+brawVal.replace(/'/g,"\\'")+'bps\')" title="复制">⎘</button></div>';
-      }
-      html+='</div>';
-    }
-    allUnitsEl.innerHTML=html;
-  }
-}
-
-function swapRateConvDir(){
-  rateConvDir=rateConvDir?0:1;
-  var curLabel=document.getElementById('rc-cur-label');
-  var eqLabel=document.getElementById('rc-eq-label');
-  var arrow=document.getElementById('rc-arrow');
-  if(rateConvDir===0){
-    curLabel.textContent='当前';
-    eqLabel.textContent='等效';
-    arrow.innerHTML='→';
-  }else{
-    curLabel.textContent='等效';
-    eqLabel.textContent='当前';
-    arrow.innerHTML='←';
-  }
-  calcRateConv();
-}
-
 function initRateConv(){
-  document.getElementById('rc-cur-rate').value='';
   calcRateConv();
 }
+
 
 function initLeftPanelResize(){
   var bar=document.getElementById('left-resizer');

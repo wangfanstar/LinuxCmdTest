@@ -282,6 +282,56 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .sb-fold-list{display:flex;flex-direction:column;gap:3px}
 .sb-fold-row{display:flex;align-items:flex-start;gap:6px;font-size:.72rem;color:var(--text);cursor:pointer;line-height:1.35;padding:2px 0}
 .sb-fold-row input{margin-top:3px;flex-shrink:0}
+/* ── AI Assistant ── */
+.ai-float-btn{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4a90e2,#7c3aed);border:none;color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 18px rgba(74,144,226,.45);z-index:100;transition:transform .2s,box-shadow .2s;display:flex;align-items:center;justify-content:center;line-height:1}
+.ai-float-btn:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(74,144,226,.6)}
+.ai-float-btn.active{background:linear-gradient(135deg,#7c3aed,#4a90e2)}
+.ai-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:101}
+.ai-backdrop.open{display:block}
+.ai-panel{position:fixed;top:0;right:-520px;width:480px;max-width:92vw;height:100vh;background:var(--surf);border-left:1px solid var(--border2);z-index:102;display:flex;flex-direction:column;transition:right .3s ease;box-shadow:-4px 0 26px rgba(0,0,0,.45)}
+.ai-panel.open{right:0}
+.ai-panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;gap:8px}
+.ai-panel-tabs{display:flex;gap:2px}
+.ai-panel-tab{background:none;border:none;color:var(--dim);font-size:.8rem;padding:5px 12px;border-radius:6px;cursor:pointer;transition:color .15s,background .15s;white-space:nowrap}
+.ai-panel-tab:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.ai-panel-tab.active{color:#f0f6fc;background:rgba(74,144,226,.18)}
+.ai-panel-close{background:none;border:none;color:var(--dim);font-size:1.15rem;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1}
+.ai-panel-close:hover{color:var(--text)}
+.ai-tab-content{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+.ai-tab-content.active{display:flex}
+.ai-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.ai-welcome{padding:44px 14px;text-align:center;color:var(--dim);font-size:.84rem;line-height:1.9}
+.ai-msg{max-width:94%;animation:aiFadeIn .25s ease;word-break:break-word}
+@keyframes aiFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ai-msg-user{align-self:flex-end;background:var(--accent);color:#fff;padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:.84rem;line-height:1.55;white-space:pre-wrap}
+.ai-msg-ai{align-self:flex-start;background:var(--surf2);border:1px solid var(--border);padding:14px 16px;border-radius:4px 14px 14px 14px;font-size:.84rem;line-height:1.7;color:var(--text);min-width:60px}
+.ai-msg-ai .art-content{font-size:inherit}
+.ai-msg-ai .art-content h1,.ai-msg-ai .art-content h2,.ai-msg-ai .art-content h3{margin:.7em 0 .3em;font-size:.95rem}
+.ai-msg-ai .art-content h4,.ai-msg-ai .art-content h5,.ai-msg-ai .art-content h6{font-size:.85rem}
+.ai-msg-ai .art-content p{margin:.45em 0}
+.ai-msg-ai .art-content pre{font-size:.76rem;padding:10px}
+.ai-msg-ai .art-content code{font-size:.82em}
+.ai-msg-ai .art-content ul,.ai-msg-ai .art-content ol{padding-left:1.4em;margin:.3em 0}
+.ai-msg-sources{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:.74rem;color:var(--dim)}
+.ai-msg-sources-title{font-weight:600;margin-bottom:4px;color:var(--text)}
+.ai-msg-sources a{display:block;color:var(--accent);text-decoration:none;padding:2px 0;line-height:1.5}
+.ai-msg-sources a:hover{text-decoration:underline}
+.ai-msg-error{align-self:flex-start;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);color:var(--red);padding:10px 14px;border-radius:8px;font-size:.8rem;max-width:94%}
+.ai-msg-loading{align-self:flex-start;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:.82rem;padding:8px 12px}
+.ai-spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:aiSpin .7s linear infinite;flex-shrink:0}
+@keyframes aiSpin{to{transform:rotate(360deg)}}
+.ai-input-area{display:flex;align-items:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.ai-input{flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.82rem;padding:8px 10px;outline:none;resize:none;font-family:inherit;line-height:1.5;max-height:120px}
+.ai-input:focus{border-color:var(--accent)}
+.ai-settings{flex:1;overflow-y:auto;padding:14px}
+.ai-settings .field-label{margin-top:8px}
+.ai-settings .field-input{margin-bottom:4px}
+.ai-settings select[multiple]{background:var(--surf2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.82rem;padding:4px 8px;outline:none;width:100%}
+.ai-settings select[multiple] option{padding:3px 6px}
+.ai-settings select[multiple]:focus{border-color:var(--accent)}
+.ai-settings-msg{font-size:.72rem;margin-top:6px;display:none}
+.ai-settings-msg.ok{color:var(--green)}
+.ai-settings-msg.err{color:var(--red)}
 </style>
 </head>
 <body>
@@ -713,6 +763,75 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
        style="display:none" onchange="doUploadFile(this.files[0], {sourceInput:'img-file-input'})">
 <input type="file" id="attach-file-input"
        style="display:none" onchange="doUploadFile(this.files[0], {forceLink:true, sourceInput:'attach-file-input'})">
+
+<!-- ── AI Assistant ── -->
+<button class="ai-float-btn" id="ai-float-btn" onclick="toggleAiPanel()" title="AI 助手">🤖</button>
+<div class="ai-backdrop" id="ai-backdrop" onclick="toggleAiPanel()"></div>
+<div class="ai-panel" id="ai-panel">
+  <div class="ai-panel-header">
+    <div class="ai-panel-tabs">
+      <button class="ai-panel-tab active" data-tab="chat" onclick="switchAiTab('chat')">💬 对话</button>
+      <button class="ai-panel-tab" data-tab="settings" onclick="switchAiTab('settings')">⚙ 设置</button>
+    </div>
+    <button class="ai-panel-close" onclick="toggleAiPanel()">✕</button>
+  </div>
+  <!-- Chat tab -->
+  <div class="ai-tab-content active" id="ai-tab-chat">
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-welcome" id="ai-welcome-msg">
+        <p>您好！我是 NoteWiki AI 助手。</p>
+        <p>我可以搜索 Wiki 文档并基于文档内容回答您的问题。</p>
+        <p style="margin-top:8px;font-size:.78rem">请先在 ⚙ 设置 中配置 AI 参数后开始对话。</p>
+      </div>
+    </div>
+    <div class="ai-input-area">
+      <textarea id="ai-input" class="ai-input" placeholder="输入您的问题…" rows="2"
+                onkeydown="onAiInputKey(event)"></textarea>
+      <button class="btn btn-primary btn-sm" id="ai-send-btn" onclick="sendAiMessage()">发送</button>
+      <button class="btn btn-secondary btn-sm" id="ai-stop-btn" onclick="stopAiMessage()" style="display:none">停止</button>
+    </div>
+  </div>
+  <!-- Settings tab -->
+  <div class="ai-tab-content" id="ai-tab-settings">
+    <div class="ai-settings">
+      <label class="field-label">API 端点 URL</label>
+      <input id="ai-api-url" class="field-input" type="text" placeholder="https://api.openai.com/v1/chat/completions"
+             oninput="autoSaveAiSettingsField()">
+      <div style="font-size:.7rem;color:var(--dim);margin:-6px 0 4px">支持 OpenAI 兼容接口（OpenAI / Azure / 本地 LLM 等）</div>
+
+      <label class="field-label">API 密钥</label>
+      <input id="ai-api-key" class="field-input" type="password" placeholder="sk-..."
+             oninput="autoSaveAiSettingsField()">
+
+      <label class="field-label">模型名称</label>
+      <input id="ai-model" class="field-input" type="text" placeholder="gpt-3.5-turbo"
+             oninput="autoSaveAiSettingsField()">
+
+      <label class="field-label">搜索文件夹（多选）</label>
+      <select id="ai-folders" class="field-input" multiple style="height:90px"
+              onchange="autoSaveAiSettingsField()">
+        <option value="md_db">md_db — Markdown 文档</option>
+        <option value="adoc_db">adoc_db — AsciiDoc 文档</option>
+      </select>
+      <div style="font-size:.7rem;color:var(--dim);margin:-2px 0 4px">按住 Ctrl/Cmd 多选，默认搜索 md_db</div>
+
+      <label class="field-label">最大检索文档数</label>
+      <input id="ai-max-docs" class="field-input" type="number" min="1" max="20" value="5" placeholder="5"
+             oninput="autoSaveAiSettingsField()">
+
+      <label class="field-label">系统提示词（可选）</label>
+      <textarea id="ai-system-prompt" class="field-input" rows="3" style="resize:vertical"
+                placeholder="自定义系统提示词…"
+                oninput="autoSaveAiSettingsField()"></textarea>
+
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn btn-primary btn-sm" onclick="saveAiSettings()">保存设置</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAiHistory()">清除对话</button>
+      </div>
+      <div class="ai-settings-msg" id="ai-settings-msg"></div>
+    </div>
+  </div>
+</div>
 
 <script src="/wiki/rich-render.js"></script>
 
@@ -4948,6 +5067,438 @@ window.addEventListener('resize', function() {
   makeResizer('sidebar-resizer', document.querySelector('.sidebar'),  'left',  'nw-sidebar-w', 120, 540);
   makeResizer('toc-resizer',     document.getElementById('view-toc'), 'right', 'nw-toc-w',     120, 500);
 })();
+
+// ── AI Assistant ─────────────────────────────────────────────────────────
+var _aiAbort = null;
+var _aiSettings = null;
+var _aiSettingsDirty = false;
+
+function getAiSettings() {
+  if (_aiSettings) return _aiSettings;
+  try {
+    var raw = localStorage.getItem('nw-ai-settings');
+    _aiSettings = raw ? JSON.parse(raw) : {};
+  } catch(e) { _aiSettings = {}; }
+  if (!_aiSettings.folders || !Array.isArray(_aiSettings.folders) || !_aiSettings.folders.length) {
+    _aiSettings.folders = ['md_db'];
+  }
+  if (!_aiSettings.maxDocs || _aiSettings.maxDocs < 1) _aiSettings.maxDocs = 5;
+  if (_aiSettings.maxDocs > 20) _aiSettings.maxDocs = 20;
+  return _aiSettings;
+}
+
+function loadAiSettingsToForm() {
+  var s = getAiSettings();
+  document.getElementById('ai-api-url').value = s.apiUrl || '';
+  document.getElementById('ai-api-key').value = s.apiKey || '';
+  document.getElementById('ai-model').value = s.model || '';
+  document.getElementById('ai-max-docs').value = String(s.maxDocs || 5);
+  document.getElementById('ai-system-prompt').value = s.systemPrompt || '';
+  var sel = document.getElementById('ai-folders');
+  var folders = s.folders || ['md_db'];
+  for (var i = 0; i < sel.options.length; i++) {
+    sel.options[i].selected = folders.indexOf(sel.options[i].value) !== -1;
+  }
+  _aiSettingsDirty = false;
+}
+
+function autoSaveAiSettingsField() {
+  _aiSettingsDirty = true;
+  hideAiSettingsMsg();
+}
+
+function saveAiSettings() {
+  var s = getAiSettings();
+  s.apiUrl = document.getElementById('ai-api-url').value.trim();
+  s.apiKey = document.getElementById('ai-api-key').value.trim();
+  s.model = document.getElementById('ai-model').value.trim();
+  s.maxDocs = parseInt(document.getElementById('ai-max-docs').value, 10) || 5;
+  s.systemPrompt = document.getElementById('ai-system-prompt').value.trim();
+  var sel = document.getElementById('ai-folders');
+  var folders = [];
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].selected) folders.push(sel.options[i].value);
+  }
+  s.folders = folders.length ? folders : ['md_db'];
+  try {
+    localStorage.setItem('nw-ai-settings', JSON.stringify(s));
+  } catch(e) {}
+  _aiSettings = s;
+  _aiSettingsDirty = false;
+  showAiSettingsMsg('设置已保存 ✓', 'ok');
+  loadAiSettingsToForm();
+}
+
+function showAiSettingsMsg(msg, cls) {
+  var el = document.getElementById('ai-settings-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'ai-settings-msg ' + (cls || '');
+  el.style.display = '';
+  setTimeout(function(){ el.style.display = 'none'; }, 2500);
+}
+
+function hideAiSettingsMsg() {
+  var el = document.getElementById('ai-settings-msg');
+  if (el) el.style.display = 'none';
+}
+
+function toggleAiPanel() {
+  var panel = document.getElementById('ai-panel');
+  var backdrop = document.getElementById('ai-backdrop');
+  var btn = document.getElementById('ai-float-btn');
+  var isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    backdrop.classList.remove('open');
+    btn.classList.remove('active');
+  } else {
+    panel.classList.add('open');
+    backdrop.classList.add('open');
+    btn.classList.add('active');
+    loadAiSettingsToForm();
+    var input = document.getElementById('ai-input');
+    if (input) setTimeout(function(){ input.focus(); }, 350);
+  }
+}
+
+function switchAiTab(tab) {
+  var tabs = document.querySelectorAll('.ai-panel-tab');
+  tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab') === tab); });
+  var contents = document.querySelectorAll('.ai-tab-content');
+  contents.forEach(function(c){ c.classList.toggle('active', c.id === 'ai-tab-' + tab); });
+  if (tab === 'settings') loadAiSettingsToForm();
+}
+
+function onAiInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendAiMessage();
+  }
+}
+
+function escJson(s) {
+  return (s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\t/g,'\\t');
+}
+
+function stripHtml(html) {
+  var div = document.createElement('div');
+  div.innerHTML = html;
+  return (div.textContent || div.innerText || '').replace(/\\s+/g,' ').trim();
+}
+
+function renderAiMsg(role, content, sources) {
+  var msgs = document.getElementById('ai-messages');
+  if (!msgs) return null;
+  var div = document.createElement('div');
+  div.className = 'ai-msg ai-msg-' + role;
+  if (role === 'ai') {
+    var htmlContent = md2html(content || '');
+    div.innerHTML = '<div class="art-content">' + htmlContent + '</div>';
+    if (sources && sources.length) {
+      var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title">📎 参考文档：</div>';
+      sources.forEach(function(src){
+        var url = publishedHtmlUrl(src.id, src.category || '');
+        srcHtml += '<a href="' + escH(url) + '" target="_blank">' + escH(src.title || src.id) + '</a>';
+      });
+      srcHtml += '</div>';
+      div.innerHTML += srcHtml;
+    }
+  } else if (role === 'error') {
+    div.textContent = content;
+  } else {
+    div.textContent = content;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function renderAiLoading() {
+  var msgs = document.getElementById('ai-messages');
+  if (!msgs) return null;
+  var div = document.createElement('div');
+  div.className = 'ai-msg-loading';
+  div.id = 'ai-loading';
+  div.innerHTML = '<div class="ai-spinner"></div><span>正在搜索文档…</span>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function removeAiLoading() {
+  var el = document.getElementById('ai-loading');
+  if (el) el.parentNode.removeChild(el);
+}
+
+// 根据用户问题搜索相关文章
+function searchWikiDocs(query, folders, maxDocs) {
+  var results = [];
+  var seen = {};
+
+  // 1. 服务端全文搜索（仅 md_db，但会返回所有结果）
+  return fetch('/api/wiki-search?q=' + encodeURIComponent(query))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data && data.ok && data.articles) {
+        data.articles.forEach(function(a){
+          if (seen[a.id]) return;
+          var c = a.category || '';
+          // 检查是否属于选定的文件夹
+          var match = false;
+          folders.forEach(function(f){
+            if (c === f || c.indexOf(f + '/') === 0 || (!c && f === 'md_db')) match = true;
+          });
+          if (match) { seen[a.id] = true; results.push(a); }
+        });
+      }
+      // 2. 客户端标题/分类匹配补充（覆盖非 md_db 文件夹）
+      var ql = query.toLowerCase();
+      S.articles.forEach(function(a){
+        if (seen[a.id]) return;
+        if (results.length >= maxDocs) return;
+        var c = a.category || '';
+        var match = false;
+        folders.forEach(function(f){
+          if (f === 'md_db') {
+            // md_db 已由服务端搜索覆盖
+          } else if (c === f || c.indexOf(f + '/') === 0) {
+            match = true;
+          }
+        });
+        if (!match) return;
+        if ((a.title||'').toLowerCase().indexOf(ql) !== -1 ||
+            c.toLowerCase().indexOf(ql) !== -1) {
+          seen[a.id] = true;
+          results.push(a);
+        }
+      });
+      return results.slice(0, maxDocs);
+    })
+    .catch(function(){
+      // 回退：纯客户端搜索
+      var ql = query.toLowerCase();
+      S.articles.forEach(function(a){
+        if (seen[a.id]) return;
+        if (results.length >= maxDocs) return;
+        var c = a.category || '';
+        var folderMatch = false;
+        folders.forEach(function(f){
+          if (c === f || c.indexOf(f + '/') === 0 || (!c && f === 'md_db')) folderMatch = true;
+        });
+        if (!folderMatch) return;
+        if ((a.title||'').toLowerCase().indexOf(ql) !== -1 ||
+            c.toLowerCase().indexOf(ql) !== -1) {
+          seen[a.id] = true;
+          results.push(a);
+        }
+      });
+      return results.slice(0, maxDocs);
+    });
+}
+
+// 批量读取文章内容
+function readDocContents(docs) {
+  return Promise.all(docs.map(function(doc){
+    return fetch('/api/wiki-read?id=' + encodeURIComponent(doc.id))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data && data.ok) {
+          return { doc: doc, content: data.content || '', meta: data.meta || {} };
+        }
+        return { doc: doc, content: '', meta: {} };
+      })
+      .catch(function(){
+        return { doc: doc, content: '', meta: {} };
+      });
+  }));
+}
+
+function setAiSendingUI(sending) {
+  var sendBtn = document.getElementById('ai-send-btn');
+  var stopBtn = document.getElementById('ai-stop-btn');
+  var input = document.getElementById('ai-input');
+  if (sending) {
+    sendBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    input.disabled = true;
+  } else {
+    sendBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    input.disabled = false;
+  }
+}
+
+function sendAiMessage() {
+  var input = document.getElementById('ai-input');
+  if (!input) return;
+  var q = input.value.trim();
+  if (!q) return;
+  var settings = getAiSettings();
+  if (!settings.apiUrl || !settings.apiKey || !settings.model) {
+    switchAiTab('settings');
+    showAiSettingsMsg('请先配置 API 端点、密钥和模型', 'err');
+    return;
+  }
+  if (_aiAbort) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  // show welcome removal
+  var welcome = document.getElementById('ai-welcome-msg');
+  if (welcome) welcome.style.display = 'none';
+
+  // render user message
+  renderAiMsg('user', q);
+
+  // loading
+  var loadEl = renderAiLoading();
+  setAiSendingUI(true);
+
+  var folders = settings.folders || ['md_db'];
+  var maxDocs = settings.maxDocs || 5;
+  var aiDiv = null;
+
+  // abort controller
+  _aiAbort = new AbortController();
+  var signal = _aiAbort.signal;
+
+  searchWikiDocs(q, folders, maxDocs)
+    .then(function(docs){
+      if (signal.aborted) throw new Error('aborted');
+      if (loadEl) loadEl.querySelector('span').textContent = '找到 ' + docs.length + ' 篇相关文档，正在读取…';
+      return readDocContents(docs);
+    })
+    .then(function(docContents){
+      if (signal.aborted) throw new Error('aborted');
+      // 过滤空内容
+      var validDocs = docContents.filter(function(d){ return d.content && d.content.trim(); });
+      // 构建消息
+      var messages = [];
+      var systemPrompt = settings.systemPrompt ||
+        '你是 NoteWiki 的 AI 助手。请根据提供的文档内容回答用户问题。\n' +
+        '规则：\n' +
+        '1. 优先基于提供的文档内容回答，如果文档中没有相关信息，诚实告知用户。\n' +
+        '2. 回答中使用 Markdown 格式，在相关处引用文档标题并用方括号链接格式，例如 [文档标题](/wiki/分类/文档id.html)。\n' +
+        '3. 如果多个文档涉及同一主题，请综合回答。\n' +
+        '4. 回答简洁、准确、结构化，尽量使用标题分段。';
+      messages.push({ role: 'system', content: systemPrompt });
+
+      if (validDocs.length > 0) {
+        var ctxParts = ['以下是相关的 Wiki 文档内容：\n'];
+        validDocs.forEach(function(d, i){
+          var title = (d.meta && d.meta.title) || d.doc.title || d.doc.id;
+          var cat = d.doc.category || '';
+          var url = publishedHtmlUrl(d.doc.id, cat);
+          ctxParts.push('---');
+          ctxParts.push('文档 ' + (i+1) + ': ' + title);
+          ctxParts.push('链接: ' + url);
+          ctxParts.push('');
+          // 限制每个文档最多 8000 字符
+          var content = d.content;
+          if (content.length > 8000) content = content.substring(0, 8000) + '\n\n…(内容已截断)';
+          ctxParts.push(content);
+        });
+        // 控制总上下文长度
+        var ctx = ctxParts.join('\n');
+        if (ctx.length > 32000) ctx = ctx.substring(0, 32000) + '\n\n…(上下文已截断)';
+        messages.push({ role: 'user', content: ctx });
+      }
+      messages.push({ role: 'user', content: q });
+
+      removeAiLoading();
+
+      // 创建 AI 回复容器
+      aiDiv = renderAiMsg('ai', '思考中…');
+
+      // call AI API
+      return fetch(settings.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + settings.apiKey
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          messages: messages,
+          stream: false,
+          max_tokens: 4096,
+          temperature: 0.3
+        }),
+        signal: signal
+      })
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){
+          var errMsg = 'API 请求失败 (' + r.status + ')';
+          try { var j = JSON.parse(t); if (j.error && j.error.message) errMsg = j.error.message; } catch(e){}
+          throw new Error(errMsg);
+        });
+        return r.json();
+      })
+      .then(function(data){
+        if (signal.aborted) return;
+        var text = '';
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+          text = data.choices[0].message.content || '';
+        } else if (data.content) {
+          text = data.content;
+        } else {
+          text = '(AI 返回了空响应)';
+        }
+        // 在 AI 回复中添加来源文档引用
+        var sources = validDocs ? validDocs.map(function(d){ return d.doc; }) : [];
+        // 更新 AI 消息
+        aiDiv.innerHTML = '';
+        var htmlContent = md2html(text);
+        aiDiv.innerHTML = '<div class="art-content">' + htmlContent + '</div>';
+        if (sources.length) {
+          var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title">📎 参考文档：</div>';
+          sources.forEach(function(src){
+            var url = publishedHtmlUrl(src.id, src.category || '');
+            srcHtml += '<a href="' + escH(url) + '" target="_blank">📄 ' + escH(src.title || src.id) + '</a>';
+          });
+          srcHtml += '</div>';
+          aiDiv.innerHTML += srcHtml;
+        }
+        var msgContainer = document.getElementById('ai-messages');
+        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+        _aiAbort = null;
+        setAiSendingUI(false);
+      });
+    })
+    .catch(function(e){
+      removeAiLoading();
+      // Replace the "thinking" AI message with error, or create new if missing
+      if (aiDiv && aiDiv.parentNode) {
+        aiDiv.className = 'ai-msg ai-msg-error';
+        aiDiv.innerHTML = e.message === 'aborted' ? '⏹ 已停止生成。' : '❌ 错误：' + escH(e.message || '未知错误');
+      } else {
+        renderAiMsg('error', e.message === 'aborted' ? '已停止生成。' : '错误：' + (e.message || '未知错误'));
+      }
+      _aiAbort = null;
+      setAiSendingUI(false);
+    });
+}
+
+function stopAiMessage() {
+  if (_aiAbort) {
+    _aiAbort.abort();
+    _aiAbort = null;
+  }
+  setAiSendingUI(false);
+}
+
+function clearAiHistory() {
+  if (!confirm('确定清除所有对话记录？')) return;
+  var msgs = document.getElementById('ai-messages');
+  if (!msgs) return;
+  msgs.innerHTML = '<div class="ai-welcome" id="ai-welcome-msg">'
+    + '<p>您好！我是 NoteWiki AI 助手。</p>'
+    + '<p>我可以搜索 Wiki 文档并基于文档内容回答您的问题。</p>'
+    + '<p style="margin-top:8px;font-size:.78rem">请先在 ⚙ 设置 中配置 AI 参数后开始对话。</p>'
+    + '</div>';
+}
 
 init();
 </script>

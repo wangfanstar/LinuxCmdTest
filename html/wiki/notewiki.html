@@ -84,7 +84,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .view-toc-list a.l4{padding-left:32px}
 .view-toc-empty{font-size:.74rem;color:var(--dim);padding:6px 8px}
 @media (max-width: 1200px){.view-toc{display:none}}
-/*  drag resizers  */
+/* ── drag resizers ── */
 .sidebar-resizer{width:5px;flex-shrink:0;background:var(--border);cursor:col-resize;transition:background .2s}
 .sidebar-resizer:hover,.sidebar-resizer.dragging{background:var(--accent)}
 .toc-resizer{width:5px;flex-shrink:0;margin:0 10px;background:var(--border);cursor:col-resize;transition:background .2s}
@@ -247,7 +247,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .ctx-item:hover{background:rgba(255,255,255,.07)}
 .ctx-item.danger{color:var(--red)}
 .ctx-sep{height:1px;background:var(--border);margin:3px 0}
-/*  local-link modal  */
+/* ── local-link modal ── */
 .ll-tabs{display:flex;border-bottom:1px solid var(--border2);margin-bottom:8px;gap:0}
 .ll-tab{padding:7px 16px;font-size:.8rem;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
 .ll-tab:hover{color:var(--text)}
@@ -271,7 +271,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .ll-inp{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:.8rem;outline:none}
 .ll-inp:focus{border-color:var(--accent)}
 .ll-preview{flex:1;font-size:.74rem;color:#79c0ff;font-family:'Consolas','Courier New',monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:5px 8px;min-height:26px;word-break:break-all}
-/*  */
+/* 文件夹筛选面板 */
 .sb-fold-panel{border-bottom:1px solid var(--border2);flex-shrink:0;background:rgba(0,0,0,.12)}
 .sb-fold-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:.74rem;color:var(--dim);cursor:pointer;user-select:none}
 .sb-fold-head:hover{color:var(--text)}
@@ -282,7 +282,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .sb-fold-list{display:flex;flex-direction:column;gap:3px}
 .sb-fold-row{display:flex;align-items:flex-start;gap:6px;font-size:.72rem;color:var(--text);cursor:pointer;line-height:1.35;padding:2px 0}
 .sb-fold-row input{margin-top:3px;flex-shrink:0}
-/*  AI Assistant  */
+/* ── AI Assistant ── */
 .ai-float-btn{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4a90e2,#7c3aed);border:none;color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 18px rgba(74,144,226,.45);z-index:100;transition:transform .2s,box-shadow .2s;display:flex;align-items:center;justify-content:center;line-height:1}
 .ai-float-btn:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(74,144,226,.6)}
 .ai-float-btn.active{background:linear-gradient(135deg,#7c3aed,#4a90e2)}
@@ -364,17 +364,17 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 <body>
 
 <div class="topbar">
-  <h1> NoteWiki</h1>
+  <h1>📝 NoteWiki</h1>
   <div class="topbar-sep"></div>
   <div class="topbar-right">
-    <span id="auth-status" style="font-size:.75rem;color:var(--dim)"></span>
-    <button type="button" class="btn btn-secondary btn-sm" id="btn-auth" onclick="toggleAuthAction()"></button>
-    <a href="/wiki/wiki-auth-admin.html" id="auth-admin-link" style="display:none"> </a>
-    <a href="/wiki/notewikiindex.html"> </a>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title=" html/wiki/wiki-index.json notewikiindex "> </button>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title=" .md  HTML"> HTML</button>
-    <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title=" uploads "></button>
-    <a href="/index.html"> </a>
+    <span id="auth-status" style="font-size:.75rem;color:var(--dim)">游客</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="btn-auth" onclick="toggleAuthAction()">登录</button>
+    <a href="/wiki/wiki-auth-admin.html" id="auth-admin-link" style="display:none">👤 用户管理</a>
+    <a href="/wiki/notewikiindex.html">📑 文章索引</a>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
+    <a href="/index.html">← 返回首页</a>
   </div>
 </div>
 
@@ -382,23 +382,23 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
   <!-- sidebar -->
   <div class="sidebar">
     <div class="sb-actions">
-      <button class="btn btn-primary btn-sm" onclick="newArticle()"> </button>
-      <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()"> </button>
-      <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title=""></button>
+      <button class="btn btn-primary btn-sm" onclick="newArticle()">✚ 新建</button>
+      <button class="btn btn-secondary btn-sm" onclick="openNewCatModal()">📁 分类</button>
+      <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
     </div>
     <div class="sb-search">
-      <input id="sb-search" type="text" placeholder="" oninput="onSearchInput()">
+      <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
       <div id="sb-search-hint" style="font-size:.72rem;color:var(--dim);padding:2px 2px 0;display:none"></div>
     </div>
     <div class="sb-fold-panel" id="sb-fold-panel">
-      <div class="sb-fold-head" id="sb-fold-head" onclick="toggleFolderPanel()" title="/">
-        <span></span>
-        <span class="sb-fold-arrow" id="sb-fold-arrow"></span>
+      <div class="sb-fold-head" id="sb-fold-head" onclick="toggleFolderPanel()" title="展开/收起">
+        <span>文件夹筛选</span>
+        <span class="sb-fold-arrow" id="sb-fold-arrow">▶</span>
       </div>
       <div class="sb-fold-body" id="sb-fold-body" style="display:none">
-        <label class="sb-fold-all"><input type="checkbox" id="sb-fold-all" onchange="onFolderFilterAllChange()"> </label>
+        <label class="sb-fold-all"><input type="checkbox" id="sb-fold-all" onchange="onFolderFilterAllChange()"> 显示全部文件夹</label>
         <div class="sb-fold-list" id="sb-fold-list" onclick="onFolderFilterListClick(event)"></div>
-        <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px" onclick="applyFolderFilterSave()"></button>
+        <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px" onclick="applyFolderFilterSave()">应用并保存</button>
       </div>
     </div>
     <div class="sb-tree" id="sb-tree"></div>
@@ -409,20 +409,20 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
   <div class="main-area">
     <!-- welcome -->
     <div id="pane-welcome" style="display:flex">
-      <div class="wlc-title"> NoteWiki</div>
-      <div class="wlc-sub"> </div>
+      <div class="wlc-title">📝 NoteWiki</div>
+      <div class="wlc-sub">选择左侧文章，或点击「✚ 新建」创建第一篇笔记</div>
     </div>
 
     <!-- view -->
     <div id="pane-view" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="view-head">
         <div class="view-breadcrumb" id="view-breadcrumb"></div>
-        <button class="btn btn-secondary btn-sm" onclick="editCurrent()"> </button>
-        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title=""> </button>
-        <button class="btn btn-secondary btn-sm" onclick="exportMdZip()" title=" MD +  ZIP"> MD</button>
-        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="/ PDF"> PDF</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteCurrent()"> </button>
-        <a class="btn btn-secondary btn-sm" id="view-html-link" href="#" target="_blank"> HTML</a>
+        <button class="btn btn-secondary btn-sm" onclick="editCurrent()">✏ 编辑</button>
+        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title="查看该文章历史修改记录">🕘 历史</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportMdZip()" title="导出 MD + 图片 ZIP">⬇ MD</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF">🖨 PDF</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrent()">🗑 删除</button>
+        <a class="btn btn-secondary btn-sm" id="view-html-link" href="#" target="_blank">🔗 HTML</a>
       </div>
       <div class="view-body">
         <div class="view-main">
@@ -432,9 +432,9 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
         </div>
         <div class="toc-resizer" id="toc-resizer"></div>
         <aside class="view-toc" id="view-toc">
-          <div class="view-toc-title"></div>
+          <div class="view-toc-title">本文目录</div>
           <div class="view-toc-list" id="view-toc-list">
-            <div class="view-toc-empty"></div>
+            <div class="view-toc-empty">请选择文章</div>
           </div>
         </aside>
       </div>
@@ -443,56 +443,56 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <!-- edit -->
     <div id="pane-edit" style="display:none;flex:1;flex-direction:column;overflow:hidden">
       <div class="edit-top">
-        <input type="text" id="edit-title" placeholder="" spellcheck="false" oninput="scheduleAutoSave()">
-        <input type="text" id="edit-filename" placeholder="a-z 0-9 _ -" title=" .md/.html " spellcheck="false" style="display:none;max-width:200px">
-        <select id="edit-category"><option value=""> </option></select>
+        <input type="text" id="edit-title" placeholder="文章标题…" spellcheck="false" oninput="scheduleAutoSave()">
+        <input type="text" id="edit-filename" placeholder="链接文件名（a-z 0-9 _ -）" title="保存为 .md/.html 的文件名，留空自动生成" spellcheck="false" style="display:none;max-width:200px">
+        <select id="edit-category"><option value="">📁 根目录</option></select>
         <div class="view-toggle">
-          <button class="vt-btn on" id="vt-split" onclick="setViewMode('split')" title=""></button>
-          <button class="vt-btn"    id="vt-edit"  onclick="setViewMode('edit')"  title=""></button>
-          <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title=""></button>
-          <button class="vt-btn"    id="btn-preview-align" onclick="togglePreviewAlign()" title=""></button>
+          <button class="vt-btn on" id="vt-split" onclick="setViewMode('split')" title="分屏">⊞</button>
+          <button class="vt-btn"    id="vt-edit"  onclick="setViewMode('edit')"  title="仅编辑">✎</button>
+          <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title="仅预览">👁</button>
+          <button class="vt-btn"    id="btn-preview-align" onclick="togglePreviewAlign()" title="默认关闭：开启后右侧预览随光标所在行自动滚动对齐">↕</button>
         </div>
         <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
-        <button class="btn btn-primary btn-sm" id="btn-save" onclick="saveArticle()" disabled> </button>
-        <button class="btn btn-success btn-sm" onclick="publishArticle()" title=""> </button>
-        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title=""> </button>
-        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="/ PDF"> PDF</button>
-        <a class="btn btn-secondary btn-sm" id="edit-html-link" href="#" target="_blank" rel="noopener noreferrer" title=" HTML "> HTML</a>
-        <button class="btn btn-secondary btn-sm" onclick="cancelEdit()"></button>
+        <button class="btn btn-primary btn-sm" id="btn-save" onclick="saveArticle()" disabled>💾 保存</button>
+        <button class="btn btn-success btn-sm" onclick="publishArticle()" title="保存并生成已发布页面（不离开当前页）">📤 发布</button>
+        <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title="查看该文章历史修改记录">🕘 历史</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF（阅读态用已打开正文，编辑态用当前草稿）">🖨 PDF</button>
+        <a class="btn btn-secondary btn-sm" id="edit-html-link" href="#" target="_blank" rel="noopener noreferrer" title="已发布 HTML 页面">🔗 HTML</a>
+        <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
       <div class="edit-toolbar" id="edit-toolbar">
-        <button class="tb-btn" id="tb-undo" onclick="doUndo()" title=" Ctrl+Z" disabled></button>
-        <button class="tb-btn" id="tb-redo" onclick="doRedo()" title=" Ctrl+Y" disabled></button>
+        <button class="tb-btn" id="tb-undo" onclick="doUndo()" title="撤消 Ctrl+Z" disabled>↩</button>
+        <button class="tb-btn" id="tb-redo" onclick="doRedo()" title="恢复 Ctrl+Y" disabled>↪</button>
         <div class="tb-sep"></div>
         <button class="tb-btn" onclick="tb('h1')" title="H1"><b>H1</b></button>
         <button class="tb-btn" onclick="tb('h2')" title="H2"><b>H2</b></button>
         <button class="tb-btn" onclick="tb('h3')" title="H3"><b>H3</b></button>
         <div class="tb-sep"></div>
-        <button class="tb-btn" onclick="tb('bold')"   title=""><b>B</b></button>
-        <button class="tb-btn" onclick="tb('italic')" title=""><i>I</i></button>
-        <button class="tb-btn" onclick="tb('strike')" title=""><s>S</s></button>
+        <button class="tb-btn" onclick="tb('bold')"   title="粗体"><b>B</b></button>
+        <button class="tb-btn" onclick="tb('italic')" title="斜体"><i>I</i></button>
+        <button class="tb-btn" onclick="tb('strike')" title="删除线"><s>S</s></button>
         <div class="tb-sep"></div>
-        <button class="tb-btn" onclick="tb('code')"      title="">`c`</button>
-        <button class="tb-btn" onclick="tb('codeblock')" title="">```</button>
+        <button class="tb-btn" onclick="tb('code')"      title="行内代码">`c`</button>
+        <button class="tb-btn" onclick="tb('codeblock')" title="代码块">```</button>
         <div class="tb-sep"></div>
-        <button class="tb-btn" onclick="tb('quote')"  title=""></button>
-        <button class="tb-btn" onclick="tb('ul')"     title=""> </button>
-        <button class="tb-btn" onclick="tb('ol')"     title="">1. </button>
+        <button class="tb-btn" onclick="tb('quote')"  title="引用">❝</button>
+        <button class="tb-btn" onclick="tb('ul')"     title="无序列表">• 列</button>
+        <button class="tb-btn" onclick="tb('ol')"     title="有序列表">1. 列</button>
         <div class="tb-sep"></div>
-        <button class="tb-btn" onclick="openLinkModal()" title=""></button>
-        <button class="tb-btn" onclick="openLocalLinkModal()" title="Ctrl+Alt+W"></button>
-        <button class="tb-btn" onclick="openImgUpload()" title="Ctrl+Alt+I"></button>
-        <button class="tb-btn" onclick="openAttachmentUpload()" title="Ctrl+Alt+A"></button>
-        <button class="tb-btn" onclick="openColorPicker()" title=""></button>
-        <button class="tb-btn" onclick="openTableModal()" title="Ctrl+Alt+T"></button>
-        <button class="tb-btn" onclick="tb('math-inline')" title="Ctrl+Alt+M"></button>
-        <button class="tb-btn" onclick="tb('math-block')" title="Ctrl+Alt+Shift+M"></button>
-        <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid Ctrl+Alt+G"></button>
-        <button class="tb-btn" onclick="tb('footnote')" title="Ctrl+Alt+F">[^]</button>
-        <button class="tb-btn" id="tb-lineno" onclick="toggleLineNumbers()" title="Ctrl+Alt+L">#</button>
-        <button class="tb-btn" id="tb-keydbg" onclick="toggleKeyDebug()" title="Ctrl+Alt+K"></button>
-        <button class="tb-btn" id="tb-vim" onclick="toggleVimMode()" title=" Vim Ctrl+Alt+V">Vim</button>
-        <button class="tb-btn" onclick="tb('hr')"     title=""></button>
+        <button class="tb-btn" onclick="openLinkModal()" title="插入链接">🔗</button>
+        <button class="tb-btn" onclick="openLocalLinkModal()" title="插入本地链接（Ctrl+Alt+W）">🏠</button>
+        <button class="tb-btn" onclick="openImgUpload()" title="插入图片（Ctrl+Alt+I）">🖼</button>
+        <button class="tb-btn" onclick="openAttachmentUpload()" title="上传附件（Ctrl+Alt+A）">📎</button>
+        <button class="tb-btn" onclick="openColorPicker()" title="文字颜色">🎨</button>
+        <button class="tb-btn" onclick="openTableModal()" title="插入表格（Ctrl+Alt+T）">⊞</button>
+        <button class="tb-btn" onclick="tb('math-inline')" title="行内公式（Ctrl+Alt+M）">∑</button>
+        <button class="tb-btn" onclick="tb('math-block')" title="块公式（Ctrl+Alt+Shift+M）">∫</button>
+        <button class="tb-btn" onclick="tb('mermaid')" title="Mermaid 图（Ctrl+Alt+G）">📈</button>
+        <button class="tb-btn" onclick="tb('footnote')" title="脚注（Ctrl+Alt+F）">[^]</button>
+        <button class="tb-btn" id="tb-lineno" onclick="toggleLineNumbers()" title="切换行号（Ctrl+Alt+L）">#</button>
+        <button class="tb-btn" id="tb-keydbg" onclick="toggleKeyDebug()" title="切换按键调试（Ctrl+Alt+K）">⌨</button>
+        <button class="tb-btn" id="tb-vim" onclick="toggleVimMode()" title="切换 Vim 模式（Ctrl+Alt+V）">Vim</button>
+        <button class="tb-btn" onclick="tb('hr')"     title="分割线">─</button>
       </div>
       <div class="edit-panels" id="edit-panels">
         <div class="edit-left" id="edit-left">
@@ -513,7 +513,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
           </div>
         </div>
         <div class="edit-right art-content" id="edit-right">
-          <div class="panel-label" style="margin:-16px -20px 14px"></div>
+          <div class="panel-label" style="margin:-16px -20px 14px">预览</div>
         </div>
       </div>
     </div>
@@ -521,7 +521,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 </div>
 
 <div class="statusbar">
-  <span id="status-msg"></span>
+  <span id="status-msg">就绪</span>
   <span id="status-keydbg" style="margin-left:12px;color:var(--dim);font-family:'Cascadia Mono','SFMono-Regular',Consolas,monospace;font-size:.72rem"></span>
   <span id="status-count" style="margin-left:auto"></span>
 </div>
@@ -532,171 +532,171 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
          onkeydown="onVimCmdlineKey(event)" oninput="onVimCmdlineInput(event)">
 </div>
 
-<!--  modal -->
+<!-- 新建分类 modal -->
 <div class="modal-overlay" id="modal-newcat">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeNewCatModal()"></button></div>
+    <div class="modal-head">📁 新建分类<button class="modal-close" onclick="closeNewCatModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"></label>
+      <label class="field-label">父分类（留空为根目录）</label>
       <select id="nc-parent" class="field-input"></select>
-      <label class="field-label"></label>
-      <input id="nc-name" class="field-input" type="text" placeholder="" spellcheck="false"
+      <label class="field-label">分类名称</label>
+      <input id="nc-name" class="field-input" type="text" placeholder="例：技术笔记" spellcheck="false"
              onkeydown="if(event.key==='Enter')doCreateCat()">
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeNewCatModal()"></button>
-      <button class="btn btn-primary" onclick="doCreateCat()"></button>
+      <button class="btn btn-secondary" onclick="closeNewCatModal()">取消</button>
+      <button class="btn btn-primary" onclick="doCreateCat()">创建</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 新建文章 modal -->
 <div class="modal-overlay" id="modal-newarticle">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeNewArticleModal()"></button></div>
+    <div class="modal-head">✚ 新建文章<button class="modal-close" onclick="closeNewArticleModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"> <span style="color:var(--red)">*</span></label>
-      <input id="na-title" class="field-input" type="text" placeholder="" spellcheck="false"
+      <label class="field-label">文章标题 <span style="color:var(--red)">*</span></label>
+      <input id="na-title" class="field-input" type="text" placeholder="请输入文章标题" spellcheck="false"
              oninput="onNATitleInput()" onkeydown="if(event.key==='Enter')document.getElementById('na-filename').focus()">
-      <label class="field-label"></label>
-      <input id="na-filename" class="field-input" type="text" placeholder="a-z 0-9 _ - " spellcheck="false"
+      <label class="field-label">链接文件名（留空自动生成）</label>
+      <input id="na-filename" class="field-input" type="text" placeholder="a-z 0-9 _ - （留空自动生成）" spellcheck="false"
              oninput="onNAFilenameInput()" onkeydown="if(event.key==='Enter')doNewArticle()">
       <div id="na-filename-tip" style="font-size:.72rem;color:var(--red);margin-top:-6px;margin-bottom:8px;display:none"></div>
       <div id="na-force-wrap" style="display:none;margin-top:-4px;margin-bottom:8px">
         <label style="font-size:.75rem;color:var(--yellow);cursor:pointer">
-          <input type="checkbox" id="na-force"> 
+          <input type="checkbox" id="na-force"> 强制覆盖（替换已有同名文章）
         </label>
       </div>
-      <label class="field-label"></label>
+      <label class="field-label">所属分类</label>
       <select id="na-category" class="field-input"></select>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeNewArticleModal()"></button>
-      <button class="btn btn-primary" onclick="doNewArticle()"></button>
+      <button class="btn btn-secondary" onclick="closeNewArticleModal()">取消</button>
+      <button class="btn btn-primary" onclick="doNewArticle()">进入编辑</button>
     </div>
   </div>
 </div>
 
-<!--  -->
+<!-- 右键菜单 -->
 <div class="ctx-menu" id="ctx-menu">
-  <div class="ctx-item" id="ctx-rename-item" onclick="ctxDoRename()"> </div>
-  <div class="ctx-item" id="ctx-newart-item" onclick="ctxDoNewArt()"> </div>
-  <div class="ctx-item" id="ctx-newcat-item" onclick="ctxDoNewCat()"> </div>
-  <div class="ctx-item" id="ctx-move-item" onclick="ctxDoMove()"> ...</div>
+  <div class="ctx-item" id="ctx-rename-item" onclick="ctxDoRename()">✏ 重命名</div>
+  <div class="ctx-item" id="ctx-newart-item" onclick="ctxDoNewArt()">📄 在此处新建文章</div>
+  <div class="ctx-item" id="ctx-newcat-item" onclick="ctxDoNewCat()">📁 新建子目录</div>
+  <div class="ctx-item" id="ctx-move-item" onclick="ctxDoMove()">📦 移动到...</div>
   <div class="ctx-sep"></div>
-  <div class="ctx-item danger" onclick="ctxDoDelete()"> </div>
+  <div class="ctx-item danger" onclick="ctxDoDelete()">🗑 删除</div>
 </div>
 
-<!--  modal -->
+<!-- 重命名 modal -->
 <div class="modal-overlay" id="modal-rename">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeRenameModal()"></button></div>
+    <div class="modal-head">✏ 重命名<button class="modal-close" onclick="closeRenameModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label" id="rename-label"></label>
+      <label class="field-label" id="rename-label">新名称</label>
       <input id="rename-input" class="field-input" type="text" spellcheck="false"
              onkeydown="if(event.key==='Enter')doRename()">
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeRenameModal()"></button>
-      <button class="btn btn-primary" onclick="doRename()"></button>
+      <button class="btn btn-secondary" onclick="closeRenameModal()">取消</button>
+      <button class="btn btn-primary" onclick="doRename()">确定</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 移动文章 modal -->
 <div class="modal-overlay" id="modal-move">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeMoveModal()"></button></div>
+    <div class="modal-head">📦 移动文章<button class="modal-close" onclick="closeMoveModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"></label>
+      <label class="field-label">目标分类</label>
       <select id="move-category" class="field-input"></select>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeMoveModal()"></button>
-      <button class="btn btn-primary" onclick="doMoveArticle()"></button>
+      <button class="btn btn-secondary" onclick="closeMoveModal()">取消</button>
+      <button class="btn btn-primary" onclick="doMoveArticle()">移动</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 插入表格 modal -->
 <div class="modal-overlay" id="modal-table">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeTableModal()"></button></div>
+    <div class="modal-head">⊞ 插入表格<button class="modal-close" onclick="closeTableModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"></label>
+      <label class="field-label">列数</label>
       <input id="tbl-cols" class="field-input" type="number" min="1" max="20" value="3" spellcheck="false"
              onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('tbl-body-rows').focus();}">
-      <label class="field-label"></label>
+      <label class="field-label">数据行数（不含表头）</label>
       <input id="tbl-body-rows" class="field-input" type="number" min="1" max="30" value="2" spellcheck="false"
              onkeydown="if(event.key==='Enter'){event.preventDefault();doInsertTable();}">
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeTableModal()"></button>
-      <button class="btn btn-primary" onclick="doInsertTable()"></button>
+      <button class="btn btn-secondary" onclick="closeTableModal()">取消</button>
+      <button class="btn btn-primary" onclick="doInsertTable()">插入</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 插入链接 modal -->
 <div class="modal-overlay" id="modal-link">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeLinkModal()"></button></div>
+    <div class="modal-head">🔗 插入链接<button class="modal-close" onclick="closeLinkModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"></label>
-      <input id="link-url" class="field-input" type="url" placeholder="https://" spellcheck="false"
+      <label class="field-label">链接地址</label>
+      <input id="link-url" class="field-input" type="url" placeholder="https://…" spellcheck="false"
              onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('link-text').focus();}">
-      <label class="field-label"></label>
-      <input id="link-text" class="field-input" type="text" placeholder="" spellcheck="false"
+      <label class="field-label">显示文字</label>
+      <input id="link-text" class="field-input" type="text" placeholder="页面上可见的链接文字" spellcheck="false"
              onkeydown="if(event.key==='Enter'){event.preventDefault();doInsertLink();}">
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeLinkModal()"></button>
-      <button class="btn btn-primary" onclick="doInsertLink()"></button>
+      <button class="btn btn-secondary" onclick="closeLinkModal()">取消</button>
+      <button class="btn btn-primary" onclick="doInsertLink()">插入</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 本地链接 modal -->
 <div class="modal-overlay" id="modal-local-link">
   <div class="modal-box" style="width:min(560px,96vw)">
-    <div class="modal-head"> <button class="modal-close" onclick="closeLocalLinkModal()"></button></div>
+    <div class="modal-head">🏠 插入本地链接<button class="modal-close" onclick="closeLocalLinkModal()">✕</button></div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
       <div class="ll-hint">
-         <b></b><code>[](./filename.html)</code>  &nbsp;|&nbsp; <code>[](../cat/filename.html)</code> <br>
-         <b></b><code>[](#view-head-N)</code> &nbsp;1&nbsp;
+        💡 <b>本地页面</b>：<code>[文字](./filename.html)</code> 同目录 &nbsp;|&nbsp; <code>[文字](../cat/filename.html)</code> 跨目录<br>
+        💡 <b>本文章节</b>：<code>[文字](#view-head-N)</code> 章节锚点按顺序编号（从&nbsp;1&nbsp;起，代码块内标题不计入）
       </div>
       <div class="ll-tabs">
-        <div class="ll-tab active" id="ll-tab-page"    onclick="llSwitchTab('page')"> </div>
-        <div class="ll-tab"        id="ll-tab-section" onclick="llSwitchTab('section')"> </div>
+        <div class="ll-tab active" id="ll-tab-page"    onclick="llSwitchTab('page')">📄 本地页面</div>
+        <div class="ll-tab"        id="ll-tab-section" onclick="llSwitchTab('section')">🔖 本文章节</div>
       </div>
       <div class="ll-pane active" id="ll-pane-page">
-        <input class="ll-search" id="ll-page-search" placeholder="" oninput="llFilterPages()" autocomplete="off">
+        <input class="ll-search" id="ll-page-search" placeholder="搜索文章标题或文件名…" oninput="llFilterPages()" autocomplete="off">
         <div class="ll-list" id="ll-page-list"></div>
       </div>
       <div class="ll-pane" id="ll-pane-section">
         <div class="ll-list" id="ll-section-list"></div>
       </div>
       <div class="ll-row">
-        <label></label>
-        <input class="ll-inp" id="ll-link-text" placeholder="" spellcheck="false"
+        <label>链接文字</label>
+        <input class="ll-inp" id="ll-link-text" placeholder="留空则使用标题文字" spellcheck="false"
                oninput="llUpdatePreview()" onkeydown="if(event.key==='Enter'){event.preventDefault();doInsertLocalLink();}">
       </div>
       <div class="ll-row">
-        <label></label>
-        <div class="ll-preview" id="ll-preview"></div>
+        <label>预览</label>
+        <div class="ll-preview" id="ll-preview">（请先选择目标）</div>
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeLocalLinkModal()"></button>
-      <button class="btn btn-primary" id="ll-insert-btn" onclick="doInsertLocalLink()" disabled></button>
+      <button class="btn btn-secondary" onclick="closeLocalLinkModal()">取消</button>
+      <button class="btn btn-primary" id="ll-insert-btn" onclick="doInsertLocalLink()" disabled>插入</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 文字颜色 modal -->
 <div class="modal-overlay" id="modal-color">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeColorModal()"></button></div>
+    <div class="modal-head">🎨 文字颜色<button class="modal-close" onclick="closeColorModal()">✕</button></div>
     <div class="modal-body">
       <div class="color-swatches">
         <button type="button" class="color-swatch" style="background:#f5222d" onclick="pickPresetColor('#f5222d')" title="#f5222d"></button>
@@ -717,202 +717,200 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
         <button type="button" class="color-swatch" style="background:#b37feb" onclick="pickPresetColor('#b37feb')" title="#b37feb"></button>
       </div>
       <div class="color-custom-wrap">
-        <span class="field-label" style="margin:0"></span>
+        <span class="field-label" style="margin:0">自定义</span>
         <input id="color-custom" type="color" value="#ff4d4f" onchange="pickPresetColor(this.value)">
       </div>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 历史记录 modal -->
 <div class="modal-overlay" id="modal-history">
   <div class="modal-box modal-wide">
-    <div class="modal-head"> <button class="modal-close" onclick="closeHistoryModal()"></button></div>
+    <div class="modal-head">🕘 历史修改记录<button class="modal-close" onclick="closeHistoryModal()">✕</button></div>
     <div class="modal-body">
-      <div class="history-summary" id="history-summary"></div>
+      <div class="history-summary" id="history-summary">加载中…</div>
       <div class="history-table-wrap" id="history-wrap">
-        <div class="history-empty"></div>
+        <div class="history-empty">加载中…</div>
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeHistoryModal()"></button>
+      <button class="btn btn-secondary" onclick="closeHistoryModal()">关闭</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 历史详情 modal -->
 <div class="modal-overlay" id="modal-history-detail">
   <div class="modal-box modal-wide">
-    <div class="modal-head"> <button class="modal-close" onclick="closeHistoryDetailModal()"></button></div>
+    <div class="modal-head">📌 历史详情<button class="modal-close" onclick="closeHistoryDetailModal()">✕</button></div>
     <div class="modal-body">
       <div class="hist-detail-grid">
-        <div class="hist-detail-k"></div><div class="hist-detail-v" id="histd-title"></div>
-        <div class="hist-detail-k"></div><div class="hist-detail-v" id="histd-category"></div>
+        <div class="hist-detail-k">标题</div><div class="hist-detail-v" id="histd-title"></div>
+        <div class="hist-detail-k">分类</div><div class="hist-detail-v" id="histd-category"></div>
         <div class="hist-detail-k">save_txn_id</div><div class="hist-detail-v" id="histd-txn"></div>
-        <div class="hist-detail-k"></div><div class="hist-detail-v" id="histd-len"></div>
-        <div class="hist-detail-k"></div><div class="hist-detail-v" style="white-space:pre-wrap;max-height:62vh;overflow:auto">
+        <div class="hist-detail-k">内容长度</div><div class="hist-detail-v" id="histd-len"></div>
+        <div class="hist-detail-k">修改内容</div><div class="hist-detail-v" style="white-space:pre-wrap;max-height:62vh;overflow:auto">
           <div class="hist-mode-toggle">
-            <button type="button" class="hist-mode-btn on" id="histd-mode-changes" onclick="setHistoryDiffMode(false)"></button>
-            <button type="button" class="hist-mode-btn" id="histd-mode-context" onclick="setHistoryDiffMode(true)"></button>
+            <button type="button" class="hist-mode-btn on" id="histd-mode-changes" onclick="setHistoryDiffMode(false)">仅显示变更行</button>
+            <button type="button" class="hist-mode-btn" id="histd-mode-context" onclick="setHistoryDiffMode(true)">显示上下文行</button>
           </div>
           <div id="histd-diff"></div>
         </div>
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeHistoryDetailModal()"></button>
+      <button class="btn btn-secondary" onclick="closeHistoryDetailModal()">关闭</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 登录 modal -->
 <div class="modal-overlay" id="modal-login">
   <div class="modal-box">
-    <div class="modal-head"> <button class="modal-close" onclick="closeLoginModal()"></button></div>
+    <div class="modal-head">🔐 登录<button class="modal-close" onclick="closeLoginModal()">✕</button></div>
     <div class="modal-body">
-      <label class="field-label"></label>
+      <label class="field-label">账号</label>
       <input id="login-username" class="field-input" type="text" placeholder="Admin"
              onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('login-password').focus();}">
-      <label class="field-label"></label>
-      <input id="login-password" class="field-input" type="password" placeholder=""
+      <label class="field-label">密码</label>
+      <input id="login-password" class="field-input" type="password" placeholder="请输入密码"
              onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
       <div id="login-tip" style="font-size:.75rem;color:var(--red);display:none"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeLoginModal()"></button>
-      <button class="btn btn-primary" onclick="doLogin()"></button>
+      <button class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
+      <button class="btn btn-primary" onclick="doLogin()">登录</button>
     </div>
   </div>
 </div>
 
-<!--  modal -->
+<!-- 编辑冲突 modal -->
 <div class="conflict-overlay" id="modal-conflict">
   <div class="conflict-box">
     <div class="conflict-head">
-      <span class="conflict-head-title">  </span>
-      <button class="conflict-head-close" onclick="closeConflictModal()"></button>
+      <span class="conflict-head-title">编辑冲突 — 文章已被他人修改</span>
+      <button class="conflict-head-close" onclick="closeConflictModal()">✕</button>
     </div>
     <div class="conflict-body" id="conflict-body">
-      <!-- overview -->
       <div id="conflict-overview">
         <div class="conflict-msg">
-          <br>
-          
+          您正在编辑的版本与服务器当前版本不一致。<br>
+          请选择处理方式：查看差异后手动合并、强制覆盖服务器版本、或取消以保留您的修改。
         </div>
         <div class="conflict-actions">
-          <button class="btn btn-success btn-sm" onclick="showConflictMerge()"></button>
-          <button class="btn btn-danger btn-sm" onclick="doConflictOverwrite()"></button>
-          <button class="btn btn-secondary btn-sm" onclick="closeConflictModal()"></button>
+          <button class="btn btn-success btn-sm" onclick="showConflictMerge()">查看差异并合并</button>
+          <button class="btn btn-danger btn-sm" onclick="doConflictOverwrite()">强制覆盖（丢弃他人修改）</button>
+          <button class="btn btn-secondary btn-sm" onclick="closeConflictModal()">取消</button>
         </div>
       </div>
-      <!-- merge view (hidden initially) -->
       <div id="conflict-merge" style="display:none;flex-direction:column;gap:12px">
-        <div class="conflict-section-title"></div>
+        <div class="conflict-section-title">变更对比</div>
         <div class="conflict-diff-wrap" id="conflict-diff"></div>
         <div class="conflict-merge-area">
-          <div class="conflict-section-title"></div>
+          <div class="conflict-section-title">合并结果（可手动编辑）</div>
           <textarea id="conflict-merged" class="conflict-textarea" oninput="onConflictMergedInput()"></textarea>
         </div>
         <div class="conflict-actions">
-          <button class="btn btn-primary btn-sm" id="btn-conflict-merge-save" onclick="doConflictMergeSave()"></button>
-          <button class="btn btn-secondary btn-sm" onclick="showConflictOverview()"></button>
+          <button class="btn btn-primary btn-sm" id="btn-conflict-merge-save" onclick="doConflictMergeSave()">接受合并并保存</button>
+          <button class="btn btn-secondary btn-sm" onclick="showConflictOverview()">返回</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!--  input -->
+<!-- 上传图片 input -->
 <input type="file" id="img-file-input" accept="image/*"
        style="display:none" onchange="doUploadFile(this.files[0], {sourceInput:'img-file-input'})">
 <input type="file" id="attach-file-input"
        style="display:none" onchange="doUploadFile(this.files[0], {forceLink:true, sourceInput:'attach-file-input'})">
 
-<!--  AI Assistant  -->
-<button class="ai-float-btn" id="ai-float-btn" onclick="toggleAiPanel()" title="AI "></button>
+<!-- ── AI Assistant ── -->
+<button class="ai-float-btn" id="ai-float-btn" onclick="toggleAiPanel()" title="AI 助手">🤖</button>
 <div class="ai-backdrop" id="ai-backdrop" onclick="toggleAiPanel()"></div>
 <div class="ai-panel" id="ai-panel">
   <div class="ai-panel-header">
     <div class="ai-panel-tabs">
-      <button class="ai-panel-tab active" data-tab="chat" onclick="switchAiTab('chat')"> </button>
-      <button class="ai-panel-tab" data-tab="settings" onclick="switchAiTab('settings')"> </button>
+      <button class="ai-panel-tab active" data-tab="chat" onclick="switchAiTab('chat')">💬 对话</button>
+      <button class="ai-panel-tab" data-tab="settings" onclick="switchAiTab('settings')">⚙ 设置</button>
     </div>
-    <button class="ai-panel-close" onclick="toggleAiPanel()"></button>
+    <button class="ai-panel-close" onclick="toggleAiPanel()">✕</button>
   </div>
   <!-- Chat tab -->
   <div class="ai-tab-content active" id="ai-tab-chat">
     <div class="ai-messages" id="ai-messages">
       <div class="ai-welcome" id="ai-welcome-msg">
-        <p> NoteWiki AI </p>
-        <p> Wiki </p>
-        <p style="margin-top:8px;font-size:.78rem">    AI </p>
+        <p>您好！我是 NoteWiki AI 助手。</p>
+        <p>我可以搜索 Wiki 文档并基于文档内容回答您的问题。</p>
+        <p style="margin-top:8px;font-size:.78rem">请先在 ⚙ 设置 中配置 AI 参数后开始对话。</p>
       </div>
     </div>
     <div class="ai-input-area">
-      <textarea id="ai-input" class="ai-input" placeholder="" rows="2"
+      <textarea id="ai-input" class="ai-input" placeholder="输入您的问题…" rows="2"
                 onkeydown="onAiInputKey(event)"></textarea>
-      <button class="btn btn-primary btn-sm" id="ai-send-btn" onclick="sendAiMessage()"></button>
-      <button class="btn btn-secondary btn-sm" id="ai-stop-btn" onclick="stopAiMessage()" style="display:none"></button>
+      <button class="btn btn-primary btn-sm" id="ai-send-btn" onclick="sendAiMessage()">发送</button>
+      <button class="btn btn-secondary btn-sm" id="ai-stop-btn" onclick="stopAiMessage()" style="display:none">停止</button>
     </div>
   </div>
   <!-- Settings tab -->
   <div class="ai-tab-content" id="ai-tab-settings">
     <div class="ai-settings">
-      <label class="field-label">API  URL</label>
+      <label class="field-label">API 端点 URL</label>
       <input id="ai-api-url" class="field-input" type="text" placeholder="https://api.deepseek.com/v1/chat/completions"
              oninput="autoSaveAiSettingsField()">
-      <div style="font-size:.7rem;color:var(--dim);margin:-6px 0 4px"> OpenAI OpenAI / Azure /  LLM </div>
+      <div style="font-size:.7rem;color:var(--dim);margin:-6px 0 4px">支持 OpenAI 兼容接口（OpenAI / Azure / 本地 LLM 等）</div>
 
-      <label class="field-label">API </label>
+      <label class="field-label">API 密钥</label>
       <input id="ai-api-key" class="field-input" type="password" placeholder="sk-..."
              oninput="autoSaveAiSettingsField()">
 
-      <label class="field-label"></label>
+      <label class="field-label">模型名称</label>
       <input id="ai-model" class="field-input" type="text" placeholder="deepseek-v4-flash"
              oninput="autoSaveAiSettingsField()">
 
-      <label class="field-label"></label>
+      <label class="field-label">模式</label>
       <select id="ai-mode" class="field-input" onchange="onAiModeChange()">
-        <option value="flash">Flash   (deepseek-v4-flash)</option>
-        <option value="pro">Pro   (deepseek-v4-pro)</option>
+        <option value="flash">Flash — 快速响应 (deepseek-v4-flash)</option>
+        <option value="pro">Pro — 深度推理 (deepseek-v4-pro)</option>
       </select>
 
-      <label class="field-label"> (Thinking)</label>
+      <label class="field-label">思考模式 (Thinking)</label>
       <select id="ai-thinking-type" class="field-input" onchange="onAiThinkingChange()">
-        <option value="enabled">  </option>
-        <option value="disabled">  </option>
+        <option value="enabled">启用 — 输出思维链，提高准确性</option>
+        <option value="disabled">禁用 — 直接输出答案</option>
       </select>
 
-      <label class="field-label"> (Reasoning Effort)</label>
+      <label class="field-label">推理深度 (Reasoning Effort)</label>
       <select id="ai-reasoning-effort" class="field-input" onchange="autoSaveAiSettingsField()">
-        <option value="high">High  </option>
-        <option value="max">Max  </option>
+        <option value="high">High — 标准推理</option>
+        <option value="max">Max — 最大推理深度</option>
       </select>
 
       <label class="field-label">Temperature (0-2)</label>
       <input id="ai-temperature" class="field-input" type="number" min="0" max="2" step="0.1" value="0.7"
              oninput="autoSaveAiSettingsField()">
 
-      <label class="field-label"></label>
+      <label class="field-label">搜索文件夹（多选）</label>
       <select id="ai-folders" class="field-input" multiple style="height:90px"
               onchange="autoSaveAiSettingsField()">
-        <option value="md_db">md_db  Markdown </option>
-        <option value="adoc_db">adoc_db  AsciiDoc </option>
+        <option value="md_db">md_db — Markdown 文档</option>
+        <option value="adoc_db">adoc_db — AsciiDoc 文档</option>
       </select>
-      <div style="font-size:.7rem;color:var(--dim);margin:-2px 0 4px"> Ctrl/Cmd  md_db</div>
+      <div style="font-size:.7rem;color:var(--dim);margin:-2px 0 4px">按住 Ctrl/Cmd 多选，默认搜索 md_db</div>
 
-      <label class="field-label"></label>
+      <label class="field-label">最大检索文档数</label>
       <input id="ai-max-docs" class="field-input" type="number" min="1" max="20" value="5" placeholder="5"
              oninput="autoSaveAiSettingsField()">
 
-      <label class="field-label"></label>
+      <label class="field-label">系统提示词（可选）</label>
       <textarea id="ai-system-prompt" class="field-input" rows="3" style="resize:vertical"
-                placeholder=""
+                placeholder="自定义系统提示词…"
                 oninput="autoSaveAiSettingsField()"></textarea>
 
       <div style="display:flex;gap:8px;margin-top:6px">
-        <button class="btn btn-primary btn-sm" onclick="saveAiSettings()"></button>
-        <button class="btn btn-danger btn-sm" onclick="clearAiHistory()"></button>
+        <button class="btn btn-primary btn-sm" onclick="saveAiSettings()">保存设置</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAiHistory()">清除对话</button>
       </div>
       <div class="ai-settings-msg" id="ai-settings-msg"></div>
     </div>
@@ -922,7 +920,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 <script src="/wiki/rich-render.js"></script>
 
 <script>
-//  State 
+// ── State ────────────────────────────────────────────────────────────
 var S = {
   articles: [],
   categories: [],
@@ -930,18 +928,18 @@ var S = {
   curCat: null,
   editId: null,
   editIsNew: false,
-  editForce: false,       // 
-  editForceCreated: '',   //  created 
+  editForce: false,       // 强制覆盖同名文件
+  editForceCreated: '',   // 被覆盖文章原有 created 字段
   viewMode: 'split',      // split | edit | prev
-  previewAlign: false,    // 
-  showLineNumbers: true,  // 
-  keyDebugEnabled: false, // 
-  vimEnabled: false,      //  Vim 
-  vimInsert: false,       // Vim true=Insert, false=Normal
-  folderFilter: null,      // null =  = 
-  editBaseUpdated: '',      //  updated 
-  conflictServerContent: '',// 
-  conflictServerUpdated: '' //  updated
+  previewAlign: false,    // 右侧预览是否随光标自动对齐（默认关闭）
+  showLineNumbers: true,  // 编辑区是否显示行号
+  keyDebugEnabled: false, // 键值调试显示开关（默认关闭）
+  vimEnabled: false,      // 是否启用 Vim 按键模式
+  vimInsert: false,       // Vim 子模式：true=Insert, false=Normal
+  folderFilter: null,      // null = 显示全部；字符串数组 = 仅显示这些分类路径（含子文件夹）
+  editBaseUpdated: '',      // 乐观锁：编辑时的 updated 时间戳
+  conflictServerContent: '',// 冲突时服务端返回的内容
+  conflictServerUpdated: '' // 冲突时服务端返回的 updated
 };
 var Auth = { loggedIn:false, user:null };
 
@@ -952,13 +950,13 @@ function setAuthUi() {
   if (!st || !btn || !link) return;
   if (Auth.loggedIn && Auth.user) {
     var roleTxt = (Auth.user.role || '');
-    if (roleTxt === 'guest') roleTxt = 'guest()';
-    st.textContent = '' + (Auth.user.username || '') + ' [' + roleTxt + ']';
-    btn.textContent = '';
+    if (roleTxt === 'guest') roleTxt = 'guest(只读)';
+    st.textContent = '已登录：' + (Auth.user.username || '') + ' [' + roleTxt + ']';
+    btn.textContent = '退出';
     link.style.display = (Auth.user.role === 'admin') ? '' : 'none';
   } else {
-    st.textContent = '';
-    btn.textContent = '';
+    st.textContent = '游客（只读）';
+    btn.textContent = '登录';
     link.style.display = 'none';
   }
 }
@@ -1000,23 +998,23 @@ function doLogin() {
   .then(function(d){
     if (d && d.ok) {
       closeLoginModal();
-      setStatus('');
+      setStatus('登录成功');
       return refreshAuthStatus();
     }
     var tip = document.getElementById('login-tip');
-    tip.textContent = '' + ((d && d.error) || '');
+    tip.textContent = '登录失败：' + ((d && d.error) || '用户名或密码错误');
     tip.style.display = '';
   })
   .catch(function(e){
     var tip = document.getElementById('login-tip');
-    tip.textContent = '' + e.message;
+    tip.textContent = '登录失败：' + e.message;
     tip.style.display = '';
   });
 }
 
 function doLogout() {
   fetch('/api/wiki-logout', { method:'POST' })
-    .then(function(){ Auth.loggedIn = false; Auth.user = null; setAuthUi(); setStatus(''); });
+    .then(function(){ Auth.loggedIn = false; Auth.user = null; setAuthUi(); setStatus('已退出登录'); });
 }
 
 function toggleAuthAction() {
@@ -1027,17 +1025,17 @@ function toggleAuthAction() {
 function ensureWriteAuth() {
   if (!Auth.loggedIn) {
     openLoginModal();
-    setStatus('');
+    setStatus('请先登录后再执行编辑操作');
     return false;
   }
   if (!Auth.user || (Auth.user.role !== 'admin' && Auth.user.role !== 'author')) {
-    setStatus('guest');
+    setStatus('当前账号为只读权限（guest），不可编辑');
     return false;
   }
   return true;
 }
 
-//  Init 
+// ── Init ─────────────────────────────────────────────────────────────
 function init() {
   richRenderer.ensure();
   updateLineNumberUi();
@@ -1064,14 +1062,14 @@ function isHiddenCategory(cat) {
   );
 }
 
-// adoc 
+// adoc 文件由独立流程管理，不在编辑器侧栏显示，也不参与文件夹筛选
 function isAdocCat(c) {
   return c === 'adoc_db' || c.startsWith('adoc_db/') ||
          c === 'adoc_html' || c.startsWith('adoc_html/');
 }
 
 function refreshAll(onDone) {
-  setStatus('');
+  setStatus('加载中…');
   fetch('/api/wiki-list')
     .then(function(r){
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1080,7 +1078,7 @@ function refreshAll(onDone) {
     .then(function(data){
       S.articles = data.articles || [];
       S.categories = buildCats(S.articles);
-      // 
+      // 合并服务端返回的目录列表（包含空目录）
       (data.categories || []).forEach(function(c){
         if (isHiddenCategory(c)) return;
         if(c && S.categories.indexOf(c)===-1) S.categories.push(c);
@@ -1104,11 +1102,11 @@ function refreshAll(onDone) {
         S.folderFilter = null;
       rebuildFolderFilterUi();
       renderTree();
-      setStatus(' ' + S.articles.length + ' ');
-      document.getElementById('status-count').textContent = S.articles.length + ' ';
+      setStatus('共 ' + S.articles.length + ' 篇文章');
+      document.getElementById('status-count').textContent = S.articles.length + ' 篇';
       if (onDone) onDone();
     })
-    .catch(function(e){ setStatus(''+e.message); renderTree(); });
+    .catch(function(e){ setStatus('加载失败：'+e.message); renderTree(); });
 }
 
 function buildCats(arts) {
@@ -1132,8 +1130,8 @@ function rebuildFolderFilterUi() {
   var list = document.getElementById('sb-fold-list');
   var allCb = document.getElementById('sb-fold-all');
   if (!list || !allCb) return;
-  var rows = [{ v: '__ROOT__', t: ' ' }];
-  S.categories.forEach(function(c){ if (!isAdocCat(c)) rows.push({ v: c, t: ' ' + c }); });
+  var rows = [{ v: '__ROOT__', t: '📁 根目录（无分类）' }];
+  S.categories.forEach(function(c){ if (!isAdocCat(c)) rows.push({ v: c, t: '📂 ' + c }); });
   list.innerHTML = rows.map(function(r){
     var dc = r.v === '__ROOT__' ? '__ROOT__' : escH(r.v);
     return '<label class="sb-fold-row"><input type="checkbox" data-cat="'+dc+'"> '+escH(r.t)+'</label>';
@@ -1222,13 +1220,13 @@ function applyFolderFilterSave() {
   })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (d && d.ok) { setStatus(''); }
-      else setStatus('' + ((d && d.error) || ''));
+      if (d && d.ok) { setStatus('文件夹筛选已保存'); }
+      else setStatus('保存失败：' + ((d && d.error) || '未知错误'));
     })
-    .catch(function(e){ setStatus('' + e.message); });
+    .catch(function(e){ setStatus('保存失败：' + e.message); });
 }
 
-//  Tree 
+// ── Tree ─────────────────────────────────────────────────────────────
 var treeExpanded = {};
 var _searchTimer = null;
 var _searchQ = '';
@@ -1244,7 +1242,7 @@ function onSearchInput() {
     document.getElementById('sb-search-hint').style.display='none';
     return;
   }
-  document.getElementById('sb-search-hint').textContent='';
+  document.getElementById('sb-search-hint').textContent='搜索中…';
   document.getElementById('sb-search-hint').style.display='';
   _searchTimer = setTimeout(function(){
     var cur = q;
@@ -1263,7 +1261,7 @@ function onSearchInput() {
         _ftMatched = newFt;
         var count = Object.keys(newFt).length;
         var hint = document.getElementById('sb-search-hint');
-        hint.textContent = count ? ' '+count+' ' : '';
+        hint.textContent = count ? '全文匹配 '+count+' 篇' : '无全文匹配';
         hint.style.display='';
         renderTree();
       }).catch(function(){
@@ -1318,7 +1316,7 @@ function renderTree() {
   // categories (hierarchical)
   html += renderCatChildren(bycat, '', 0);
 
-  document.getElementById('sb-tree').innerHTML = html || '<div style="padding:16px;font-size:.78rem;color:var(--dim)"></div>';
+  document.getElementById('sb-tree').innerHTML = html || '<div style="padding:16px;font-size:.78rem;color:var(--dim)">暂无文章</div>';
 }
 
 // root-only flat section
@@ -1328,8 +1326,8 @@ function catSection(cat, arts, isRoot) {
   var h = '<div class="tree-cat'+(S.curCat===cat?' active-cat':'')+'" '
         + 'data-type="cat" data-cat="" '
         + 'onclick="toggleCat(\''+esc(key)+'\')">'
-        + '<span class="tree-cat-arrow'+(open?' open':'')+'"></span>'
-        + ' <span class="tree-cat-name"></span>'
+        + '<span class="tree-cat-arrow'+(open?' open':'')+'">▶</span>'
+        + '📁 <span class="tree-cat-name">根目录</span>'
         + '<span style="font-size:.68rem;color:var(--dim);margin-left:4px">'+arts.length+'</span>'
         + '</div>';
   if (open) {
@@ -1337,8 +1335,8 @@ function catSection(cat, arts, isRoot) {
       h += '<div class="tree-art'+(S.curId===a.id?' active':'')+'" '
          + 'data-type="art" data-id="'+escH(a.id)+'" '
          + 'onclick="openArticle(\''+esc(a.id)+'\')">'
-         + '<span class="tree-art-icon"></span>'
-         + '<span class="tree-art-title">'+escH(a.title||'()')+'</span>'
+         + '<span class="tree-art-icon">📄</span>'
+         + '<span class="tree-art-title">'+escH(a.title||'(无标题)')+'</span>'
          + '</div>';
     });
   }
@@ -1369,8 +1367,8 @@ function catSectionTree(cat, bycat, depth) {
         + 'data-type="cat" data-cat="'+escH(cat)+'" '
         + 'style="padding-left:'+(10+indent)+'px" '
         + 'onclick="toggleCat(\''+esc(key)+'\')">'
-        + '<span class="tree-cat-arrow'+(open?' open':'')+'"></span>'
-        + ' <span class="tree-cat-name">'+escH(label)+'</span>'
+        + '<span class="tree-cat-arrow'+(open?' open':'')+'">▶</span>'
+        + '📂 <span class="tree-cat-name">'+escH(label)+'</span>'
         + '<span style="font-size:.68rem;color:var(--dim);margin-left:4px">'+arts.length+'</span>'
         + '</div>';
   if (open) {
@@ -1379,8 +1377,8 @@ function catSectionTree(cat, bycat, depth) {
          + 'data-type="art" data-id="'+escH(a.id)+'" '
          + 'style="padding-left:'+(22+indent)+'px" '
          + 'onclick="openArticle(\''+esc(a.id)+'\')">'
-         + '<span class="tree-art-icon"></span>'
-         + '<span class="tree-art-title">'+escH(a.title||'()')+'</span>'
+         + '<span class="tree-art-icon">📄</span>'
+         + '<span class="tree-art-title">'+escH(a.title||'(无标题)')+'</span>'
          + '</div>';
     });
     h += renderCatChildren(bycat, cat, depth + 1);
@@ -1393,23 +1391,23 @@ function toggleCat(key) {
   renderTree();
 }
 
-/** HTML */
+/** 与阅读页「HTML」链接一致的已发布路径（相对网站根路径） */
 function publishedHtmlUrl(id, cat) {
   if (!id) return '';
   cat = cat || '';
   return cat ? '/wiki/' + cat + '/' + id + '.html' : '/wiki/' + id + '.html';
 }
 
-//  Open / View 
+// ── Open / View ───────────────────────────────────────────────────────
 function openArticle(id) {
   var pe = document.getElementById('pane-edit');
   var preferEdit = pe && pe.style.display !== 'none';
-  /*  */
+  /* 已在编辑同一篇时，不再重复加载 */
   if (id === S.curId && preferEdit) return;
   if (preferEdit) {
     refreshEditDirtyState();
     if (_editDirty) {
-      if (!confirm('')) {
+      if (!confirm('当前编辑未保存，确定要切换到其他文章？未保存的修改将丢失。')) {
         return;
       }
     }
@@ -1431,20 +1429,20 @@ function openArticle(id) {
 
   showPane('view');
   document.getElementById('view-title').textContent = meta.title||'';
-  var vm = ''+(meta.category||'') + '  |  '+(meta.updated||'').replace('T',' ').replace('Z','');
+  var vm = '分类：'+(meta.category||'根目录') + '  |  更新：'+(meta.updated||'').replace('T',' ').replace('Z','');
   if (meta.lastAuthor)
-    vm += '  |  ' + meta.lastAuthor;
+    vm += '  |  最后编辑：' + meta.lastAuthor;
   if (meta.authors && meta.authors.length)
-    vm += '  |  ' + meta.authors.join('');
+    vm += '  |  贡献者：' + meta.authors.join('、');
   document.getElementById('view-meta').textContent = vm;
 
   var cat = meta.category||'';
   document.getElementById('view-html-link').href = publishedHtmlUrl(id, cat);
   document.getElementById('view-breadcrumb').innerHTML =
-    '<span>'+escH(cat||'')+'</span> / '+escH(meta.title||'');
+    '<span>'+escH(cat||'根目录')+'</span> / '+escH(meta.title||'');
 
-  document.getElementById('view-content').innerHTML = '<span style="color:var(--dim)"></span>';
-  resetViewToc('');
+  document.getElementById('view-content').innerHTML = '<span style="color:var(--dim)">加载中…</span>';
+  resetViewToc('目录生成中…');
 
   fetch('/api/wiki-read?id='+encodeURIComponent(id))
     .then(function(r){return r.json();})
@@ -1456,20 +1454,20 @@ function openArticle(id) {
         buildViewToc(vc);
         scheduleRichRender(vc);
       } else {
-        document.getElementById('view-content').innerHTML = '<span style="color:var(--red)"></span>';
-        resetViewToc('');
+        document.getElementById('view-content').innerHTML = '<span style="color:var(--red)">读取失败</span>';
+        resetViewToc('读取失败');
       }
     })
     .catch(function(){
-      document.getElementById('view-content').innerHTML='<span style="color:var(--red)"></span>';
-      resetViewToc('');
+      document.getElementById('view-content').innerHTML='<span style="color:var(--red)">网络错误</span>';
+      resetViewToc('网络错误');
     });
 }
 
 function resetViewToc(msg) {
   var list = document.getElementById('view-toc-list');
   if (!list) return;
-  list.innerHTML = '<div class="view-toc-empty">' + escH(msg || '') + '</div>';
+  list.innerHTML = '<div class="view-toc-empty">' + escH(msg || '本文无标题目录') + '</div>';
 }
 
 function buildViewToc(root) {
@@ -1477,7 +1475,7 @@ function buildViewToc(root) {
   if (!list || !root) return;
   var heads = Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4'));
   if (!heads.length) {
-    resetViewToc('');
+    resetViewToc('本文无标题目录');
     return;
   }
   var minLv = 5;
@@ -1492,7 +1490,7 @@ function buildViewToc(root) {
     var lv = parseInt((h.tagName || 'H2').substring(1), 10) || 2;
     var normLv = Math.min(Math.max(lv - minLv + 1, 1), 4);
     if (!h.id) h.id = 'view-head-' + (i + 1);
-    html += '<a class="l' + normLv + '" href="#' + escH(h.id) + '" data-target="' + escH(h.id) + '">' + escH((h.textContent || '').trim() || (' ' + (i + 1))) + '</a>';
+    html += '<a class="l' + normLv + '" href="#' + escH(h.id) + '" data-target="' + escH(h.id) + '">' + escH((h.textContent || '').trim() || ('标题 ' + (i + 1))) + '</a>';
   }
   list.innerHTML = html;
   Array.prototype.forEach.call(list.querySelectorAll('a[data-target]'), function(a){
@@ -1506,18 +1504,18 @@ function buildViewToc(root) {
   });
 }
 
-//  Edit 
+// ── Edit ─────────────────────────────────────────────────────────────
 function newArticle(prefillCat) {
   if (!ensureWriteAuth()) return;
-  /*  */
+  /* 填充分类下拉 */
   var sel = document.getElementById('na-category');
-  sel.innerHTML = '<option value=""> </option>';
+  sel.innerHTML = '<option value="">📁 根目录</option>';
   S.categories.forEach(function(c){
     var opt = document.createElement('option');
-    opt.value = c; opt.textContent = ' '+c; sel.appendChild(opt);
+    opt.value = c; opt.textContent = '📂 '+c; sel.appendChild(opt);
   });
   sel.value = (prefillCat !== undefined ? prefillCat : (S.curCat || ''));
-  /*  */
+  /* 清空输入 */
   document.getElementById('na-title').value = '';
   document.getElementById('na-filename').value = '';
   document.getElementById('na-filename').removeAttribute('data-manual');
@@ -1551,11 +1549,11 @@ function showTip(msg, showForce){
 function validateNAFilename() {
   var fn = document.getElementById('na-filename').value.trim();
   if (!fn) { hideTip(); return true; }
-  if (!/^[a-z0-9_-]+$/.test(fn)) { showTip('_  -', false); return false; }
+  if (!/^[a-z0-9_-]+$/.test(fn)) { showTip('只能含小写字母、数字、_ 和 -', false); return false; }
   var dup = S.articles.find(function(a){ return a.id===fn; });
   if (dup) {
-    showTip(''+fn+'', true);
-    return document.getElementById('na-force').checked;  /*  */
+    showTip('文件名「'+fn+'」已存在（勾选后可强制覆盖）', true);
+    return document.getElementById('na-force').checked;  /* 勾选后允许通过 */
   }
   hideTip(); return true;
 }
@@ -1568,14 +1566,14 @@ function doNewArticle() {
   var cat   = document.getElementById('na-category').value;
   var force = document.getElementById('na-force').checked;
   closeNewArticleModal();
-  /*  created  */
+  /* 强制覆盖时找到原文章的 created 字段 */
   S.editForce = force;
   S.editForceCreated = '';
   if (force && fn) {
     var old = S.articles.find(function(a){ return a.id===fn; });
     if (old) S.editForceCreated = old.created || '';
   }
-  /*  */
+  /* 进入编辑器 */
   S.editId = null;
   S.editIsNew = true;
   document.getElementById('edit-title').value = title;
@@ -1592,7 +1590,7 @@ function doNewArticle() {
   setTimeout(function(){ document.getElementById('edit-textarea').focus(); }, 50);
 }
 
-/**  id  */
+/** 按文章 id 填满编辑区（与点击「编辑」等效） */
 function loadEditorFromArticleId(id) {
   var meta = S.articles.find(function(a){ return a.id === id; });
   if (!meta) return;
@@ -1605,7 +1603,7 @@ function loadEditorFromArticleId(id) {
   populateCatSelect(meta.category || '');
   showPane('edit');
   setViewMode(S.viewMode);
-  document.getElementById('edit-textarea').value = '';
+  document.getElementById('edit-textarea').value = '加载中…';
 
   fetch('/api/wiki-read?id=' + encodeURIComponent(id))
     .then(function(r) { return r.json(); })
@@ -1641,17 +1639,17 @@ function cancelEdit() {
 
 function populateCatSelect(selected) {
   var sel = document.getElementById('edit-category');
-  sel.innerHTML = '<option value=""> </option>';
+  sel.innerHTML = '<option value="">📁 根目录</option>';
   S.categories.forEach(function(c){
     var opt = document.createElement('option');
-    opt.value = c; opt.textContent = ' '+c;
+    opt.value = c; opt.textContent = '📂 '+c;
     sel.appendChild(opt);
   });
   sel.value = selected||'';
   updateEditHtmlLink();
 }
 
-/** HTML id  */
+/** 编辑顶栏「HTML」按钮：已有 id 或新建时已填文件名时可用 */
 function updateEditHtmlLink() {
   var a = document.getElementById('edit-html-link');
   if (!a) return;
@@ -1666,7 +1664,7 @@ function updateEditHtmlLink() {
     a.style.opacity = '0.45';
     a.style.pointerEvents = 'none';
     a.style.cursor = 'default';
-    a.title = ' HTML';
+    a.title = '保存文章后（或填写链接文件名）可打开已发布的 HTML';
     return;
   }
   a.href = url;
@@ -1674,11 +1672,11 @@ function updateEditHtmlLink() {
   a.style.opacity = '';
   a.style.pointerEvents = '';
   a.style.cursor = '';
-  a.title = '' + url;
+  a.title = '新标签打开已发布页面：' + url;
 }
 
-//  Save 
-//  Auto-save 
+// ── Save ─────────────────────────────────────────────────────────────
+// ── Auto-save ────────────────────────────────────────────────────────
 var _autoSaveTimer = null;
 var _autoSaveDirty = false;
 var _editBaseline = '';
@@ -1725,7 +1723,7 @@ function scheduleAutoSave() {
 function doAutoSave() {
   if (!_autoSaveDirty) return;
   var title = document.getElementById('edit-title').value.trim();
-  if (!title || !S.editId) return; //  id 
+  if (!title || !S.editId) return; // 仅已有 id 的文章自动保存
   _doSave({silent: true});
 }
 
@@ -1734,7 +1732,7 @@ function updateAutoSaveLabel(msg) {
   if (el) el.textContent = msg || '';
 }
 
-//  Save / Publish 
+// ── Save / Publish ────────────────────────────────────────────────────
 function saveArticle()   { _doSave({}); }
 function publishArticle(){ _doSave({ published: true }); }
 
@@ -1749,18 +1747,18 @@ function _doSave(opts) {
   var content = document.getElementById('edit-textarea').value;
 
   if (!title) {
-    if (!silent) { document.getElementById('edit-title').focus(); setStatus(''); }
+    if (!silent) { document.getElementById('edit-title').focus(); setStatus('请输入标题'); }
     return;
   }
 
-  /*  */
+  /* 新建时处理自定义文件名 */
   var useId = S.editId || '';
   var useForce = false;
   if (S.editIsNew) {
     var fn = document.getElementById('edit-filename').value.trim();
     if (fn) {
       if (!/^[a-z0-9_-]+$/.test(fn)) {
-        if (!silent) { setStatus('_  -'); document.getElementById('edit-filename').focus(); }
+        if (!silent) { setStatus('文件名只能含小写字母、数字、_ 和 -'); document.getElementById('edit-filename').focus(); }
         return;
       }
       useId = fn;
@@ -1772,8 +1770,8 @@ function _doSave(opts) {
   var meta = S.editId ? S.articles.find(function(a){return a.id===S.editId;}) : null;
   var useCreated = meta ? (meta.created||'') : (S.editForceCreated||'');
 
-  if (!silent) setStatus('');
-  else updateAutoSaveLabel('');
+  if (!silent) setStatus('保存中…');
+  else updateAutoSaveLabel('保存中…');
 
   var saveBody = {id:useId, title:title, category:cat, content:content, html:html, created:useCreated, force:useForce};
   if (S.editBaseUpdated) saveBody.base_updated = S.editBaseUpdated;
@@ -1794,14 +1792,14 @@ function _doSave(opts) {
         S.conflictServerContent = data.server_content || '';
         S.conflictServerUpdated = data.server_updated || '';
         if (silent) {
-          updateAutoSaveLabel('()');
+          updateAutoSaveLabel('冲突(手动保存解决)');
         } else {
           openConflictModal();
-          setStatus('');
+          setStatus('编辑冲突：文章已被他人修改');
         }
       } else {
-        if (!silent) setStatus(''+(data.error||''));
-        else updateAutoSaveLabel('');
+        if (!silent) setStatus('保存失败：'+(data.error||''));
+        else updateAutoSaveLabel('保存失败');
       }
       return;
     }
@@ -1810,51 +1808,51 @@ function _doSave(opts) {
       S.editId = data.id;
       S.editIsNew = false;
       _autoSaveDirty = false;
-      S.editBaseUpdated = ''; /* will be refreshed on next load */
+      S.editBaseUpdated = '';
       var now = new Date(); var hm = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
       if (silent) {
-        updateAutoSaveLabel(' '+hm);
+        updateAutoSaveLabel('自动保存 '+hm);
       } else {
-        setStatus(published ? '' : '');
-        updateAutoSaveLabel(' '+hm);
+        setStatus(published ? '已发布' : '已保存');
+        updateAutoSaveLabel('保存于 '+hm);
       }
       markEditBaseline();
       refreshAll();
       updateEditHtmlLink();
     } else {
-      if (!silent) setStatus(''+(data.error||''));
-      else updateAutoSaveLabel('');
+      if (!silent) setStatus('保存失败：'+(data.error||''));
+      else updateAutoSaveLabel('保存失败');
     }
   })
   .catch(function(e){
-    if (!silent) setStatus(''+e.message);
-    else updateAutoSaveLabel('');
+    if (!silent) setStatus('请求失败：'+e.message);
+    else updateAutoSaveLabel('保存失败');
   });
 }
 
-//  Delete 
+// ── Delete ───────────────────────────────────────────────────────────
 function deleteCurrent() {
   if (!S.curId) return;
   if (!ensureWriteAuth()) return;
   var meta = S.articles.find(function(a){return a.id===S.curId;});
   var name = meta ? meta.title : S.curId;
-  if (!confirm(''+name+'')) return;
-  setStatus('');
+  if (!confirm('确定删除「'+name+'」？')) return;
+  setStatus('删除中…');
   fetch('/api/wiki-delete',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({id:S.curId})})
   .then(function(r){return r.json();})
   .then(function(data){
-    if(data.ok){ S.curId=null; showPane('welcome'); refreshAll(); setStatus(''); }
-    else setStatus(''+(data.error||''));
+    if(data.ok){ S.curId=null; showPane('welcome'); refreshAll(); setStatus('已删除'); }
+    else setStatus('删除失败：'+(data.error||''));
   })
-  .catch(function(e){ setStatus(''+e.message); });
+  .catch(function(e){ setStatus('请求失败：'+e.message); });
 }
 
-//  New Category 
+// ── New Category ─────────────────────────────────────────────────────
 function openNewCatModal(prefillParent) {
   if (!ensureWriteAuth()) return;
   var sel = document.getElementById('nc-parent');
-  sel.innerHTML = '<option value=""></option>';
+  sel.innerHTML = '<option value="">根目录</option>';
   S.categories.forEach(function(c){
     var opt=document.createElement('option'); opt.value=c; opt.textContent=c; sel.appendChild(opt);
   });
@@ -1875,17 +1873,17 @@ function doCreateCat() {
   .then(function(r){return r.json();})
   .then(function(data){
     if(data.ok){
-      setStatus('');
+      setStatus('分类已创建');
       if(S.categories.indexOf(path)===-1){ S.categories.push(path); S.categories.sort(); }
       closeNewCatModal();
       renderTree();
     } else {
-      setStatus(''+(data.error||''));
+      setStatus('创建失败：'+(data.error||''));
     }
   });
 }
 
-//   
+// ── 链接文件名自动补全（新建时从标题生成） ────────────────────────────
 function slugifyFilename(s) {
   return (s||'').toLowerCase().replace(/[^a-z0-9_-]/g,'_').replace(/_+/g,'_')
                 .replace(/^_|_$/g,'').substring(0,80);
@@ -1912,7 +1910,7 @@ document.getElementById('edit-html-link').addEventListener('click', function(e) 
   if (this.getAttribute('data-edit-html-disabled')) e.preventDefault();
 });
 
-//   
+// ── 右键菜单 ─────────────────────────────────────────────────────────
 var ctxTarget = null;
 
 document.getElementById('sb-tree').addEventListener('contextmenu', function(e){
@@ -1926,10 +1924,10 @@ document.getElementById('sb-tree').addEventListener('contextmenu', function(e){
     showCtxMenu(e);
   } else if (catEl) {
     var cat = catEl.getAttribute('data-cat');
-    if (!cat) return;           /*  */
+    if (!cat) return;           /* 根目录不显示菜单 */
     e.preventDefault();
     ctxTarget = { type:'cat', cat:cat };
-    document.getElementById('ctx-rename-item').textContent = ' ';
+    document.getElementById('ctx-rename-item').textContent = '✏ 重命名目录';
     showCtxMenu(e);
   }
 });
@@ -1937,7 +1935,7 @@ document.getElementById('sb-tree').addEventListener('contextmenu', function(e){
 function showCtxMenu(e) {
   var menu = document.getElementById('ctx-menu');
   var isArt = ctxTarget.type === 'art';
-  document.getElementById('ctx-rename-item').textContent = isArt ? ' ' : ' ';
+  document.getElementById('ctx-rename-item').textContent = isArt ? '✏ 重命名文章' : '✏ 重命名目录';
   document.getElementById('ctx-newcat-item').style.display = isArt ? 'none' : '';
   document.getElementById('ctx-move-item').style.display   = isArt ? '' : 'none';
   var vw = window.innerWidth, vh = window.innerHeight;
@@ -1958,7 +1956,7 @@ function ctxDoRename() {
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget) return;
   document.getElementById('rename-label').textContent =
-    ctxTarget.type==='art' ? '' : '';
+    ctxTarget.type==='art' ? '文章标题' : '目录名称（仅最后一段）';
   document.getElementById('rename-input').value =
     ctxTarget.type==='art' ? (ctxTarget.title||'') : (ctxTarget.cat.split('/').pop()||'');
   document.getElementById('modal-rename').classList.add('open');
@@ -1973,29 +1971,29 @@ function doRename() {
   closeRenameModal();
   if (!ctxTarget) return;
   if (ctxTarget.type === 'art') {
-    setStatus('');
+    setStatus('重命名中…');
     fetch('/api/wiki-rename-article', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ id: ctxTarget.id, title: val })
     })
     .then(function(r){return r.json();})
     .then(function(data){
-      if (data.ok) { setStatus(''); refreshAll(); }
-      else setStatus(''+(data.error||''));
+      if (data.ok) { setStatus('重命名成功'); refreshAll(); }
+      else setStatus('重命名失败：'+(data.error||''));
     })
-    .catch(function(e){ setStatus(''+e.message); });
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
   } else {
-    setStatus('');
+    setStatus('重命名中…');
     fetch('/api/wiki-rename-cat', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ old_path: ctxTarget.cat, new_name: val })
     })
     .then(function(r){return r.json();})
     .then(function(data){
-      if (data.ok) { setStatus(''); refreshAll(); }
-      else setStatus(''+(data.error||''));
+      if (data.ok) { setStatus('重命名成功'); refreshAll(); }
+      else setStatus('重命名失败：'+(data.error||''));
     })
-    .catch(function(e){ setStatus(''+e.message); });
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
   }
 }
 
@@ -2005,8 +2003,8 @@ function ctxDoDelete() {
   if (!ctxTarget) return;
   if (ctxTarget.type === 'art') {
     var name = ctxTarget.title || ctxTarget.id;
-    if (!confirm(''+name+'')) return;
-    setStatus('');
+    if (!confirm('确定删除文章「'+name+'」？')) return;
+    setStatus('删除中…');
     fetch('/api/wiki-delete', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ id: ctxTarget.id })
@@ -2015,23 +2013,23 @@ function ctxDoDelete() {
     .then(function(data){
       if (data.ok) {
         if (S.curId===ctxTarget.id) { S.curId=null; showPane('welcome'); }
-        refreshAll(); setStatus('');
-      } else setStatus(''+(data.error||''));
+        refreshAll(); setStatus('已删除');
+      } else setStatus('删除失败：'+(data.error||''));
     })
-    .catch(function(e){ setStatus(''+e.message); });
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
   } else {
-    if (!confirm(''+ctxTarget.cat+'\n')) return;
-    setStatus('');
+    if (!confirm('确定删除目录「'+ctxTarget.cat+'」？\n（目录内有文章时将拒绝删除）')) return;
+    setStatus('删除中…');
     fetch('/api/wiki-delete-cat', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ path: ctxTarget.cat })
     })
     .then(function(r){return r.json();})
     .then(function(data){
-      if (data.ok) { refreshAll(); setStatus(''); }
-      else setStatus(''+(data.error||''));
+      if (data.ok) { refreshAll(); setStatus('目录已删除'); }
+      else setStatus('删除失败：'+(data.error||''));
     })
-    .catch(function(e){ setStatus(''+e.message); });
+    .catch(function(e){ setStatus('请求失败：'+e.message); });
   }
 }
 
@@ -2061,10 +2059,10 @@ function ctxDoMove() {
   document.getElementById('ctx-menu').classList.remove('open');
   if (!ctxTarget || ctxTarget.type !== 'art') return;
   var sel = document.getElementById('move-category');
-  sel.innerHTML = '<option value=""> </option>';
+  sel.innerHTML = '<option value="">📁 根目录</option>';
   S.categories.forEach(function(c){
     var opt = document.createElement('option');
-    opt.value = c; opt.textContent = ' '+c; sel.appendChild(opt);
+    opt.value = c; opt.textContent = '📂 '+c; sel.appendChild(opt);
   });
   var meta = S.articles.find(function(a){ return a.id===ctxTarget.id; });
   sel.value = meta ? (meta.category||'') : '';
@@ -2076,7 +2074,7 @@ function doMoveArticle() {
   var cat = document.getElementById('move-category').value;
   closeMoveModal();
   if (!ctxTarget) return;
-  setStatus('');
+  setStatus('移动中…');
   fetch('/api/wiki-move-article', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ id: ctxTarget.id, category: cat })
@@ -2085,62 +2083,62 @@ function doMoveArticle() {
   .then(function(data){
     if (data.ok) {
       if (S.curId === ctxTarget.id) S.curCat = cat;
-      setStatus(''); refreshAll();
-    } else setStatus(''+(data.error||''));
+      setStatus('移动成功'); refreshAll();
+    } else setStatus('移动失败：'+(data.error||''));
   })
-  .catch(function(e){ setStatus(''+e.message); });
+  .catch(function(e){ setStatus('请求失败：'+e.message); });
 }
 
 function cleanupUploads() {
   if (!ensureWriteAuth()) return;
-  if (!confirm(' html/wiki/md_db  .md html/wiki/uploads ')) return;
-  setStatus('');
+  if (!confirm('将扫描 html/wiki/md_db 下全部 .md，删除 html/wiki/uploads 中「未被任何文章路径引用」的图片与文件。空目录不删。操作不可恢复，是否继续？')) return;
+  setStatus('清理无效上传中…');
   fetch('/api/wiki-cleanup-uploads', {method:'POST'})
     .then(function(r){return r.json();})
     .then(function(d){
       if (d.ok) {
-        setStatus('  ' + d.deleted + '  ' + d.kept + ' ');
+        setStatus('✓ 已删除 ' + d.deleted + ' 个文件，保留仍被引用的 ' + d.kept + ' 个');
       } else {
-        setStatus('' + (d.error || ''));
+        setStatus('清理失败：' + (d.error || '未知错误'));
       }
     })
-    .catch(function(e){ setStatus('' + e.message); });
+    .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
 function rebuildAllHtml() {
   if (!ensureWriteAuth()) return;
-  if (!confirm(' Markdown  HTML')) return;
-  setStatus(' HTML');
+  if (!confirm('将遍历全部 Markdown 并重新生成对应 HTML（与单篇「发布」相同的全量批处理）。数据量大时可能需几秒，是否继续？')) return;
+  setStatus('正在全部更新 HTML…');
   fetch('/api/wiki-rebuild-html')
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d.ok) {
-        setStatus('  ' + (d.rebuilt|0) + '  HTML');
+        setStatus('✓ 已更新 ' + (d.rebuilt|0) + ' 篇 HTML');
         refreshAll();
       } else {
-        setStatus('' + (d.error || ''));
+        setStatus('更新失败：' + (d.error || '未知错误'));
       }
     })
-    .catch(function(e){ setStatus('' + e.message); });
+    .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-/**  html/wiki/wiki-index.json /api/wiki-list  notewikiindex  */
+/** 写回 html/wiki/wiki-index.json，结构与 /api/wiki-list 相同，供 notewikiindex 离线与备份 */
 function wikiRefreshIndexJson(silent) {
   if (!ensureWriteAuth()) return Promise.resolve();
-  if (!silent) setStatus('');
+  if (!silent) setStatus('更新离线索引…');
   return fetch('/api/wiki-refresh-index')
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d && d.ok) {
-        if (!silent) setStatus('  wiki-index.jsonhtml/wiki/');
+        if (!silent) setStatus('✓ 已更新 wiki-index.json（html/wiki/）');
       } else {
-        if (!silent) setStatus('' + ((d && d.error) || ''));
+        if (!silent) setStatus('离线索引更新失败：' + ((d && d.error) || ''));
       }
     })
-    .catch(function(e){ if (!silent) setStatus(''+e.message); });
+    .catch(function(e){ if (!silent) setStatus('请求失败：'+e.message); });
 }
 
-//  Export MD ZIP 
+// ── Export MD ZIP ─────────────────────────────────────────────────────
 function exportMdZip() {
   if (!S.curId) return;
   var a = document.createElement('a');
@@ -2149,7 +2147,7 @@ function exportMdZip() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setStatus(' MD ZIP');
+  setStatus('已开始下载 MD ZIP');
 }
 
 function getCurrentHistoryId() {
@@ -2189,7 +2187,7 @@ function filterSameVersionHistory(items) {
 
 function renderHistoryRows(items) {
   if (!items || !items.length) {
-    return '<div class="history-empty"></div>';
+    return '<div class="history-empty">暂无历史记录</div>';
   }
   var rows = items.map(function(it) {
     return '<tr>'
@@ -2199,26 +2197,26 @@ function renderHistoryRows(items) {
       + '<td>' + escH(String(it.ip || '')) + '</td>'
       + '<td title="' + escH(String(it.saveTxnId || '')) + '">' + escH(String(it.saveTxnId || '')) + '</td>'
       + '<td>' + escH(String(it.contentLength || 0)) + '</td>'
-      + '<td><button class="btn btn-secondary btn-sm" onclick="openHistoryDetailModal(' + Number(it.id || 0) + ')"></button></td>'
+      + '<td><button class="btn btn-secondary btn-sm" onclick="openHistoryDetailModal(' + Number(it.id || 0) + ')">详情</button></td>'
       + '</tr>';
   }).join('');
   return '<table class="history-table"><thead><tr>'
-    + '<th>#</th><th></th><th></th><th>IP</th><th>save_txn_id</th><th></th><th></th>'
+    + '<th>#</th><th>保存时间</th><th>编辑者</th><th>IP</th><th>save_txn_id</th><th>内容长度</th><th>操作</th>'
     + '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 function openHistoryModal() {
   var id = getCurrentHistoryId();
   if (!id) {
-    setStatus('');
+    setStatus('请先打开一篇已保存文章再查看历史');
     return;
   }
   var modal = document.getElementById('modal-history');
   var summary = document.getElementById('history-summary');
   var wrap = document.getElementById('history-wrap');
   if (!modal || !summary || !wrap) return;
-  summary.textContent = ' ID' + id + '';
-  wrap.innerHTML = '<div class="history-empty"></div>';
+  summary.textContent = '文章 ID：' + id + '（加载中…）';
+  wrap.innerHTML = '<div class="history-empty">加载中…</div>';
   _historyItems = [];
   modal.classList.add('open');
 
@@ -2230,25 +2228,25 @@ function openHistoryModal() {
       var d = resp.data || {};
       if (!resp.ok || !d.ok) {
         var msg = (d && d.error) ? d.error : ('HTTP ' + resp.status);
-        summary.textContent = ' ID' + id;
-        wrap.innerHTML = '<div class="history-empty">' + escH(msg) + '</div>';
+        summary.textContent = '文章 ID：' + id;
+        wrap.innerHTML = '<div class="history-empty">读取失败：' + escH(msg) + '</div>';
         _historyItems = [];
-        setStatus('' + msg);
+        setStatus('历史查询失败：' + msg);
         return;
       }
       var items = d.items || [];
       var filtered = filterSameVersionHistory(items);
       _historyItems = filtered;
       var removed = items.length - filtered.length;
-      summary.textContent = ' ID' + id + ' ' + filtered.length + ' '
-        + (removed > 0 ? (' ' + removed + ' ') : '');
+      summary.textContent = '文章 ID：' + id + '，共 ' + filtered.length + ' 条（按时间倒序）'
+        + (removed > 0 ? ('，已过滤 ' + removed + ' 条相同版本') : '');
       wrap.innerHTML = renderHistoryRows(filtered);
     })
     .catch(function(e){
-      summary.textContent = ' ID' + id;
-      wrap.innerHTML = '<div class="history-empty">' + escH(e.message || String(e)) + '</div>';
+      summary.textContent = '文章 ID：' + id;
+      wrap.innerHTML = '<div class="history-empty">请求失败：' + escH(e.message || String(e)) + '</div>';
       _historyItems = [];
-      setStatus('' + (e.message || e));
+      setStatus('历史查询失败：' + (e.message || e));
     });
 }
 
@@ -2262,7 +2260,7 @@ function buildHistoryDiff(currContent, prevContent, showContext) {
   var prev = String(prevContent || '').replace(/\r\n?/g, '\n').split('\n');
   var out = [];
   if (!prevContent && currContent) {
-    out.push('<div class="hist-diff-line hist-diff-note"></div>');
+    out.push('<div class="hist-diff-line hist-diff-note">首次存档，无上一版本可对比。</div>');
   }
   var max = Math.max(cur.length, prev.length);
   var changed = [];
@@ -2287,7 +2285,7 @@ function buildHistoryDiff(currContent, prevContent, showContext) {
         out.push('<div class="hist-diff-line hist-diff-ctx">  L' + (i + 1) + ': ' + escH(a || '') + '</div>');
         skipped = false;
       } else if (showContext && !skipped && changed.length > 0) {
-        out.push('<div class="hist-diff-line hist-diff-note">...  ...</div>');
+        out.push('<div class="hist-diff-line hist-diff-note">... 省略未改动行 ...</div>');
         skipped = true;
       }
       continue;
@@ -2296,11 +2294,11 @@ function buildHistoryDiff(currContent, prevContent, showContext) {
     if (b !== null) out.push('<div class="hist-diff-line hist-diff-add">+ L' + (i + 1) + ': ' + escH(b) + '</div>');
     skipped = false;
     if (out.length > 1200) {
-      out.push('<div class="hist-diff-line hist-diff-note">...  ...</div>');
+      out.push('<div class="hist-diff-line hist-diff-note">... 变更内容过长，已截断显示 ...</div>');
       break;
     }
   }
-  if (!out.length) return '<div class="hist-diff-line hist-diff-note"></div>';
+  if (!out.length) return '<div class="hist-diff-line hist-diff-note">该版本与上一版本内容一致。</div>';
   return out.join('');
 }
 
@@ -2330,7 +2328,7 @@ function openHistoryDetailModal(historyId) {
     }
   }
   if (!hit) {
-    setStatus('');
+    setStatus('未找到该历史记录详情');
     return;
   }
   document.getElementById('histd-title').textContent = String(hit.title || '');
@@ -2345,8 +2343,8 @@ function openHistoryDetailModal(historyId) {
   document.getElementById('modal-history-detail').classList.add('open');
 }
 
-//  Export PDF iframe.srcdoc blob: URL@page margin:0+body  
-// Chromium/Edge /URL
+// ── Export PDF：优先 iframe.srcdoc（页脚不显示长 blob: URL）；@page margin:0+body 内边距减轻系统页眉区 ──
+// 注：Chromium/Edge 仍可能显示「日期/URL」，需在打印对话框中关闭「页眉和页脚」以彻底去除。
 function printHtmlForPdf(html) {
   var ifr = document.createElement('iframe');
   ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
@@ -2362,7 +2360,7 @@ function printHtmlForPdf(html) {
     ifr.removeAttribute('srcdoc');
     ifr.src = url;
   }
-  setStatus('/');
+  setStatus('若预览左上有日期/左下有网址，请在打印设置中取消「页眉和页脚」或「标头和页脚」');
   var cleaned = false;
   function cleanup() {
     if (cleaned) return;
@@ -2395,7 +2393,7 @@ function printHtmlForPdf(html) {
           try {
             var b = new Blob(['\ufeff', html], { type: 'text/html;charset=utf-8' });
             url = URL.createObjectURL(b);
-          } catch (e0) { cleanup(); setStatus(''); return; }
+          } catch (e0) { cleanup(); setStatus('无法准备打印内容'); return; }
         }
         var w = window.open(url, '_blank');
         if (w) {
@@ -2406,7 +2404,7 @@ function printHtmlForPdf(html) {
           setTimeout(cleanup, 60000);
           return;
         }
-        setStatus('');
+        setStatus('请允许弹出窗口后重试');
         cleanup();
         return;
       }
@@ -2470,9 +2468,9 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + '<script>(function(){'
     + 'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}'
     + 'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}'
-    + 'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\"></div>";return;}'
+    + 'function buildPdfToc(){var root=document.getElementById("pdf-article-body"),list=document.getElementById("pdf-toc-list");if(!root||!list)return;var hs=root.querySelectorAll("h1,h2,h3,h4");if(!hs.length){list.innerHTML="<div class=\\"pdf-toc-empty\\">无目录</div>";return;}'
     + 'var used={},h="",minLv=5,maxNorm=1;for(var m=0;m<hs.length;m++){var lv0=parseInt(hs[m].tagName.slice(1),10)||1;if(lv0<minLv)minLv=lv0;}if(minLv>4)minLv=1;for(var k=0;k<hs.length;k++){var lv1=parseInt(hs[k].tagName.slice(1),10)||1;var nl1=Math.min(Math.max(lv1-minLv+1,1),4);if(nl1>maxNorm)maxNorm=nl1;}'
-    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var nl=Math.min(Math.max(lv-minLv+1,1),4);var cls=[];if(nl>1)cls.push("lv"+nl);if(nl===maxNorm)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\"></div>";}'
+    + 'for(var i=0;i<hs.length;i++){var hd=hs[i],txt=(hd.textContent||"").trim();if(!txt)continue;var id=hd.id||sid(txt,used);hd.id=id;var lv=parseInt(hd.tagName.slice(1),10)||1;var nl=Math.min(Math.max(lv-minLv+1,1),4);var cls=[];if(nl>1)cls.push("lv"+nl);if(nl===maxNorm)cls.push("deepest");var classAttr=cls.length?(" class=\\""+cls.join(" ")+"\\""):"";var sn=hd.getAttribute("data-secnum")||"";h+="<a"+classAttr+" href=\\"#"+id+"\\">"+sn+eh(txt)+"</a>";}list.innerHTML=h||"<div class=\\"pdf-toc-empty\\">无目录</div>";}'
     + 'function done(){window.__pdfReady=1;}'
     + 'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}'
     + 'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}'
@@ -2487,8 +2485,8 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + '<style>\n' + css + '\n</style>\n</head>\n<body>\n'
     + '<div class="wrap" id="pdf-print-root">\n'
     + '<h1 class="art-title">' + escH(title) + '</h1>\n'
-    + '<div class="meta">' + escH(cat) + ' &nbsp;|&nbsp; ' + escH(updated) + '</div>\n'
-    + '<div class="pdf-layout"><aside class="pdf-toc"><div class="pdf-toc-title"></div><div id="pdf-toc-list"><div class="pdf-toc-empty"></div></div></aside><div class="pdf-main"><div class="art-content" id="pdf-article-body">\n' + body + '\n</div></div></div>\n'
+    + '<div class="meta">分类：' + escH(cat) + ' &nbsp;|&nbsp; 更新：' + escH(updated) + '</div>\n'
+    + '<div class="pdf-layout"><aside class="pdf-toc"><div class="pdf-toc-title">目录</div><div id="pdf-toc-list"><div class="pdf-toc-empty">生成中…</div></div></aside><div class="pdf-main"><div class="art-content" id="pdf-article-body">\n' + body + '\n</div></div></div>\n'
     + '</div>\n'
     + boot
     + '</body>\n</html>';
@@ -2497,8 +2495,8 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
 }
 
 function exportPdfViaServer(title, cat, updated, body) {
-  var meta = '' + (cat || '') + ' | ' + (updated || '');
-  setStatus(' PDF...');
+  var meta = '分类：' + (cat || '根目录') + ' | 更新：' + (updated || '');
+  setStatus('正在由服务端生成 PDF（含书签）...');
   function parseErrText(t) {
     var s = String(t || '').trim();
     if (!s) return '';
@@ -2538,10 +2536,10 @@ function exportPdfViaServer(title, cat, updated, body) {
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
-    setStatus('PDF ');
+    setStatus('PDF 已下载（服务端书签版）');
   }).catch(function(err) {
     var em = (err && err.message) ? err.message : String(err || '');
-    setStatus(' PDF ' + em);
+    setStatus('服务端 PDF 导出失败，已回退本地导出：' + em);
     try {
       exportPdfBuildWindow(title, cat, updated, body);
     } catch (e2) {}
@@ -2637,28 +2635,28 @@ function exportPdf() {
     var vc = document.getElementById('view-content');
     body = vc ? vc.innerHTML : '';
     if (!body || !body.trim()) {
-      setStatus('');
+      setStatus('当前无可导出的正文内容');
       return;
     }
     var meta = S.curId ? S.articles.find(function(a){ return a.id === S.curId; }) : null;
     title = meta ? (meta.title || 'untitled') : ((document.getElementById('view-title').textContent || '').trim() || 'untitled');
-    cat = meta ? (meta.category || '') : '';
+    cat = meta ? (meta.category || '根目录') : '根目录';
     updated = meta
       ? (meta.updated || '').replace('T',' ').replace('Z','')
       : (function(){
           var vm = (document.getElementById('view-meta').textContent || '');
-          var m = vm.match(/\s*([^\|]+)/);
+          var m = vm.match(/更新：\s*([^\|]+)/);
           return m ? m[1].trim() : '';
         })();
   } else if (inEdit) {
     title = (document.getElementById('edit-title').value || '').trim() || 'untitled';
     var cv = document.getElementById('edit-category').value || '';
-    cat = cv ? cv : '';
+    cat = cv ? cv : '根目录';
     updated = '';
     var ta = document.getElementById('edit-textarea');
     body = md2html(ta ? ta.value : '', false);
   } else {
-    setStatus('');
+    setStatus('请先打开一篇文章，或进入编辑界面');
     return;
   }
 
@@ -2666,7 +2664,7 @@ function exportPdf() {
   exportPdfViaServer(title, cat, updated, body);
 }
 
-//  Upload Image 
+// ── Upload Image ──────────────────────────────────────────────────────
 function openImgUpload() {
   if (!ensureWriteAuth()) return;
   document.getElementById('img-file-input').click();
@@ -2709,7 +2707,7 @@ function buildUploadImageName(mime) {
 }
 
 function mdLinkText(name) {
-  return String(name || '').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+  return String(name || '附件').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
 }
 
 function buildSafeUploadFilename(rawName, prefix) {
@@ -2742,15 +2740,15 @@ function doUploadFile(file, opts) {
   opts = opts || {};
   var forceLink = !!opts.forceLink;
   histFlush();
-  /*  */
+  /* 上传前先记录光标位置，异步完成后插入到原位置 */
   var ta = document.getElementById('edit-textarea');
   var insertPos = ta.selectionStart;
-  /*  */
-  var placeholder = forceLink ? '[...](uploading)' : '![...](uploading)';
+  /* 插入占位符，让用户立刻看到上传进行中 */
+  var placeholder = forceLink ? '[附件上传中...](uploading)' : '![上传中...](uploading)';
   ta.value = ta.value.substring(0, insertPos) + placeholder + ta.value.substring(ta.selectionEnd);
   ta.selectionStart = ta.selectionEnd = insertPos + placeholder.length;
   onEditorInput();
-  setStatus('');
+  setStatus('上传中…');
   var uploadName = buildSafeUploadFilename(file.name, forceLink ? 'att' : 'img');
   fetch('/api/wiki-upload', {
     method:'POST',
@@ -2763,12 +2761,12 @@ function doUploadFile(file, opts) {
       var isImg = !forceLink && /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)$/i.test(file.name);
       var linkText = mdLinkText(file.name);
       var md = isImg ? '!['+linkText+']('+data.url+')' : '['+linkText+']('+data.url+')';
-      /*  */
+      /* 用实际链接替换占位符 */
       ta.value = ta.value.replace(placeholder, md);
       ta.selectionStart = ta.selectionEnd = ta.value.indexOf(md) + md.length;
       ta.focus();
       onEditorInput();
-      setStatus('');
+      setStatus('上传成功');
       if (opts.sourceInput && document.getElementById(opts.sourceInput)) {
         document.getElementById(opts.sourceInput).value = '';
       } else {
@@ -2778,13 +2776,13 @@ function doUploadFile(file, opts) {
     } else {
       ta.value = ta.value.replace(placeholder, '');
       onEditorInput();
-      setStatus(''+(data.error||''));
+      setStatus('上传失败：'+(data.error||''));
     }
   })
   .catch(function(err){
     ta.value = ta.value.replace(placeholder, '');
     onEditorInput();
-    setStatus(''+err.message);
+    setStatus('上传失败：'+err.message);
   });
 }
 
@@ -2803,16 +2801,16 @@ function onEditorPaste(e) {
       e.preventDefault();
       var blob = items[i].getAsFile();
       if (!blob) continue;
-      /*  +  +  */
+      /* 毫秒时间 + 同毫秒序号 + 随机后缀，避免并发粘贴重名 */
       var filename = buildUploadImageName(blob.type);
       var file = new File([blob], filename, {type: blob.type});
       doUploadFile(file);
-      return; /*  */
+      return; /* 只处理第一张图片 */
     }
   }
 }
 
-//  Toolbar 
+// ── Toolbar ───────────────────────────────────────────────────────────
 function tb(cmd) {
   histFlush();
   var ta = document.getElementById('edit-textarea');
@@ -2823,12 +2821,12 @@ function tb(cmd) {
   var ins = sel, cur = start;
 
   switch(cmd) {
-    case 'h1':      ins='# '+(sel||''); cur=start+ins.length; break;
-    case 'h2':      ins='## '+(sel||''); cur=start+ins.length; break;
-    case 'h3':      ins='### '+(sel||''); cur=start+ins.length; break;
-    case 'bold':    ins='**'+(sel||'')+'**'; cur=start+ins.length; break;
-    case 'italic':  ins='*'+(sel||'')+'*'; cur=start+ins.length; break;
-    case 'strike':  ins='~~'+(sel||'')+'~~'; cur=start+ins.length; break;
+    case 'h1':      ins='# '+(sel||'标题'); cur=start+ins.length; break;
+    case 'h2':      ins='## '+(sel||'标题'); cur=start+ins.length; break;
+    case 'h3':      ins='### '+(sel||'标题'); cur=start+ins.length; break;
+    case 'bold':    ins='**'+(sel||'粗体')+'**'; cur=start+ins.length; break;
+    case 'italic':  ins='*'+(sel||'斜体')+'*'; cur=start+ins.length; break;
+    case 'strike':  ins='~~'+(sel||'文字')+'~~'; cur=start+ins.length; break;
     case 'code':    ins='`'+(sel||'code')+'`'; cur=start+ins.length; break;
     case 'codeblock': ins='\n```\n'+(sel||'code')+'\n```\n'; cur=start+ins.length; break;
     case 'math-inline': ins='$'+(sel||'x^2')+'$'; cur=start+ins.length; break;
@@ -2837,21 +2835,21 @@ function tb(cmd) {
       cur=start+ins.length;
       break;
     case 'mermaid':
-      ins='\n```mermaid\n'+(sel||'graph TD\n  A[] --> B[]')+'\n```\n';
+      ins='\n```mermaid\n'+(sel||'graph TD\n  A[开始] --> B[结束]')+'\n```\n';
       cur=start+ins.length;
       break;
     case 'footnote':
       var id = 'n' + Date.now().toString(36).slice(-4);
       if (sel) {
-        ins = sel + '[^' + id + ']\n\n[^' + id + ']: ';
+        ins = sel + '[^' + id + ']\n\n[^' + id + ']: 脚注内容';
       } else {
-        ins = '[^' + id + ']\n\n[^' + id + ']: ';
+        ins = '[^' + id + ']\n\n[^' + id + ']: 脚注内容';
       }
       cur = start + ins.length;
       break;
-    case 'quote':   ins='> '+(sel||''); cur=start+ins.length; break;
-    case 'ul':      ins='- '+(sel||''); cur=start+ins.length; break;
-    case 'ol':      ins='1. '+(sel||''); cur=start+ins.length; break;
+    case 'quote':   ins='> '+(sel||'引用内容'); cur=start+ins.length; break;
+    case 'ul':      ins='- '+(sel||'列表项'); cur=start+ins.length; break;
+    case 'ol':      ins='1. '+(sel||'列表项'); cur=start+ins.length; break;
     case 'hr':      ins='\n---\n'; cur=start+ins.length; break;
   }
   ta.value = before+ins+after;
@@ -2924,14 +2922,14 @@ function buildMarkdownTable(bodyRows, cols) {
   bodyRows = Math.max(1, Math.min(30, bodyRows));
   cols = Math.max(1, Math.min(20, cols));
   var i, j, parts = [], line = '';
-  for (i = 0; i < cols; i++) parts.push(' ' + (i + 1) + ' ');
+  for (i = 0; i < cols; i++) parts.push(' 列' + (i + 1) + ' ');
   line += '\n|' + parts.join('|') + '|\n';
   parts = [];
   for (i = 0; i < cols; i++) parts.push(' --- ');
   line += '|' + parts.join('|') + '|\n';
   for (i = 0; i < bodyRows; i++) {
     parts = [];
-    for (j = 0; j < cols; j++) parts.push('  ');
+    for (j = 0; j < cols; j++) parts.push(' 数据 ');
     line += '|' + parts.join('|') + '|\n';
   }
   return line;
@@ -3007,7 +3005,7 @@ function pickPresetColor(color) {
     end = ta.selectionEnd;
   }
   var sel = ta.value.substring(start, end);
-  var text = sel || '';
+  var text = sel || '彩色文本';
   var ins = '<span style="color:' + c + ';">' + text + '</span>';
   ta.value = ta.value.substring(0, start) + ins + ta.value.substring(end);
   var cur = start + ins.length;
@@ -3026,7 +3024,7 @@ function doInsertLink() {
   var text = (document.getElementById('link-text').value || '').trim();
   if (!url) {
     document.getElementById('link-url').focus();
-    setStatus('');
+    setStatus('请填写链接地址');
     return;
   }
   if (!text) text = url;
@@ -3044,7 +3042,7 @@ function doInsertLink() {
   onEditorInput();
 }
 
-//  Local link modal 
+// ── Local link modal ──────────────────────────────────────────────────
 var _llInsertRange = { start: 0, end: 0 };
 var _llSelectedUrl = '';
 var _llSelectedText = '';
@@ -3059,7 +3057,7 @@ function openLocalLinkModal() {
   _llSelectedUrl = '';
   _llSelectedText = '';
   document.getElementById('ll-link-text').value = sel;
-  document.getElementById('ll-preview').textContent = '';
+  document.getElementById('ll-preview').textContent = '（请先选择目标）';
   document.getElementById('ll-insert-btn').disabled = true;
   llSwitchTab('page');
   document.getElementById('modal-local-link').classList.add('open');
@@ -3078,7 +3076,7 @@ function llSwitchTab(tab) {
   document.getElementById('ll-tab-section').classList.toggle('active', tab === 'section');
   document.getElementById('ll-pane-page').classList.toggle('active', tab === 'page');
   document.getElementById('ll-pane-section').classList.toggle('active', tab === 'section');
-  document.getElementById('ll-preview').textContent = '';
+  document.getElementById('ll-preview').textContent = '（请先选择目标）';
   document.getElementById('ll-insert-btn').disabled = true;
   if (tab === 'page') {
     document.getElementById('ll-page-search').value = '';
@@ -3107,7 +3105,7 @@ function llBuildPageList(q) {
     return (a.title||'').toLowerCase().indexOf(q)>=0 || (a.id||'').toLowerCase().indexOf(q)>=0;
   }) : arts;
   if (!filtered.length) {
-    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center"></div>';
+    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center">无匹配文章</div>';
     return;
   }
   var html = '';
@@ -3115,7 +3113,7 @@ function llBuildPageList(q) {
     var cat = a.category || '';
     html += '<div class="ll-item" data-id="'+escH(a.id)+'" data-cat="'+escH(cat)+'" data-title="'+escH(a.title||a.id)+'" onclick="llSelectPage(this)">'
           + '<span class="ll-item-title">'+escH(a.title||a.id)+'</span>'
-          + '<span class="ll-item-meta">'+escH(cat||'')+'</span>'
+          + '<span class="ll-item-meta">'+escH(cat||'无分类')+'</span>'
           + '</div>';
   });
   list.innerHTML = html;
@@ -3150,7 +3148,7 @@ function llBuildSectionList() {
     if (m) { idx++; headings.push({ lv: m[1].length, text: m[2].trim(), anchor: 'view-head-' + idx }); }
   }
   if (!headings.length) {
-    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center">H1H4</div>';
+    list.innerHTML = '<div style="padding:10px;font-size:.78rem;color:var(--dim);text-align:center">当前文章无标题（H1–H4）</div>';
     return;
   }
   var html = '';
@@ -3195,7 +3193,7 @@ function doInsertLocalLink() {
   ta.focus();
   onEditorInput();
 }
-//  end local link modal 
+// ── end local link modal ───────────────────────────────────────────────
 
 function insertAtCursor(text) {
   var ta = document.getElementById('edit-textarea');
@@ -3246,7 +3244,7 @@ function updatePreview(content) {
   if (previewKey === _lastPreviewContent) return;
   var right = document.getElementById('edit-right');
   if (!right || right.style.display === 'none') return;
-  right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px"></div>'
+  right.innerHTML = '<div class="panel-label" style="margin:-16px -20px 14px">预览</div>'
                   + md2html(content, !!S.previewAlign);
   applySectionNumbers(right);
   scheduleRichRender(right);
@@ -3268,11 +3266,11 @@ var _previewScrollTimer = null;
 function schedulePreviewScrollSync() {
   if (!S.previewAlign) return;
   clearTimeout(_previewScrollTimer);
-  /* (180ms) DOM  */
+  /* 略长于预览节流(180ms)，避免在未换新预览 DOM 前滚动 */
   _previewScrollTimer = setTimeout(syncPreviewToCursor, 220);
 }
 
-/**  md2html(..., true)  data-md-line */
+/** 根据编辑器光标所在行，将右侧预览滚动到对应块（需 md2html(..., true) 带 data-md-line） */
 function syncPreviewToCursor() {
   if (!S.previewAlign) return;
   var ta = document.getElementById('edit-textarea');
@@ -3310,11 +3308,11 @@ function syncPreviewToCursor() {
   }
 }
 
-//  Editor syntax highlight (mirror overlay) 
+// ── Editor syntax highlight (mirror overlay) ──────────────────────────
 function escM(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function enhanceInlineMarkdown(line) {
-  // mirror  textarea 
+  // mirror 层优先保证字符与 textarea 完全一致，避免光标点击错位
   return escM(line);
 }
 
@@ -3535,7 +3533,7 @@ function syncMirrorMetrics() {
   var hl = document.getElementById('editor-mirror');
   var ta = document.getElementById('edit-textarea');
   if (!hl || !ta) return;
-  // mirror  textarea 
+  // mirror 层按 textarea 的可视内容区尺寸对齐，避免软换行后错位
   hl.style.width = ta.clientWidth + 'px';
   hl.style.height = ta.clientHeight + 'px';
 }
@@ -3551,7 +3549,7 @@ function syncMirrorScroll() {
   }
 }
 
-//  Undo / Redo 
+// ── Undo / Redo ───────────────────────────────────────────────────────
 var _hist       = [];   // [{v, s, e}]  v=value, s=selStart, e=selEnd
 var _histIdx    = -1;
 var _histTimer  = null;
@@ -3564,11 +3562,11 @@ function histSnapshot() {
   if (!ta) return;
   var snap = { v: ta.value, s: ta.selectionStart, e: ta.selectionEnd };
   var cur  = _histIdx >= 0 ? _hist[_histIdx] : null;
-  if (cur && cur.v === snap.v) return;          // 
-  if (_histIdx < _hist.length - 1)              // 
+  if (cur && cur.v === snap.v) return;          // 内容无变化，不重复记录
+  if (_histIdx < _hist.length - 1)              // 截断撤消后的重做历史
     _hist.splice(_histIdx + 1);
   _hist.push(snap);
-  if (_hist.length > HIST_MAX) _hist.shift();   // 
+  if (_hist.length > HIST_MAX) _hist.shift();   // 超出上限，丢弃最旧
   _histIdx = _hist.length - 1;
   _updateUndoRedoBtns();
 }
@@ -3587,11 +3585,11 @@ function histReset() {
   clearTimeout(_histTimer);
   _hist    = [];
   _histIdx = -1;
-  histSnapshot();           // 
+  histSnapshot();           // 以当前内容作为初始快照
 }
 
 function doUndo() {
-  histFlush();              // 
+  histFlush();              // 先把当前未提交状态存入，确保可重做
   if (_histIdx <= 0) return;
   _histIdx--;
   _histApply();
@@ -3624,7 +3622,7 @@ function _updateUndoRedoBtns() {
   if (r) r.disabled = (_histIdx >= _hist.length - 1);
 }
 
-//  View mode toggle 
+// ── View mode toggle ──────────────────────────────────────────────────
 function setViewMode(mode) {
   S.viewMode = mode;
   ['split','edit','prev'].forEach(function(m){
@@ -3639,7 +3637,7 @@ function setViewMode(mode) {
   updateEditorHighlight();
 }
 
-//  Pane switching 
+// ── Pane switching ────────────────────────────────────────────────────
 function showPane(name) {
   var pw = document.getElementById('pane-welcome');
   var pv = document.getElementById('pane-view');
@@ -3654,8 +3652,8 @@ function showPane(name) {
   }
 }
 
-//  Markdown Renderer 
-/** syncLines data-md-line1-based  */
+// ── Markdown Renderer ─────────────────────────────────────────────────
+/** syncLines：为预览同步滚动注入 data-md-line（1-based 源码行号） */
 function mdLineAttr(sync, line) {
   return (sync && line > 0) ? ' data-md-line="'+line+'"' : '';
 }
@@ -3673,7 +3671,7 @@ function md2html(src, syncLines) {
     return '\x00'+(saved.length-1)+'\x00';
   }
 
-  // fenced code blocks data-md-line
+  // fenced code blocks（记录围栏起始行用于 data-md-line）
   src = src.replace(/^```([\w-]*) *\n([\s\S]*?)^```\s*$/gm, function(match, lang, code, offset) {
     var langName = (lang || '').trim().toLowerCase();
     var ln = syncLines ? src.substring(0, offset).split('\n').length : 0;
@@ -3681,11 +3679,11 @@ function md2html(src, syncLines) {
       return save('<div class="mermaid-block"><div class="mermaid">'+he(code.replace(/\n$/,''))+'</div></div>', ln);
     }
     var cls = lang ? ' class="lang-'+he(lang)+'"' : '';
-    var label = lang ? he(lang) : '';
-    return save('<div class="code-block"><button class="copy-btn" title="'+label+'"> </button>'
+    var label = lang ? he(lang) : '代码';
+    return save('<div class="code-block"><button class="copy-btn" title="复制'+label+'">⧉ 复制</button>'
               + '<pre><code'+cls+'>'+he(code.replace(/\n$/,''))+'</code></pre></div>', ln);
   });
-  // inline code
+  // inline code（不参与块级锚点）
   src = src.replace(/`([^`\n]+)`/g, function(_, c) {
     return save('<code>'+he(c)+'</code>', 0);
   });
@@ -3827,7 +3825,7 @@ function md2html(src, syncLines) {
     else i++; // safety
   }
 
-  // restore placeholders data-md-line fenced 
+  // restore placeholders；代码块补上 data-md-line（与 fenced 行号一致）
   out = out.replace(/\x00(\d+)\x00/g, function(_, n) {
     var idx = +n;
     var h = saved[idx];
@@ -3850,7 +3848,7 @@ function md2html(src, syncLines) {
       var n = footCtx.refIndex[fid] || (idx + 1);
       var body = def.split('\n').map(function(line){ return il(line, footCtx); }).join('<br>');
       out += '<li id="fn-' + aid + '" value="' + n + '">' + body
-          + ' <a class="fn-backref" href="#fnref-' + aid + '" title=""></a></li>';
+          + ' <a class="fn-backref" href="#fnref-' + aid + '" title="返回正文">↩</a></li>';
     });
     out += '</ol></section>\n';
   }
@@ -3884,7 +3882,7 @@ function il(s, footCtx){
   var ilsaved = [], ilph = function(v){ ilsaved.push(v); return '\x01'+(ilsaved.length-1)+'\x01'; };
   var mathsaved = [], maph = function(v){ mathsaved.push(v); return '\x02'+(mathsaved.length-1)+'\x02'; };
   var escsaved = [], ecph = function(v){ escsaved.push(v); return '\x03'+(escsaved.length-1)+'\x03'; };
-  // markdown /
+  // markdown 反斜杠转义统一前置处理，避免后续被链接/强调等规则误解析
   s = s.replace(/\\([\\`*_{}\[\]()#+\-.!~>|])/g, function(_, ch) {
     return ecph(ch);
   });
@@ -3945,7 +3943,7 @@ function il(s, footCtx){
   return s;
 }
 
-//  Utils 
+// ── Utils ─────────────────────────────────────────────────────────────
 function setStatus(msg){ document.getElementById('status-msg').textContent = msg; }
 function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function esc(s){ return (s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
@@ -4024,7 +4022,7 @@ function updateVimUi() {
     ta.classList.toggle('vim-normal', !!S.vimEnabled && !S.vimInsert);
   }
   if (!S.vimEnabled) {
-    setStatus('Vim ');
+    setStatus('Vim 模式：关闭');
     return;
   }
   var tail = '';
@@ -4036,7 +4034,7 @@ function updateVimUi() {
   if (Vim.count) tail += ' ' + Vim.count;
   if (Vim.visualMode) tail += (Vim.visualMode === 'line') ? ' VISUAL-LINE' : ' VISUAL';
   if (Vim.cmdlineOpen) tail += ' CMD';
-  setStatus('Vim ' + (S.vimInsert ? 'INSERT' : 'NORMAL') + tail);
+  setStatus('Vim 模式：' + (S.vimInsert ? 'INSERT' : 'NORMAL') + tail);
   updateEditorHighlight();
 }
 
@@ -4062,9 +4060,9 @@ function vimDigitFromEvent(e) {
   if (!e) return '';
   var k = String(e.key || '');
   if (k >= '0' && k <= '9') return k;
-  if (k >= '' && k <= '') return String(k.charCodeAt(0) - ''.charCodeAt(0));
-  //  key  % / & / * code/keyCode 
-  if (k && k.length === 1 && !/^[\s]$/.test(k) && !/[0-9-]/.test(k)) return '';
+  if (k >= '０' && k <= '９') return String(k.charCodeAt(0) - '０'.charCodeAt(0));
+  // 若 key 已是可见符号（如 % / & / *），不要再从 code/keyCode 反推数字。
+  if (k && k.length === 1 && !/^[\s]$/.test(k) && !/[0-9０-９]/.test(k)) return '';
   var canFallbackByCode = (!k || k === 'Process' || k === 'Unidentified');
   var c = String(e.code || '');
   if (canFallbackByCode && /^Digit[0-9]$/.test(c)) return c.slice(-1);
@@ -4324,7 +4322,7 @@ function vimYankLine(count) {
   if (!ta) return;
   var r = vimGetLineRange(ta.value, ta.selectionStart, count);
   vimSetRegister(ta.value.substring(r.start, r.end), true);
-  setStatus('Vim  ' + count + ' ');
+  setStatus('Vim 模式：已复制 ' + count + ' 行');
 }
 
 function vimDeleteLine(count, changeMode) {
@@ -4410,7 +4408,7 @@ function vimMoveToLine(targetLine) {
   var req = targetLine;
   if (targetLine <= 1) {
     vimSetCursor(0);
-    setStatus('Vim  1 ');
+    setStatus('Vim 模式：已跳到第 1 行');
     return;
   }
   while (ln < targetLine && p < v.length) {
@@ -4420,7 +4418,7 @@ function vimMoveToLine(targetLine) {
     ln++;
   }
   vimSetCursor(vimFirstNonBlank(v, p));
-  setStatus('Vim  ' + req + ' ');
+  setStatus('Vim 模式：已跳到第 ' + req + ' 行');
 }
 
 function vimFindMatchingPair(v, p) {
@@ -4509,7 +4507,7 @@ function vimSearch(term, dir, count, centerView) {
       else idx = v.lastIndexOf(term);
     }
     if (idx < 0) {
-      setStatus('Vim  "' + term + '"');
+      setStatus('Vim 搜索：未找到 "' + term + '"');
       return false;
     }
     from = idx;
@@ -4602,7 +4600,7 @@ function vimApplyVisualOp(op) {
   vimSetRegister(txt, Vim.visualMode === 'line');
   if (op === 'y') {
     vimExitVisual(s);
-    setStatus('Vim ');
+    setStatus('Vim 模式：已复制可视区');
     updateVimUi();
     return true;
   }
@@ -4638,7 +4636,7 @@ function vimApplyOperator(op, motionKey, count) {
   if (!text) return false;
   if (op === 'y') {
     vimSetRegister(text, (motionKey === 'j' || motionKey === 'k'));
-    setStatus('Vim ');
+    setStatus('Vim 模式：已复制');
     return true;
   }
   vimSetRegister(text, (motionKey === 'j' || motionKey === 'k'));
@@ -4673,14 +4671,14 @@ function vimHandleEditorKey(e) {
     updateVimUi();
     return true;
   }
-  //  2G  Shift 
+  // 纯修饰键不应清空数字前缀（如 2G 的 Shift 事件）。
   if (key === 'Shift' || key === 'Alt' || key === 'Control' || key === 'Meta' || key === 'CapsLock') {
     return true;
   }
   if (S.vimInsert) {
     return false;
   }
-  // g/G  Ctrl/Meta 
+  // 存在数字前缀时，g/G 应优先按“跳行”处理，避免被 Ctrl/Meta 分支吞掉。
   if ((e.ctrlKey || e.metaKey) && !(Vim.count && isGKey)) {
     if ((key === 'r' || key === 'R') && !e.altKey) {
       e.preventDefault();
@@ -4689,7 +4687,7 @@ function vimHandleEditorKey(e) {
     }
     return false;
   }
-  //  Process(229)  Vim 
+  // 某些输入法会插入 Process(229) 中间事件，不能让它清空 Vim 数字前缀。
   if ((key === 'Process' || key === 'Unidentified' || e.keyCode === 229) && !S.vimInsert) {
     e.preventDefault();
     e.stopPropagation();
@@ -4701,7 +4699,7 @@ function vimHandleEditorKey(e) {
       var vr1 = vimGetTextObjectRange(ta.value, vimCurrentPos(), Vim.pendingTextObj, key);
       Vim.pendingTextObj = '';
       if (vr1) vimSelectRange(vr1, vr1.linewise ? 'line' : 'char');
-      else setStatus('Vim  ' + key);
+      else setStatus('Vim 模式：不支持文本对象 ' + key);
       return true;
     }
     if (key === 'v' || key === 'V') {
@@ -4776,7 +4774,7 @@ function vimHandleEditorKey(e) {
     Vim.pendingOp = '';
     Vim.pendingOpCount = 1;
     if (!tr || !top) {
-      setStatus('Vim  ' + key);
+      setStatus('Vim 模式：不支持文本对象 ' + key);
       updateVimUi();
       return true;
     }
@@ -4784,7 +4782,7 @@ function vimHandleEditorKey(e) {
     if (!txt0) return true;
     vimSetRegister(txt0, !!tr.linewise);
     if (top === 'y') {
-      setStatus('Vim ');
+      setStatus('Vim 模式：已复制');
       updateVimUi();
       return true;
     }
@@ -4856,7 +4854,7 @@ function vimHandleEditorKey(e) {
       return true;
     }
     var ok = vimApplyOperator(op, key.toLowerCase(), count);
-    if (!ok) setStatus('Vim  ' + op + key);
+    if (!ok) setStatus('Vim 模式：不支持的组合 ' + op + key);
     updateVimUi();
     return true;
   }
@@ -5018,7 +5016,7 @@ function vimHandleEditorKey(e) {
   return false;
 }
 
-//  Copy code button 
+// ── Copy code button ──────────────────────────────────────────────────
 document.addEventListener('click', function(e) {
   var btn = e.target.closest('.copy-btn');
   if (!btn) return;
@@ -5026,7 +5024,7 @@ document.addEventListener('click', function(e) {
   var text = pre ? pre.textContent : '';
   function onCopied() {
     var orig = btn.textContent;
-    btn.textContent = ' ';
+    btn.textContent = '✓ 已复制';
     btn.classList.add('copied');
     setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
   }
@@ -5046,7 +5044,7 @@ function fallbackCopy(text, cb) {
   document.body.removeChild(ta);
 }
 
-//  Keyboard shortcuts 
+// ── Keyboard shortcuts ────────────────────────────────────────────────
 document.addEventListener('keydown', function(e){
   if (S.keyDebugEnabled) updateKeyDebug(e, 'document');
   if (S && S.vimEnabled && vimIsEscapeLike(e)) {
@@ -5136,11 +5134,11 @@ document.getElementById('modal-login').addEventListener('click', function(e){
   if(e.target===this) closeLoginModal();
 });
 
-//  IME composition  
-//  compositionend  oninput mirror 
-// compositionend  tick  textarea.value 
-//  onEditorInput  compositionstart/end 
-//  bug _composing 
+// ── IME composition 兜底 ──────────────────────────────────────────────
+// 部分浏览器在 compositionend 后不再触发 oninput，导致 mirror 停留在上屏前状态。
+// 此处仅做兜底：compositionend 后延一个 tick 刷新，确保 textarea.value 已提交。
+// 注意：不在 onEditorInput 内屏蔽合成期——若 compositionstart/end 不成对出现
+// （已知浏览器 bug），屏蔽会导致 _composing 卡住，后续所有输入全部失效。
 document.getElementById('edit-textarea').addEventListener('compositionend', function() {
   setTimeout(onEditorInput, 0);
 });
@@ -5156,7 +5154,7 @@ window.addEventListener('resize', function() {
   syncMirrorScroll();
 });
 
-//  panel resizers 
+// ── panel resizers ──
 (function(){
   function makeResizer(resizerId, targetEl, direction, storageKey, minW, maxW){
     var el = document.getElementById(resizerId);
@@ -5188,7 +5186,7 @@ window.addEventListener('resize', function() {
   makeResizer('toc-resizer',     document.getElementById('view-toc'), 'right', 'nw-toc-w',     120, 500);
 })();
 
-//  AI Assistant 
+// ── AI Assistant ─────────────────────────────────────────────────────────
 var _aiAbort = null;
 var _aiSettings = null;
 var _aiSettingsDirty = false;
@@ -5286,7 +5284,7 @@ function saveAiSettings() {
   } catch(e) {}
   _aiSettings = s;
   _aiSettingsDirty = false;
-  showAiSettingsMsg(' ', 'ok');
+  showAiSettingsMsg('设置已保存 ✓', 'ok');
   loadAiSettingsToForm();
 }
 
@@ -5357,7 +5355,7 @@ function renderAiMsg(role, content, sources) {
     var htmlContent = md2html(content || '');
     div.innerHTML = '<div class="art-content">' + htmlContent + '</div>';
     if (sources && sources.length) {
-      var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title"> </div>';
+      var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title">📎 参考文档：</div>';
       sources.forEach(function(src){
         var url = publishedHtmlUrl(src.id, src.category || '');
         srcHtml += '<a href="' + escH(url) + '" target="_blank">' + escH(src.title || src.id) + '</a>';
@@ -5381,7 +5379,7 @@ function renderAiLoading() {
   var div = document.createElement('div');
   div.className = 'ai-msg-loading';
   div.id = 'ai-loading';
-  div.innerHTML = '<div class="ai-spinner"></div><span></span>';
+  div.innerHTML = '<div class="ai-spinner"></div><span>正在搜索文档…</span>';
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
   return div;
@@ -5392,12 +5390,12 @@ function removeAiLoading() {
   if (el) el.parentNode.removeChild(el);
 }
 
-// 
+// 根据用户问题搜索相关文章
 function searchWikiDocs(query, folders, maxDocs) {
   var results = [];
   var seen = {};
 
-  // 1.  md_db
+  // 1. 服务端全文搜索（仅 md_db，但会返回所有结果）
   return fetch('/api/wiki-search?q=' + encodeURIComponent(query))
     .then(function(r){ return r.json(); })
     .then(function(data){
@@ -5405,7 +5403,7 @@ function searchWikiDocs(query, folders, maxDocs) {
         data.articles.forEach(function(a){
           if (seen[a.id]) return;
           var c = a.category || '';
-          // 
+          // 检查是否属于选定的文件夹
           var match = false;
           folders.forEach(function(f){
             if (c === f || c.indexOf(f + '/') === 0 || (!c && f === 'md_db')) match = true;
@@ -5413,7 +5411,7 @@ function searchWikiDocs(query, folders, maxDocs) {
           if (match) { seen[a.id] = true; results.push(a); }
         });
       }
-      // 2. / md_db 
+      // 2. 客户端标题/分类匹配补充（覆盖非 md_db 文件夹）
       var ql = query.toLowerCase();
       S.articles.forEach(function(a){
         if (seen[a.id]) return;
@@ -5422,7 +5420,7 @@ function searchWikiDocs(query, folders, maxDocs) {
         var match = false;
         folders.forEach(function(f){
           if (f === 'md_db') {
-            // md_db 
+            // md_db 已由服务端搜索覆盖
           } else if (c === f || c.indexOf(f + '/') === 0) {
             match = true;
           }
@@ -5437,7 +5435,7 @@ function searchWikiDocs(query, folders, maxDocs) {
       return results.slice(0, maxDocs);
     })
     .catch(function(){
-      // 
+      // 回退：纯客户端搜索
       var ql = query.toLowerCase();
       S.articles.forEach(function(a){
         if (seen[a.id]) return;
@@ -5458,7 +5456,7 @@ function searchWikiDocs(query, folders, maxDocs) {
     });
 }
 
-// 
+// 批量读取文章内容
 function readDocContents(docs) {
   return Promise.all(docs.map(function(doc){
     return fetch('/api/wiki-read?id=' + encodeURIComponent(doc.id))
@@ -5498,7 +5496,7 @@ function sendAiMessage() {
   var settings = getAiSettings();
   if (!settings.apiUrl || !settings.apiKey || !settings.model) {
     switchAiTab('settings');
-    showAiSettingsMsg(' API ', 'err');
+    showAiSettingsMsg('请先配置 API 端点、密钥和模型', 'err');
     return;
   }
   if (_aiAbort) return;
@@ -5528,50 +5526,50 @@ function sendAiMessage() {
   searchWikiDocs(q, folders, maxDocs)
     .then(function(docs){
       if (signal.aborted) throw new Error('aborted');
-      if (loadEl) loadEl.querySelector('span').textContent = ' ' + docs.length + ' ';
+      if (loadEl) loadEl.querySelector('span').textContent = '找到 ' + docs.length + ' 篇相关文档，正在读取…';
       return readDocContents(docs);
     })
     .then(function(docContents){
       if (signal.aborted) throw new Error('aborted');
-      // 
+      // 过滤空内容
       var validDocs = docContents.filter(function(d){ return d.content && d.content.trim(); });
-      // 
+      // 构建消息
       var messages = [];
       var systemPrompt = settings.systemPrompt ||
-        ' NoteWiki  AI \n' +
-        '\n' +
-        '1. \n' +
-        '2.  Markdown  [](/wiki//id.html)\n' +
-        '3. \n' +
-        '4. ';
+        '你是 NoteWiki 的 AI 助手。请根据提供的文档内容回答用户问题。\n' +
+        '规则：\n' +
+        '1. 优先基于提供的文档内容回答，如果文档中没有相关信息，诚实告知用户。\n' +
+        '2. 回答中使用 Markdown 格式，在相关处引用文档标题并用方括号链接格式，例如 [文档标题](/wiki/分类/文档id.html)。\n' +
+        '3. 如果多个文档涉及同一主题，请综合回答。\n' +
+        '4. 回答简洁、准确、结构化，尽量使用标题分段。';
       messages.push({ role: 'system', content: systemPrompt });
 
       if (validDocs.length > 0) {
-        var ctxParts = [' Wiki \n'];
+        var ctxParts = ['以下是相关的 Wiki 文档内容：\n'];
         validDocs.forEach(function(d, i){
           var title = (d.meta && d.meta.title) || d.doc.title || d.doc.id;
           var cat = d.doc.category || '';
           var url = publishedHtmlUrl(d.doc.id, cat);
           ctxParts.push('---');
-          ctxParts.push(' ' + (i+1) + ': ' + title);
-          ctxParts.push(': ' + url);
+          ctxParts.push('文档 ' + (i+1) + ': ' + title);
+          ctxParts.push('链接: ' + url);
           ctxParts.push('');
-          //  8000 
+          // 限制每个文档最多 8000 字符
           var content = d.content;
-          if (content.length > 8000) content = content.substring(0, 8000) + '\n\n()';
+          if (content.length > 8000) content = content.substring(0, 8000) + '\n\n…(内容已截断)';
           ctxParts.push(content);
         });
-        // 
+        // 控制总上下文长度
         var ctx = ctxParts.join('\n');
-        if (ctx.length > 32000) ctx = ctx.substring(0, 32000) + '\n\n()';
+        if (ctx.length > 32000) ctx = ctx.substring(0, 32000) + '\n\n…(上下文已截断)';
         messages.push({ role: 'user', content: ctx });
       }
       messages.push({ role: 'user', content: q });
 
       removeAiLoading();
 
-      //  AI 
-      aiDiv = renderAiMsg('ai', '');
+      // 创建 AI 回复容器
+      aiDiv = renderAiMsg('ai', '思考中…');
 
       // call AI API
       return fetch(settings.apiUrl, {
@@ -5594,7 +5592,7 @@ function sendAiMessage() {
       })
       .then(function(r){
         if (!r.ok) return r.text().then(function(t){
-          var errMsg = 'API  (' + r.status + ')';
+          var errMsg = 'API 请求失败 (' + r.status + ')';
           try { var j = JSON.parse(t); if (j.error && j.error.message) errMsg = j.error.message; } catch(e){}
           throw new Error(errMsg);
         });
@@ -5608,19 +5606,19 @@ function sendAiMessage() {
         } else if (data.content) {
           text = data.content;
         } else {
-          text = '(AI )';
+          text = '(AI 返回了空响应)';
         }
-        //  AI 
+        // 在 AI 回复中添加来源文档引用
         var sources = validDocs ? validDocs.map(function(d){ return d.doc; }) : [];
-        //  AI 
+        // 更新 AI 消息
         aiDiv.innerHTML = '';
         var htmlContent = md2html(text);
         aiDiv.innerHTML = '<div class="art-content">' + htmlContent + '</div>';
         if (sources.length) {
-          var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title"> </div>';
+          var srcHtml = '<div class="ai-msg-sources"><div class="ai-msg-sources-title">📎 参考文档：</div>';
           sources.forEach(function(src){
             var url = publishedHtmlUrl(src.id, src.category || '');
-            srcHtml += '<a href="' + escH(url) + '" target="_blank"> ' + escH(src.title || src.id) + '</a>';
+            srcHtml += '<a href="' + escH(url) + '" target="_blank">📄 ' + escH(src.title || src.id) + '</a>';
           });
           srcHtml += '</div>';
           aiDiv.innerHTML += srcHtml;
@@ -5636,9 +5634,9 @@ function sendAiMessage() {
       // Replace the "thinking" AI message with error, or create new if missing
       if (aiDiv && aiDiv.parentNode) {
         aiDiv.className = 'ai-msg ai-msg-error';
-        aiDiv.innerHTML = e.message === 'aborted' ? ' ' : ' ' + escH(e.message || '');
+        aiDiv.innerHTML = e.message === 'aborted' ? '⏹ 已停止生成。' : '❌ 错误：' + escH(e.message || '未知错误');
       } else {
-        renderAiMsg('error', e.message === 'aborted' ? '' : '' + (e.message || ''));
+        renderAiMsg('error', e.message === 'aborted' ? '已停止生成。' : '错误：' + (e.message || '未知错误'));
       }
       _aiAbort = null;
       setAiSendingUI(false);
@@ -5654,17 +5652,17 @@ function stopAiMessage() {
 }
 
 function clearAiHistory() {
-  if (!confirm('')) return;
+  if (!confirm('确定清除所有对话记录？')) return;
   var msgs = document.getElementById('ai-messages');
   if (!msgs) return;
   msgs.innerHTML = '<div class="ai-welcome" id="ai-welcome-msg">'
-    + '<p> NoteWiki AI </p>'
-    + '<p> Wiki </p>'
-    + '<p style="margin-top:8px;font-size:.78rem">    AI </p>'
+    + '<p>您好！我是 NoteWiki AI 助手。</p>'
+    + '<p>我可以搜索 Wiki 文档并基于文档内容回答您的问题。</p>'
+    + '<p style="margin-top:8px;font-size:.78rem">请先在 ⚙ 设置 中配置 AI 参数后开始对话。</p>'
     + '</div>';
 }
 
-//  Conflict / Merge 
+// ── Conflict / Merge ─────────────────────────────────────────────────────
 
 function openConflictModal() {
   document.getElementById('modal-conflict').classList.add('open');
@@ -5684,81 +5682,52 @@ function showConflictMerge() {
   document.getElementById('conflict-overview').style.display = 'none';
   document.getElementById('conflict-merge').style.display = 'flex';
   renderConflictDiff();
-  // pre-fill merged with user's current editor content
   document.getElementById('conflict-merged').value = document.getElementById('edit-textarea').value;
   document.getElementById('conflict-merged').focus();
 }
 
-/** Simple line-by-line diff (unified view).
- *  Returns HTML string with coloured lines. */
 function conflictDiffHtml(userText, serverText) {
   var userLines = userText.split('\n');
   var serverLines = serverText.split('\n');
-
-  // Build a map of server lines for fast lookup
-  var serverSet = {};
-  serverLines.forEach(function(line, i){
-    serverSet[line] = (serverSet[line] || 0) + 1;
-  });
-
   var result = [];
-  var i = 0, j = 0;
-  var maxLen = Math.max(userLines.length, serverLines.length);
-
-  // Simplified unified diff: iterate both side-by-side
-  // Mark lines unique to user (red/del) and unique to server (green/add)
   var u = 0, s = 0;
   while (u < userLines.length || s < serverLines.length) {
     var ul = u < userLines.length ? userLines[u] : null;
     var sl = s < serverLines.length ? serverLines[s] : null;
-
     if (ul !== null && sl !== null && ul === sl) {
-      // same line
       result.push({type:'same', text:ul, uln:u+1, sln:s+1});
       u++; s++;
     } else if (ul !== null && sl !== null) {
-      // lines differ  check if server's line appears later in user's
       var foundInUser = false;
       for (var k = u + 1; k < userLines.length && k < u + 10; k++) {
         if (userLines[k] === sl) { foundInUser = true; break; }
       }
       if (foundInUser) {
-        // user has extra lines before this match  mark as deleted
-        result.push({type:'del', text:ul, uln:u+1});
-        u++;
+        result.push({type:'del', text:ul, uln:u+1}); u++;
       } else {
-        // check if user's line appears later in server's
         var foundInServer = false;
         for (var m = s + 1; m < serverLines.length && m < s + 10; m++) {
           if (serverLines[m] === ul) { foundInServer = true; break; }
         }
         if (foundInServer) {
-          result.push({type:'add', text:sl, sln:s+1});
-          s++;
+          result.push({type:'add', text:sl, sln:s+1}); s++;
         } else {
-          // both lines changed
           result.push({type:'del', text:ul, uln:u+1});
           result.push({type:'add', text:sl, sln:s+1});
           u++; s++;
         }
       }
     } else if (ul !== null) {
-      result.push({type:'del', text:ul, uln:u+1});
-      u++;
+      result.push({type:'del', text:ul, uln:u+1}); u++;
     } else {
-      result.push({type:'add', text:sl, sln:s+1});
-      s++;
+      result.push({type:'add', text:sl, sln:s+1}); s++;
     }
   }
-
-  // Build HTML
   var html = '';
   result.forEach(function(r){
-    var css = 'conflict-diff-same';
-    var sign = ' ';
+    var css = 'conflict-diff-same', sign = ' ';
     if (r.type === 'add') { css = 'conflict-diff-add'; sign = '+'; }
     else if (r.type === 'del') { css = 'conflict-diff-del'; sign = '-'; }
-    // escape HTML in line text
     var txt = escH(r.text);
     var num = (r.type === 'add') ? (r.sln || '') : (r.uln || '');
     html += '<div class="conflict-diff-line ' + css + '">'
@@ -5774,22 +5743,19 @@ function renderConflictDiff() {
   var userText = document.getElementById('edit-textarea').value;
   var serverText = S.conflictServerContent || '';
   var diffHtml = conflictDiffHtml(userText, serverText);
-  document.getElementById('conflict-diff').innerHTML = diffHtml || '<div class="conflict-diff-line conflict-diff-same"><span class="conflict-diff-text">()</span></div>';
+  document.getElementById('conflict-diff').innerHTML = diffHtml || '<div class="conflict-diff-line conflict-diff-same"><span class="conflict-diff-text">(内容相同)</span></div>';
 }
 
-function onConflictMergedInput() {
-  /* no-op; just tracking dirty state if needed */
-}
+function onConflictMergedInput() {}
 
 function doConflictOverwrite() {
-  if (!confirm('')) return;
+  if (!confirm('确定用您的版本覆盖服务器版本？其他用户的修改将丢失。')) return;
   closeConflictModal();
   _doSave({ forceOverride: true });
 }
 
 function doConflictMergeSave() {
   var merged = document.getElementById('conflict-merged').value;
-  // Replace editor content with merged version
   document.getElementById('edit-textarea').value = merged;
   updatePreview();
   updateEditorHighlight();

@@ -829,19 +829,6 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
       <input id="ai-temperature" class="field-input" type="number" min="0" max="2" step="0.1" value="0.7"
              oninput="autoSaveAiSettingsField()">
 
-      <label class="field-label">Top P (0-1)</label>
-      <input id="ai-top-p" class="field-input" type="number" min="0" max="1" step="0.05" value="1"
-             oninput="autoSaveAiSettingsField()">
-
-      <label class="field-label">Max Tokens</label>
-      <input id="ai-max-tokens" class="field-input" type="number" min="1" max="1048576" step="1" value="1048576"
-             oninput="autoSaveAiSettingsField()">
-      <div style="font-size:.7rem;color:var(--dim);margin:-6px 0 4px">上下文窗口 1M，默认设为最大值</div>
-
-      <label class="field-label">Stop 序列（可选，逗号分隔）</label>
-      <input id="ai-stop" class="field-input" type="text" placeholder="例如: END, STOP"
-             oninput="autoSaveAiSettingsField()">
-
       <label class="field-label">搜索文件夹（多选）</label>
       <select id="ai-folders" class="field-input" multiple style="height:90px"
               onchange="autoSaveAiSettingsField()">
@@ -5123,9 +5110,6 @@ function getAiSettings() {
   if (!_aiSettings.thinkingType) _aiSettings.thinkingType = 'enabled';
   if (!_aiSettings.reasoningEffort) _aiSettings.reasoningEffort = (_aiSettings.mode === 'pro') ? 'max' : 'high';
   if (_aiSettings.temperature === undefined || _aiSettings.temperature === null) _aiSettings.temperature = (_aiSettings.mode === 'pro') ? 0.3 : 0.7;
-  if (_aiSettings.topP === undefined || _aiSettings.topP === null) _aiSettings.topP = 1;
-  if (!_aiSettings.maxTokens) _aiSettings.maxTokens = 1048576;
-  if (!_aiSettings.stop) _aiSettings.stop = '';
   if (!_aiSettings.maxDocs || _aiSettings.maxDocs < 1) _aiSettings.maxDocs = 5;
   if (_aiSettings.maxDocs > 20) _aiSettings.maxDocs = 20;
   return _aiSettings;
@@ -5140,9 +5124,6 @@ function loadAiSettingsToForm() {
   document.getElementById('ai-thinking-type').value = s.thinkingType || 'enabled';
   document.getElementById('ai-reasoning-effort').value = s.reasoningEffort || 'high';
   document.getElementById('ai-temperature').value = String(s.temperature !== undefined ? s.temperature : 0.7);
-  document.getElementById('ai-top-p').value = String(s.topP !== undefined ? s.topP : 1);
-  document.getElementById('ai-max-tokens').value = String(s.maxTokens || 1048576);
-  document.getElementById('ai-stop').value = s.stop || '';
   document.getElementById('ai-max-docs').value = String(s.maxDocs || 5);
   document.getElementById('ai-system-prompt').value = s.systemPrompt || '';
   onAiThinkingChange();
@@ -5194,9 +5175,6 @@ function saveAiSettings() {
   s.thinkingType = document.getElementById('ai-thinking-type').value;
   s.reasoningEffort = document.getElementById('ai-reasoning-effort').value;
   s.temperature = parseFloat(document.getElementById('ai-temperature').value);
-  s.topP = parseFloat(document.getElementById('ai-top-p').value);
-  s.maxTokens = parseInt(document.getElementById('ai-max-tokens').value, 10) || 1048576;
-  s.stop = document.getElementById('ai-stop').value.trim();
   s.maxDocs = parseInt(document.getElementById('ai-max-docs').value, 10) || 5;
   s.systemPrompt = document.getElementById('ai-system-prompt').value.trim();
   var sel = document.getElementById('ai-folders');
@@ -5508,10 +5486,7 @@ function sendAiMessage() {
           model: settings.model,
           messages: messages,
           stream: false,
-          max_tokens: settings.maxTokens || 1048576,
           temperature: settings.temperature,
-          top_p: settings.topP,
-          stop: settings.stop ? settings.stop.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : undefined,
           thinking: {
             type: settings.thinkingType || 'enabled',
             reasoning_effort: settings.reasoningEffort || 'high'

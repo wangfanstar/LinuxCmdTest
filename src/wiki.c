@@ -2000,6 +2000,63 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
             send_json(client_fd, 409, "Conflict", "{\"ok\":false,\"error\":\"duplicate\"}", 31); return;
         }
     }
+
+    /* ── optimistic locking ── */
+    char base_updated[64] = {0};
+    json_get_str(body, "base_updated", base_updated, sizeof(base_updated));
+    char force_override_str[8] = {0};
+    json_get_str(body, "force_override", force_override_str, sizeof(force_override_str));
+    int force_override = (strcmp(force_override_str, "true") == 0);
+
+    if (base_updated[0] && !force_override && id[0]) {
+        char chk_path[768];
+        if (wiki_md_find(chk_path, sizeof(chk_path), id) == 0) {
+            FILE *chkf = fopen(chk_path, "rb");
+            if (chkf) {
+                fseek(chkf, 0, SEEK_END);
+                long fsize = ftell(chkf);
+                rewind(chkf);
+                char *srv_raw = malloc((size_t)(fsize + 1));
+                if (srv_raw) {
+                    size_t nread = fread(srv_raw, 1, (size_t)fsize, chkf);
+                    srv_raw[nread] = '\0';
+                }
+                fclose(chkf);
+
+                if (srv_raw && strncmp(srv_raw, "<!--META ", 9) == 0) {
+                    char *meta_end = strstr(srv_raw, "-->");
+                    char srv_updated[64] = {0};
+                    if (meta_end) {
+                        *meta_end = '\0';
+                        json_get_str(srv_raw + 9, "updated", srv_updated, sizeof(srv_updated));
+                        *meta_end = '-'; /* restore for safety */
+                    }
+                    if (srv_updated[0] && strcmp(base_updated, srv_updated) != 0) {
+                        /* conflict: extract server content (skip META line) */
+                        const char *srv_content = "";
+                        if (meta_end) {
+                            srv_content = meta_end + 3; /* skip "-->" */
+                            while (*srv_content == '\n' || *srv_content == '\r') srv_content++;
+                        }
+
+                        strbuf_t resp = {0};
+                        SB_LIT(&resp, "{\"ok\":false,\"error\":\"conflict\"");
+                        SB_LIT(&resp, ",\"server_updated\":\"");
+                        sb_append(&resp, srv_updated, strlen(srv_updated));
+                        SB_LIT(&resp, "\",\"server_content\":");
+                        sb_json_str(&resp, srv_content);
+                        SB_LIT(&resp, "}");
+                        send_json(client_fd, 409, "Conflict", resp.data, resp.len);
+                        free(resp.data);
+                        free(srv_raw);
+                        return;
+                    }
+                }
+                free(srv_raw);
+            }
+        }
+    }
+
     char now[64]; wiki_now_iso(now, sizeof(now));
     if (!created[0]) strncpy(created, now, sizeof(created)-1);
 

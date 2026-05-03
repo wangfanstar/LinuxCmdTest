@@ -561,6 +561,23 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    /* 浏览器默认请求 /favicon.ico；无 .ico 时回退到 html/favicon.svg，避免 404 */
+    if (strcmp(path, "/favicon.ico") == 0) {
+        char fpath[512];
+        snprintf(fpath, sizeof(fpath), "%s/favicon.ico", WEB_ROOT);
+        if (send_file(client_fd, fpath) < 0) {
+            snprintf(fpath, sizeof(fpath), "%s/favicon.svg", WEB_ROOT);
+            if (send_file(client_fd, fpath) < 0) {
+                static const char nofav[] =
+                    "HTTP/1.1 204 No Content\r\n"
+                    "Connection: close\r\n"
+                    "\r\n";
+                (void)http_sock_send_all(client_fd, nofav, sizeof(nofav) - 1);
+            }
+        }
+        goto done;
+    }
+
     if (strcmp(path, "/api/log-files") == 0) {
         strbuf_t sb = {0};
         SB_LIT(&sb, "{\"ok\":true,\"files\":[");

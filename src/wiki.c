@@ -869,18 +869,66 @@ static void wiki_fprint_authors_json_readable(FILE *fp, const char *aj)
     if (first) fputs("Admin", fp);
 }
 
-/* 已发布 HTML：文首元信息（更新 / 最后编辑 / 贡献者），数据来自 SQLite wiki_md_meta */
+/* 已发布 HTML：文首元信息（更新 / 最后编辑 / 贡献者）。
+ * 与 wiki-read 一致：优先 MD 首行 META 中的 authors / last_author，SQLite 仅补缺或替换占位 Admin。 */
 static void wiki_fputs_am_block(FILE *fp, const char *article_id, const char *updated_fallback)
 {
     wiki_md_meta_row_t row;
     memset(&row, 0, sizeof(row));
     const char *upd = updated_fallback ? updated_fallback : "";
-    const char *la = "Admin";
-    const char *aj = "[\"Admin\"]";
-    if (auth_wiki_md_meta_get(article_id, &row) == 0 && row.found) {
-        if (row.updated[0]) upd = row.updated;
-        if (row.last_author[0]) la = row.last_author;
-        if (row.authors_json[0]) aj = row.authors_json;
+    char m_la[128] = {0};
+    char m_aj[2048] = {0};
+    int has_meta = 0;
+
+    char md_path[768];
+    if (article_id && article_id[0] && wiki_md_find(md_path, sizeof(md_path), article_id) == 0) {
+        FILE *mfp = fopen(md_path, "rb");
+        if (mfp) {
+            char line[4096];
+            if (fgets(line, sizeof(line), mfp) && strncmp(line, "<!--META ", 9) == 0) {
+                char *end = strstr(line, "-->");
+                if (end) {
+                    *end = '\0';
+                    const char *mj = line + 9;
+                    json_get_str(mj, "last_author", m_la, sizeof(m_la));
+                    if (!m_la[0]) json_get_str(mj, "lastAuthor", m_la, sizeof(m_la));
+                    json_get_raw(mj, "authors", m_aj, sizeof(m_aj));
+                    has_meta = 1;
+                }
+            }
+            fclose(mfp);
+        }
+    }
+
+    char la_buf[128];
+    char aj_buf[2048];
+    const char *la;
+    const char *aj;
+
+    if (!has_meta) {
+        la = "Admin";
+        aj = "[\"Admin\"]";
+        if (auth_wiki_md_meta_get(article_id, &row) == 0 && row.found) {
+            if (row.updated[0]) upd = row.updated;
+            if (row.last_author[0]) la = row.last_author;
+            if (row.authors_json[0]) aj = row.authors_json;
+        }
+    } else {
+        (void)auth_wiki_md_meta_get(article_id, &row);
+        if (row.found && row.updated[0]) upd = row.updated;
+        if (row.found && row.last_author[0] &&
+            (!m_la[0] || strcmp(m_la, "Admin") == 0))
+            snprintf(m_la, sizeof(m_la), "%s", row.last_author);
+        if (row.found && row.authors_json[0] &&
+            (!m_aj[0] || strcmp(m_aj, "[\"Admin\"]") == 0 ||
+             strcmp(m_aj, "[]") == 0))
+            snprintf(m_aj, sizeof(m_aj), "%s", row.authors_json);
+        if (!m_la[0]) snprintf(m_la, sizeof(m_la), "Admin");
+        if (!m_aj[0]) snprintf(m_aj, sizeof(m_aj), "[\"Admin\"]");
+        snprintf(la_buf, sizeof(la_buf), "%s", m_la);
+        snprintf(aj_buf, sizeof(aj_buf), "%s", m_aj);
+        la = la_buf;
+        aj = aj_buf;
     }
     fputs("<div class=\"am\">\u66f4\u65b0\uff1a", fp);
     wiki_fhtml(fp, upd);
@@ -909,6 +957,7 @@ static int wiki_write_html_file(const char *filepath,
     fputs("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
           "<meta charset=\"UTF-8\">\n"
           "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
+          "<link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">\n"
           "<title>", fp);
     wiki_fhtml(fp, title);
     fputs(" - NoteWiki</title>\n<style>\n"
@@ -1810,7 +1859,7 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
             json_get_str(line + 9, "updated", m_upd, sizeof(m_upd));
             json_get_str(line + 9, "last_author", m_la, sizeof(m_la));
             if (!m_la[0]) json_get_str(line + 9, "lastAuthor", m_la, sizeof(m_la));
-            json_get_str(line + 9, "authors", m_aj, sizeof(m_aj));
+            json_get_raw(line + 9, "authors", m_aj, sizeof(m_aj));
         }
     }
     if (!m_id[0]) snprintf(m_id, sizeof(m_id), "%s", id);
@@ -2187,7 +2236,7 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
             if (strncmp(oml, "<!--META ", 9) == 0) {
                 char *e = strstr(oml, "-->");
                 if (e) { *e = '\0';
-                    json_get_str(oml + 9, "authors", authors_json, sizeof(authors_json));
+                    json_get_raw(oml + 9, "authors", authors_json, sizeof(authors_json));
                 }
             }
         }

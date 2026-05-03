@@ -1763,9 +1763,13 @@ function updateAutoSaveLabel(msg) {
 
 // ── Save / Publish ────────────────────────────────────────────────────
 function saveArticle()   { _doSave({}); }
-function publishArticle(){ _doSave({ published: true }); }
+function publishArticle(){
+  try { _doSave({ published: true }); }
+  catch(e) { setStatus('发布异常：'+e.message); console.error(e); }
+}
 
 function _doSave(opts) {
+  try {
   if (!ensureWriteAuth()) return;
   opts = opts || {};
   var silent  = !!opts.silent;
@@ -1857,6 +1861,11 @@ function _doSave(opts) {
     if (!silent) setStatus('请求失败：'+e.message);
     else updateAutoSaveLabel('保存失败');
   });
+  } catch(e) {
+    if (!silent) setStatus('保存异常：'+e.message);
+    else updateAutoSaveLabel('异常');
+    console.error('_doSave error:', e);
+  }
 }
 
 // ── Delete ───────────────────────────────────────────────────────────

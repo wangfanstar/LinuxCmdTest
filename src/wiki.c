@@ -1764,9 +1764,33 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
     size_t nr;
     while ((nr = fread(buf,1,sizeof(buf),fp)) > 0) sb_append(&body,buf,nr);
     fclose(fp);
+    /* extract meta fields from META line */
+    char m_id[128]={0}, m_title[512]={0}, m_cat[512]={0};
+    char m_cre[64]={0}, m_upd[64]={0};
+    if (line[0] && strncmp(line, "<!--META ", 9) == 0) {
+        char *end = strstr(line, "-->");
+        if (end) {
+            *end = '\0';
+            json_get_str(line + 9, "id", m_id, sizeof(m_id));
+            json_get_str(line + 9, "title", m_title, sizeof(m_title));
+            json_get_str(line + 9, "category", m_cat, sizeof(m_cat));
+            json_get_str(line + 9, "created", m_cre, sizeof(m_cre));
+            json_get_str(line + 9, "updated", m_upd, sizeof(m_upd));
+        }
+    }
+    if (!m_id[0]) snprintf(m_id, sizeof(m_id), "%s", id);
+    if (!m_title[0]) snprintf(m_title, sizeof(m_title), "%s", id);
+
     strbuf_t sb = {0};
-    SB_LIT(&sb, "{\"ok\":true,\"content\":"); sb_json_str(&sb, body.data ? body.data : "");
-    SB_LIT(&sb, "}");
+    SB_LIT(&sb, "{\"ok\":true,\"content\":");
+    sb_json_str(&sb, body.data ? body.data : "");
+    SB_LIT(&sb, ",\"meta\":{");
+    SB_LIT(&sb, "\"id\":\""); sb_append(&sb, m_id, strlen(m_id));
+    SB_LIT(&sb, "\",\"title\":\""); sb_append(&sb, m_title, strlen(m_title));
+    SB_LIT(&sb, "\",\"category\":\""); sb_append(&sb, m_cat, strlen(m_cat));
+    SB_LIT(&sb, "\",\"created\":\""); sb_append(&sb, m_cre, strlen(m_cre));
+    SB_LIT(&sb, "\",\"updated\":\""); sb_append(&sb, m_upd, strlen(m_upd));
+    SB_LIT(&sb, "\"}}");
     free(body.data);
     if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
     else send_json(client_fd,500,"Internal Server Error","{\"ok\":false}",12);

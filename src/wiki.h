@@ -10,7 +10,11 @@ void handle_api_wiki_refresh_index(http_sock_t client_fd);
 void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs);
 void handle_api_wiki_save(http_sock_t client_fd, const char *body,
                           const char *actor, const char *ip);
-void handle_api_wiki_delete(http_sock_t client_fd, const char *body);
+void handle_api_wiki_delete(http_sock_t client_fd, const char *body,
+                             const char *actor, const char *ip);
+void handle_api_wiki_trash_list(http_sock_t client_fd);
+void handle_api_wiki_trash_restore(http_sock_t client_fd, const char *body);
+void handle_api_wiki_trash_empty(http_sock_t client_fd, const char *body);
 void handle_api_wiki_search(http_sock_t client_fd, const char *path_qs);
 void handle_api_wiki_rebuild_html(http_sock_t client_fd);
 void handle_api_wiki_adoc_rebuild(http_sock_t client_fd);

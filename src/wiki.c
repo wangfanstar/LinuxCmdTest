@@ -29,11 +29,14 @@
 
 /* ── 路径常量 ─────────────────────────────────────────────── */
 
-#define WIKI_ROOT    WEB_ROOT "/wiki"
-#define WIKI_MD_DB   WIKI_ROOT "/md_db"
-#define WIKI_UPLOADS WIKI_ROOT "/uploads"
-#define WIKI_ADOC_DB WIKI_ROOT "/adoc_db"
+#define WIKI_ROOT      WEB_ROOT "/wiki"
+#define WIKI_MD_DB     WIKI_ROOT "/md_db"
+#define WIKI_UPLOADS   WIKI_ROOT "/uploads"
+#define WIKI_ADOC_DB   WIKI_ROOT "/adoc_db"
 #define WIKI_ADOC_HTML WIKI_ROOT "/adoc_html"
+#define WIKI_TRASH     WIKI_ROOT "/trash"
+#define WIKI_TRASH_MD  WIKI_TRASH "/md"
+#define WIKI_TRASH_HTML WIKI_TRASH "/html"
 
 /* ── 前向声明 ─────────────────────────────────────────────── */
 
@@ -2158,9 +2161,47 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     LOG_INFO("wiki_save id=%s html=%s", id, html_path);
 }
 
+/* ── trash helpers ─────────────────────────────────────────── */
+
+/* Move file to trash, preserving relative path from base. */
+static int wiki_trash_move(const char *src, const char *base,
+                           const char *trash_base)
+{
+    size_t blen = strlen(base);
+    if (strncmp(src, base, blen) != 0) return -1;
+    const char *rel = src + blen;
+    while (*rel == '/' || *rel == '\\') rel++;
+    char dest[1024];
+    snprintf(dest, sizeof(dest), "%s/%s", trash_base, rel);
+    /* ensure parent dir exists */
+    char dir[1024];
+    snprintf(dir, sizeof(dir), "%s", dest);
+    char *slash = strrchr(dir, '/');
+    if (slash) {
+        /* also try backslash */
+        char *bs = strrchr(dir, '\\');
+        if (bs > slash) slash = bs;
+        *slash = '\0';
+        mkdir_p(dir);
+    }
+    if (rename(src, dest) == 0) return 0;
+    /* cross-volume fallback: copy + unlink */
+    FILE *in = fopen(src, "rb");
+    if (!in) return -1;
+    FILE *out = fopen(dest, "wb");
+    if (!out) { fclose(in); return -1; }
+    char buf[8192]; size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
+        fwrite(buf, 1, n, out);
+    fclose(in); fclose(out);
+    unlink(src);
+    return 0;
+}
+
 /* ── POST /api/wiki-delete ────────────────────────────────── */
 
-void handle_api_wiki_delete(http_sock_t client_fd, const char *body)
+void handle_api_wiki_delete(http_sock_t client_fd, const char *body,
+                            const char *actor, const char *ip)
 {
     char id[128]={0}; json_get_str(body,"id",id,sizeof(id));
     if (!id[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing id\"}",34); return; }
@@ -2170,30 +2211,303 @@ void handle_api_wiki_delete(http_sock_t client_fd, const char *body)
             send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"invalid id\"}",33); return;
         }
     }
+
+    char del_time[64]; wiki_now_iso(del_time, sizeof(del_time));
+    const char *del_by = actor ? actor : "";
+    if (!del_by[0]) del_by = ip ? ip : "";
+
     char cat[512]={0}, md_path[768];
     if (wiki_md_find(md_path, sizeof(md_path), id) == 0) {
         FILE *fp = fopen(md_path,"r");
         if (fp) {
-            char line[4096]={0}; fgets(line,sizeof(line),fp); fclose(fp);
-            if (strncmp(line,"<!--META ",9)==0) {
-                char *end=strstr(line,"-->");
-                if (end) { *end='\0'; json_get_str(line+9,"category",cat,sizeof(cat)); }
+            /* read full content */
+            fseek(fp, 0, SEEK_END);
+            long fsize = ftell(fp);
+            rewind(fp);
+            char *content = malloc((size_t)(fsize + 128));
+            if (content) {
+                size_t nread = fread(content, 1, (size_t)fsize, fp);
+                content[nread] = '\0';
+                /* extract category from META */
+                if (strncmp(content, "<!--META ", 9) == 0) {
+                    char *end = strstr(content, "-->");
+                    if (end) {
+                        *end = '\0';
+                        json_get_str(content + 9, "category", cat, sizeof(cat));
+                        *end = '-'; /* restore marker */
+                    }
+                }
+                fclose(fp); fp = NULL;
+                /* rewrite with deleted_at / deleted_by appended to META */
+                char tmp_path[1024];
+                snprintf(tmp_path, sizeof(tmp_path), "%s.tmpdel", md_path);
+                FILE *tf = fopen(tmp_path, "wb");
+                if (tf) {
+                    /* find META end and write modified META + rest */
+                    char *meta_end = strstr(content, "-->");
+                    if (meta_end && meta_end >= content + 10) {
+                        /* write up to -->, insert deleted fields, then write --> */
+                        size_t prefix_len = (size_t)(meta_end - content);
+                        fwrite(content, 1, prefix_len, tf);
+                        fprintf(tf, ",\"deleted_at\":\"%s\"", del_time);
+                        if (del_by[0])
+                            fprintf(tf, ",\"deleted_by\":\"%s\"", del_by);
+                        fwrite(meta_end, 1, strlen(meta_end), tf);
+                    } else {
+                        fwrite(content, 1, nread, tf);
+                    }
+                    fclose(tf);
+                    /* atomic replace */
+                    wiki_rename_replace(tmp_path, md_path);
+                    unlink(tmp_path); /* clean up if rename didn't */
+                }
             }
+            free(content);
+            if (fp) fclose(fp);
         }
-        unlink(md_path);
+
+        /* move md to trash */
+        if (wiki_trash_move(md_path, WIKI_MD_DB, WIKI_TRASH_MD) != 0) {
+            /* fallback: just remove it */
+            unlink(md_path);
+        }
     }
     if (!cat[0] && md_path[0]) {
         char tmp_id[128];
         wiki_cat_id_from_md_abspath(md_path, cat, sizeof(cat), tmp_id, sizeof(tmp_id));
     }
     auth_wiki_md_meta_delete(id);
+
+    /* move html to trash */
     char html_path[1024];
     if (cat[0]) snprintf(html_path,sizeof(html_path),"%s/%s/%s.html",WIKI_ROOT,cat,id);
     else        snprintf(html_path,sizeof(html_path),"%s/%s.html",WIKI_ROOT,id);
-    unlink(html_path);
+    if (wiki_trash_move(html_path, WIKI_ROOT, WIKI_TRASH_HTML) != 0)
+        unlink(html_path);
+
     wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
-    LOG_INFO("wiki_delete id=%s",id);
+    LOG_INFO("wiki_delete id=%s actor=%s",id, del_by);
+}
+
+/* ── trash scan helper ─────────────────────────────────────── */
+
+static void wiki_trash_scan_dir(strbuf_t *sb, int *pfirst,
+                                const char *dir, const char *cat_prefix)
+{
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+
+        /* skip trash html dir */
+        const char *base = strrchr(child, '/');
+        if (!base) base = strrchr(child, '\\');
+        if (!base) base = child - 1;
+        const char *fname = base + 1;
+
+        if (S_ISDIR(st.st_mode)) {
+            char new_prefix[512];
+            if (cat_prefix[0])
+                snprintf(new_prefix, sizeof(new_prefix), "%s/%s",
+                         cat_prefix, fname);
+            else
+                snprintf(new_prefix, sizeof(new_prefix), "%s", fname);
+            wiki_trash_scan_dir(sb, pfirst, child, new_prefix);
+        } else {
+            size_t nl = strlen(fname);
+            if (nl < 4 || strcmp(fname + nl - 3, ".md") != 0)
+                continue;
+            /* parse META from file */
+            char art_id[128] = {0}, art_title[512] = {0};
+            char art_cat[512] = {0}, art_upd[64] = {0};
+            char art_del[64] = {0}, art_dby[128] = {0};
+            if (nl > 3) {
+                size_t id_len = nl - 3;
+                if (id_len >= sizeof(art_id)) id_len = sizeof(art_id) - 1;
+                memcpy(art_id, fname, id_len);
+                art_id[id_len] = '\0';
+            }
+            /* category from directory prefix */
+            if (cat_prefix[0])
+                snprintf(art_cat, sizeof(art_cat), "%s", cat_prefix);
+
+            FILE *fp = fopen(child, "r");
+            if (fp) {
+                char mline[4096] = {0};
+                fgets(mline, sizeof(mline), fp);
+                fclose(fp);
+                if (strncmp(mline, "<!--META ", 9) == 0) {
+                    char *end = strstr(mline, "-->");
+                    if (end) {
+                        *end = '\0';
+                        json_get_str(mline + 9, "title",
+                                     art_title, sizeof(art_title));
+                        json_get_str(mline + 9, "updated",
+                                     art_upd, sizeof(art_upd));
+                        json_get_str(mline + 9, "deleted_at",
+                                     art_del, sizeof(art_del));
+                        json_get_str(mline + 9, "deleted_by",
+                                     art_dby, sizeof(art_dby));
+                        if (!art_cat[0])
+                            json_get_str(mline + 9, "category",
+                                         art_cat, sizeof(art_cat));
+                    }
+                }
+            }
+            if (!art_title[0])
+                snprintf(art_title, sizeof(art_title), "%s", art_id);
+
+            if (*pfirst) *pfirst = 0; else SB_LIT(sb, ",");
+            SB_LIT(sb, "{");
+            SB_LIT(sb, "\"id\":\""); sb_append(sb, art_id, strlen(art_id));
+            SB_LIT(sb, "\",\"title\":");
+            sb_json_str(sb, art_title);
+            SB_LIT(sb, ",\"category\":\"");
+            sb_append(sb, art_cat, strlen(art_cat));
+            SB_LIT(sb, "\",\"updated\":\"");
+            sb_append(sb, art_upd, strlen(art_upd));
+            SB_LIT(sb, "\",\"deleted_at\":\"");
+            sb_append(sb, art_del, strlen(art_del));
+            SB_LIT(sb, "\",\"deleted_by\":\"");
+            sb_append(sb, art_dby, strlen(art_dby));
+            SB_LIT(sb, "\"}");
+        }
+    }
+    closedir(d);
+}
+
+/* ── GET /api/wiki-trash-list ──────────────────────────────── */
+
+void handle_api_wiki_trash_list(http_sock_t client_fd)
+{
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"articles\":[");
+    int first = 1;
+    wiki_ensure_dirs();
+    mkdir_p(WIKI_TRASH_MD);
+    wiki_trash_scan_dir(&sb, &first, WIKI_TRASH_MD, "");
+    SB_LIT(&sb, "]}");
+    if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else send_json(client_fd, 200, "OK",
+                   "{\"ok\":true,\"articles\":[]}", 24);
+    free(sb.data);
+}
+
+/* ── POST /api/wiki-trash-restore ──────────────────────────── */
+
+void handle_api_wiki_trash_restore(http_sock_t client_fd,
+                                   const char *body)
+{
+    char id[128] = {0}, cat[512] = {0};
+    json_get_str(body, "id", id, sizeof(id));
+    json_get_str(body, "category", cat, sizeof(cat));
+    if (!id[0]) {
+        send_json(client_fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing id\"}", 34);
+        return;
+    }
+
+    /* construct trash paths */
+    char trash_md[1024], trash_html[1024];
+    if (cat[0]) {
+        snprintf(trash_md, sizeof(trash_md),
+                 "%s/%s/%s.md", WIKI_TRASH_MD, cat, id);
+        snprintf(trash_html, sizeof(trash_html),
+                 "%s/%s/%s.html", WIKI_TRASH_HTML, cat, id);
+    } else {
+        snprintf(trash_md, sizeof(trash_md),
+                 "%s/%s.md", WIKI_TRASH_MD, id);
+        snprintf(trash_html, sizeof(trash_html),
+                 "%s/%s.html", WIKI_TRASH_HTML, id);
+    }
+
+    /* check if md exists in trash */
+    struct stat st;
+    if (stat(trash_md, &st) != 0) {
+        send_json(client_fd, 404, "Not Found",
+                  "{\"ok\":false,\"error\":\"not in trash\"}", 37);
+        return;
+    }
+
+    wiki_ensure_dirs();
+
+    /* restore md */
+    char dest_md[1024];
+    if (cat[0]) {
+        char catdir[768];
+        snprintf(catdir, sizeof(catdir), "%s/%s", WIKI_MD_DB, cat);
+        mkdir_p(catdir);
+        snprintf(dest_md, sizeof(dest_md),
+                 "%s/%s/%s.md", WIKI_MD_DB, cat, id);
+    } else {
+        snprintf(dest_md, sizeof(dest_md), "%s/%s.md", WIKI_MD_DB, id);
+    }
+    if (rename(trash_md, dest_md) != 0) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"restore md failed\"}", 42);
+        return;
+    }
+
+    /* restore html if exists */
+    char dest_html[1024];
+    if (cat[0]) {
+        char htmldir[768];
+        snprintf(htmldir, sizeof(htmldir), "%s/%s", WIKI_ROOT, cat);
+        mkdir_p(htmldir);
+        snprintf(dest_html, sizeof(dest_html),
+                 "%s/%s/%s.html", WIKI_ROOT, cat, id);
+    } else {
+        snprintf(dest_html, sizeof(dest_html),
+                 "%s/%s.html", WIKI_ROOT, id);
+    }
+    if (stat(trash_html, &st) == 0)
+        rename(trash_html, dest_html);
+
+    wiki_refresh_index_json();
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    LOG_INFO("wiki_trash_restore id=%s cat=%s", id, cat);
+}
+
+/* ── POST /api/wiki-trash-empty ────────────────────────────── */
+
+void handle_api_wiki_trash_empty(http_sock_t client_fd,
+                                 const char *body)
+{
+    char id[128] = {0}, cat[512] = {0};
+    json_get_str(body, "id", id, sizeof(id));
+    json_get_str(body, "category", cat, sizeof(cat));
+
+    if (id[0]) {
+        /* delete single item from trash */
+        char trash_md[1024], trash_html[1024];
+        if (cat[0]) {
+            snprintf(trash_md, sizeof(trash_md),
+                     "%s/%s/%s.md", WIKI_TRASH_MD, cat, id);
+            snprintf(trash_html, sizeof(trash_html),
+                     "%s/%s/%s.html", WIKI_TRASH_HTML, cat, id);
+        } else {
+            snprintf(trash_md, sizeof(trash_md),
+                     "%s/%s.md", WIKI_TRASH_MD, id);
+            snprintf(trash_html, sizeof(trash_html),
+                     "%s/%s.html", WIKI_TRASH_HTML, id);
+        }
+        unlink(trash_md);
+        unlink(trash_html);
+    } else {
+        /* empty entire trash */
+        rmdir_recursive(WIKI_TRASH_MD);
+        rmdir_recursive(WIKI_TRASH_HTML);
+        mkdir_p(WIKI_TRASH_MD);
+        mkdir_p(WIKI_TRASH_HTML);
+    }
+    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
+    LOG_INFO("wiki_trash_empty id=%s", id[0] ? id : "all");
 }
 
 /* ── GET /api/wiki-search ─────────────────────────────────── */

@@ -1387,7 +1387,8 @@ static void wiki_collect_dirs(strbuf_t *sb, const char *base,
         if (top && (strcmp(de->d_name,"md_db")==0 ||
                     strcmp(de->d_name,"uploads")==0 ||
                     strcmp(de->d_name,"vendor")==0 ||
-                    strcmp(de->d_name,"sqlite_db")==0)) continue;
+                    strcmp(de->d_name,"sqlite_db")==0 ||
+                    strcmp(de->d_name,"trash")==0)) continue;
         char child[1024]; snprintf(child, sizeof(child), "%s/%s", full, de->d_name);
         struct stat st; if (stat(child, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
         char relpath[512];

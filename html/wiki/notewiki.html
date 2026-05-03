@@ -374,6 +374,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="openTrashModal()">🗑 回收站</button>
     <a href="/index.html">← 返回首页</a>
   </div>
 </div>
@@ -815,6 +816,33 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
           <button class="btn btn-primary btn-sm" id="btn-conflict-merge-save" onclick="doConflictMergeSave()">接受合并并保存</button>
           <button class="btn btn-secondary btn-sm" onclick="showConflictOverview()">返回</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 回收站 modal -->
+<div class="modal-overlay" id="modal-trash">
+  <div class="modal-box modal-wide">
+    <div class="modal-head">🗑 回收站<button class="modal-close" onclick="closeTrashModal()">✕</button></div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <span id="trash-count" style="font-size:.78rem;color:var(--dim)">加载中…</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-danger btn-sm" onclick="emptyTrash()" title="彻底删除回收站中所有文档">全部清空</button>
+      </div>
+      <div class="history-table-wrap" style="max-height:min(62vh,480px)">
+        <table class="history-table">
+          <thead><tr>
+            <th style="width:28%">标题</th>
+            <th style="width:18%">分类</th>
+            <th style="width:18%">删除时间</th>
+            <th style="width:18%">删除者</th>
+            <th style="width:18%">操作</th>
+          </tr></thead>
+          <tbody id="trash-tbody"></tbody>
+        </table>
+        <div class="history-empty" id="trash-empty" style="display:none">回收站为空</div>
       </div>
     </div>
   </div>
@@ -1842,7 +1870,7 @@ function deleteCurrent() {
     body:JSON.stringify({id:S.curId})})
   .then(function(r){return r.json();})
   .then(function(data){
-    if(data.ok){ S.curId=null; showPane('welcome'); refreshAll(); setStatus('已删除'); }
+    if(data.ok){ S.curId=null; showPane('welcome'); refreshAll(); setStatus('已移入回收站'); }
     else setStatus('删除失败：'+(data.error||''));
   })
   .catch(function(e){ setStatus('请求失败：'+e.message); });
@@ -2013,7 +2041,7 @@ function ctxDoDelete() {
     .then(function(data){
       if (data.ok) {
         if (S.curId===ctxTarget.id) { S.curId=null; showPane('welcome'); }
-        refreshAll(); setStatus('已删除');
+        refreshAll(); setStatus('已移入回收站');
       } else setStatus('删除失败：'+(data.error||''));
     })
     .catch(function(e){ setStatus('请求失败：'+e.message); });
@@ -5762,6 +5790,120 @@ function doConflictMergeSave() {
   closeConflictModal();
   _doSave({ forceOverride: true });
 }
+
+// ── Trash / Recycle Bin ───────────────────────────────────────────────────
+
+function openTrashModal() {
+  document.getElementById('modal-trash').classList.add('open');
+  loadTrashList();
+}
+
+function closeTrashModal() {
+  document.getElementById('modal-trash').classList.remove('open');
+}
+
+function loadTrashList() {
+  document.getElementById('trash-count').textContent = '加载中…';
+  var tbody = document.getElementById('trash-tbody');
+  tbody.innerHTML = '';
+  fetch('/api/wiki-trash-list')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var arts = (data && data.ok && data.articles) ? data.articles : [];
+      document.getElementById('trash-count').textContent = '共 ' + arts.length + ' 篇已删除文档';
+      var empty = document.getElementById('trash-empty');
+      if (!arts.length) {
+        tbody.innerHTML = '';
+        empty.style.display = '';
+        return;
+      }
+      empty.style.display = 'none';
+      var html = '';
+      arts.forEach(function(a){
+        html += '<tr>'
+          + '<td>' + escH(a.title || a.id) + '</td>'
+          + '<td>' + escH(a.category || '根目录') + '</td>'
+          + '<td>' + escH((a.deleted_at || '').substring(0,16)) + '</td>'
+          + '<td>' + escH(a.deleted_by || '') + '</td>'
+          + '<td>'
+          + '<button class="btn btn-success btn-sm" onclick="restoreTrashItem(\'' + escH(a.id) + '\',\'' + escH(a.category||'') + '\')">恢复</button> '
+          + '<button class="btn btn-danger btn-sm" onclick="deleteTrashItem(\'' + escH(a.id) + '\',\'' + escH(a.category||'') + '\')">彻底删除</button>'
+          + '</td>'
+          + '</tr>';
+      });
+      tbody.innerHTML = html;
+    })
+    .catch(function(e){
+      document.getElementById('trash-count').textContent = '加载失败';
+      document.getElementById('trash-empty').style.display = '';
+    });
+}
+
+function restoreTrashItem(id, cat) {
+  if (!confirm('确定恢复「' + id + '」？')) return;
+  setStatus('恢复中…');
+  fetch('/api/wiki-trash-restore', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id:id, category:cat})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.ok) {
+      setStatus('已恢复');
+      refreshAll();
+      loadTrashList();
+    } else {
+      setStatus('恢复失败：' + (data.error || ''));
+    }
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); });
+}
+
+function deleteTrashItem(id, cat) {
+  if (!confirm('确定永久删除「' + id + '」？此操作不可恢复。')) return;
+  setStatus('删除中…');
+  fetch('/api/wiki-trash-empty', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id:id, category:cat})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.ok) {
+      setStatus('已永久删除');
+      loadTrashList();
+    } else {
+      setStatus('删除失败：' + (data.error || ''));
+    }
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); });
+}
+
+function emptyTrash() {
+  if (!confirm('确定清空整个回收站？所有文档将被永久删除，不可恢复！')) return;
+  setStatus('清空中…');
+  fetch('/api/wiki-trash-empty', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.ok) {
+      setStatus('回收站已清空');
+      loadTrashList();
+    } else {
+      setStatus('清空失败：' + (data.error || ''));
+    }
+  })
+  .catch(function(e){ setStatus('请求失败：' + e.message); });
+}
+
+/* close trash modal on overlay click */
+document.getElementById('modal-trash').addEventListener('click', function(e){
+  if (e.target === this) closeTrashModal();
+});
 
 init();
 </script>

@@ -278,6 +278,9 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
             }
             if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
             if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            /* read author info from META as fallback */
+            json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
+            json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -1568,6 +1571,9 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
             }
             if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
             if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            /* read author info from META as fallback */
+            json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
+            json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -2118,6 +2124,43 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     FILE *fp = fopen(md_tmp_path, "wb");
     if (!fp) { free(content); free(html); free(content_snapshot);
         send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write md\"}",33); return; }
+    /* accumulate authors from old file's META */
+    char last_auth[128] = {0};
+    char authors_json[2048] = {0};
+    const char *editor = (actor && actor[0]) ? actor : "Admin";
+    snprintf(last_auth, sizeof(last_auth), "%s", editor);
+    /* read old META to get existing authors list */
+    if (old_md_path[0]) {
+        FILE *oldf = fopen(old_md_path, "rb");
+        if (oldf) {
+            char oml[4096] = {0};
+            fgets(oml, sizeof(oml), oldf); fclose(oldf);
+            if (strncmp(oml, "<!--META ", 9) == 0) {
+                char *e = strstr(oml, "-->");
+                if (e) { *e = '\0';
+                    json_get_str(oml + 9, "authors", authors_json, sizeof(authors_json));
+                }
+            }
+        }
+    }
+    /* add current editor to authors array (simple inline) */
+    {
+        char needle[320];
+        snprintf(needle, sizeof(needle), "\"%s\"", editor);
+        if (!strstr(authors_json, needle)) {
+            size_t al = strlen(authors_json);
+            if (al < 2 || authors_json[0] != '[') {
+                snprintf(authors_json, sizeof(authors_json), "[\"%s\"]", editor);
+            } else if (authors_json[0] == '[' && authors_json[1] == ']') {
+                snprintf(authors_json, sizeof(authors_json), "[\"%s\"]", editor);
+            } else if (authors_json[al - 1] == ']') {
+                authors_json[al - 1] = '\0';
+                snprintf(authors_json + (al - 1), sizeof(authors_json) - (al - 1),
+                         ",\"%s\"]", editor);
+            }
+        }
+    }
+
     strbuf_t meta = {0};
     SB_LIT(&meta, "<!--META ");
     SB_LIT(&meta,"{\"id\":"); sb_json_str(&meta,id);
@@ -2125,6 +2168,8 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
     SB_LIT(&meta,",\"category\":"); sb_json_str(&meta,cat);
     SB_LIT(&meta,",\"created\":"); sb_json_str(&meta,created);
     SB_LIT(&meta,",\"updated\":"); sb_json_str(&meta,now);
+    SB_LIT(&meta,",\"last_author\":"); sb_json_str(&meta,last_auth);
+    SB_LIT(&meta,",\"authors\":"); sb_append(&meta, authors_json, strlen(authors_json));
     SB_LIT(&meta, "}-->\n");
     if (meta.data) fwrite(meta.data,1,meta.len,fp);
     fwrite(content,1,strlen(content),fp);

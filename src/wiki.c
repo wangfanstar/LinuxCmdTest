@@ -217,6 +217,9 @@ static void wiki_append_article_json_record(strbuf_t *sb, const char *id, const 
     SB_LIT(sb, "}");
 }
 
+static int json_get_raw(const char *json, const char *key,
+                        char *out, size_t len);
+
 static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
 {
     DIR *d = opendir(dir);
@@ -253,9 +256,8 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
         wiki_cat_id_from_md_abspath(child, path_cat, sizeof(path_cat), path_id, sizeof(path_id));
 
         char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
-        char last_author_out[128] = "Admin";
-        char authors_json_out[2048] = "[\"Admin\"]";
-        int meta_has_author = 0;
+        char last_author_out[128] = {0};
+        char authors_json_out[2048] = {0};
 
         char now_iso[64];
         wiki_now_iso(now_iso, sizeof(now_iso));
@@ -279,10 +281,10 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
             }
             if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
             if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
-            /* read author info from META as fallback */
+            /* last_author 与 lastAuthor 兼容；无首行 META 的 md 作者仅在 SQLite 表 */
             json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
-            json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
-            meta_has_author = 1;
+            if (!last_author_out[0]) json_get_str(mj, "lastAuthor", last_author_out, sizeof(last_author_out));
+            json_get_raw(mj, "authors", authors_json_out, sizeof(authors_json_out));
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -311,13 +313,17 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
                          row.last_author[0] ? row.last_author : "Admin");
                 snprintf(authors_json_out, sizeof(authors_json_out), "%s",
                          row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
-            }
-            /* when META exists, prefer META values; use SQLite only as fallback */
-            else if (!meta_has_author) {
-                snprintf(last_author_out, sizeof(last_author_out), "%s",
-                         row.last_author[0] ? row.last_author : "Admin");
-                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
-                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            } else {
+                /* 首行有 META 时，若行内未带作者或为占位，则用 wiki_md_meta 中保存的真实账号 */
+                if (row.last_author[0] &&
+                    (!last_author_out[0] || strcmp(last_author_out, "Admin") == 0)) {
+                    snprintf(last_author_out, sizeof(last_author_out), "%s", row.last_author);
+                }
+                if (row.authors_json[0] &&
+                    (!authors_json_out[0] || strcmp(authors_json_out, "[\"Admin\"]") == 0 ||
+                     strcmp(authors_json_out, "[]") == 0)) {
+                    snprintf(authors_json_out, sizeof(authors_json_out), "%s", row.authors_json);
+                }
             }
         }
 
@@ -1556,9 +1562,8 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
         wiki_cat_id_from_md_abspath(child, path_cat, sizeof(path_cat), path_id, sizeof(path_id));
 
         char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
-        char last_author_out[128] = "Admin";
-        char authors_json_out[2048] = "[\"Admin\"]";
-        int meta_has_author = 0;
+        char last_author_out[128] = {0};
+        char authors_json_out[2048] = {0};
         char now_iso[64];
         wiki_now_iso(now_iso, sizeof(now_iso));
 
@@ -1581,10 +1586,9 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
             }
             if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
             if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
-            /* read author info from META as fallback */
             json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
-            json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
-            meta_has_author = 1;
+            if (!last_author_out[0]) json_get_str(mj, "lastAuthor", last_author_out, sizeof(last_author_out));
+            json_get_raw(mj, "authors", authors_json_out, sizeof(authors_json_out));
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -1612,12 +1616,16 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
                          row.last_author[0] ? row.last_author : "Admin");
                 snprintf(authors_json_out, sizeof(authors_json_out), "%s",
                          row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
-            }
-            else if (!meta_has_author) {
-                snprintf(last_author_out, sizeof(last_author_out), "%s",
-                         row.last_author[0] ? row.last_author : "Admin");
-                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
-                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            } else {
+                if (row.last_author[0] &&
+                    (!last_author_out[0] || strcmp(last_author_out, "Admin") == 0)) {
+                    snprintf(last_author_out, sizeof(last_author_out), "%s", row.last_author);
+                }
+                if (row.authors_json[0] &&
+                    (!authors_json_out[0] || strcmp(authors_json_out, "[\"Admin\"]") == 0 ||
+                     strcmp(authors_json_out, "[]") == 0)) {
+                    snprintf(authors_json_out, sizeof(authors_json_out), "%s", row.authors_json);
+                }
             }
         }
 
@@ -1788,8 +1796,9 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
     while ((nr = fread(buf,1,sizeof(buf),fp)) > 0) sb_append(&body,buf,nr);
     fclose(fp);
     /* extract meta fields from META line */
-    char m_id[128]={0}, m_title[512]={0}, m_cat[512]={0};
-    char m_cre[64]={0}, m_upd[64]={0};
+    char m_id[128] = {0}, m_title[512] = {0}, m_cat[512] = {0};
+    char m_cre[64] = {0}, m_upd[64] = {0};
+    char m_la[128] = {0}, m_aj[2048] = {0};
     if (line[0] && strncmp(line, "<!--META ", 9) == 0) {
         char *end = strstr(line, "-->");
         if (end) {
@@ -1799,10 +1808,31 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
             json_get_str(line + 9, "category", m_cat, sizeof(m_cat));
             json_get_str(line + 9, "created", m_cre, sizeof(m_cre));
             json_get_str(line + 9, "updated", m_upd, sizeof(m_upd));
+            json_get_str(line + 9, "last_author", m_la, sizeof(m_la));
+            if (!m_la[0]) json_get_str(line + 9, "lastAuthor", m_la, sizeof(m_la));
+            json_get_str(line + 9, "authors", m_aj, sizeof(m_aj));
         }
     }
     if (!m_id[0]) snprintf(m_id, sizeof(m_id), "%s", id);
     if (!m_title[0]) snprintf(m_title, sizeof(m_title), "%s", id);
+
+    wiki_md_meta_row_t wrow;
+    memset(&wrow, 0, sizeof(wrow));
+    if (auth_wiki_md_meta_get(m_id, &wrow) == 0 && wrow.found) {
+        if (strncmp(line, "<!--META ", 9) != 0) {
+            if (wrow.last_author[0]) snprintf(m_la, sizeof(m_la), "%s", wrow.last_author);
+            if (wrow.authors_json[0]) snprintf(m_aj, sizeof(m_aj), "%s", wrow.authors_json);
+        } else {
+            if (wrow.last_author[0] && (!m_la[0] || strcmp(m_la, "Admin") == 0))
+                snprintf(m_la, sizeof(m_la), "%s", wrow.last_author);
+            if (wrow.authors_json[0] &&
+                (!m_aj[0] || strcmp(m_aj, "[\"Admin\"]") == 0 || strcmp(m_aj, "[]") == 0)) {
+                snprintf(m_aj, sizeof(m_aj), "%s", wrow.authors_json);
+            }
+        }
+    }
+    if (!m_la[0]) snprintf(m_la, sizeof(m_la), "Admin");
+    if (!m_aj[0]) snprintf(m_aj, sizeof(m_aj), "[\"Admin\"]");
 
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"content\":");
@@ -1813,7 +1843,9 @@ void handle_api_wiki_read(http_sock_t client_fd, const char *path_qs)
     SB_LIT(&sb, "\",\"category\":\""); sb_append(&sb, m_cat, strlen(m_cat));
     SB_LIT(&sb, "\",\"created\":\""); sb_append(&sb, m_cre, strlen(m_cre));
     SB_LIT(&sb, "\",\"updated\":\""); sb_append(&sb, m_upd, strlen(m_upd));
-    SB_LIT(&sb, "\"}}");
+    SB_LIT(&sb, "\",\"lastAuthor\":"); sb_json_str(&sb, m_la);
+    SB_LIT(&sb, ",\"authors\":"); sb_append(&sb, m_aj, strlen(m_aj));
+    SB_LIT(&sb, "}}");
     free(body.data);
     if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
     else send_json(client_fd,500,"Internal Server Error","{\"ok\":false}",12);
@@ -2249,6 +2281,39 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
 }
 
 /* ── trash helpers ─────────────────────────────────────────── */
+
+/* Extract raw JSON value for a key (handles strings, arrays, objects). */
+static int json_get_raw(const char *json, const char *key,
+                        char *out, size_t len)
+{
+    char search[128];
+    snprintf(search, sizeof(search), "\"%s\"", key);
+    const char *p = strstr(json, search);
+    if (!p) return -1;
+    p += strlen(search);
+    while (*p == ' ' || *p == '\t' || *p == ':' ||
+           *p == '\n' || *p == '\r') p++;
+    if (*p == '"') {
+        p++; size_t i = 0;
+        while (*p && *p != '"' && i < len - 1) {
+            if (*p == '\\' && p[1]) { out[i++] = p[1]; p += 2; }
+            else { out[i++] = *p++; }
+        }
+        out[i] = '\0'; return 0;
+    }
+    if (*p == '[' || *p == '{') {
+        char open = *p, close = (open == '[') ? ']' : '}';
+        int depth = 1; size_t i = 0;
+        out[i++] = *p++;
+        while (*p && depth > 0 && i < len - 1) {
+            if (*p == open) depth++;
+            else if (*p == close) depth--;
+            out[i++] = *p++;
+        }
+        out[i] = '\0'; return 0;
+    }
+    return -1;
+}
 
 /* Move file to trash, preserving relative path from base. */
 static int wiki_trash_move(const char *src, const char *base,

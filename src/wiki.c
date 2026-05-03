@@ -255,6 +255,7 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
         char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
         char last_author_out[128] = "Admin";
         char authors_json_out[2048] = "[\"Admin\"]";
+        int meta_has_author = 0;
 
         char now_iso[64];
         wiki_now_iso(now_iso, sizeof(now_iso));
@@ -281,6 +282,7 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
             /* read author info from META as fallback */
             json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
             json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
+            meta_has_author = 1;
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -305,11 +307,18 @@ static void wiki_scan_md_dir(strbuf_t *sb, int *pfirst, const char *dir)
                 if (row.created[0]) strncpy(cre, row.created, sizeof(cre) - 1);
                 if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
                 if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+                snprintf(last_author_out, sizeof(last_author_out), "%s",
+                         row.last_author[0] ? row.last_author : "Admin");
+                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
             }
-            snprintf(last_author_out, sizeof(last_author_out), "%s",
-                     row.last_author[0] ? row.last_author : "Admin");
-            snprintf(authors_json_out, sizeof(authors_json_out), "%s",
-                     row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            /* when META exists, prefer META values; use SQLite only as fallback */
+            else if (!meta_has_author) {
+                snprintf(last_author_out, sizeof(last_author_out), "%s",
+                         row.last_author[0] ? row.last_author : "Admin");
+                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            }
         }
 
         if (!*pfirst) SB_LIT(sb, ",");
@@ -1549,6 +1558,7 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
         char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
         char last_author_out[128] = "Admin";
         char authors_json_out[2048] = "[\"Admin\"]";
+        int meta_has_author = 0;
         char now_iso[64];
         wiki_now_iso(now_iso, sizeof(now_iso));
 
@@ -1574,6 +1584,7 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
             /* read author info from META as fallback */
             json_get_str(mj, "last_author", last_author_out, sizeof(last_author_out));
             json_get_str(mj, "authors", authors_json_out, sizeof(authors_json_out));
+            meta_has_author = 1;
             (void)auth_wiki_md_meta_upsert_scan_meta(id, title, cat, cre, upd);
         } else {
             snprintf(id, sizeof(id), "%s", path_id);
@@ -1597,11 +1608,17 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
                 if (row.created[0]) strncpy(cre, row.created, sizeof(cre) - 1);
                 if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
                 if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+                snprintf(last_author_out, sizeof(last_author_out), "%s",
+                         row.last_author[0] ? row.last_author : "Admin");
+                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
             }
-            snprintf(last_author_out, sizeof(last_author_out), "%s",
-                     row.last_author[0] ? row.last_author : "Admin");
-            snprintf(authors_json_out, sizeof(authors_json_out), "%s",
-                     row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            else if (!meta_has_author) {
+                snprintf(last_author_out, sizeof(last_author_out), "%s",
+                         row.last_author[0] ? row.last_author : "Admin");
+                snprintf(authors_json_out, sizeof(authors_json_out), "%s",
+                         row.authors_json[0] ? row.authors_json : "[\"Admin\"]");
+            }
         }
 
         size_t qlen = strlen(q);

@@ -250,6 +250,36 @@ static void read_proc_user(pid_t pid, char *user, int ul)
     uid_lookup(uid, user, ul);
 }
 
+static int read_proc_cmdline(pid_t pid, char *buf, int bufsize)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    int n = (int)fread(buf, 1, (size_t)(bufsize - 1), f);
+    fclose(f);
+    if (n <= 0) return -1;
+    for (int i = 0; i < n; i++)
+        if (buf[i] == '\0') buf[i] = ' ';
+    while (n > 0 && buf[n - 1] == ' ') n--;
+    buf[n] = '\0';
+    return 0;
+}
+
+static int json_escape(char *dst, const char *src, int dstsize)
+{
+    int j = 0;
+    for (const char *p = src; *p && j < dstsize - 2; p++) {
+        if (*p == '\\' || *p == '"') {
+            if (j >= dstsize - 3) break;
+            dst[j++] = '\\';
+        }
+        dst[j++] = *p;
+    }
+    dst[j] = '\0';
+    return j;
+}
+
 static void top_insert(top_proc_t top[], int *cnt, int max,
                        const char *name, const char *user, float pct, pid_t pid)
 {
@@ -666,6 +696,12 @@ void handle_api_port(http_sock_t client_fd, int query_port)
         char user[20] = "?";
         read_proc_user(pid, user, sizeof(user));
 
+        char cmdline_buf[512] = "";
+        read_proc_cmdline(pid, cmdline_buf, sizeof(cmdline_buf));
+        char cmd_esc[768] = "";
+        if (cmdline_buf[0])
+            json_escape(cmd_esc, cmdline_buf, sizeof(cmd_esc));
+
         const char *state_str = (state >= 1 && state <= 12) ? tcp_states[state] : "UNKNOWN";
 
         unsigned long long prev_ticks = 0;
@@ -674,12 +710,12 @@ void handle_api_port(http_sock_t client_fd, int query_port)
         float pct = (scale > 0 && ticks > prev_ticks)
                     ? (float)((double)(ticks - prev_ticks) * scale) : 0.0f;
 
-        char entry[420];
+        char entry[768];
         int en = snprintf(entry, sizeof(entry),
                           "%s{\"pid\":%d,\"name\":\"%s\",\"user\":\"%s\",\"state\":\"%s\","
-                          "\"p\":%.1f,\"c\":%d,\"ports\":\"%d\"}",
+                          "\"p\":%.1f,\"c\":%d,\"cmd\":\"%s\",\"ports\":\"%d\"}",
                           i ? "," : "", (int)pid, name, user, state_str, pct, cpu_idx,
-                          query_port);
+                          cmd_esc, query_port);
         sb_append(&sb, entry, (size_t)en);
     }
 
@@ -760,6 +796,9 @@ void handle_api_procs(http_sock_t client_fd, const char *query, int include_port
             char user[20] = "?";
             read_proc_user(pid, user, sizeof(user));
 
+            char cmdline_buf[512] = "";
+            read_proc_cmdline(pid, cmdline_buf, sizeof(cmdline_buf));
+
             if (qlo[0]) {
                 char nlo[32], ulo[20];
                 size_t nl = strlen(name), ul = strlen(user);
@@ -767,7 +806,16 @@ void handle_api_procs(http_sock_t client_fd, const char *query, int include_port
                 nlo[nl] = '\0';
                 for (size_t k = 0; k < ul; k++) ulo[k] = (char)tolower((unsigned char)user[k]);
                 ulo[ul] = '\0';
-                if (!strstr(nlo, qlo) && !strstr(ulo, qlo)) continue;
+                int matched = (strstr(nlo, qlo) || strstr(ulo, qlo));
+                if (!matched && cmdline_buf[0]) {
+                    char clo[512];
+                    size_t cl = strlen(cmdline_buf);
+                    if (cl >= sizeof(clo)) cl = sizeof(clo) - 1;
+                    for (size_t k = 0; k < cl; k++) clo[k] = (char)tolower((unsigned char)cmdline_buf[k]);
+                    clo[cl] = '\0';
+                    if (strstr(clo, qlo)) matched = 1;
+                }
+                if (!matched) continue;
             }
 
             unsigned long long prev_ticks = 0;
@@ -780,16 +828,20 @@ void handle_api_procs(http_sock_t client_fd, const char *query, int include_port
             if (include_ports && tcp_map && tcp_n > 0)
                 pid_format_tcp_ports(pid, tcp_map, tcp_n, ports_buf, sizeof(ports_buf));
 
-            char entry[512];
+            char cmd_esc[768] = "";
+            if (cmdline_buf[0])
+                json_escape(cmd_esc, cmdline_buf, sizeof(cmd_esc));
+
+            char entry[768];
             int en;
             if (include_ports)
                 en = snprintf(entry, sizeof(entry),
-                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d,\"ports\":\"%s\"}",
-                              first ? "" : ",", name, user, pct, (int)pid, last_cpu, ports_buf);
+                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d,\"cmd\":\"%s\",\"ports\":\"%s\"}",
+                              first ? "" : ",", name, user, pct, (int)pid, last_cpu, cmd_esc, ports_buf);
             else
                 en = snprintf(entry, sizeof(entry),
-                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d}",
-                              first ? "" : ",", name, user, pct, (int)pid, last_cpu);
+                              "%s{\"n\":\"%s\",\"u\":\"%s\",\"p\":%.1f,\"i\":%d,\"c\":%d,\"cmd\":\"%s\"}",
+                              first ? "" : ",", name, user, pct, (int)pid, last_cpu, cmd_esc);
             sb_append(&sb, entry, (size_t)en);
             first = 0;
         }

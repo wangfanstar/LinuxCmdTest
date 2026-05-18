@@ -46,7 +46,8 @@ void ssh_session_exec_stream(const char *host, int port, const char *user,
                              ssh_stream_cb_t cb, void *ud, char *error_buf,
                              size_t error_buf_sz, int idle_timeout_sec, int *out_timed_out,
                              int *out_timeout_cmd_idx, char *out_partial_buf,
-                             size_t out_partial_sz, int net_device_mode, int pty_debug)
+                             size_t out_partial_sz, int net_device_mode, int pty_debug,
+                             const char *session_id)
 {
     (void)host;
     (void)port;
@@ -61,6 +62,7 @@ void ssh_session_exec_stream(const char *host, int port, const char *user,
     (void)out_partial_sz;
     (void)net_device_mode;
     (void)pty_debug;
+    (void)session_id;
     if (out_timed_out) {
         *out_timed_out = 0;
     }
@@ -90,3 +92,11 @@ void ssh_batch_free(ssh_batch_t *b)
 }
 
 void ssh_cancel_current(void) {}
+
+void ssh_cancel_session(const char *session_id) { (void)session_id; }
+
+int ssh_inject_stdin_by_session(const char *session_id, const char *cmd, int is_ctrlc)
+{
+    (void)session_id; (void)cmd; (void)is_ctrlc;
+    return -1;
+}

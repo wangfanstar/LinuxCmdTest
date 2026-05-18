@@ -173,7 +173,18 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             else send_json(client_fd, 400, "Bad Request",
                            "{\"error\":\"empty body\"}", 21);
         } else if (strcmp(path, "/api/cancel") == 0) {
-            ssh_cancel_current();
+            if (body && body[0]) {
+                char sid[128] = {0};
+                json_get_str(body, "session_id", sid, sizeof(sid));
+                if (sid[0]) {
+                    ssh_cancel_session(sid);
+                    LOG_INFO("api_cancel: session_id=%s", sid);
+                } else {
+                    ssh_cancel_current();
+                }
+            } else {
+                ssh_cancel_current();
+            }
             send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
         } else if (strcmp(path, "/api/kill") == 0) {
             if (body) {

@@ -1260,6 +1260,7 @@ function applyFolderFilterSave() {
 var treeExpanded = {};
 var _searchTimer = null;
 var _searchQ = '';
+var _searchAbortCtrl = null; /* 取消过期搜索请求 */
 var _ftMatched = {}; // ids matched by full-text (not title/cat)
 
 function onSearchInput() {
@@ -1268,17 +1269,28 @@ function onSearchInput() {
   _searchQ = q;
   renderTree();
   if (_searchTimer) clearTimeout(_searchTimer);
+  /* 取消前一个未完成的搜索请求 */
+  if (_searchAbortCtrl) { _searchAbortCtrl.abort(); _searchAbortCtrl = null; }
   if (!q) {
     document.getElementById('sb-search-hint').style.display='none';
+    return;
+  }
+  /* 最短查询长度：2 字符 */
+  if (q.length < 2) {
+    document.getElementById('sb-search-hint').textContent='至少输入 2 个字符';
+    document.getElementById('sb-search-hint').style.display='';
     return;
   }
   document.getElementById('sb-search-hint').textContent='搜索中…';
   document.getElementById('sb-search-hint').style.display='';
   _searchTimer = setTimeout(function(){
     var cur = q;
-    fetch('/api/wiki-search?q='+encodeURIComponent(cur))
+    var ctrl = new AbortController();
+    _searchAbortCtrl = ctrl;
+    fetch('/api/wiki-search?q='+encodeURIComponent(cur), { signal: ctrl.signal })
       .then(function(r){return r.json();})
       .then(function(data){
+        if (_searchAbortCtrl === ctrl) _searchAbortCtrl = null;
         if (_searchQ !== cur) return;
         if (!data.ok || !data.articles) return;
         var localIds = {};
@@ -1294,7 +1306,9 @@ function onSearchInput() {
         hint.textContent = count ? '全文匹配 '+count+' 篇' : '无全文匹配';
         hint.style.display='';
         renderTree();
-      }).catch(function(){
+      }).catch(function(e){
+        if (_searchAbortCtrl === ctrl) _searchAbortCtrl = null;
+        if (e && e.name === 'AbortError') return; /* 已取消，静默 */
         document.getElementById('sb-search-hint').textContent='';
         document.getElementById('sb-search-hint').style.display='none';
       });
@@ -5447,12 +5461,12 @@ function removeAiLoading() {
 }
 
 // 根据用户问题搜索相关文章
-function searchWikiDocs(query, folders, maxDocs) {
+function searchWikiDocs(query, folders, maxDocs, signal) {
   var results = [];
   var seen = {};
 
   // 1. 服务端全文搜索（仅 md_db，但会返回所有结果）
-  return fetch('/api/wiki-search?q=' + encodeURIComponent(query))
+  return fetch('/api/wiki-search?q=' + encodeURIComponent(query), signal ? { signal: signal } : undefined)
     .then(function(r){ return r.json(); })
     .then(function(data){
       if (data && data.ok && data.articles) {
@@ -5579,7 +5593,7 @@ function sendAiMessage() {
   _aiAbort = new AbortController();
   var signal = _aiAbort.signal;
 
-  searchWikiDocs(q, folders, maxDocs)
+  searchWikiDocs(q, folders, maxDocs, signal)
     .then(function(docs){
       if (signal.aborted) throw new Error('aborted');
       if (loadEl) loadEl.querySelector('span').textContent = '找到 ' + docs.length + ' 篇相关文档，正在读取…';

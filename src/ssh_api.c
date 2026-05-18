@@ -153,14 +153,19 @@ typedef struct {
     char (*cmds)[CMD_BUF_SIZE];
     int                 completed;
     int                 conn_broken;
+    char                session_id[128];
 } stream_ctx_t;
 
 static void sse_on_write_fail(stream_ctx_t *ctx)
 {
     if (!ctx->conn_broken) {
         ctx->conn_broken = 1;
-        LOG_INFO("sse_stream: client disconnected, cancelling SSH session");
-        ssh_cancel_current();
+        LOG_INFO("sse_stream: client disconnected, cancelling SSH session %s",
+                 ctx->session_id[0] ? ctx->session_id : "(all)");
+        if (ctx->session_id[0])
+            ssh_cancel_session(ctx->session_id);
+        else
+            ssh_cancel_current();
     }
 }
 
@@ -236,6 +241,8 @@ void handle_api_ssh_exec_stream(http_sock_t client_fd, const char *body)
     int timeout      = json_get_int(body, "timeout",    0);
     int net_device   = json_get_int(body, "net_device", 0);
     int pty_debug    = json_get_int(body, "pty_debug",  0);
+    char session_id[128] = {0};
+    json_get_str(body, "session_id", session_id, sizeof(session_id));
     if (!user[0]) strcpy(user, "root");
 
     char (*cmd_bufs)[CMD_BUF_SIZE] = calloc(MAX_CMD_COUNT, CMD_BUF_SIZE);
@@ -287,7 +294,8 @@ void handle_api_ssh_exec_stream(http_sock_t client_fd, const char *body)
     }
 
 #define PARTIAL_BUF_MAX (64 * 1024)
-    stream_ctx_t ctx = { client_fd, cmd_bufs, 0, 0 };
+    stream_ctx_t ctx = { client_fd, cmd_bufs, 0, 0, {0} };
+    if (session_id[0]) strncpy(ctx.session_id, session_id, sizeof(ctx.session_id) - 1);
     char  error_buf[512] = {0};
     int   timed_out = 0;
     int   timeout_cmd_idx = -1;
@@ -300,7 +308,8 @@ void handle_api_ssh_exec_stream(http_sock_t client_fd, const char *body)
                             &timeout_cmd_idx,
                             partial_buf, partial_buf ? PARTIAL_BUF_MAX : 0,
                             net_device,
-                            pty_debug);
+                            pty_debug,
+                            session_id[0] ? session_id : NULL);
 
     if (!ctx.conn_broken) {
         int timeout_sec = (timeout > 0) ? timeout : 300;

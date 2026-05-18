@@ -23,6 +23,7 @@
 #endif
 #include <errno.h>
 #include <ctype.h>
+#include <time.h>
 #include <dirent.h>
 #include <time.h>
 #include <pthread.h>
@@ -1575,19 +1576,36 @@ static void wiki_append_match_context(strbuf_t *out, const char *hay, size_t hay
     if (trail_el && out->len + 3 < cap) SB_LIT(out, "\xe2\x80\xa6");
 }
 
-static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const char *q)
+#define WIKI_SEARCH_MAX_RESULTS   200
+#define WIKI_SEARCH_MAX_FILE_BYTES (512 * 1024)  /* 单文件最多扫描 512KB */
+
+/* 跳过非内容目录：构建产物、归档、版本控制等 */
+static int wiki_search_skip_dir(const char *name)
 {
+    if (!name || !name[0]) return 1;
+    if (name[0] == '.') return 1;
+    if (strcmp(name, "archive") == 0 || strcmp(name, "build") == 0 ||
+        strcmp(name, "trash") == 0 || strcmp(name, "node_modules") == 0) return 1;
+    if (strncmp(name, "adoc_", 5) == 0) return 1;
+    return 0;
+}
+
+static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const char *q,
+                            int *pcount, int max_results, int max_file_bytes)
+{
+    if (*pcount >= max_results) return;
     DIR *d = opendir(dir);
     if (!d) return;
     struct dirent *de;
-    while ((de = readdir(d)) != NULL) {
+    while ((de = readdir(d)) != NULL && *pcount < max_results) {
         if (de->d_name[0] == '.') continue;
         char child[1024];
         snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
         struct stat st;
         if (stat(child, &st) != 0) continue;
         if (S_ISDIR(st.st_mode)) {
-            wiki_search_dir(sb, pfirst, child, q);
+            if (!wiki_search_skip_dir(de->d_name))
+                wiki_search_dir(sb, pfirst, child, q, pcount, max_results, max_file_bytes);
             continue;
         }
         size_t nl = strlen(de->d_name);
@@ -1599,8 +1617,14 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
         strbuf_t body = {0};
         char buf[8192];
         size_t nr;
-        while (ok && (nr = fread(buf, 1, sizeof(buf), fp)) > 0)
+        while (ok && (nr = fread(buf, 1, sizeof(buf), fp)) > 0) {
+            if (body.len + nr > (size_t)max_file_bytes) {
+                size_t rem = (size_t)max_file_bytes - body.len;
+                if (rem > 0) sb_append(&body, buf, rem);
+                break;
+            }
             sb_append(&body, buf, nr);
+        }
         fclose(fp);
         if (!ok) {
             free(body.data);
@@ -2723,13 +2747,26 @@ void handle_api_wiki_search(http_sock_t client_fd, const char *path_qs)
     }
     url_decode_report_fn(q);
     if (!q[0]) { send_json(client_fd,400,"Bad Request","{\"ok\":false,\"error\":\"missing q\"}",32); return; }
+    /* 最短查询长度：2 字符（单字符全库扫描代价过高） */
+    if (strlen(q) < 2) {
+        send_json(client_fd, 200, "OK", "{\"ok\":true,\"articles\":[]}", 24);
+        return;
+    }
     for (char *p=q; *p; p++) *p=(char)tolower((unsigned char)*p);
 
+    clock_t t0 = clock();
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"ok\":true,\"articles\":[");
-    int first = 1;
-    wiki_search_dir(&sb, &first, WIKI_MD_DB, q);
+    int first = 1, count = 0;
+    wiki_search_dir(&sb, &first, WIKI_MD_DB, q, &count,
+                    WIKI_SEARCH_MAX_RESULTS, WIKI_SEARCH_MAX_FILE_BYTES);
     SB_LIT(&sb, "]}");
+
+    double elapsed = (double)(clock() - t0) / CLOCKS_PER_SEC;
+    if (elapsed > 2.0) {
+        LOG_INFO("wiki_search SLOW: q=\"%s\" results=%d time=%.2fs", q, count, elapsed);
+    }
+
     if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
     else send_json(client_fd, 200, "OK", "{\"ok\":true,\"articles\":[]}", 24);
     free(sb.data);

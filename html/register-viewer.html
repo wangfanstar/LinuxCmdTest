@@ -749,18 +749,39 @@ var uidCounter   = 0;
 
 // ── 工具函数 ──────────────────────────────────────────────
 function gtext(el, tag) {
-  var c = el.getElementsByTagNameNS(NS, tag)[0];
-  return c ? c.textContent.trim() : '';
+  if (!el) return '';
+  var i, c;
+  var children = el.children || [];
+  for (i = 0; i < children.length; i++) {
+    c = children[i];
+    if (c.localName === tag) {
+      return (c.textContent || '').trim();
+    }
+  }
+  c = el.getElementsByTagNameNS(NS, tag)[0] || null;
+  if (!c) c = el.getElementsByTagName(tag)[0] || null;
+  return c ? (c.textContent || '').trim() : '';
+}
+function parseNumericValue(raw) {
+  if (raw === null || raw === undefined) return NaN;
+  var s = String(raw).trim();
+  if (!s) return NaN;
+  s = s.replace(/_/g, '');
+  if (/^[-+]?0x[0-9a-f]+$/i.test(s)) return Number(s);
+  if (/^[-+]?0b[01]+$/i.test(s)) return Number(s);
+  if (/^[-+]?0o[0-7]+$/i.test(s)) return Number(s);
+  if (/^[-+]?\d+$/.test(s)) return parseInt(s, 10);
+  return Number(s);
 }
 function toHex(decStr) {
-  var n = parseInt(decStr, 10);
+  var n = parseNumericValue(decStr);
   if (isNaN(n)) return decStr || '—';
   var h = n.toString(16).toUpperCase();
   while (h.length < 8) h = '0' + h;
   return '0x' + h;
 }
 function toHexShort(decStr) {
-  var n = parseInt(decStr, 10);
+  var n = parseNumericValue(decStr);
   return isNaN(n) ? (decStr || '0') : '0x' + n.toString(16).toUpperCase();
 }
 function isReserved(name) { return /^(RESERVED|RSVD|RSV)/i.test(name || ''); }
@@ -952,7 +973,12 @@ function parseRegElement(reg, blockName, subName, filename, entryType) {
   var fieldsListEl = reg.getElementsByTagNameNS(NS, 'Fields_List')[0];
   var fields = [];
   if (fieldsListEl) {
-    var fNodes = fieldsListEl.getElementsByTagNameNS(NS, 'Field');
+    var fNodes = [];
+    var flChildren = fieldsListEl.children || [];
+    for (var fli = 0; fli < flChildren.length; fli++) {
+      if (flChildren[fli].localName === 'Field') fNodes.push(flChildren[fli]);
+    }
+    if (!fNodes.length) fNodes = fieldsListEl.getElementsByTagNameNS(NS, 'Field');
     for (var fi = 0; fi < fNodes.length; fi++) {
       var f = fNodes[fi];
       var endBit   = parseInt(gtext(f, 'End_Bit'), 10);
@@ -1047,7 +1073,12 @@ function parseXML(text, filename) {
         var sFieldsListEl = sram.getElementsByTagNameNS(NS, 'Fields_List')[0];
         var sFields = [];
         if (sFieldsListEl) {
-          var sfNodes = sFieldsListEl.getElementsByTagNameNS(NS, 'Field');
+          var sfNodes = [];
+          var sflChildren = sFieldsListEl.children || [];
+          for (var sfli = 0; sfli < sflChildren.length; sfli++) {
+            if (sflChildren[sfli].localName === 'Field') sfNodes.push(sflChildren[sfli]);
+          }
+          if (!sfNodes.length) sfNodes = sFieldsListEl.getElementsByTagNameNS(NS, 'Field');
           for (var sfi = 0; sfi < sfNodes.length; sfi++) {
             var sf = sfNodes[sfi];
             var sfEndBit   = parseInt(gtext(sf, 'End_Bit'), 10);

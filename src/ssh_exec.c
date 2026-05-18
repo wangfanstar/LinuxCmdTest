@@ -15,51 +15,135 @@
 #include <pthread.h>
 #include <time.h>
 /* ------------------------------------------------------------------ */
-/*  全局会话 PID 追踪（供 ssh_cancel_current 使用）                   */
-/*  全局 stdin fd 追踪（供 ssh_inject_stdin 实时注入使用）            */
+/*  会话注册表：按 session_id 追踪 PID/stdin_fd（线程安全）           */
 /* ------------------------------------------------------------------ */
-static volatile pid_t  g_session_pid      = (pid_t)-1;
-static volatile int    g_session_stdin_fd = -1;
-static pthread_mutex_t g_session_mutex    = PTHREAD_MUTEX_INITIALIZER;
+#define SSH_MAX_SESSIONS 32
 
-static void session_pid_set(pid_t pid)
+typedef struct {
+    char  session_id[64];
+    pid_t pid;
+    int   stdin_fd;
+    int   active;
+} ssh_session_t;
+
+static ssh_session_t g_sessions[SSH_MAX_SESSIONS];
+static pthread_mutex_t g_session_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void ssh_session_register(const char *session_id, pid_t pid, int stdin_fd)
 {
+    if (!session_id || !session_id[0]) return;
     pthread_mutex_lock(&g_session_mutex);
-    g_session_pid = pid;
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (!g_sessions[i].active) {
+            strncpy(g_sessions[i].session_id, session_id, sizeof(g_sessions[i].session_id) - 1);
+            g_sessions[i].session_id[sizeof(g_sessions[i].session_id) - 1] = '\0';
+            g_sessions[i].pid      = pid;
+            g_sessions[i].stdin_fd = stdin_fd;
+            g_sessions[i].active   = 1;
+            pthread_mutex_unlock(&g_session_mutex);
+            return;
+        }
+    }
+    pthread_mutex_unlock(&g_session_mutex);
+    LOG_INFO("ssh_session_register: registry full, session_id=%s dropped", session_id);
+}
+
+static void ssh_session_unregister(const char *session_id)
+{
+    if (!session_id || !session_id[0]) return;
+    pthread_mutex_lock(&g_session_mutex);
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && strcmp(g_sessions[i].session_id, session_id) == 0) {
+            g_sessions[i].active = 0;
+            break;
+        }
+    }
     pthread_mutex_unlock(&g_session_mutex);
 }
 
-static void session_stdin_set(int fd)
+/*
+ * 统一清理：SIGTERM → 等 2s → SIGKILL → waitpid 阻塞回收。
+ * 确保无僵尸进程残留，所有退出路径共用同一套清理逻辑。
+ */
+static void killpg_and_reap(pid_t pid)
 {
-    pthread_mutex_lock(&g_session_mutex);
-    g_session_stdin_fd = fd;
-    pthread_mutex_unlock(&g_session_mutex);
+    if (pid <= (pid_t)0) return;
+    killpg(pid, SIGTERM);
+    {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, WNOHANG);
+        if (w == 0) {
+            struct timespec ts = { 2, 0 };
+            nanosleep(&ts, NULL);
+            w = waitpid(pid, &status, WNOHANG);
+        }
+        if (w == 0) {
+            killpg(pid, SIGKILL);
+            waitpid(pid, &status, 0);
+        }
+    }
+    LOG_INFO("killpg_and_reap: pid=%d cleaned", (int)pid);
 }
 
 void ssh_cancel_current(void)
 {
     pthread_mutex_lock(&g_session_mutex);
-    pid_t pid = g_session_pid;
-    pthread_mutex_unlock(&g_session_mutex);
-    if (pid > (pid_t)0) {
-        killpg(pid, SIGKILL);
-        LOG_INFO("ssh_cancel_current: SIGKILL -> pgid=%d", (int)pid);
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && g_sessions[i].pid > (pid_t)0) {
+            pid_t pid = g_sessions[i].pid;
+            int   fd  = g_sessions[i].stdin_fd;
+            g_sessions[i].active = 0;
+            if (fd >= 0) close(fd);
+            pthread_mutex_unlock(&g_session_mutex);
+            killpg_and_reap(pid);
+            pthread_mutex_lock(&g_session_mutex);
+        }
     }
+    pthread_mutex_unlock(&g_session_mutex);
 }
 
-/*
- * 向当前运行中的 PTY 会话 stdin 实时注入一条命令（线程安全）。
- * cmd 为 NULL/空 时静默忽略。is_ctrlc 非 0 时发送 \x03 字节（不加换行）。
- * 返回 0 成功，-1 无活跃会话或写失败。
- */
+void ssh_cancel_session(const char *session_id)
+{
+    if (!session_id || !session_id[0]) {
+        ssh_cancel_current();
+        return;
+    }
+    pthread_mutex_lock(&g_session_mutex);
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && strcmp(g_sessions[i].session_id, session_id) == 0) {
+            pid_t pid = g_sessions[i].pid;
+            int   fd  = g_sessions[i].stdin_fd;
+            g_sessions[i].active = 0;
+            if (fd >= 0) close(fd);
+            pthread_mutex_unlock(&g_session_mutex);
+            killpg_and_reap(pid);
+            LOG_INFO("ssh_cancel_session: session_id=%s pid=%d", session_id, (int)pid);
+            return;
+        }
+    }
+    pthread_mutex_unlock(&g_session_mutex);
+}
+
+/* 找最近注册的活跃会话的 stdin_fd（向后兼容旧调用方） */
+static int ssh_session_find_recent_stdin_fd(void)
+{
+    int fd = -1, best = -1;
+    pthread_mutex_lock(&g_session_mutex);
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && g_sessions[i].stdin_fd >= 0 && i > best) {
+            best = i;
+            fd   = g_sessions[i].stdin_fd;
+        }
+    }
+    pthread_mutex_unlock(&g_session_mutex);
+    return fd;
+}
+
 int ssh_inject_stdin(const char *cmd, int is_ctrlc)
 {
     if (!cmd && !is_ctrlc) return -1;
-    pthread_mutex_lock(&g_session_mutex);
-    int fd = g_session_stdin_fd;
-    pthread_mutex_unlock(&g_session_mutex);
+    int fd = ssh_session_find_recent_stdin_fd();
     if (fd < 0) return -1;
-
     if (is_ctrlc) {
         char c = '\x03';
         return (write(fd, &c, 1) == 1) ? 0 : -1;
@@ -69,6 +153,31 @@ int ssh_inject_stdin(const char *cmd, int is_ctrlc)
     ssize_t w1 = write(fd, cmd, len);
     ssize_t w2 = write(fd, "\n", 1);
     return (w1 == (ssize_t)len && w2 == 1) ? 0 : -1;
+}
+
+int ssh_inject_stdin_by_session(const char *session_id, const char *cmd, int is_ctrlc)
+{
+    if (!session_id || !session_id[0]) return ssh_inject_stdin(cmd, is_ctrlc);
+    if (!cmd && !is_ctrlc) return -1;
+    pthread_mutex_lock(&g_session_mutex);
+    for (int i = 0; i < SSH_MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && strcmp(g_sessions[i].session_id, session_id) == 0
+            && g_sessions[i].stdin_fd >= 0) {
+            int fd = g_sessions[i].stdin_fd;
+            pthread_mutex_unlock(&g_session_mutex);
+            if (is_ctrlc) {
+                char c = '\x03';
+                return (write(fd, &c, 1) == 1) ? 0 : -1;
+            }
+            size_t len = strlen(cmd);
+            if (len == 0) return -1;
+            ssize_t w1 = write(fd, cmd, len);
+            ssize_t w2 = write(fd, "\n", 1);
+            return (w1 == (ssize_t)len && w2 == 1) ? 0 : -1;
+        }
+    }
+    pthread_mutex_unlock(&g_session_mutex);
+    return -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -673,7 +782,11 @@ static int run_ssh_session(const char *host, int port,
     close(in_pipe[0]);
 
     /* 注册当前 SSH 子进程 PID，供 ssh_cancel_current() 使用 */
-    session_pid_set(pid);
+    {
+        char auto_sid[64];
+        snprintf(auto_sid, sizeof(auto_sid), "auto_%d", (int)pid);
+        ssh_session_register(auto_sid, pid, -1);
+    }
 
     /* 将脚本写入 stdin 管道，完成后关闭（远端 bash 收到 EOF 后退出） */
     {
@@ -715,7 +828,7 @@ static int run_ssh_session(const char *host, int port,
             /* 超时：强制终止 SSH 子进程 */
             LOG_INFO("ssh_session: idle timeout (%ds), killing pgid=%d",
                      idle_timeout_sec, (int)pid);
-            killpg(pid, SIGKILL);
+            killpg_and_reap(pid);
             break;
         }
         if (sel < 0) break;   /* select 出错 */
@@ -732,8 +845,12 @@ static int run_ssh_session(const char *host, int port,
     buf[total] = '\0';
     close(out_pipe[0]);
 
-    /* 清除全局 PID（会话结束） */
-    session_pid_set((pid_t)-1);
+    /* 清除会话注册（会话结束） */
+    {
+        char auto_sid[64];
+        snprintf(auto_sid, sizeof(auto_sid), "auto_%d", (int)pid);
+        ssh_session_unregister(auto_sid);
+    }
 
     int status = 0;
     waitpid(pid, &status, 0);
@@ -1026,7 +1143,8 @@ void ssh_session_exec_stream(const char *host, int port,
                               int *out_timeout_cmd_idx,
                               char *out_partial_buf, size_t out_partial_sz,
                               int net_device_mode,
-                              int pty_debug)
+                              int pty_debug,
+                              const char *session_id)
 {
     error_buf[0] = '\0';
     if (out_timed_out)    *out_timed_out = 0;
@@ -1038,6 +1156,14 @@ void ssh_session_exec_stream(const char *host, int port,
         const char *ev = getenv("WF_SSH_PTY_DEBUG");
         if (ev && ev[0] && strcmp(ev, "0") != 0)
             pty_debug = 1;
+    }
+
+    /* session_id 为 NULL 或空串时自动生成，确保旧调用方也能注册会话 */
+    char auto_sid_buf[64];
+    if (!session_id || !session_id[0]) {
+        snprintf(auto_sid_buf, sizeof(auto_sid_buf), "auto_%u_%u",
+                 (unsigned)getpid(), (unsigned)time(NULL));
+        session_id = auto_sid_buf;
     }
 
     /* 输入校验 */
@@ -1227,12 +1353,10 @@ void ssh_session_exec_stream(const char *host, int port,
     /* ── 父进程 ── */
     close(out_pipe[1]);
     close(in_pipe[0]);
-    session_pid_set(pid);
-    session_stdin_set(in_pipe[1]);   /* 注册 stdin fd，供实时注入使用 */
+    ssh_session_register(session_id, pid, in_pipe[1]);
 
     if (!net_device_mode) {
     /* ── Linux 模式：一次性写入脚本 ── */
-        session_stdin_set(-1);       /* Linux 模式脚本一次性写完，不开放注入 */
         const char *p   = script;
         size_t      rem = strlen(script);
         while (rem > 0) {
@@ -1247,10 +1371,9 @@ void ssh_session_exec_stream(const char *host, int port,
     /* ── 流式读取 + 实时边界解析（Linux）/ 提示符检测（网络设备）── */
     char *accum = malloc(SSH_OUTPUT_MAX);
     if (!accum) {
-        killpg(pid, SIGKILL);
+        ssh_session_unregister(session_id);
+        killpg_and_reap(pid);
         close(out_pipe[0]);
-        waitpid(pid, NULL, 0);
-        session_pid_set((pid_t)-1);
         snprintf(error_buf, error_buf_sz, "内存不足");
         goto cleanup;
     }
@@ -1298,7 +1421,7 @@ void ssh_session_exec_stream(const char *host, int port,
         if (!is_prompt(accum, init_len)) {
             /* 与 Linux/bash 模式一致：必须结束 SSH 子进程，否则 waitpid 可能永久阻塞，
              * SSE 无法收尾，前端表现为「超时/失败不生效」。 */
-            killpg(pid, SIGKILL);
+            killpg_and_reap(pid);
             /* 未检测到提示符：连接失败或设备无响应 */
             if (init_len > 0) {
                 size_t el = init_len < error_buf_sz-1 ? init_len : error_buf_sz-1;
@@ -1355,7 +1478,7 @@ void ssh_session_exec_stream(const char *host, int port,
                     out_partial_buf[0] = '\0';
                 timed_out = 1;
                 if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                killpg(pid, SIGKILL);
+                killpg_and_reap(pid);
                 break;
             }
 
@@ -1377,7 +1500,7 @@ void ssh_session_exec_stream(const char *host, int port,
                     }
                     timed_out = 1;
                     if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                    killpg(pid, SIGKILL);
+                    killpg_and_reap(pid);
                     break;
                 }
 
@@ -1408,7 +1531,7 @@ void ssh_session_exec_stream(const char *host, int port,
                         }
                         timed_out = 1;
                         if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                        killpg(pid, SIGKILL);
+                        killpg_and_reap(pid);
                         break;
                     }
                     ssize_t nr = read(out_pipe[0], accum + cmd_len, space);
@@ -1424,7 +1547,7 @@ void ssh_session_exec_stream(const char *host, int port,
                         }
                         timed_out = 1;
                         if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                        killpg(pid, SIGKILL);
+                        killpg_and_reap(pid);
                         break;
                     }
                     if (nr == 0) {
@@ -1436,7 +1559,7 @@ void ssh_session_exec_stream(const char *host, int port,
                         } else {
                             timed_out = 1;
                             if (out_timeout_cmd_idx) *out_timeout_cmd_idx = i;
-                            killpg(pid, SIGKILL);
+                            killpg_and_reap(pid);
                         }
                         break;
                     }
@@ -1500,7 +1623,7 @@ void ssh_session_exec_stream(const char *host, int port,
         }
 
 net_done:
-        if (in_pipe[1] >= 0) { close(in_pipe[1]); in_pipe[1] = -1; session_stdin_set(-1); }
+        if (in_pipe[1] >= 0) { close(in_pipe[1]); in_pipe[1] = -1; }
         free(accum);
         accum = NULL;
         goto stream_drain;
@@ -1537,7 +1660,7 @@ net_done:
                         out_partial_buf[cpy-1] == ' '))
                     out_partial_buf[--cpy] = '\0';
             }
-            killpg(pid, SIGKILL);
+            killpg_and_reap(pid);
             timed_out = 1;
             if (out_timeout_cmd_idx) *out_timeout_cmd_idx = cmd_idx;
             break;
@@ -1669,14 +1792,9 @@ stream_drain:
         }
     }
     close(out_pipe[0]);
-    session_pid_set((pid_t)-1);
-    session_stdin_set(-1);
-    /* 使用 WNOHANG 检查 SSH 子进程是否已退出；
-     * 网络设备模式下 SSH 连接不会因关闭 stdin 而立即退出（设备仍保持 SSH 会话），
-     * 直接 waitpid(0) 会永远阻塞。先 WNOHANG 探测，未退出则 killpg+wait。 */
+    ssh_session_unregister(session_id);
     if (waitpid(pid, NULL, WNOHANG) == 0) {
-        killpg(pid, SIGKILL);
-        waitpid(pid, NULL, 0);
+        killpg_and_reap(pid);
     }
     if (out_timed_out) *out_timed_out = timed_out;
 

@@ -2025,6 +2025,7 @@ const spinner    = document.getElementById('spinner');
 const execStatus = document.getElementById('exec-status');
 
 let _execAbortCtrl = null;   /* 当前执行的 AbortController */
+let _currentSessionId = null; /* 当前 SSH 流式会话 ID，供精准取消 */
 
 /* 暂停：阻塞前端对 SSE 的消费；恢复后继续 reader.read。不复位 SSH。 */
 let _execPausePromise = null;
@@ -2084,7 +2085,10 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 
   /* 1. 通知后端强制杀死 SSH 进程（不等响应）*/
   try {
+    var cancelBody = _currentSessionId ? JSON.stringify({ session_id: _currentSessionId }) : '{}';
     await fetch('/api/cancel', { method: 'POST',
+      body: cancelBody,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined });
   } catch (_) { /* 超时或网络错误忽略 */ }
 
@@ -2094,6 +2098,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     _execAbortCtrl.abort();
     _execAbortCtrl = null;
   }
+  _currentSessionId = null;
 
   /* 3. 重置执行状态 */
   setLoading(false);
@@ -2172,6 +2177,7 @@ async function doExec() {
   execStatus.textContent = `共 ${userCmdCount} 条命令${autoExit ? ' + 自动退出' : ''}，连接 ${user}@${host}:${port}…`;
 
   _execAbortCtrl = new AbortController();
+  _currentSessionId = 'sid_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
 
   const streamResults = new Array(commands.length).fill(null);
   let   streamTimeout  = null;
@@ -2186,7 +2192,8 @@ async function doExec() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         host, port, user, pass, timeout, commands, net_device: 2,
-        pty_debug: 1 /* 固定开启：实时面板「日志」Tab + 服务端 ssh_pty_diag */
+        pty_debug: 1, /* 固定开启：实时面板「日志」Tab + 服务端 ssh_pty_diag */
+        session_id: _currentSessionId
       }),
       signal: _execAbortCtrl.signal
     });
@@ -2202,6 +2209,7 @@ async function doExec() {
     btnReset.classList.remove('active');
     resumeStreamConsume();
     _execAbortCtrl = null;
+    _currentSessionId = null;
     return;
   }
 
@@ -2286,6 +2294,7 @@ async function doExec() {
           btnReset.classList.remove('active');
           resumeStreamConsume();
           _execAbortCtrl = null;
+          _currentSessionId = null;
           if (expectedData) refreshComparison();
           return;
 
@@ -2346,6 +2355,7 @@ async function doExec() {
   }
 
   _execAbortCtrl = null;
+  _currentSessionId = null;
   resumeStreamConsume();
   if (window.rtFinish) rtFinish();
   finalizeReportHeader(streamResults.filter(Boolean));
@@ -3560,7 +3570,7 @@ function buildCurrentCfgObject() {
     timeout:  parseInt(document.getElementById('f-timeout').value) || 300,
     auto_exit:  true,
     user:     document.getElementById('f-user').value.trim(),
-    pass:     document.getElementById('f-pass').value,
+    /* pass intentionally excluded — server-side also strips as safety net */
     reportRemark: getReportGlobalRemark(),
     commands: getCommandListItems().map(o => {
       const row = o.marker === 'ctrlc' ? { cmd: o.cmd, marker: 'ctrlc' } : { cmd: o.cmd };

@@ -341,6 +341,18 @@ void handle_api_save_config(http_sock_t client_fd, const char *req_headers,
                   "{\"ok\":false,\"error\":\"bad path\"}", 33); return;
     }
 
+    /* 服务端兜底：检测并告警明文密码字段（前端已默认不发送） */
+    if (body_len > 0) {
+        const char *sensitive_keys[] = { "\"pass\"", "\"password\"", "\"passwd\"" };
+        for (size_t ki = 0; ki < sizeof(sensitive_keys) / sizeof(sensitive_keys[0]); ki++) {
+            if (strstr(body, sensitive_keys[ki])) {
+                LOG_INFO("save_config WARNING: config contains %s field — "
+                         "password may be persisted in %s", sensitive_keys[ki], filepath);
+                break;
+            }
+        }
+    }
+
     FILE *fp = fopen(filepath, "wb");
     if (!fp) {
         send_json(client_fd, 500, "Internal Server Error",

@@ -58,10 +58,10 @@ main.c
 ## 环境
 
 - **Shell**: Git Bash / WSL | **OS**: Windows 11 / WSL2 | **Runtime**: Node.js
-- wsl sudo的密码是 wangf
+- WSL sudo 密码：通过 `! wsl sudo ...` 交互式输入，勿写入文件
 - **ROOT**: `E:/MCP_PROJECT/wfserver/EMU_TEST_WEB/`
 - **HTML_DIR**: `E:/MCP_PROJECT/wfserver/EMU_TEST_WEB/html/`
-- ssh连接测试环境，远程主机IP:49.233.175.250  用户名：ubuntu  密码： W1_brysj
+- SSH 测试环境凭据通过 SSH 配置文件或环境变量传入，勿写入版本控制
 
 ```
 EMU_TEST_WEB/

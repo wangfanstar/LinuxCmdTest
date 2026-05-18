@@ -39,8 +39,17 @@ ssh_batch_t *ssh_session_exec(const char *host, int port,
 
 void ssh_batch_free(ssh_batch_t *b);
 
-/* 强制终止当前正在运行的 SSH 会话（线程安全） */
+/* 强制终止当前正在运行的 SSH 会话（线程安全）。
+ * 新代码应优先使用 ssh_cancel_session(session_id) 实现精准取消。 */
 void ssh_cancel_current(void);
+
+/* 按 session_id 取消指定会话（线程安全），未找到时静默忽略。
+ * session_id 为 NULL 或空串时退化为 ssh_cancel_current()。 */
+void ssh_cancel_session(const char *session_id);
+
+/* 向指定会话的 PTY stdin 注入命令（线程安全）。
+ * session_id 为 NULL 或空串时退化为 ssh_inject_stdin()。 */
+int ssh_inject_stdin_by_session(const char *session_id, const char *cmd, int is_ctrlc);
 
 /*
  * 流式执行：每条命令完成后立即回调，无需等待全部命令结束。
@@ -66,7 +75,8 @@ typedef void (*ssh_stream_cb_t)(int idx, const char *cmd,
  * net_device_mode：非 0 时使用交互式提示符检测模式，逐条发命令并等待提示符；
  *   为 0 时使用 bash -s 脚本模式（适用于 Linux/Unix 服务器）。
  * pty_debug：非 0 或环境变量 WF_SSH_PTY_DEBUG 非 0 时，向日志输出 PTY 读循环诊断
- *（缓冲长度、是否判为提示符、分页检测、距超时剩余时间、尾部可打印片段），便于区分「缓存满 / 等提示符 / read 阻塞」等。 */
+ *（缓冲长度、是否判为提示符、分页检测、距超时剩余时间、尾部可打印片段），便于区分「缓存满 / 等提示符 / read 阻塞」等。
+ * session_id：会话标识符，用于精准取消和 stdin 注入。为 NULL 或空串时自动生成。 */
 void ssh_session_exec_stream(const char *host, int port,
                               const char *user, const char *pass,
                               char **commands, int cmd_count,
@@ -77,6 +87,7 @@ void ssh_session_exec_stream(const char *host, int port,
                               int *out_timeout_cmd_idx,
                               char *out_partial_buf, size_t out_partial_sz,
                               int net_device_mode,
-                              int pty_debug);
+                              int pty_debug,
+                              const char *session_id);
 
 #endif /* SSH_EXEC_H */

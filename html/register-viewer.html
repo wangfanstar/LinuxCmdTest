@@ -75,6 +75,32 @@ body {
   border-right: 1px solid #2d3a54;
 }
 
+.layout-resizer {
+  flex: 0 0 6px;
+  width: 6px;
+  cursor: col-resize;
+  background: #d7dee9;
+  position: relative;
+  z-index: 60;
+}
+.layout-resizer::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: 2px;
+  background: #9aa8ba;
+  transition: background .15s;
+}
+.layout-resizer:hover::after,
+.layout-resizer.active::after { background: var(--blue); }
+body.layout-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .sidebar-section {
   padding: 14px 14px 10px;
   border-bottom: 1px solid #2d3a54;
@@ -130,6 +156,14 @@ body {
   border: 1px solid #324060;
   overflow: hidden;
 }
+.file-item.file-hidden { opacity: .55; }
+.file-item .fi-visible {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--blue);
+}
 .file-item .fi-icon { flex-shrink: 0; font-size: 0.9rem; }
 .file-item .fi-name {
   flex: 1;
@@ -175,26 +209,6 @@ body {
   gap: 8px;
   border-top: 1px solid #2d3a54;
 }
-
-.btn-parse {
-  width: 100%;
-  padding: 10px;
-  background: var(--blue);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background .15s, transform .1s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.btn-parse:hover { background: var(--blue-dark); }
-.btn-parse:active { transform: scale(0.98); }
-.btn-parse:disabled { background: #2d3a54; color: #5a6a80; cursor: default; }
 
 .btn-side {
   width: 100%;
@@ -472,7 +486,8 @@ select:focus { border-color: var(--blue); }
 }
 
 .col-idx   { color: var(--muted); font-size: 0.75rem; text-align: center; }
-.col-name  { font-weight: 600; color: #1a2035; font-family: "Consolas", monospace; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.col-name  { font-weight: 600; color: #1a2035; font-family: "Consolas", monospace; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; user-select: text; cursor: text; }
+.col-name * { user-select: text; }
 .col-addr  { font-family: "Consolas", monospace; font-size: 0.78rem; color: #6b4eaa; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-desc  { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
 .col-block { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -578,6 +593,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 @media (max-width: 600px) {
   .layout { flex-direction: column; height: auto; }
   .sidebar { width: 100%; height: auto; max-height: 280px; flex-direction: row; flex-wrap: wrap; }
+  .layout-resizer { display: none; }
   .content { height: auto; overflow: visible; }
 }
 </style>
@@ -587,7 +603,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 <!-- 顶栏 -->
 <div class="topbar">
   <h1>⚙ 寄存器查看器</h1>
-  <div class="db-info" id="db-info">在左侧添加文件后点击「开始解析」</div>
+  <div class="db-info" id="db-info">在左侧添加文件后自动解析</div>
   <a href="index.html" style="font-size:13px;color:#8b949e;text-decoration:none;margin-left:16px;white-space:nowrap;" title="返回首页">← 返回首页</a>
 </div>
 
@@ -629,15 +645,14 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 
     <!-- 操作按钮 -->
     <div class="sidebar-btns">
-      <button class="btn-parse" id="btn-parse" onclick="startParse()" disabled>
-        ▶ 开始解析
-      </button>
       <button class="btn-side" onclick="pickFolder()">📁 加载文件夹</button>
       <button class="btn-side" onclick="netScan()">🌐 网络加载</button>
       <button class="btn-side" onclick="clearAll()">🗑 清空全部</button>
     </div>
 
   </aside>
+
+  <div class="layout-resizer" id="layout-resizer" title="拖动调整宽度"></div>
 
   <!-- ══ 右侧内容区 ══ -->
   <div class="content">
@@ -701,7 +716,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <div id="welcome">
         <div class="w-icon">📋</div>
         <h2>尚无数据</h2>
-        <p>在左侧添加 XML 或 JSON 文件，<br>然后点击「开始解析」</p>
+        <p>在左侧添加 XML 或 JSON 文件，<br>页面会自动解析并显示结果</p>
       </div>
 
       <!-- 解析中 -->
@@ -738,7 +753,11 @@ var NS = 'http://registerdb.gt.com';
 var PAGE_SIZE = 50;
 
 // 待解析的文件队列
-var pendingFiles = [];   // { file, type }
+var pendingFiles = [];   // { id, file, type, parsed, visible, error }
+var nextFileId   = 0;
+var parseScheduled = false;
+var parseInProgress = false;
+var parseGeneration = 0;
 
 var allRegisters = [];
 var filtered     = [];
@@ -831,6 +850,9 @@ function fillReservedGaps(fields, regWidth) {
 function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function escAttr(s) {
+  return escHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function hl(text, q) {
   if (!q || !text) return escHtml(text);
   var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
@@ -849,22 +871,36 @@ function badgeClass(perm, fieldName) {
 
 // ── 文件队列管理 ──────────────────────────────────────────
 function addFiles(files, type) {
+  var added = false;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var dup = false;
     for (var j = 0; j < pendingFiles.length; j++) {
       if (pendingFiles[j].file.name === f.name && pendingFiles[j].file.size === f.size) { dup = true; break; }
     }
-    if (!dup) pendingFiles.push({ file: f, type: type, parsed: false });
+    if (!dup) {
+      pendingFiles.push({ id: ++nextFileId, file: f, type: type, parsed: false, visible: true, error: '' });
+      added = true;
+    }
   }
   renderFileList();
-  document.getElementById('btn-parse').disabled = pendingFiles.length === 0;
+  if (added) scheduleAutoParse();
 }
 
 function removeFile(idx) {
+  var entry = pendingFiles[idx];
+  if (!entry) return;
   pendingFiles.splice(idx, 1);
+  allRegisters = allRegisters.filter(function(r) {
+    if (r._fileId === entry.id) {
+      selected.delete(r.uid);
+      return false;
+    }
+    return true;
+  });
+  dbInfos = dbInfos.filter(function(info) { return info.fileId !== entry.id; });
   renderFileList();
-  document.getElementById('btn-parse').disabled = pendingFiles.length === 0;
+  refreshDataView();
 }
 
 function renderFileList() {
@@ -884,53 +920,95 @@ function renderFileList() {
     var p = pendingFiles[k];
     var parsed = p.parsed || false;
     var div = document.createElement('div');
-    div.className = 'file-item' + (parsed ? ' parsed' : '');
-    div.innerHTML = '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
-      + '<span class="fi-name" title="' + escHtml(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
-      + (parsed ? '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>'
+    var hidden = p.visible === false;
+    div.className = 'file-item' + (parsed ? ' parsed' : '') + (hidden ? ' file-hidden' : '');
+    div.innerHTML = '<input type="checkbox" class="fi-visible file-visible-chk" '
+      + (hidden ? '' : 'checked ')
+      + 'onchange="toggleFileVisible(' + k + ', this.checked)" onclick="event.stopPropagation()" title="显示/搜索此文件">'
+      + '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
+      + '<span class="fi-name" title="' + escAttr(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
+      + (p.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
+                : parsed ? '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>'
                 : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
       + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
     list.appendChild(div);
   }
 }
 
-// ── 解析 ─────────────────────────────────────────────────
-function startParse() {
-  if (!pendingFiles.length) return;
+function toggleFileVisible(idx, visible) {
+  var entry = pendingFiles[idx];
+  if (!entry) return;
+  entry.visible = !!visible;
+  if (!entry.visible) {
+    for (var i = 0; i < allRegisters.length; i++) {
+      if (allRegisters[i]._fileId === entry.id) selected.delete(allRegisters[i].uid);
+    }
+  }
+  renderFileList();
+  refreshDataView();
+}
 
-  // 清空旧结果
-  allRegisters = []; filtered = []; selected = new Set(); dbInfos = []; uidCounter = 0;
-  document.getElementById('reg-list').innerHTML = '';
-  document.getElementById('pagination').innerHTML = '';
-  document.getElementById('tbl-header-wrap').style.display = 'none';
-  document.getElementById('toolbar').classList.remove('visible');
-  document.getElementById('select-bar').classList.remove('visible');
-  document.getElementById('sidebar-stats').classList.remove('visible');
-  document.getElementById('empty-state').classList.remove('visible');
+function getVisibleFileIds() {
+  var ids = {};
+  for (var i = 0; i < pendingFiles.length; i++) {
+    if (pendingFiles[i].visible !== false) ids[pendingFiles[i].id] = true;
+  }
+  return ids;
+}
+
+function isRegisterFileVisible(reg, visibleFileIds) {
+  return reg._fileId == null || !!visibleFileIds[reg._fileId];
+}
+
+function getVisibleRegisters() {
+  var visibleFileIds = getVisibleFileIds();
+  return allRegisters.filter(function(r) { return isRegisterFileVisible(r, visibleFileIds); });
+}
+
+function scheduleAutoParse() {
+  if (parseScheduled) return;
+  parseScheduled = true;
+  setTimeout(function() {
+    parseScheduled = false;
+    parseQueuedFiles();
+  }, 0);
+}
+
+// ── 解析 ─────────────────────────────────────────────────
+function parseQueuedFiles() {
+  if (parseInProgress) return;
+
+  var filesToParse = pendingFiles.filter(function(p) { return !p.parsed; });
+  if (!filesToParse.length) {
+    refreshDataView();
+    return;
+  }
+
+  parseInProgress = true;
+  var generation = parseGeneration;
   document.getElementById('welcome').style.display = 'none';
   document.getElementById('loading').classList.add('visible');
-  document.getElementById('btn-parse').disabled = true;
   var eb = document.getElementById('parse-error-bar');
   if (eb) { eb.style.display = 'none'; eb.textContent = ''; }
 
-  var filesToParse = pendingFiles.slice(); // 快照，防止异步期间被修改
   var pending = filesToParse.length;
   var newRegs = [];
   var errors  = [];
 
-  function onFileRead(text, fname, ftype) {
+  function onFileRead(text, entry) {
     try {
-      var regs = ftype === 'json'
-        ? parseImportedJSON(text, fname)
-        : parseXML(text, fname);
+      var regs = entry.type === 'json'
+        ? parseImportedJSON(text, entry.file.name, entry.id)
+        : parseXML(text, entry.file.name, entry.id);
       for (var i = 0; i < regs.length; i++) newRegs.push(regs[i]);
+      entry.error = '';
     } catch (err) {
-      errors.push(fname + ': ' + err.message);
+      entry.error = err.message;
+      errors.push(entry.file.name + ': ' + err.message);
     }
     pending--;
     if (pending === 0) {
-      if (errors.length) showParseError(errors.join('\n'));
-      finishLoad(newRegs);
+      finishParseBatch(newRegs, filesToParse, errors, generation);
     }
   }
 
@@ -938,19 +1016,42 @@ function startParse() {
     (function(entry) {
       var reader = new FileReader();
       reader.onload = function(e) {
-        onFileRead(e.target.result, entry.file.name, entry.type);
+        onFileRead(e.target.result, entry);
       };
       reader.onerror = function() {
+        entry.error = '文件读取失败';
         errors.push(entry.file.name + ': 文件读取失败');
         pending--;
         if (pending === 0) {
-          if (errors.length) showParseError(errors.join('\n'));
-          finishLoad(newRegs);
+          finishParseBatch(newRegs, filesToParse, errors, generation);
         }
       };
       reader.readAsText(entry.file, 'UTF-8');
     })(filesToParse[i]);
   }
+}
+
+function finishParseBatch(newRegs, filesToParse, errors, generation) {
+  if (generation !== parseGeneration) return;
+  parseInProgress = false;
+
+  var activeFiles = {};
+  for (var i = 0; i < pendingFiles.length; i++) activeFiles[pendingFiles[i].id] = pendingFiles[i];
+
+  for (var pi = 0; pi < filesToParse.length; pi++) {
+    var entry = activeFiles[filesToParse[pi].id];
+    if (entry) entry.parsed = true;
+  }
+
+  for (var ri = 0; ri < newRegs.length; ri++) {
+    if (activeFiles[newRegs[ri]._fileId]) allRegisters.push(newRegs[ri]);
+  }
+
+  document.getElementById('loading').classList.remove('visible');
+  if (errors.length) showParseError(errors.join('\n'));
+  renderFileList();
+  refreshDataView();
+  if (pendingFiles.some(function(p) { return !p.parsed; })) scheduleAutoParse();
 }
 
 function showParseError(msg) {
@@ -959,7 +1060,7 @@ function showParseError(msg) {
 }
 
 // ── 解析单个 Register 元素（REG / INDIRECT 共用）─────────────
-function parseRegElement(reg, blockName, subName, filename, entryType) {
+function parseRegElement(reg, blockName, subName, filename, entryType, fileId) {
   var addrDec   = gtext(reg, 'Register_Address');
   var addrHex   = toHex(addrDec);
   var copiesStr = gtext(reg, 'Copies_Number');
@@ -1011,6 +1112,7 @@ function parseRegElement(reg, blockName, subName, filename, entryType) {
 
   return {
     uid: ++uidCounter, blockName: blockName, subName: subName, filename: filename,
+    _fileId: fileId,
     regName: regName, entryType: entryType,
     addrDec: addrDec, addrHex: addrHex, addrRange: addrRange,
     shortDesc: shortDesc, fullDesc: gtext(reg, 'Full_Description'),
@@ -1020,11 +1122,11 @@ function parseRegElement(reg, blockName, subName, filename, entryType) {
 }
 
 // ── 解析 XML ─────────────────────────────────────────────
-function parseXML(text, filename) {
+function parseXML(text, filename, fileId) {
   var parser = new DOMParser();
   var doc = parser.parseFromString(text, 'application/xml');
   var dbName = gtext(doc.documentElement, 'DBName');
-  if (dbName) dbInfos.push(dbName + ' (' + filename + ')');
+  if (dbName) dbInfos.push({ fileId: fileId, text: dbName + ' (' + filename + ')' });
 
   var blocks = doc.getElementsByTagNameNS(NS, 'Block');
   var result = [];
@@ -1039,7 +1141,7 @@ function parseXML(text, filename) {
     if (regListEl) {
       var regs = regListEl.getElementsByTagNameNS(NS, 'Register');
       for (var ri = 0; ri < regs.length; ri++) {
-        result.push(parseRegElement(regs[ri], blockName, subName, filename, 'reg'));
+        result.push(parseRegElement(regs[ri], blockName, subName, filename, 'reg', fileId));
       }
     }
 
@@ -1048,7 +1150,7 @@ function parseXML(text, filename) {
     if (indListEl) {
       var indRegs = indListEl.getElementsByTagNameNS(NS, 'Register');
       for (var ii = 0; ii < indRegs.length; ii++) {
-        result.push(parseRegElement(indRegs[ii], blockName, subName, filename, 'indirect'));
+        result.push(parseRegElement(indRegs[ii], blockName, subName, filename, 'indirect', fileId));
       }
     }
 
@@ -1122,6 +1224,7 @@ function parseXML(text, filename) {
           blockName: blockName,
           subName:   subName,
           filename:  filename,
+          _fileId:   fileId,
           regName:   sramName,
           entryType: 'sram',
           addrDec:   sramId,
@@ -1149,7 +1252,7 @@ function parseXML(text, filename) {
 }
 
 // ── 解析导入 JSON ─────────────────────────────────────────
-function parseImportedJSON(text, filename) {
+function parseImportedJSON(text, filename, fileId) {
   var arr = JSON.parse(text);
   if (!Array.isArray(arr)) throw new Error('应为 JSON 数组');
   var result = [];
@@ -1212,6 +1315,7 @@ function parseImportedJSON(text, filename) {
       blockName: r.blockName || '',
       subName:   r.subName || '',
       filename:  r._source || filename,
+      _fileId:   fileId,
       regName:   r.regName || r.name || '',
       entryType: r.entryType || 'reg',
       addrDec:   addrDec,
@@ -1235,11 +1339,9 @@ function parseImportedJSON(text, filename) {
   return result;
 }
 
-// ── 加载完成 ─────────────────────────────────────────────
-function finishLoad(newRegs) {
-  allRegisters = newRegs;   // 直接替换，不累加
-  document.getElementById('loading').classList.remove('visible');
-
+// ── 数据视图刷新 ─────────────────────────────────────────
+function refreshDataView() {
+  var visibleRegs = getVisibleRegisters();
   var totalFields = 0;
   var totalRsvd = 0;
   var sramCount = 0;
@@ -1247,8 +1349,8 @@ function finishLoad(newRegs) {
   var blockKeySet = {};
   var blockNames = [];
   var blockNameSet = {};
-  for (var i = 0; i < allRegisters.length; i++) {
-    var r = allRegisters[i];
+  for (var i = 0; i < visibleRegs.length; i++) {
+    var r = visibleRegs[i];
     if (r.entryType === 'sram')     sramCount++;
     if (r.entryType === 'indirect') indCount++;
     totalFields += r.fields.length;
@@ -1264,18 +1366,42 @@ function finishLoad(newRegs) {
   }
   var blockCount = Object.keys(blockKeySet).length;
 
-  document.getElementById('s-regs').textContent   = allRegisters.length;
+  document.getElementById('s-regs').textContent   = visibleRegs.length;
   document.getElementById('s-fields').textContent = totalFields;
   document.getElementById('s-blocks').textContent = blockCount;
-  document.getElementById('sidebar-stats').classList.add('visible');
-  var regCount = allRegisters.length - sramCount - indCount;
-  document.getElementById('db-info').textContent  = dbInfos.join(' · ') ||
-    ('REG ' + regCount + '  IND ' + indCount + '  SRAM ' + sramCount + '  保留位 ' + totalRsvd + ' 个');
+  if (allRegisters.length) document.getElementById('sidebar-stats').classList.add('visible');
+  else document.getElementById('sidebar-stats').classList.remove('visible');
 
-  document.getElementById('toolbar').classList.add('visible');
-  document.getElementById('tbl-header-wrap').style.display = '';
+  var visibleFileIds = getVisibleFileIds();
+  var visibleDbInfos = [];
+  for (var di = 0; di < dbInfos.length; di++) {
+    if (visibleFileIds[dbInfos[di].fileId]) visibleDbInfos.push(dbInfos[di].text);
+  }
+  var regCount = visibleRegs.length - sramCount - indCount;
+  var infoText = visibleDbInfos.join(' · ');
+  if (!infoText && visibleRegs.length) {
+    infoText = 'REG ' + regCount + '  IND ' + indCount + '  SRAM ' + sramCount + '  保留位 ' + totalRsvd + ' 个';
+  } else if (!infoText && allRegisters.length) {
+    infoText = '当前没有勾选显示的文件';
+  } else if (!infoText && pendingFiles.length) {
+    infoText = parseInProgress ? '正在解析文件，请稍候…' : '已添加文件，等待自动解析';
+  } else if (!infoText) {
+    infoText = '在左侧添加文件后自动解析';
+  }
+  document.getElementById('db-info').textContent = infoText;
+
+  if (allRegisters.length) {
+    document.getElementById('toolbar').classList.add('visible');
+    document.getElementById('tbl-header-wrap').style.display = '';
+    document.getElementById('welcome').style.display = 'none';
+  } else {
+    document.getElementById('toolbar').classList.remove('visible');
+    document.getElementById('tbl-header-wrap').style.display = 'none';
+    if (!parseInProgress) document.getElementById('welcome').style.display = '';
+  }
 
   var sel = document.getElementById('filter-block');
+  var oldBlock = sel.value;
   sel.innerHTML = '<option value="">全部 Block</option>';
   blockNames.sort();
   for (var bi = 0; bi < blockNames.length; bi++) {
@@ -1284,11 +1410,7 @@ function finishLoad(newRegs) {
     opt.textContent = blockNames[bi];
     sel.appendChild(opt);
   }
-
-  // 解析完成：文件列表保留并标记已解析，按钮禁用（添加新文件后自动启用）
-  for (var pi = 0; pi < pendingFiles.length; pi++) pendingFiles[pi].parsed = true;
-  renderFileList();
-  document.getElementById('btn-parse').disabled = true;
+  sel.value = blockNameSet[oldBlock] ? oldBlock : '';
   doFilter();
 }
 
@@ -1319,8 +1441,11 @@ function doFilter() {
   var ftInd  = document.getElementById('ft-ind').checked;
   var ftSram = document.getElementById('ft-sram').checked;
   var showR  = document.getElementById('show-reserved').checked;
+  var visibleFileIds = getVisibleFileIds();
+  var visibleRegs = getVisibleRegisters();
 
   filtered = allRegisters.filter(function(r) {
+    if (!isRegisterFileVisible(r, visibleFileIds)) return false;
     var et = r.entryType || 'reg';
     if (et === 'reg'      && !ftReg)  return false;
     if (et === 'indirect' && !ftInd)  return false;
@@ -1345,9 +1470,9 @@ function doFilter() {
   }
 
   currentPage = 1;
-  var rsvTotal = allRegisters.reduce(function(s,r){ return s + r.fields.filter(function(f){return f.reserved;}).length; }, 0);
+  var rsvTotal = visibleRegs.reduce(function(s,r){ return s + r.fields.filter(function(f){return f.reserved;}).length; }, 0);
   document.getElementById('result-count').textContent =
-    filtered.length + ' / ' + allRegisters.length + ' 条（保留位字段 ' + rsvTotal + ' 个）';
+    filtered.length + ' / ' + visibleRegs.length + ' 条（保留位字段 ' + rsvTotal + ' 个）';
 
   updateSelectBar();
   renderPage();
@@ -1365,6 +1490,13 @@ function renderPage() {
     list.classList.remove('hide-reserved');
   } else {
     list.classList.add('hide-reserved');
+  }
+
+  if (!allRegisters.length) {
+    list.innerHTML = '';
+    empty.classList.remove('visible');
+    renderPagination();
+    return;
   }
 
   if (!filtered.length) {
@@ -1389,6 +1521,7 @@ function renderPage() {
     (function(h) {
       h.addEventListener('click', function(ev) {
         if (ev.target.type === 'checkbox') return;
+        if (isNameSelectionTarget(ev.target)) return;
         var card = h.parentNode;
         while (card && !card.classList.contains('reg-card')) card = card.parentNode;
         if (card) card.classList.toggle('open');
@@ -1409,6 +1542,14 @@ function renderPage() {
 
   syncHeaderCheckbox();
   renderPagination();
+}
+
+function isNameSelectionTarget(target) {
+  while (target && target !== document) {
+    if (target.classList && target.classList.contains('col-name')) return true;
+    target = target.parentNode;
+  }
+  return false;
 }
 
 function buildCard(r, idx, q) {
@@ -1486,10 +1627,10 @@ function buildCard(r, idx, q) {
     + '<div class="reg-header">'
     + '<span class="col-idx">' + idx + '</span>'
     + '<span class="chk-wrap"><input type="checkbox" class="reg-chk" data-uid="' + r.uid + '"></span>'
-    + '<span class="col-name" title="' + escHtml(r.regName) + '">' + typeBadge + hl(r.regName, q) + '</span>'
-    + '<span class="col-addr" title="' + escHtml(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
-    + '<span class="col-desc" title="' + escHtml(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
-    + '<span class="col-block" title="' + escHtml(r.blockName) + '">' + escHtml(r.subName || r.blockName) + '</span>'
+    + '<span class="col-name" title="' + escAttr(r.regName) + '">' + typeBadge + hl(r.regName, q) + '</span>'
+    + '<span class="col-addr" title="' + escAttr(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
+    + '<span class="col-desc" title="' + escAttr(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
+    + '<span class="col-block" title="' + escAttr(r.blockName) + '">' + escHtml(r.subName || r.blockName) + '</span>'
     + '<span class="col-toggle">' + sf.length + '字段' + rsvNote + '<span class="toggle-arrow">▼</span></span>'
     + '</div>'
     + '<div class="reg-body">'
@@ -1632,8 +1773,8 @@ function collapseAll() {
 // ── 清空 ─────────────────────────────────────────────────
 function clearAll() {
   pendingFiles=[]; allRegisters=[]; filtered=[]; selected.clear(); dbInfos=[]; uidCounter=0;
+  nextFileId=0; parseScheduled=false; parseInProgress=false; parseGeneration++;
   renderFileList();
-  document.getElementById('btn-parse').disabled=true;
   document.getElementById('reg-list').innerHTML='';
   document.getElementById('pagination').innerHTML='';
   document.getElementById('toolbar').classList.remove('visible');
@@ -1642,7 +1783,8 @@ function clearAll() {
   document.getElementById('empty-state').classList.remove('visible');
   document.getElementById('sidebar-stats').classList.remove('visible');
   document.getElementById('welcome').style.display='';
-  document.getElementById('db-info').textContent='在左侧添加文件后点击「开始解析」';
+  document.getElementById('loading').classList.remove('visible');
+  document.getElementById('db-info').textContent='在左侧添加文件后自动解析';
   document.getElementById('filter-block').innerHTML='<option value="">全部 Block</option>';
   document.getElementById('filter-perm').value='';
   document.getElementById('ft-reg').checked  = true;
@@ -1899,6 +2041,45 @@ function initColResize() {
   });
 }
 
+// ── 左右面板宽度调整 ───────────────────────────────────────
+var _layoutDragging = false;
+
+function clampPanelWidth(value, layoutWidth) {
+  var minW = 220;
+  var maxW = Math.min(520, Math.max(minW, layoutWidth - 420));
+  return Math.max(minW, Math.min(maxW, value));
+}
+
+function initLayoutResize() {
+  var handle = document.getElementById('layout-resizer');
+  var layout = document.querySelector('.layout');
+  if (!handle || !layout) return;
+
+  handle.addEventListener('pointerdown', function(e) {
+    if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) return;
+    e.preventDefault();
+    _layoutDragging = true;
+    handle.classList.add('active');
+    document.body.classList.add('layout-resizing');
+    if (handle.setPointerCapture && e.pointerId != null) handle.setPointerCapture(e.pointerId);
+  });
+
+  document.addEventListener('pointermove', function(e) {
+    if (!_layoutDragging) return;
+    var rect = layout.getBoundingClientRect();
+    var next = clampPanelWidth(e.clientX - rect.left, rect.width);
+    document.documentElement.style.setProperty('--sidebar-w', next + 'px');
+  });
+
+  document.addEventListener('pointerup', function() {
+    if (!_layoutDragging) return;
+    _layoutDragging = false;
+    handle.classList.remove('active');
+    document.body.classList.remove('layout-resizing');
+  });
+}
+
+initLayoutResize();
 initColResize();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────

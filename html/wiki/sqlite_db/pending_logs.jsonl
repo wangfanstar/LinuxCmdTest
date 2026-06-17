@@ -1,0 +1,2 @@
+{"type":"audit","ip":"127.0.0.1","username":"guest","action":"guest_view","target":"/wiki/notewiki.html","detail":"","save_txn_id":""}
+{"type":"audit","ip":"127.0.0.1","username":"guest","action":"guest_view","target":"/wiki/vendor/fuse/fuse.min.js","detail":"","save_txn_id":""}

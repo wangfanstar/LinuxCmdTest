@@ -571,6 +571,416 @@
     };
   }());
 
+  (function installWikiPageSearch() {
+    var pageInput = document.getElementById('wk-page-search-input');
+    var pageBtn = document.getElementById('wk-page-search-btn');
+    if (!pageInput || !pageBtn) return;
+
+    var isFile = window.location.protocol === 'file:';
+    var prefix = (function () {
+      var scripts = document.getElementsByTagName('script');
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var raw = scripts[i].getAttribute('src') || '';
+        var pos = raw.lastIndexOf('sidebar.js');
+        if (pos >= 0) return raw.slice(0, pos);
+      }
+      return '';
+    }());
+    var indexData = null;
+    var fuse = null;
+    var indexLabel = '';
+    var indexPromise = null;
+    var fusePromise = null;
+    var cacheKey = 'wiki-page-search-index-v1';
+
+    function assetUrl(path) {
+      return prefix + path;
+    }
+
+    function indexUrl() {
+      return isFile ? assetUrl('wiki-index.json') : '/wiki/wiki-index.json';
+    }
+
+    function injectSearchCss() {
+      if (document.getElementById('wk-page-search-css')) return;
+      var st = document.createElement('style');
+      st.id = 'wk-page-search-css';
+      st.textContent =
+        '.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center}' +
+        '.modal-overlay.open{display:flex}' +
+        '.modal-box{background:#161b22;border:1px solid #30363d;border-radius:10px;width:340px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.5)}' +
+        '.modal-box.modal-wide{width:min(920px,96vw)}' +
+        '.modal-head{padding:13px 16px 9px;border-bottom:1px solid #30363d;font-weight:600;font-size:.88rem;color:#f0f6fc;display:flex;justify-content:space-between;align-items:center}' +
+        '.modal-body{padding:14px 16px}.modal-foot{padding:10px 16px 13px;border-top:1px solid #30363d;display:flex;gap:8px;justify-content:flex-end}' +
+        '.modal-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:1.1rem;line-height:1}' +
+        '.btn{padding:5px 12px;border:none;border-radius:5px;font-size:.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:opacity .15s;white-space:nowrap}' +
+        '.btn:hover{opacity:.85}.btn-primary{background:#238636;color:#fff}.btn-secondary{background:#27334d;color:#c9d1d9;border:1px solid #30363d}' +
+        '.wk-search-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}' +
+        '.wk-search-row input{flex:1;min-width:0;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font-size:.86rem;outline:none}' +
+        '.wk-search-row input:focus{border-color:#4a90e2;box-shadow:0 0 0 2px rgba(74,144,226,.18)}' +
+        '.wk-search-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}' +
+        '.wk-search-summary{font-size:.76rem;color:#8b949e;margin-bottom:10px}' +
+        '.wk-search-results{max-height:min(62vh,560px);overflow:auto;border:1px solid #30363d;border-radius:8px;background:#0d1117}' +
+        '.wk-search-empty{padding:28px 14px;text-align:center;color:#8b949e;font-size:.8rem}' +
+        '.wk-search-item{display:block;padding:12px 14px;border-bottom:1px solid #21262d;text-decoration:none;color:#c9d1d9}' +
+        '.wk-search-item:last-child{border-bottom:none}.wk-search-item:hover{background:#111827}' +
+        '.wk-search-title{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;color:#f0f6fc;font-weight:600;line-height:1.45}' +
+        '.wk-search-cat{font-size:.72rem;color:#8b949e;font-weight:400;white-space:nowrap;max-width:38%;overflow:hidden;text-overflow:ellipsis}' +
+        '.wk-search-snippet{font-size:.8rem;color:#b6c2d1;margin-top:5px;line-height:1.55}' +
+        '.wk-search-meta{font-size:.72rem;color:#6e7681;margin-top:5px;word-break:break-all}' +
+        '.wk-search-item mark{background:rgba(210,153,34,.32);color:#ffd68a;border-radius:3px;padding:0 2px}' +
+        '@media(max-width:640px){.wk-search-row{flex-wrap:wrap}.wk-search-row .btn{width:100%;justify-content:center}.wk-search-cat{max-width:44%}}';
+      document.head.appendChild(st);
+    }
+
+    function ensureModal() {
+      injectSearchCss();
+      var modal = document.getElementById('modal-wiki-search');
+      if (modal) return modal;
+      modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.id = 'modal-wiki-search';
+      modal.innerHTML =
+        '<div class="modal-box modal-wide">' +
+          '<div class="modal-head">' +
+            '<span>Wiki 搜索</span>' +
+            '<button type="button" class="modal-close" id="wk-search-close">✕</button>' +
+          '</div>' +
+          '<div class="modal-body">' +
+            '<div class="wk-search-row">' +
+              '<input id="wk-search-modal-input" type="search" autocomplete="off" spellcheck="false" placeholder="输入关键字">' +
+              '<button type="button" class="btn btn-primary" id="wk-search-run">搜索</button>' +
+            '</div>' +
+            '<div class="wk-search-actions">' +
+              '<button type="button" class="btn btn-secondary" id="wk-search-load-local">加载本地索引</button>' +
+              '<input id="wk-search-local-file" type="file" accept="application/json,.json" style="display:none">' +
+            '</div>' +
+            '<div class="wk-search-summary" id="wk-search-summary">未加载索引</div>' +
+            '<div class="wk-search-results" id="wk-search-results">' +
+              '<div class="wk-search-empty">输入关键字后点击搜索。</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="modal-foot">' +
+            '<button type="button" class="btn btn-secondary" id="wk-search-foot-close">关闭</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+
+      document.getElementById('wk-search-close').addEventListener('click', closeSearchModal);
+      document.getElementById('wk-search-foot-close').addEventListener('click', closeSearchModal);
+      document.getElementById('wk-search-run').addEventListener('click', runSearch);
+      document.getElementById('wk-search-modal-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          runSearch();
+        }
+      });
+      document.getElementById('wk-search-load-local').addEventListener('click', function () {
+        document.getElementById('wk-search-local-file').click();
+      });
+      document.getElementById('wk-search-local-file').addEventListener('change', loadLocalIndex);
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeSearchModal();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('open')) closeSearchModal();
+      });
+      return modal;
+    }
+
+    function setSummary(msg) {
+      var el = document.getElementById('wk-search-summary');
+      if (el) el.textContent = msg;
+    }
+
+    function setResults(html) {
+      var el = document.getElementById('wk-search-results');
+      if (el) el.innerHTML = html;
+    }
+
+    function parseIndex(text) {
+      var data = JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
+      if (!data || typeof data !== 'object' || !Array.isArray(data.articles)) {
+        throw new Error('索引格式无效');
+      }
+      return data;
+    }
+
+    function fetchText(url) {
+      return fetch(url, { cache: 'no-store' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        })
+        .catch(function (fetchErr) {
+          return new Promise(function (resolve, reject) {
+            try {
+              var xhr = new XMLHttpRequest();
+              xhr.open('GET', url, true);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                if ((xhr.status >= 200 && xhr.status < 300) || (xhr.status === 0 && xhr.responseText)) {
+                  resolve(xhr.responseText);
+                } else {
+                  reject(fetchErr || new Error('XHR ' + xhr.status));
+                }
+              };
+              xhr.onerror = function () { reject(fetchErr || new Error('XHR error')); };
+              xhr.send();
+            } catch (e) {
+              reject(fetchErr || e);
+            }
+          });
+        });
+    }
+
+    function loadFuse() {
+      if (window.Fuse) return Promise.resolve(window.Fuse);
+      if (fusePromise) return fusePromise;
+      fusePromise = new Promise(function (resolve, reject) {
+        var script = document.createElement('script');
+        script.src = assetUrl('vendor/fuse/fuse.min.js');
+        script.onload = function () {
+          if (window.Fuse) resolve(window.Fuse);
+          else reject(new Error('Fuse global missing'));
+        };
+        script.onerror = function () {
+          reject(new Error('无法加载 Fuse.js'));
+        };
+        document.head.appendChild(script);
+      });
+      return fusePromise;
+    }
+
+    function readCache() {
+      try {
+        var raw = localStorage.getItem(cacheKey);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        return obj && obj.data ? obj.data : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveCache(data) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data }));
+      } catch (e) {}
+    }
+
+    function setIndex(data, label) {
+      var articles = (data.articles || []).filter(function (a) { return a && a.id; });
+      indexData = {
+        version: data.version || 1,
+        generatedAt: data.generatedAt || '',
+        articles: articles,
+        categories: Array.isArray(data.categories) ? data.categories : []
+      };
+      indexLabel = label || '';
+      fuse = new window.Fuse(articles, {
+        includeScore: true,
+        includeMatches: true,
+        ignoreLocation: true,
+        threshold: 0.36,
+        minMatchCharLength: 2,
+        keys: [
+          { name: 'title', weight: 0.5 },
+          { name: 'category', weight: 0.2 },
+          { name: 'content', weight: 0.3 }
+        ]
+      });
+      return indexData;
+    }
+
+    function loadIndex(force) {
+      if (indexData && !force) return Promise.resolve(indexData);
+      if (indexPromise && !force) return indexPromise;
+      setSummary('正在加载离线索引...');
+      indexPromise = loadFuse()
+        .then(function () { return fetchText(indexUrl()); })
+        .then(parseIndex)
+        .then(function (data) {
+          saveCache(data);
+          return setIndex(data, isFile ? 'wiki-index.json' : '/wiki/wiki-index.json');
+        })
+        .catch(function (err) {
+          var cached = readCache();
+          if (cached) return loadFuse().then(function () { return setIndex(cached, '浏览器缓存'); });
+          throw err;
+        })
+        .then(function (ret) {
+          indexPromise = null;
+          return ret;
+        }, function (err) {
+          indexPromise = null;
+          throw err;
+        });
+      return indexPromise;
+    }
+
+    function renderIntro() {
+      var n = indexData ? indexData.articles.length : 0;
+      var gen = indexData && indexData.generatedAt ? (' · ' + indexData.generatedAt) : '';
+      setSummary('已加载 ' + n + ' 篇文章' + gen + (indexLabel ? (' · ' + indexLabel) : ''));
+      setResults('<div class="wk-search-empty">输入关键字后点击搜索。</div>');
+    }
+
+    function renderError(msg) {
+      setSummary(msg || '搜索失败');
+      setResults('<div class="wk-search-empty">可在 NoteWiki 中刷新索引，或在离线模式下加载本地 wiki-index.json。</div>');
+    }
+
+    function articleHref(a) {
+      var id = encodeURIComponent(a.id || '');
+      var cat = String(a.category || '');
+      var catPath = cat ? cat.split('/').filter(Boolean).map(encodeURIComponent).join('/') + '/' : '';
+      return isFile ? assetUrl(catPath + id + '.html') : ('/wiki/' + catPath + id + '.html');
+    }
+
+    function highlight(text, q) {
+      text = String(text || '');
+      q = String(q || '').trim();
+      if (!q) return escH(text);
+      var lower = text.toLowerCase();
+      var needle = q.toLowerCase();
+      var out = '';
+      var pos = 0;
+      var idx;
+      while ((idx = lower.indexOf(needle, pos)) >= 0) {
+        out += escH(text.slice(pos, idx));
+        out += '<mark>' + escH(text.slice(idx, idx + q.length)) + '</mark>';
+        pos = idx + q.length;
+      }
+      out += escH(text.slice(pos));
+      return out;
+    }
+
+    function snippet(item, matches, q) {
+      var src = '';
+      var idx = -1;
+      (matches || []).some(function (m) {
+        if (m.key === 'content' && m.value) {
+          src = m.value;
+          idx = m.indices && m.indices[0] ? m.indices[0][0] : -1;
+          return true;
+        }
+        return false;
+      });
+      if (!src) {
+        src = item.content || item.title || '';
+        idx = q ? src.toLowerCase().indexOf(q.toLowerCase()) : -1;
+      }
+      if (idx < 0) idx = 0;
+      var start = Math.max(0, idx - 70);
+      var end = Math.min(src.length, idx + Math.max(q.length, 1) + 160);
+      var text = src.slice(start, end).replace(/\s+/g, ' ').trim();
+      if (start > 0) text = '...' + text;
+      if (end < src.length) text += '...';
+      return highlight(text, q);
+    }
+
+    function renderResults(rows, q) {
+      var total = indexData ? indexData.articles.length : 0;
+      setSummary('搜索 "' + q + '" · ' + rows.length + ' 个结果 · 索引 ' + total + ' 篇' + (indexLabel ? (' · ' + indexLabel) : ''));
+      if (!rows.length) {
+        setResults('<div class="wk-search-empty">没有匹配结果。</div>');
+        return;
+      }
+      var html = '';
+      rows.forEach(function (row) {
+        var item = row.item || row;
+        var href = articleHref(item);
+        var cat = item.category || '根目录';
+        var upd = String(item.updated || '').replace('T', ' ').replace('Z', '').slice(0, 16);
+        html += '<a class="wk-search-item" href="' + escH(href) + '" target="_blank" rel="noopener">' +
+          '<div class="wk-search-title"><span>' + highlight(item.title || item.id, q) + '</span>' +
+          '<span class="wk-search-cat">' + escH(cat) + '</span></div>' +
+          '<div class="wk-search-snippet">' + snippet(item, row.matches, q) + '</div>' +
+          '<div class="wk-search-meta">' + escH(upd || '') + ' · ' + escH(href) + '</div>' +
+          '</a>';
+      });
+      setResults(html);
+    }
+
+    function runSearch() {
+      var input = document.getElementById('wk-search-modal-input');
+      var q = input ? input.value.trim() : '';
+      if (!q) {
+        renderIntro();
+        return;
+      }
+      loadIndex(false)
+        .then(function () {
+          if (!fuse) throw new Error('Fuse not ready');
+          renderResults(fuse.search(q, { limit: 50 }), q);
+        })
+        .catch(function (e) {
+          renderError('搜索失败：' + (e && e.message ? e.message : e));
+        });
+    }
+
+    function openSearchModal(seed) {
+      var modal = ensureModal();
+      var input = document.getElementById('wk-search-modal-input');
+      var loadBtn = document.getElementById('wk-search-load-local');
+      if (loadBtn) loadBtn.style.display = isFile ? '' : 'none';
+      if (input) input.value = seed || pageInput.value || '';
+      modal.classList.add('open');
+      setTimeout(function () { if (input) input.focus(); }, 30);
+      loadIndex(false)
+        .then(function () {
+          var q = input ? input.value.trim() : '';
+          if (q) runSearch();
+          else renderIntro();
+        })
+        .catch(function (e) {
+          renderError('索引加载失败：' + (e && e.message ? e.message : e));
+          if (loadBtn) loadBtn.style.display = '';
+        });
+    }
+
+    function closeSearchModal() {
+      var modal = document.getElementById('modal-wiki-search');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function loadLocalIndex(e) {
+      var file = e && e.target && e.target.files ? e.target.files[0] : null;
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        loadFuse()
+          .then(function () {
+            var data = parseIndex(reader.result || '');
+            saveCache(data);
+            setIndex(data, file.name || 'wiki-index.json');
+            var input = document.getElementById('wk-search-modal-input');
+            if (input && input.value.trim()) runSearch();
+            else renderIntro();
+          })
+          .catch(function (err) {
+            renderError('本地索引加载失败：' + (err && err.message ? err.message : err));
+          });
+      };
+      reader.onerror = function () {
+        renderError('无法读取本地索引文件。');
+      };
+      reader.readAsText(file, 'utf-8');
+      e.target.value = '';
+    }
+
+    pageBtn.addEventListener('click', function () {
+      openSearchModal(pageInput.value.trim());
+    });
+    pageInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        openSearchModal(pageInput.value.trim());
+      }
+    });
+  }());
+
   // ── 左右面板拖拽调整宽度 ─────────────────────────────────────────────
   (function initResizable() {
     var sidebar = document.getElementById('sidebar');

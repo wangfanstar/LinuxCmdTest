@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paste Ubuntu 上传与恢复工具</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #202124;
+      --muted: #5f6368;
+      --line: #d9dee7;
+      --accent: #e95420;
+      --accent-dark: #c83f12;
+      --ok: #137333;
+      --warn: #b06000;
+      --bad: #b3261e;
+      --blue: #1558d6;
+      --soft-blue: #e8f0fe;
+      --soft-orange: #fff1e8;
+      --soft-green: #e7f5ec;
+      --soft-red: #fce8e6;
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+
+    header {
+      background: #2f3437;
+      color: #fff;
+      padding: 18px 24px;
+      border-bottom: 4px solid var(--accent);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    header p {
+      margin: 6px 0 0;
+      color: #d9dde3;
+      font-size: 14px;
+    }
+
+    main {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      padding: 12px 14px 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab.is-active {
+      color: var(--accent-dark);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.is-active { display: block; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #3c4043;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="url"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 112px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 9px 0;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button,
+    .button-link {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 9px 12px;
+      min-height: 38px;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    button.primary,
+    .button-link.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover,
+    .button-link.primary:hover { background: var(--accent-dark); }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bookmark-box {
+      display: grid;
+      grid-template-columns: minmax(220px, auto) 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bookmark-link {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      background: var(--soft-orange);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .work-area {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      margin-top: 12px;
+    }
+
+    .progress-rail {
+      position: sticky;
+      top: 12px;
+      align-self: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #f8fafc;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+    }
+
+    .work-main {
+      min-width: 0;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(100px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .progress-rail .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 0 0 12px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      min-height: 74px;
+    }
+
+    .progress-rail .stat {
+      min-height: 62px;
+      padding: 8px;
+    }
+
+    .stat .value {
+      font-size: 24px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    .progress-rail .stat .value {
+      font-size: 20px;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .progress {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: #e8eaed;
+      overflow: hidden;
+      border: 1px solid #d3d6dc;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      transition: width 160ms ease;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 980px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f1f3f4;
+      font-size: 12px;
+      color: #3c4043;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    tr.is-active { background: #fff8f3; }
+    tr.status-saved,
+    tr.status-collected { background: #f7fff9; }
+    tr.status-failed,
+    tr.status-pathInvalid,
+    tr.status-invalidUrl { background: #fff7f6; }
+
+    .path-cell {
+      max-width: 320px;
+      word-break: break-word;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    .url-input {
+      min-width: 300px;
+      font-size: 12px;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .status {
+      display: inline-flex;
+      min-width: 72px;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #eef0f3;
+      color: #3c4043;
+    }
+
+    .status.done,
+    .status.saved,
+    .status.collected { background: var(--soft-green); color: var(--ok); }
+    .status.warn,
+    .status.needsManualCollect,
+    .status.conflict { background: #fff6df; color: var(--warn); }
+    .status.bad,
+    .status.failed,
+    .status.pathInvalid,
+    .status.invalidUrl { background: var(--soft-red); color: var(--bad); }
+    .status.working { background: var(--soft-blue); color: var(--blue); }
+
+    .message {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .message.ok { color: var(--ok); }
+    .message.warn { color: var(--warn); }
+    .message.bad { color: var(--bad); }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-top: 12px;
+      padding: 10px 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .skip-list,
+    .failure-list {
+      margin: 10px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #3c4043;
+      font-weight: 700;
+    }
+
+    .compact {
+      padding: 6px 8px;
+      min-height: 32px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      main { padding: 12px; }
+      .topbar,
+      .grid-2,
+      .grid-3,
+      .bookmark-box {
+        grid-template-columns: 1fr;
+      }
+      .work-area {
+        grid-template-columns: 1fr;
+      }
+      .progress-rail {
+        position: static;
+        max-height: none;
+      }
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      table,
+      thead,
+      tbody,
+      th,
+      td,
+      tr {
+        display: block;
+      }
+      table { min-width: 0; }
+      thead { display: none; }
+      tr {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+      }
+      td {
+        border-bottom: 0;
+        padding: 6px 0;
+      }
+      td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 2px;
+      }
+      .url-input { min-width: 0; }
+      .path-cell { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Paste Ubuntu 上传与恢复工具</h1>
+    <p>本工具只做用户触发的辅助填表、URL 回填和恢复下载；不保存密码，不自动登录，不自动提交。</p>
+  </header>
+
+  <main>
+    <section class="panel topbar">
+      <div>
+        <label for="usernameNote">用户名备注</label>
+        <input id="usernameNote" type="text" placeholder="可选：记录当前操作账号">
+      </div>
+      <a class="button-link primary" href="https://paste.ubuntu.com/openid/login" target="_blank" rel="noopener">登录 Paste</a>
+      <a class="button-link" href="https://paste.ubuntu.com/" target="_blank" rel="noopener">打开 Paste</a>
+      <button id="clearStateBtn" type="button">清空本地状态</button>
+    </section>
+
+    <section class="panel">
+      <div class="bookmark-box">
+        <a id="bookmarkletLink" class="button-link bookmark-link" href="#">Paste Ubuntu 书签脚本</a>
+        <div class="subtle">
+          将左侧按钮拖到浏览器书签栏。创建页点击它可填入剪贴板内容和 1 天有效期；结果页点击它可回填网址；恢复下载时可从当前 paste 页面采集正文。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="tabs" role="tablist" aria-label="主功能">
+        <button id="publishTabBtn" class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="publishPanel">发布到 Paste</button>
+        <button id="downloadTabBtn" class="tab" type="button" role="tab" aria-selected="false" aria-controls="downloadPanel">从 Paste 恢复</button>
+      </div>
+
+      <section id="publishPanel" class="tab-panel is-active" role="tabpanel" aria-labelledby="publishTabBtn">
+        <div class="grid-3">
+          <div>
+            <label for="filePicker">选择文件</label>
+            <input id="filePicker" type="file" multiple>
+          </div>
+          <div>
+            <label for="folderPicker">选择文件夹</label>
+            <input id="folderPicker" type="file" webkitdirectory multiple>
+          </div>
+          <div>
+            <label for="maxFileSize">最大单文件大小 MB</label>
+            <input id="maxFileSize" type="number" min="0.05" step="0.05" value="1">
+          </div>
+        </div>
+
+        <div class="work-area">
+          <aside class="progress-rail" aria-label="发布数量与进度">
+            <div class="stats" aria-label="发布统计">
+              <div class="stat"><div class="label">全部文件</div><div id="publishTotal" class="value">0</div></div>
+              <div class="stat"><div class="label">可处理</div><div id="publishProcessable" class="value">0</div></div>
+              <div class="stat"><div class="label">已跳过</div><div id="publishSkipped" class="value">0</div></div>
+              <div class="stat"><div class="label">已粘贴</div><div id="publishDone" class="value">0</div></div>
+              <div class="stat"><div class="label">待粘贴</div><div id="publishPending" class="value">0</div></div>
+              <div class="stat"><div class="label">进度</div><div id="publishPercent" class="value">0%</div></div>
+            </div>
+            <div class="progress" aria-label="发布进度"><span id="publishProgressBar"></span></div>
+          </aside>
+
+          <div class="work-main">
+            <div class="filter-row">
+              <button id="startBatchBtn" type="button" class="primary">开始批量</button>
+              <button id="nextPendingBtn" type="button">下一个待粘贴</button>
+              <button id="copyPublishCsvBtn" type="button">复制结果表</button>
+              <button id="exportPublishCsvBtn" type="button">导出 CSV</button>
+              <button id="clearPublishBtn" type="button">清空发布列表</button>
+            </div>
+            <div id="publishMessage" class="message"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件</th>
+                    <th>大小</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                    <th>Paste URL</th>
+                  </tr>
+                </thead>
+                <tbody id="publishTableBody"></tbody>
+              </table>
+            </div>
+
+            <details>
+              <summary>已跳过文件 <span id="skippedCountText">0</span></summary>
+              <ul id="skippedList" class="skip-list"></ul>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="downloadPanel" class="tab-panel" role="tabpanel" aria-labelledby="downloadTabBtn">
+        <div class="grid-2">
+          <div>
+            <label for="importText">粘贴 CSV 或两列清单</label>
+            <textarea id="importText" placeholder="file_path,paste_url&#10;src/a.txt,https://paste.ubuntu.com/p/abc/"></textarea>
+            <div class="button-row" style="margin-top: 8px;">
+              <button id="importTextBtn" type="button" class="primary">导入文本</button>
+              <button id="clearImportTextBtn" type="button">清空输入</button>
+            </div>
+          </div>
+          <div>
+            <label for="csvPicker">导入 CSV 文件</label>
+            <input id="csvPicker" type="file" accept=".csv,.txt,text/csv,text/plain">
+            <div class="subtle">支持本工具导出的 CSV，也支持每行“文件名,URL”或“文件名 Tab URL”。</div>
+          </div>
+        </div>
+
+        <div class="work-area">
+          <aside class="progress-rail" aria-label="恢复数量与进度">
+            <div class="stats" aria-label="下载统计">
+              <div class="stat"><div class="label">导入总数</div><div id="downloadTotal" class="value">0</div></div>
+              <div class="stat"><div class="label">有效 URL</div><div id="downloadValid" class="value">0</div></div>
+              <div class="stat"><div class="label">已成功</div><div id="downloadDone" class="value">0</div></div>
+              <div class="stat"><div class="label">需采集</div><div id="downloadManual" class="value">0</div></div>
+              <div class="stat"><div class="label">失败</div><div id="downloadFailed" class="value">0</div></div>
+              <div class="stat"><div class="label">进度</div><div id="downloadPercent" class="value">0%</div></div>
+            </div>
+            <div class="progress" aria-label="恢复进度"><span id="downloadProgressBar"></span></div>
+          </aside>
+
+          <div class="work-main">
+            <div class="filter-row">
+              <button id="autoDownloadBtn" type="button" class="primary">自动下载</button>
+              <button id="retryFailedBtn" type="button">重试失败</button>
+              <button id="saveZipBtn" type="button">保存 ZIP</button>
+              <button id="saveFolderBtn" type="button">保存到指定文件夹</button>
+              <label class="inline-check"><input id="overwriteFiles" type="checkbox"> 允许覆盖</label>
+              <button id="exportFailuresBtn" type="button">导出失败清单</button>
+              <button id="clearDownloadBtn" type="button">清空恢复列表</button>
+            </div>
+            <div id="downloadMessage" class="message"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                    <th>Paste URL</th>
+                    <th>错误</th>
+                  </tr>
+                </thead>
+                <tbody id="downloadTableBody"></tbody>
+              </table>
+            </div>
+
+            <details>
+              <summary>失败与需采集项目</summary>
+              <ul id="failureList" class="failure-list"></ul>
+            </details>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script id="core-logic">
+  (function () {
+    "use strict";
+
+    const forbiddenPathChars = /[<>:"|?*\x00-\x1f]/;
+    const textExtensions = new Set([
+      "txt", "md", "markdown", "js", "jsx", "ts", "tsx", "html", "htm", "css",
+      "scss", "less", "json", "xml", "yaml", "yml", "py", "java", "c", "cc",
+      "cpp", "h", "hpp", "cs", "go", "rs", "sh", "bash", "zsh", "fish",
+      "bat", "cmd", "ps1", "sql", "log", "ini", "conf", "cfg", "toml",
+      "lock", "env", "gitignore", "dockerfile", "makefile", "gradle", "rb",
+      "php", "vue", "svelte", "properties", "csv", "tsv"
+    ]);
+
+    function isPasteUrl(value) {
+      return /^https:\/\/paste\.ubuntu\.com\/(?:p\/)?[^?#\s]+\/?(?:[?#].*)?$/i.test(String(value || "").trim());
+    }
+
+    function getDirectFetchBlockReason(value, origin) {
+      const url = String(value || "").trim();
+      if (/^https:\/\/paste\.ubuntu\.com\//i.test(url)) {
+        const originText = origin === "null"
+          ? "当前页面是 file:// 本地文件，浏览器会把来源标记为 null；同时 paste.ubuntu.com 没有返回 Access-Control-Allow-Origin，触发 CORS 跨域限制。"
+          : "paste.ubuntu.com 没有返回 Access-Control-Allow-Origin，触发 CORS 跨域限制。";
+        return `${originText} 纯 HTML 不能直接 fetch 读取正文，请用“采集”按钮打开页面后点击书签脚本。`;
+      }
+      return "";
+    }
+
+    function sanitizeRelativePath(value) {
+      const raw = String(value || "").trim().replace(/\\/g, "/");
+      if (!raw || raw.startsWith("/") || raw.startsWith("~/") || /^[a-z]:\//i.test(raw)) return null;
+      const parts = raw.split("/").filter(Boolean);
+      if (!parts.length) return null;
+      for (const part of parts) {
+        if (part === "." || part === ".." || forbiddenPathChars.test(part)) return null;
+      }
+      return parts.join("/");
+    }
+
+    function csvEscape(value) {
+      const text = String(value ?? "");
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }
+
+    function parseCsvLine(line) {
+      const cells = [];
+      let current = "";
+      let quoted = false;
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        if (quoted) {
+          if (char === '"' && line[index + 1] === '"') {
+            current += '"';
+            index += 1;
+          } else if (char === '"') {
+            quoted = false;
+          } else {
+            current += char;
+          }
+        } else if (char === '"') {
+          quoted = true;
+        } else if (char === ",") {
+          cells.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      cells.push(current.trim());
+      return cells;
+    }
+
+    function parseImportRows(text) {
+      const rows = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const records = [];
+      rows.forEach((line, lineIndex) => {
+        const cells = line.includes("\t") ? line.split("\t").map((cell) => cell.trim()) : parseCsvLine(line);
+        const lower = cells.map((cell) => cell.toLowerCase());
+        if (lineIndex === 0 && lower.includes("file_path") && lower.includes("paste_url")) return;
+        const filePathCell = cells[0] || "";
+        const urlCell = cells[1] || "";
+        if (!filePathCell && !urlCell) return;
+        const cleanPath = sanitizeRelativePath(filePathCell);
+        const validUrl = isPasteUrl(urlCell);
+        records.push({
+          id: makeId("download"),
+          filePath: cleanPath || filePathCell,
+          pasteUrl: urlCell,
+          content: "",
+          error: cleanPath ? (validUrl ? "" : "Paste URL 无效") : "文件路径不安全",
+          status: cleanPath ? (validUrl ? "queued" : "invalidUrl") : "pathInvalid"
+        });
+      });
+      return records;
+    }
+
+    function decodeHtmlEntities(value) {
+      const text = String(value || "");
+      if (typeof document !== "undefined" && document.createElement) {
+        const textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+      }
+      const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+      return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
+        if (entity[0] === "#") {
+          const isHex = entity[1].toLowerCase() === "x";
+          const code = Number.parseInt(entity.slice(isHex ? 2 : 1), isHex ? 16 : 10);
+          return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+        }
+        return Object.prototype.hasOwnProperty.call(named, entity.toLowerCase()) ? named[entity.toLowerCase()] : match;
+      });
+    }
+
+    function stripTags(value) {
+      return String(value || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|tr)>/gi, "\n").replace(/<[^>]+>/g, "");
+    }
+
+    function extractPasteText(input) {
+      const raw = String(input || "");
+      if (!raw.trim()) return "";
+      if (!/<[a-z][\s\S]*>/i.test(raw)) return raw;
+      if (/you need to be logged in to view this paste|please log in/i.test(raw)) return "";
+      const candidates = [
+        /<textarea[^>]*>([\s\S]*?)<\/textarea>/i,
+        /<pre[^>]*>([\s\S]*?)<\/pre>/i,
+        /<code[^>]*>([\s\S]*?)<\/code>/i,
+        /<td[^>]*class=["'][^"']*(?:code|paste)[^"']*["'][^>]*>([\s\S]*?)<\/td>/i,
+        /<div[^>]*class=["'][^"']*(?:paste|highlight|code)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+      ];
+      for (const pattern of candidates) {
+        const match = raw.match(pattern);
+        if (match && match[1]) {
+          const decoded = decodeHtmlEntities(stripTags(match[1])).replace(/\r\n/g, "\n");
+          if (decoded.trim()) return decoded;
+        }
+      }
+      return "";
+    }
+
+    function makeId(prefix) {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function looksTextFile(file) {
+      const name = String(file.name || "").toLowerCase();
+      const mime = String(file.type || "").toLowerCase();
+      const base = name.split("/").pop();
+      const extension = base.includes(".") ? base.split(".").pop() : base;
+      if (mime.startsWith("text/")) return true;
+      if (mime.includes("json") || mime.includes("xml") || mime.includes("javascript")) return true;
+      if (textExtensions.has(extension) || textExtensions.has(base)) return true;
+      return mime === "" && file.size <= 256 * 1024;
+    }
+
+    function formatBytes(size) {
+      const value = Number(size) || 0;
+      if (value < 1024) return `${value} B`;
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${(value / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    function makeCsv(records) {
+      const lines = ["file_path,paste_url,size_bytes,status"];
+      records.forEach((record) => {
+        lines.push([record.filePath || record.path || "", record.pasteUrl || "", record.size || "", record.status || ""].map(csvEscape).join(","));
+      });
+      return lines.join("\n");
+    }
+
+    function makeFailureCsv(records) {
+      const lines = ["file_path,paste_url,status,error"];
+      records.forEach((record) => {
+        if (["saved", "collected"].includes(record.status)) return;
+        lines.push([record.filePath || "", record.pasteUrl || "", record.status || "", record.error || ""].map(csvEscape).join(","));
+      });
+      return lines.join("\n");
+    }
+
+    const crcTable = (() => {
+      const table = new Uint32Array(256);
+      for (let index = 0; index < 256; index += 1) {
+        let code = index;
+        for (let bit = 0; bit < 8; bit += 1) {
+          code = code & 1 ? 0xedb88320 ^ (code >>> 1) : code >>> 1;
+        }
+        table[index] = code >>> 0;
+      }
+      return table;
+    })();
+
+    function crc32(bytes) {
+      let crc = 0xffffffff;
+      for (let index = 0; index < bytes.length; index += 1) {
+        crc = crcTable[(crc ^ bytes[index]) & 0xff] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function writeU16(view, offset, value) {
+      view.setUint16(offset, value, true);
+    }
+
+    function writeU32(view, offset, value) {
+      view.setUint32(offset, value >>> 0, true);
+    }
+
+    function dosDateTime(date) {
+      const year = Math.max(1980, date.getFullYear());
+      const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+      const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+      return { dosDate, dosTime };
+    }
+
+    async function createZipBlob(records) {
+      const encoder = new TextEncoder();
+      const parts = [];
+      const central = [];
+      let offset = 0;
+      const now = dosDateTime(new Date());
+
+      for (const record of records) {
+        if (!["saved", "collected"].includes(record.status)) continue;
+        const safePath = sanitizeRelativePath(record.filePath || record.path);
+        if (!safePath) continue;
+        const nameBytes = encoder.encode(safePath);
+        const dataBytes = encoder.encode(String(record.content ?? ""));
+        const crc = crc32(dataBytes);
+        const localHeader = new Uint8Array(30);
+        const localView = new DataView(localHeader.buffer);
+        writeU32(localView, 0, 0x04034b50);
+        writeU16(localView, 4, 20);
+        writeU16(localView, 6, 0x0800);
+        writeU16(localView, 8, 0);
+        writeU16(localView, 10, now.dosTime);
+        writeU16(localView, 12, now.dosDate);
+        writeU32(localView, 14, crc);
+        writeU32(localView, 18, dataBytes.length);
+        writeU32(localView, 22, dataBytes.length);
+        writeU16(localView, 26, nameBytes.length);
+        writeU16(localView, 28, 0);
+        parts.push(localHeader, nameBytes, dataBytes);
+
+        const centralHeader = new Uint8Array(46);
+        const centralView = new DataView(centralHeader.buffer);
+        writeU32(centralView, 0, 0x02014b50);
+        writeU16(centralView, 4, 20);
+        writeU16(centralView, 6, 20);
+        writeU16(centralView, 8, 0x0800);
+        writeU16(centralView, 10, 0);
+        writeU16(centralView, 12, now.dosTime);
+        writeU16(centralView, 14, now.dosDate);
+        writeU32(centralView, 16, crc);
+        writeU32(centralView, 20, dataBytes.length);
+        writeU32(centralView, 24, dataBytes.length);
+        writeU16(centralView, 28, nameBytes.length);
+        writeU16(centralView, 30, 0);
+        writeU16(centralView, 32, 0);
+        writeU16(centralView, 34, 0);
+        writeU16(centralView, 36, 0);
+        writeU32(centralView, 38, 0);
+        writeU32(centralView, 42, offset);
+        central.push(centralHeader, nameBytes);
+        offset += localHeader.length + nameBytes.length + dataBytes.length;
+      }
+
+      const centralSize = central.reduce((sum, piece) => sum + piece.length, 0);
+      const centralOffset = offset;
+      const entryCount = central.length / 2;
+      parts.push(...central);
+      const end = new Uint8Array(22);
+      const endView = new DataView(end.buffer);
+      writeU32(endView, 0, 0x06054b50);
+      writeU16(endView, 4, 0);
+      writeU16(endView, 6, 0);
+      writeU16(endView, 8, entryCount);
+      writeU16(endView, 10, entryCount);
+      writeU32(endView, 12, centralSize);
+      writeU32(endView, 16, centralOffset);
+      writeU16(endView, 20, 0);
+      parts.push(end);
+      return new Blob(parts, { type: "application/zip" });
+    }
+
+    function buildBookmarklet() {
+      const source = `(()=>{const S='paste-ubuntu-tool';const $=s=>document.querySelector(s);const params=new URLSearchParams((location.hash||'').replace(/^#/,''));const token=params.get('put_token')||sessionStorage.getItem('put_token')||'';const file=params.get('put_file')||sessionStorage.getItem('put_file')||'';const mode=params.get('put_mode')||sessionStorage.getItem('put_mode')||'';const download=params.get('put_download')||sessionStorage.getItem('put_download')||'';if(token)sessionStorage.setItem('put_token',token);if(file)sessionStorage.setItem('put_file',file);if(mode)sessionStorage.setItem('put_mode',mode);if(download)sessionStorage.setItem('put_download',download);const post=m=>{if(window.opener)window.opener.postMessage(Object.assign({source:S},m),'*');};const textFromDom=()=>{const n=$('textarea')||$('pre')||$('code')||$('[class*=paste]')||$('[class*=highlight]');return n?n.innerText||n.value||n.textContent||'':document.body.innerText||'';};if(mode==='collect'){const content=textFromDom();post({type:'paste-content',id:download,url:location.href,content});alert(content?'已把正文回传到工具。':'未找到正文，请确认已登录且页面可见。');return;}const textarea=[...document.querySelectorAll('textarea')].find(x=>x.offsetParent!==null)||$('textarea');if(textarea){(navigator.clipboard?navigator.clipboard.readText():Promise.reject()).catch(()=>prompt('请粘贴当前文件内容','')||'').then(t=>{textarea.value=t;textarea.dispatchEvent(new Event('input',{bubbles:true}));const title=[...document.querySelectorAll('input')].find(x=>/name|title|filename|poster/i.test((x.name||'')+' '+(x.id||'')+' '+(x.placeholder||'')));if(title&&file){title.value=file;title.dispatchEvent(new Event('input',{bubbles:true}));}const selects=[...document.querySelectorAll('select')];for(const sel of selects){const opt=[...sel.options].find(o=>/1\\s*(day|天)|24\\s*(hour|小时)/i.test(o.text+' '+o.value));if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}alert('已填入内容，请人工检查并提交。');});return;}const href=location.href;if(/^https:\\/\\/paste\\.ubuntu\\.com\\/(?:p\\/)?[^/?#]+\\/?(?:[?#].*)?$/i.test(href)){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:href});navigator.clipboard&&navigator.clipboard.writeText(href).catch(()=>{});alert('已把当前网址回传到工具。');return;}alert('未找到可填表单或可回填的网址。');})();`;
+      const fixedSource = `(()=>{const S='paste-ubuntu-tool';const $=s=>document.querySelector(s);const params=new URLSearchParams((location.hash||'').replace(/^#/,''));const token=params.get('put_token')||sessionStorage.getItem('put_token')||'';const file=params.get('put_file')||sessionStorage.getItem('put_file')||'';const mode=params.get('put_mode')||sessionStorage.getItem('put_mode')||'';const download=params.get('put_download')||sessionStorage.getItem('put_download')||'';if(token)sessionStorage.setItem('put_token',token);if(file)sessionStorage.setItem('put_file',file);if(mode)sessionStorage.setItem('put_mode',mode);if(download)sessionStorage.setItem('put_download',download);const isPasteDetail=/^https:\\/\\/paste\\.ubuntu\\.com\\/(?:p\\/)?[^/?#]+\\/?(?:[?#].*)?$/i.test(location.href);const post=m=>{if(window.opener)window.opener.postMessage(Object.assign({source:S},m),'*');};const copy=t=>{try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){}};const textFromDom=()=>{const n=$('pre')||$('code')||$('[class*=paste]')||$('[class*=highlight]')||$('textarea');return n?n.innerText||n.value||n.textContent||'':document.body.innerText||'';};const collect=()=>{const content=textFromDom();post({type:'paste-content',id:download,url:location.href,content});if(content)copy(content);alert(content?'Collected paste content and sent it to the tool. If the tool did not update, return there and use Paste body.':'No paste body found. Make sure you are logged in and the paste content is visible.');};if(mode==='collect'||download||(isPasteDetail&&!token&&!file)){collect();return;}if(isPasteDetail){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:location.href});copy(location.href);alert('Sent current paste URL back to the tool.');return;}const textarea=[...document.querySelectorAll('textarea')].find(x=>x.offsetParent!==null)||$('textarea');if(textarea){(navigator.clipboard?navigator.clipboard.readText():Promise.reject()).catch(()=>prompt('Paste current file content','')||'').then(t=>{textarea.value=t;textarea.dispatchEvent(new Event('input',{bubbles:true}));const title=[...document.querySelectorAll('input')].find(x=>/name|title|filename|poster/i.test((x.name||'')+' '+(x.id||'')+' '+(x.placeholder||'')));if(title&&file){title.value=file;title.dispatchEvent(new Event('input',{bubbles:true}));}const selects=[...document.querySelectorAll('select')];for(const sel of selects){const opt=[...sel.options].find(o=>/1\\s*(day|天)|24\\s*(hour|小时)/i.test(o.text+' '+o.value));if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}alert('Filled content. Please review and submit manually.');});return;}alert('No paste form or paste detail page found.');})();`;
+      return `javascript:${encodeURIComponent(fixedSource)}`;
+    }
+
+    window.PasteUbuntuCore = {
+      isPasteUrl,
+      sanitizeRelativePath,
+      parseImportRows,
+      extractPasteText,
+      createZipBlob,
+      getDirectFetchBlockReason,
+      buildBookmarklet,
+      looksTextFile,
+      formatBytes,
+      makeCsv,
+      makeFailureCsv,
+      csvEscape,
+      makeId
+    };
+  })();
+  </script>
+
+  <script>
+  (function () {
+    "use strict";
+
+    const core = window.PasteUbuntuCore;
+    const storageKey = "pasteUbuntuUnifiedTool.v1";
+    const pasteBase = "https://paste.ubuntu.com/";
+    const dom = {};
+    const state = {
+      usernameNote: "",
+      maxFileSizeMb: 1,
+      publishTotal: 0,
+      publishFiles: [],
+      skippedFiles: [],
+      downloads: [],
+      activePublishId: "",
+      activeDownloadId: ""
+    };
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function cacheDom() {
+      [
+        "usernameNote", "clearStateBtn", "bookmarkletLink", "publishTabBtn", "downloadTabBtn",
+        "publishPanel", "downloadPanel", "filePicker", "folderPicker", "maxFileSize",
+        "publishTotal", "publishProcessable", "publishSkipped", "publishDone", "publishPending",
+        "publishPercent", "publishProgressBar", "startBatchBtn", "nextPendingBtn",
+        "copyPublishCsvBtn", "exportPublishCsvBtn", "clearPublishBtn", "publishMessage",
+        "publishTableBody", "skippedCountText", "skippedList", "importText", "importTextBtn",
+        "clearImportTextBtn", "csvPicker", "downloadTotal", "downloadValid", "downloadDone",
+        "downloadManual", "downloadFailed", "downloadPercent", "downloadProgressBar",
+        "autoDownloadBtn", "retryFailedBtn", "saveZipBtn", "saveFolderBtn", "overwriteFiles",
+        "exportFailuresBtn", "clearDownloadBtn", "downloadMessage", "downloadTableBody",
+        "failureList"
+      ].forEach((id) => { dom[id] = $(id); });
+    }
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        state.usernameNote = saved.usernameNote || "";
+        state.maxFileSizeMb = Number(saved.maxFileSizeMb) || 1;
+        state.publishTotal = Number(saved.publishTotal) || 0;
+        state.publishFiles = Array.isArray(saved.publishFiles) ? saved.publishFiles.map((record) => ({ ...record, content: "" })) : [];
+        state.skippedFiles = Array.isArray(saved.skippedFiles) ? saved.skippedFiles : [];
+        state.downloads = Array.isArray(saved.downloads) ? saved.downloads.map((record) => ({ ...record, content: record.content || "" })) : [];
+        state.activePublishId = saved.activePublishId || "";
+        state.activeDownloadId = saved.activeDownloadId || "";
+      } catch (error) {
+        console.warn("Cannot load saved state", error);
+      }
+    }
+
+    function saveState() {
+      const compact = {
+        usernameNote: state.usernameNote,
+        maxFileSizeMb: state.maxFileSizeMb,
+        publishTotal: state.publishTotal,
+        activePublishId: state.activePublishId,
+        activeDownloadId: state.activeDownloadId,
+        publishFiles: state.publishFiles.map((record) => ({
+          id: record.id,
+          path: record.path,
+          name: record.name,
+          size: record.size,
+          pasteUrl: record.pasteUrl || "",
+          status: record.status || "pending",
+          error: record.error || ""
+        })),
+        skippedFiles: state.skippedFiles,
+        downloads: state.downloads.map((record) => ({
+          id: record.id,
+          filePath: record.filePath,
+          pasteUrl: record.pasteUrl,
+          status: record.status,
+          error: record.error || "",
+          content: record.content || ""
+        }))
+      };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(compact));
+      } catch (error) {
+        showMessage(dom.publishMessage, "本地状态过大，已保留页面内数据，但无法完整写入 localStorage。", "warn");
+      }
+    }
+
+    function showMessage(target, text, kind) {
+      target.textContent = text || "";
+      target.className = `message ${kind || ""}`.trim();
+    }
+
+    function statusLabel(status, hasUrl) {
+      if (hasUrl) return "已粘贴";
+      const labels = {
+        pending: "待处理",
+        prepared: "已准备",
+        copied: "已复制",
+        queued: "待下载",
+        fetching: "下载中",
+        saved: "已保存",
+        collected: "已采集",
+        needsManualCollect: "需采集",
+        failed: "失败",
+        pathInvalid: "路径非法",
+        invalidUrl: "URL 无效",
+        conflict: "冲突"
+      };
+      return labels[status] || status || "待处理";
+    }
+
+    function statusClass(status, hasUrl) {
+      if (hasUrl) return "done";
+      if (["saved", "collected"].includes(status)) return status;
+      if (["fetching", "prepared", "copied"].includes(status)) return "working";
+      if (["needsManualCollect", "conflict"].includes(status)) return status;
+      if (["failed", "pathInvalid", "invalidUrl"].includes(status)) return status;
+      return "";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function renderAll() {
+      dom.usernameNote.value = state.usernameNote;
+      dom.maxFileSize.value = state.maxFileSizeMb;
+      dom.bookmarkletLink.href = core.buildBookmarklet();
+      renderPublish();
+      renderDownload();
+      updateFolderButton();
+    }
+
+    function renderPublishStats() {
+      const done = state.publishFiles.filter((record) => core.isPasteUrl(record.pasteUrl)).length;
+      const processable = state.publishFiles.length;
+      const pending = Math.max(0, processable - done);
+      const percent = processable ? Math.round((done / processable) * 100) : 0;
+      dom.publishTotal.textContent = state.publishTotal;
+      dom.publishProcessable.textContent = processable;
+      dom.publishSkipped.textContent = state.skippedFiles.length;
+      dom.publishDone.textContent = done;
+      dom.publishPending.textContent = pending;
+      dom.publishPercent.textContent = `${percent}%`;
+      dom.publishProgressBar.style.width = `${percent}%`;
+      dom.skippedCountText.textContent = state.skippedFiles.length;
+      dom.skippedList.innerHTML = state.skippedFiles.length
+        ? state.skippedFiles.map((item) => `<li><span class="path-cell">${escapeHtml(item.path)}</span> - ${escapeHtml(item.reason)}</li>`).join("")
+        : "<li>暂无跳过文件</li>";
+    }
+
+    function renderPublish() {
+      renderPublishStats();
+      dom.publishTableBody.innerHTML = state.publishFiles.map((record) => {
+        const hasUrl = core.isPasteUrl(record.pasteUrl);
+        const active = record.id === state.activePublishId ? "is-active" : "";
+        return `<tr class="${active}">
+          <td data-label="文件" class="path-cell">${escapeHtml(record.path)}</td>
+          <td data-label="大小">${core.formatBytes(record.size)}</td>
+          <td data-label="状态"><span class="status ${statusClass(record.status, hasUrl)}">${statusLabel(record.status, hasUrl)}</span></td>
+          <td data-label="操作">
+            <div class="button-row">
+              <button class="compact" type="button" data-action="prepare" data-id="${record.id}">准备填表</button>
+              <button class="compact" type="button" data-action="copy-content" data-id="${record.id}">复制内容</button>
+              <button class="compact" type="button" data-action="copy-row" data-id="${record.id}">复制行</button>
+            </div>
+          </td>
+          <td data-label="Paste URL"><input class="url-input" type="url" data-action="paste-url" data-id="${record.id}" value="${escapeHtml(record.pasteUrl || "")}" placeholder="https://paste.ubuntu.com/..."></td>
+        </tr>`;
+      }).join("");
+    }
+
+    function findPublishRow(id) {
+      const input = Array.from(dom.publishTableBody.querySelectorAll("input[data-action='paste-url']"))
+        .find((element) => element.dataset.id === id);
+      return input ? input.closest("tr") : null;
+    }
+
+    function updatePublishActiveRows() {
+      dom.publishTableBody.querySelectorAll("tr").forEach((row) => {
+        const element = row.querySelector("[data-id]");
+        row.classList.toggle("is-active", !!element && element.dataset.id === state.activePublishId);
+      });
+    }
+
+    function updatePublishRowState(record, options = {}) {
+      const row = findPublishRow(record.id);
+      if (!row) return;
+      const hasUrl = core.isPasteUrl(record.pasteUrl);
+      const status = row.querySelector(".status");
+      if (status) {
+        status.className = `status ${statusClass(record.status, hasUrl)}`.trim();
+        status.textContent = statusLabel(record.status, hasUrl);
+      }
+      if (options.updateInput) {
+        const input = row.querySelector("input[data-action='paste-url']");
+        if (input) input.value = record.pasteUrl || "";
+      }
+      updatePublishActiveRows();
+    }
+
+    function renderDownload() {
+      const total = state.downloads.length;
+      const valid = state.downloads.filter((record) => core.isPasteUrl(record.pasteUrl) && core.sanitizeRelativePath(record.filePath)).length;
+      const done = state.downloads.filter((record) => ["saved", "collected"].includes(record.status)).length;
+      const manual = state.downloads.filter((record) => record.status === "needsManualCollect").length;
+      const failed = state.downloads.filter((record) => ["failed", "pathInvalid", "invalidUrl", "conflict"].includes(record.status)).length;
+      const percent = valid ? Math.round((done / valid) * 100) : 0;
+      dom.downloadTotal.textContent = total;
+      dom.downloadValid.textContent = valid;
+      dom.downloadDone.textContent = done;
+      dom.downloadManual.textContent = manual;
+      dom.downloadFailed.textContent = failed;
+      dom.downloadPercent.textContent = `${percent}%`;
+      dom.downloadProgressBar.style.width = `${percent}%`;
+
+      dom.downloadTableBody.innerHTML = state.downloads.map((record) => {
+        const rowClass = `status-${record.status}`;
+        return `<tr class="${rowClass}">
+          <td data-label="文件" class="path-cell">${escapeHtml(record.filePath)}</td>
+          <td data-label="状态"><span class="status ${statusClass(record.status, false)}">${statusLabel(record.status, false)}</span></td>
+          <td data-label="操作">
+            <div class="button-row">
+              <button class="compact" type="button" data-download-action="open" data-id="${record.id}">打开</button>
+              <button class="compact" type="button" data-download-action="collect" data-id="${record.id}">采集</button>
+              <button class="compact" type="button" data-download-action="paste-body" data-id="${record.id}">粘贴正文</button>
+              <button class="compact" type="button" data-download-action="retry" data-id="${record.id}">重试</button>
+            </div>
+          </td>
+          <td data-label="Paste URL" class="path-cell">${escapeHtml(record.pasteUrl)}</td>
+          <td data-label="错误">${escapeHtml(record.error || "")}</td>
+        </tr>`;
+      }).join("");
+
+      const problemRows = state.downloads.filter((record) => !["saved", "collected"].includes(record.status));
+      dom.failureList.innerHTML = problemRows.length
+        ? problemRows.map((record) => `<li><span class="path-cell">${escapeHtml(record.filePath)}</span> - ${escapeHtml(statusLabel(record.status, false))} - ${escapeHtml(record.error || "")}</li>`).join("")
+        : "<li>暂无失败项</li>";
+    }
+
+    function updateFolderButton() {
+      if (!("showDirectoryPicker" in window)) {
+        dom.saveFolderBtn.disabled = true;
+        dom.saveFolderBtn.title = "当前浏览器不支持直接保存到指定文件夹，请使用 ZIP。";
+      }
+      if (location.protocol === "file:") {
+        showMessage(dom.downloadMessage, "当前以 file:// 打开，跨域来源会显示为 null；paste.ubuntu.com 自动读取会进入“需采集”，这是浏览器安全限制。", "warn");
+      }
+    }
+
+    async function readFileAsText(file) {
+      if (typeof file.text === "function") return file.text();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+      });
+    }
+
+    async function handleSelectedFiles(fileList) {
+      const files = Array.from(fileList || []);
+      const maxBytes = Math.max(1, Number(state.maxFileSizeMb) || 1) * 1024 * 1024;
+      state.publishTotal = files.length;
+      state.publishFiles = [];
+      state.skippedFiles = [];
+      state.activePublishId = "";
+      showMessage(dom.publishMessage, files.length ? "正在读取文件..." : "未选择文件。", "");
+      renderPublish();
+
+      for (const file of files) {
+        const originalPath = file.webkitRelativePath || file.name;
+        const safePath = core.sanitizeRelativePath(originalPath) || core.sanitizeRelativePath(file.name);
+        if (!safePath) {
+          state.skippedFiles.push({ path: originalPath || file.name, reason: "文件路径不安全" });
+          continue;
+        }
+        if (file.size > maxBytes) {
+          state.skippedFiles.push({ path: safePath, reason: `超过最大大小 ${state.maxFileSizeMb} MB` });
+          continue;
+        }
+        if (!core.looksTextFile(file)) {
+          state.skippedFiles.push({ path: safePath, reason: "不是常见文本文件" });
+          continue;
+        }
+        try {
+          const content = await readFileAsText(file);
+          if (content.includes("\u0000")) {
+            state.skippedFiles.push({ path: safePath, reason: "疑似二进制内容" });
+            continue;
+          }
+          state.publishFiles.push({
+            id: core.makeId("publish"),
+            path: safePath,
+            name: safePath.split("/").pop(),
+            size: file.size,
+            content,
+            pasteUrl: "",
+            status: "pending",
+            error: ""
+          });
+        } catch (error) {
+          state.skippedFiles.push({ path: safePath, reason: error.message || "读取失败" });
+        }
+      }
+      showMessage(dom.publishMessage, `已读取 ${state.publishFiles.length} 个可处理文件，跳过 ${state.skippedFiles.length} 个。`, "ok");
+      saveState();
+      renderPublish();
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+
+    async function preparePaste(record) {
+      if (!record.content) {
+        showMessage(dom.publishMessage, "该文件内容不在当前页面内存中，请重新选择文件后继续。", "warn");
+        return;
+      }
+      state.activePublishId = record.id;
+      record.status = "prepared";
+      const hash = new URLSearchParams({ put_token: record.id, put_file: record.path }).toString();
+      try {
+        await copyText(record.content);
+        record.status = "copied";
+        showMessage(dom.publishMessage, `已复制 ${record.path}，请在 paste 页面点击书签脚本填表。`, "ok");
+      } catch (error) {
+        showMessage(dom.publishMessage, `复制失败：${error.message || error}。可手动复制内容后继续。`, "warn");
+      }
+      window.open(`${pasteBase}#${hash}`, "pasteUbuntuPasteTab");
+      saveState();
+      renderPublish();
+    }
+
+    function nextPending() {
+      const record = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl));
+      if (!record) {
+        showMessage(dom.publishMessage, "没有待粘贴文件。", "ok");
+        return;
+      }
+      preparePaste(record);
+    }
+
+    function updatePublishUrl(id, value, options = {}) {
+      const record = state.publishFiles.find((item) => item.id === id);
+      if (!record) return;
+      record.pasteUrl = value.trim();
+      record.status = core.isPasteUrl(record.pasteUrl) ? "saved" : "pending";
+      saveState();
+      renderPublishStats();
+      updatePublishRowState(record, options);
+    }
+
+    function downloadTextFile(filename, content, type) {
+      const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importRowsFromText(text) {
+      const records = core.parseImportRows(text);
+      state.downloads = records;
+      state.activeDownloadId = "";
+      showMessage(dom.downloadMessage, `已导入 ${records.length} 条记录。`, records.length ? "ok" : "warn");
+      saveState();
+      renderDownload();
+    }
+
+    async function autoDownload(records) {
+      const targets = records || state.downloads.filter((record) => ["queued", "failed", "needsManualCollect"].includes(record.status));
+      if (!targets.length) {
+        showMessage(dom.downloadMessage, "没有可自动下载的项目。", "warn");
+        return;
+      }
+      for (const record of targets) {
+        if (!core.sanitizeRelativePath(record.filePath)) {
+          record.status = "pathInvalid";
+          record.error = "文件路径不安全";
+          continue;
+        }
+        if (!core.isPasteUrl(record.pasteUrl)) {
+          record.status = "invalidUrl";
+          record.error = "Paste URL 无效";
+          continue;
+        }
+        const blockReason = core.getDirectFetchBlockReason(record.pasteUrl, location.origin);
+        if (blockReason) {
+          record.status = "needsManualCollect";
+          record.error = blockReason;
+          renderDownload();
+          saveState();
+          continue;
+        }
+        record.status = "fetching";
+        record.error = "";
+        renderDownload();
+        saveState();
+        try {
+          const response = await fetch(record.pasteUrl, { credentials: "include" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          const extracted = core.extractPasteText(text);
+          if (!extracted.trim()) throw new Error("无法解析正文，可能需要登录或手动采集");
+          record.content = extracted;
+          record.status = "saved";
+          record.error = "";
+        } catch (error) {
+          record.status = "needsManualCollect";
+          record.error = error.message || "浏览器无法直接读取该 URL";
+        }
+        renderDownload();
+        saveState();
+      }
+      showMessage(dom.downloadMessage, "自动下载流程已结束；需采集项目可打开页面后点击书签脚本。", "ok");
+    }
+
+    function openCollect(record) {
+      state.activeDownloadId = record.id;
+      const separator = record.pasteUrl.includes("#") ? "&" : "#";
+      const hash = new URLSearchParams({ put_mode: "collect", put_download: record.id }).toString();
+      window.open(`${record.pasteUrl}${separator}${hash}`, "pasteUbuntuCollectTab");
+      saveState();
+      renderDownload();
+    }
+
+    async function saveZip() {
+      const success = state.downloads.filter((record) => ["saved", "collected"].includes(record.status) && record.content);
+      if (!success.length) {
+        showMessage(dom.downloadMessage, "没有可保存的成功内容。", "warn");
+        return;
+      }
+      const blob = await core.createZipBlob(success);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `paste-restore-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      showMessage(dom.downloadMessage, `已生成 ZIP，包含 ${success.length} 个文件。`, "ok");
+    }
+
+    async function saveToFolder() {
+      if (!("showDirectoryPicker" in window)) {
+        showMessage(dom.downloadMessage, "当前浏览器不支持直接保存到指定文件夹，请使用 ZIP。", "warn");
+        return;
+      }
+      const success = state.downloads.filter((record) => ["saved", "collected"].includes(record.status) && record.content);
+      if (!success.length) {
+        showMessage(dom.downloadMessage, "没有可保存的成功内容。", "warn");
+        return;
+      }
+      const root = await window.showDirectoryPicker({ mode: "readwrite" });
+      const overwrite = dom.overwriteFiles.checked;
+      let saved = 0;
+      for (const record of success) {
+        const safePath = core.sanitizeRelativePath(record.filePath);
+        if (!safePath) {
+          record.status = "pathInvalid";
+          record.error = "文件路径不安全";
+          continue;
+        }
+        const parts = safePath.split("/");
+        const filename = parts.pop();
+        let directory = root;
+        for (const part of parts) {
+          directory = await directory.getDirectoryHandle(part, { create: true });
+        }
+        try {
+          if (!overwrite) {
+            await directory.getFileHandle(filename, { create: false });
+            record.status = "conflict";
+            record.error = "目标文件已存在";
+            continue;
+          }
+        } catch (_) {
+          // File does not exist, safe to create.
+        }
+        const handle = await directory.getFileHandle(filename, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(record.content);
+        await writable.close();
+        record.status = "saved";
+        record.error = "";
+        saved += 1;
+      }
+      saveState();
+      renderDownload();
+      showMessage(dom.downloadMessage, `已写入 ${saved} 个文件。`, "ok");
+    }
+
+    function handleMessage(event) {
+      const data = event.data || {};
+      if (data.source !== "paste-ubuntu-tool") return;
+      if (event.origin && event.origin !== "https://paste.ubuntu.com") return;
+      if (data.type === "paste-url") {
+        const record = state.publishFiles.find((item) => item.id === data.token) || state.publishFiles.find((item) => item.id === state.activePublishId);
+        if (!record) {
+          showMessage(dom.publishMessage, "收到网址，但没有匹配到当前文件。", "warn");
+          return;
+        }
+        if (!core.isPasteUrl(data.url)) {
+          showMessage(dom.publishMessage, "收到的网址不是有效的 paste.ubuntu.com URL。", "bad");
+          return;
+        }
+        record.pasteUrl = data.url;
+        record.status = "saved";
+        const next = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl));
+        if (next) state.activePublishId = next.id;
+        else state.activePublishId = record.id;
+        saveState();
+        renderPublishStats();
+        updatePublishRowState(record, { updateInput: true });
+        updatePublishActiveRows();
+        showMessage(dom.publishMessage, `已回填 ${record.path} 的网址。`, "ok");
+      }
+      if (data.type === "paste-content") {
+        const record = state.downloads.find((item) => item.id === data.id) || state.downloads.find((item) => item.id === state.activeDownloadId);
+        if (!record) {
+          showMessage(dom.downloadMessage, "收到正文，但没有匹配到下载记录。", "warn");
+          return;
+        }
+        if (!String(data.content || "").trim()) {
+          record.status = "needsManualCollect";
+          record.error = "书签脚本未采集到正文";
+        } else {
+          record.content = String(data.content);
+          record.status = "collected";
+          record.error = "";
+        }
+        saveState();
+        renderDownload();
+        showMessage(dom.downloadMessage, `已采集 ${record.filePath}。`, "ok");
+      }
+    }
+
+    function bindEvents() {
+      dom.usernameNote.addEventListener("input", () => {
+        state.usernameNote = dom.usernameNote.value.trim();
+        saveState();
+      });
+      dom.maxFileSize.addEventListener("change", () => {
+        state.maxFileSizeMb = Number(dom.maxFileSize.value) || 1;
+        saveState();
+      });
+      dom.clearStateBtn.addEventListener("click", () => {
+        if (!confirm("确认清空本工具保存在当前浏览器里的所有状态？")) return;
+        localStorage.removeItem(storageKey);
+        state.usernameNote = "";
+        state.maxFileSizeMb = 1;
+        state.publishTotal = 0;
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.downloads = [];
+        state.activePublishId = "";
+        state.activeDownloadId = "";
+        renderAll();
+      });
+      dom.publishTabBtn.addEventListener("click", () => switchTab("publish"));
+      dom.downloadTabBtn.addEventListener("click", () => switchTab("download"));
+      dom.filePicker.addEventListener("change", (event) => handleSelectedFiles(event.target.files));
+      dom.folderPicker.addEventListener("change", (event) => handleSelectedFiles(event.target.files));
+      dom.startBatchBtn.addEventListener("click", nextPending);
+      dom.nextPendingBtn.addEventListener("click", nextPending);
+      dom.copyPublishCsvBtn.addEventListener("click", async () => {
+        await copyText(core.makeCsv(state.publishFiles));
+        showMessage(dom.publishMessage, "结果表已复制。", "ok");
+      });
+      dom.exportPublishCsvBtn.addEventListener("click", () => downloadTextFile("paste-results.csv", core.makeCsv(state.publishFiles), "text/csv;charset=utf-8"));
+      dom.clearPublishBtn.addEventListener("click", () => {
+        state.publishTotal = 0;
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.activePublishId = "";
+        saveState();
+        renderPublish();
+      });
+      dom.publishTableBody.addEventListener("click", async (event) => {
+        const button = event.target.closest("button[data-action]");
+        if (!button) return;
+        const record = state.publishFiles.find((item) => item.id === button.dataset.id);
+        if (!record) return;
+        if (button.dataset.action === "prepare") await preparePaste(record);
+        if (button.dataset.action === "copy-content") {
+          await copyText(record.content || "");
+          record.status = "copied";
+          saveState();
+          renderPublish();
+          showMessage(dom.publishMessage, `已复制 ${record.path} 内容。`, "ok");
+        }
+        if (button.dataset.action === "copy-row") {
+          await copyText(`${record.path}\t${record.pasteUrl || ""}`);
+          showMessage(dom.publishMessage, "该行已复制。", "ok");
+        }
+      });
+      dom.publishTableBody.addEventListener("input", (event) => {
+        const input = event.target.closest("input[data-action='paste-url']");
+        if (!input) return;
+        updatePublishUrl(input.dataset.id, input.value);
+      });
+      dom.importTextBtn.addEventListener("click", () => importRowsFromText(dom.importText.value));
+      dom.clearImportTextBtn.addEventListener("click", () => { dom.importText.value = ""; });
+      dom.csvPicker.addEventListener("change", async (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const text = await readFileAsText(file);
+        await importRowsFromText(text);
+      });
+      dom.autoDownloadBtn.addEventListener("click", () => autoDownload());
+      dom.retryFailedBtn.addEventListener("click", () => {
+        const targets = state.downloads.filter((record) => ["failed", "needsManualCollect", "invalidUrl"].includes(record.status));
+        autoDownload(targets);
+      });
+      dom.saveZipBtn.addEventListener("click", saveZip);
+      dom.saveFolderBtn.addEventListener("click", saveToFolder);
+      dom.exportFailuresBtn.addEventListener("click", () => downloadTextFile("download-failures.csv", core.makeFailureCsv(state.downloads), "text/csv;charset=utf-8"));
+      dom.clearDownloadBtn.addEventListener("click", () => {
+        state.downloads = [];
+        state.activeDownloadId = "";
+        saveState();
+        renderDownload();
+      });
+      dom.downloadTableBody.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-download-action]");
+        if (!button) return;
+        const record = state.downloads.find((item) => item.id === button.dataset.id);
+        if (!record) return;
+        if (button.dataset.downloadAction === "open") window.open(record.pasteUrl, "_blank");
+        if (button.dataset.downloadAction === "collect") openCollect(record);
+        if (button.dataset.downloadAction === "paste-body") {
+          const content = prompt(`请粘贴 ${record.filePath} 的正文内容`, record.content || "");
+          if (content !== null && content.trim()) {
+            record.content = content;
+            record.status = "collected";
+            record.error = "";
+            state.activeDownloadId = record.id;
+            saveState();
+            renderDownload();
+            showMessage(dom.downloadMessage, `已保存 ${record.filePath} 的采集正文。`, "ok");
+          }
+        }
+        if (button.dataset.downloadAction === "retry") autoDownload([record]);
+      });
+      window.addEventListener("message", handleMessage);
+    }
+
+    function switchTab(name) {
+      const publish = name === "publish";
+      dom.publishTabBtn.classList.toggle("is-active", publish);
+      dom.publishTabBtn.setAttribute("aria-selected", publish ? "true" : "false");
+      dom.downloadTabBtn.classList.toggle("is-active", !publish);
+      dom.downloadTabBtn.setAttribute("aria-selected", publish ? "false" : "true");
+      dom.publishPanel.classList.toggle("is-active", publish);
+      dom.downloadPanel.classList.toggle("is-active", !publish);
+    }
+
+    cacheDom();
+    loadState();
+    bindEvents();
+    renderAll();
+  })();
+  </script>
+</body>
+</html>

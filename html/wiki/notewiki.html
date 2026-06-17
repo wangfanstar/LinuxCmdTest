@@ -31,8 +31,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .sidebar{width:240px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
 .sb-actions{display:flex;gap:6px;padding:10px;flex-shrink:0;flex-wrap:wrap}
 .sb-search{padding:0 10px 8px;flex-shrink:0}
+.sb-search-row{display:flex;gap:6px;align-items:center}
 .sb-search input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.8rem;padding:5px 8px;outline:none}
 .sb-search input:focus{border-color:var(--accent)}
+.sb-search-row input{min-width:0;flex:1}
+.sb-search-row .btn{height:29px;padding:4px 8px}
 .sb-tree{flex:1;overflow-y:auto;padding:4px 0}
 
 /* tree nodes */
@@ -214,6 +217,20 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .modal-body{padding:14px 16px}
 .modal-foot{padding:10px 16px 13px;border-top:1px solid var(--border2);display:flex;gap:8px;justify-content:flex-end}
 .modal-close{background:none;border:none;color:var(--dim);cursor:pointer;font-size:1.1rem;line-height:1}
+.wiki-search-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.wiki-search-tools input[type=search]{flex:1;min-width:220px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.84rem;padding:6px 9px;outline:none}
+.wiki-search-tools input[type=search]:focus{border-color:var(--accent)}
+.wiki-search-summary{font-size:.76rem;color:var(--dim);margin-bottom:8px;line-height:1.55}
+.wiki-search-results{max-height:min(62vh,540px);overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.wiki-search-empty{padding:22px 14px;text-align:center;color:var(--dim);font-size:.8rem}
+.wiki-search-item{display:block;text-decoration:none;color:var(--text);padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.wiki-search-item:last-child{border-bottom:none}
+.wiki-search-item:hover{background:rgba(255,255,255,.04)}
+.wiki-search-title{display:flex;gap:8px;align-items:baseline;color:#f0f6fc;font-size:.88rem;font-weight:600;line-height:1.35}
+.wiki-search-cat{font-size:.7rem;color:var(--dim);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.wiki-search-snippet{font-size:.75rem;color:#9fb0c3;line-height:1.55;margin-top:5px;word-break:break-word}
+.wiki-search-meta{font-size:.7rem;color:var(--dim);margin-top:5px}
+.wiki-search-results mark{background:rgba(210,153,34,.35);color:#fff0bd;border-radius:2px;padding:0 .05em}
 .history-summary{font-size:.76rem;color:var(--dim);margin-bottom:10px}
 .history-table-wrap{max-height:min(62vh,560px);overflow:auto;border:1px solid var(--border);border-radius:8px}
 .history-table{width:100%;border-collapse:collapse;font-size:.76rem}
@@ -371,8 +388,6 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
     <span id="auth-status" style="font-size:.75rem;color:var(--dim)">游客</span>
     <button type="button" class="btn btn-secondary btn-sm" id="btn-auth" onclick="toggleAuthAction()">登录</button>
     <a href="/wiki/wiki-auth-admin.html" id="auth-admin-link" style="display:none">👤 用户管理</a>
-    <a href="/wiki/notewikiindex.html">📑 文章索引</a>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="wikiRefreshIndexJson(false)" title="更新 html/wiki/wiki-index.json，供 notewikiindex 离线索引">📄 索引</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="rebuildAllHtml()" title="遍历全部 .md 重新生成 HTML">全部更新 HTML</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="cleanupUploads()" title="删除 uploads 中未被任何文章引用的文件">清理无效上传</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="openTrashModal()">🗑 回收站</button>
@@ -389,7 +404,10 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
       <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="refreshAll()" title="刷新">↺</button>
     </div>
     <div class="sb-search">
-      <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()">
+      <div class="sb-search-row">
+        <input id="sb-search" type="text" placeholder="搜索文章…" oninput="onSearchInput()" onkeydown="onSearchKeydown(event)">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openWikiSearchModal()" title="全文搜索">搜索</button>
+      </div>
       <div id="sb-search-hint" style="font-size:.72rem;color:var(--dim);padding:2px 2px 0;display:none"></div>
     </div>
     <div class="sb-fold-panel" id="sb-fold-panel">
@@ -767,6 +785,30 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
   </div>
 </div>
 
+<!-- Wiki 全文搜索 modal -->
+<div class="modal-overlay" id="modal-wiki-search">
+  <div class="modal-box modal-wide">
+    <div class="modal-head">Wiki 全文搜索<button class="modal-close" onclick="closeWikiSearchModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="wiki-search-tools">
+        <input id="wiki-search-input" type="search" placeholder="搜索标题、分类与正文…" autocomplete="off"
+               onkeydown="onWikiSearchInputKey(event)">
+        <button type="button" class="btn btn-primary btn-sm" onclick="runWikiSearchFromModal()">搜索</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="wiki-search-refresh-btn" onclick="refreshWikiSearchIndex()">刷新索引</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="wiki-search-load-btn" onclick="pickWikiSearchLocalIndex()" style="display:none">加载本地索引</button>
+        <input id="wiki-search-local-file" type="file" accept=".json,application/json" style="display:none" onchange="loadWikiSearchLocalIndexFile(this.files && this.files[0])">
+      </div>
+      <div class="wiki-search-summary" id="wiki-search-summary">输入关键字后搜索。</div>
+      <div class="wiki-search-results" id="wiki-search-results">
+        <div class="wiki-search-empty">暂无结果</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeWikiSearchModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 登录 modal -->
 <div class="modal-overlay" id="modal-login">
   <div class="modal-box">
@@ -924,7 +966,6 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
       <select id="ai-folders" class="field-input" multiple style="height:90px"
               onchange="autoSaveAiSettingsField()">
         <option value="md_db">md_db — Markdown 文档</option>
-        <option value="adoc_db">adoc_db — AsciiDoc 文档</option>
       </select>
       <div style="font-size:.7rem;color:var(--dim);margin:-2px 0 4px">按住 Ctrl/Cmd 多选，默认搜索 md_db</div>
 
@@ -946,7 +987,8 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
   </div>
 </div>
 
-<script src="/wiki/rich-render.js"></script>
+<script src="rich-render.js"></script>
+<script src="vendor/fuse/fuse.min.js"></script>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────
@@ -1085,18 +1127,12 @@ function isHiddenCategory(cat) {
   return !!cat && (
     cat === 'vendor' || cat.indexOf('vendor/') === 0 ||
     cat === 'sqlite_db' || cat.indexOf('sqlite_db/') === 0 ||
-    cat === 'adoc_html' || cat.indexOf('adoc_html/') === 0 ||
     cat === 'code_html' || cat.indexOf('code_html/') === 0 ||
     cat === 'ci_html' || cat.indexOf('ci_html/') === 0 ||
     cat === 'trash' || cat.indexOf('trash/') === 0
   );
 }
 
-// adoc 文件由独立流程管理，不在编辑器侧栏显示，也不参与文件夹筛选
-function isAdocCat(c) {
-  return c === 'adoc_db' || c.startsWith('adoc_db/') ||
-         c === 'adoc_html' || c.startsWith('adoc_html/');
-}
 
 function refreshAll(onDone) {
   setStatus('加载中…');
@@ -1161,7 +1197,7 @@ function rebuildFolderFilterUi() {
   var allCb = document.getElementById('sb-fold-all');
   if (!list || !allCb) return;
   var rows = [{ v: '__ROOT__', t: '📁 根目录（无分类）' }];
-  S.categories.forEach(function(c){ if (!isAdocCat(c)) rows.push({ v: c, t: '📂 ' + c }); });
+  S.categories.forEach(function(c){ rows.push({ v: c, t: '📂 ' + c }); });
   list.innerHTML = rows.map(function(r){
     var dc = r.v === '__ROOT__' ? '__ROOT__' : escH(r.v);
     return '<label class="sb-fold-row"><input type="checkbox" data-cat="'+dc+'"> '+escH(r.t)+'</label>';
@@ -1262,6 +1298,325 @@ var _searchTimer = null;
 var _searchQ = '';
 var _searchAbortCtrl = null; /* 取消过期搜索请求 */
 var _ftMatched = {}; // ids matched by full-text (not title/cat)
+var _wikiSearchIndex = null;
+var _wikiSearchFuse = null;
+var _wikiSearchLoadPromise = null;
+var _wikiSearchIndexLabel = '';
+var _wikiSearchCacheKey = 'notewiki-full-search-index-v1';
+var _wikiSearchIsFile = location.protocol === 'file:';
+
+function onSearchKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    openWikiSearchModal();
+  }
+}
+
+function wikiSearchIndexUrl(cacheBust) {
+  var url = 'wiki-index.json';
+  if (cacheBust && !_wikiSearchIsFile) url += '?t=' + Date.now();
+  return url;
+}
+
+function readWikiSearchCache() {
+  try {
+    var raw = localStorage.getItem(_wikiSearchCacheKey);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    return obj && obj.data ? obj.data : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function saveWikiSearchCache(data) {
+  try {
+    localStorage.setItem(_wikiSearchCacheKey, JSON.stringify({ts:Date.now(), data:data}));
+  } catch(e) {}
+}
+
+function parseWikiSearchIndex(text) {
+  var data = JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
+  if (!data || typeof data !== 'object' || !Array.isArray(data.articles))
+    throw new Error('索引格式无效');
+  if (!Array.isArray(data.categories)) data.categories = [];
+  return data;
+}
+
+function fetchWikiSearchText(url) {
+  return fetch(url, { cache:'no-store' })
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .catch(function(fetchErr){
+      return new Promise(function(resolve, reject){
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.onreadystatechange = function(){
+            if (xhr.readyState !== 4) return;
+            if ((xhr.status >= 200 && xhr.status < 300) || (xhr.status === 0 && xhr.responseText)) {
+              resolve(xhr.responseText);
+            } else {
+              reject(fetchErr || new Error('XHR ' + xhr.status));
+            }
+          };
+          xhr.onerror = function(){ reject(fetchErr || new Error('XHR error')); };
+          xhr.send();
+        } catch(e) {
+          reject(fetchErr || e);
+        }
+      });
+    });
+}
+
+function setWikiSearchIndex(data, label) {
+  var arts = (data.articles || []).filter(function(a){
+    return !isHiddenCategory(a.category || '');
+  });
+  _wikiSearchIndex = {
+    version: data.version || 1,
+    generatedAt: data.generatedAt || '',
+    articles: arts,
+    categories: data.categories || []
+  };
+  _wikiSearchIndexLabel = label || '';
+  _wikiSearchFuse = new Fuse(arts, {
+    includeScore: true,
+    includeMatches: true,
+    ignoreLocation: true,
+    threshold: 0.36,
+    minMatchCharLength: 2,
+    keys: [
+      { name:'title', weight:0.5 },
+      { name:'category', weight:0.2 },
+      { name:'content', weight:0.3 }
+    ]
+  });
+  return _wikiSearchIndex;
+}
+
+function loadWikiSearchIndex(cacheBust) {
+  if (_wikiSearchIndex && !cacheBust) return Promise.resolve(_wikiSearchIndex);
+  if (_wikiSearchLoadPromise && !cacheBust) return _wikiSearchLoadPromise;
+  var summary = document.getElementById('wiki-search-summary');
+  if (summary) summary.textContent = '正在加载离线索引...';
+  _wikiSearchLoadPromise = fetchWikiSearchText(wikiSearchIndexUrl(cacheBust))
+    .then(parseWikiSearchIndex)
+    .then(function(data){
+      setWikiSearchIndex(data, 'wiki-index.json');
+      saveWikiSearchCache(data);
+      return _wikiSearchIndex;
+    })
+    .catch(function(e){
+      var cached = readWikiSearchCache();
+      if (cached) {
+        setWikiSearchIndex(cached, '浏览器缓存');
+        return _wikiSearchIndex;
+      }
+      throw e;
+    })
+    .finally(function(){ _wikiSearchLoadPromise = null; });
+  return _wikiSearchLoadPromise;
+}
+
+function openWikiSearchModal() {
+  var modal = document.getElementById('modal-wiki-search');
+  var input = document.getElementById('wiki-search-input');
+  var sb = document.getElementById('sb-search');
+  var loadBtn = document.getElementById('wiki-search-load-btn');
+  var refreshBtn = document.getElementById('wiki-search-refresh-btn');
+  if (loadBtn) loadBtn.style.display = _wikiSearchIsFile ? '' : 'none';
+  if (refreshBtn) refreshBtn.style.display = _wikiSearchIsFile ? 'none' : '';
+  if (input && sb) input.value = sb.value || '';
+  modal.classList.add('open');
+  setTimeout(function(){ if (input) input.focus(); }, 30);
+  loadWikiSearchIndex(false)
+    .then(function(){
+      var q = input ? input.value.trim() : '';
+      if (q) runWikiSearchFromModal();
+      else renderWikiSearchIntro();
+    })
+    .catch(function(e){
+      renderWikiSearchError('索引加载失败：' + (e && e.message ? e.message : e));
+      if (loadBtn) loadBtn.style.display = '';
+    });
+}
+
+function closeWikiSearchModal() {
+  document.getElementById('modal-wiki-search').classList.remove('open');
+}
+
+function onWikiSearchInputKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runWikiSearchFromModal();
+  }
+}
+
+function renderWikiSearchIntro() {
+  var summary = document.getElementById('wiki-search-summary');
+  var results = document.getElementById('wiki-search-results');
+  if (!summary || !results) return;
+  var n = _wikiSearchIndex ? _wikiSearchIndex.articles.length : 0;
+  var gen = _wikiSearchIndex && _wikiSearchIndex.generatedAt ? (' · ' + _wikiSearchIndex.generatedAt) : '';
+  summary.textContent = '已加载 ' + n + ' 篇文章' + gen + (_wikiSearchIndexLabel ? (' · ' + _wikiSearchIndexLabel) : '');
+  results.innerHTML = '<div class="wiki-search-empty">输入关键字后点击搜索。</div>';
+}
+
+function renderWikiSearchError(msg) {
+  var summary = document.getElementById('wiki-search-summary');
+  var results = document.getElementById('wiki-search-results');
+  if (summary) summary.textContent = msg || '搜索失败';
+  if (results) results.innerHTML = '<div class="wiki-search-empty">可尝试刷新索引，或在离线模式下加载本地 wiki-index.json。</div>';
+}
+
+function wikiSearchArticleHref(a) {
+  var id = encodeURIComponent(a.id || '');
+  var cat = a.category || '';
+  var prefix = _wikiSearchIsFile ? './' : '/wiki/';
+  if (!cat) return prefix + id + '.html';
+  var segs = cat.split('/').map(function(x){ return encodeURIComponent(x); }).join('/');
+  return prefix + segs + '/' + id + '.html';
+}
+
+function wikiSearchHighlight(text, q) {
+  text = String(text || '');
+  q = String(q || '').trim();
+  if (!q) return escH(text);
+  var lower = text.toLowerCase();
+  var needle = q.toLowerCase();
+  var out = '', pos = 0, idx;
+  while ((idx = lower.indexOf(needle, pos)) >= 0) {
+    out += escH(text.slice(pos, idx));
+    out += '<mark>' + escH(text.slice(idx, idx + q.length)) + '</mark>';
+    pos = idx + q.length;
+  }
+  out += escH(text.slice(pos));
+  return out;
+}
+
+function wikiSearchSnippet(item, matches, q) {
+  var src = '';
+  var idx = -1;
+  (matches || []).some(function(m){
+    if (m.key === 'content' && m.value) {
+      src = m.value;
+      idx = m.indices && m.indices[0] ? m.indices[0][0] : -1;
+      return true;
+    }
+    return false;
+  });
+  if (!src) {
+    src = item.content || item.title || '';
+    idx = q ? src.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  }
+  if (idx < 0) idx = 0;
+  var start = Math.max(0, idx - 70);
+  var end = Math.min(src.length, idx + Math.max(q.length, 1) + 160);
+  var snip = src.slice(start, end).replace(/\s+/g, ' ').trim();
+  if (start > 0) snip = '...' + snip;
+  if (end < src.length) snip += '...';
+  return wikiSearchHighlight(snip, q);
+}
+
+function renderWikiSearchResults(rows, q) {
+  var summary = document.getElementById('wiki-search-summary');
+  var results = document.getElementById('wiki-search-results');
+  if (!summary || !results) return;
+  var total = _wikiSearchIndex ? _wikiSearchIndex.articles.length : 0;
+  summary.textContent = '搜索 "' + q + '" · ' + rows.length + ' 个结果 · 索引 ' + total + ' 篇'
+    + (_wikiSearchIndexLabel ? (' · ' + _wikiSearchIndexLabel) : '');
+  if (!rows.length) {
+    results.innerHTML = '<div class="wiki-search-empty">没有匹配结果。</div>';
+    return;
+  }
+  var html = '';
+  rows.forEach(function(r){
+    var a = r.item || r;
+    var href = wikiSearchArticleHref(a);
+    var cat = a.category || '根目录';
+    var upd = (a.updated || '').replace('T', ' ').replace('Z', '').slice(0, 16);
+    html += '<a class="wiki-search-item" href="' + esc(href) + '" target="_blank" rel="noopener">'
+      + '<div class="wiki-search-title"><span>' + wikiSearchHighlight(a.title || a.id, q) + '</span>'
+      + '<span class="wiki-search-cat">' + escH(cat) + '</span></div>'
+      + '<div class="wiki-search-snippet">' + wikiSearchSnippet(a, r.matches, q) + '</div>'
+      + '<div class="wiki-search-meta">' + escH(upd || '') + ' · ' + escH(href) + '</div>'
+      + '</a>';
+  });
+  results.innerHTML = html;
+}
+
+function runWikiSearchFromModal() {
+  var input = document.getElementById('wiki-search-input');
+  var q = input ? input.value.trim() : '';
+  if (!q) {
+    renderWikiSearchIntro();
+    return;
+  }
+  loadWikiSearchIndex(false)
+    .then(function(){
+      if (!_wikiSearchFuse) throw new Error('Fuse 未加载');
+      var rows = _wikiSearchFuse.search(q, { limit: 50 });
+      renderWikiSearchResults(rows, q);
+    })
+    .catch(function(e){
+      renderWikiSearchError('搜索失败：' + (e && e.message ? e.message : e));
+    });
+}
+
+function refreshWikiSearchIndex() {
+  if (_wikiSearchIsFile) {
+    renderWikiSearchError('离线模式不能刷新服务器索引，请加载本地 wiki-index.json。');
+    return;
+  }
+  var summary = document.getElementById('wiki-search-summary');
+  if (summary) summary.textContent = '正在刷新索引...';
+  fetch('/api/wiki-refresh-index', { credentials:'same-origin' })
+    .then(function(r){
+      return r.text().then(function(t){
+        var data = null;
+        try { data = JSON.parse(t); } catch(e) {}
+        if (!r.ok || !data || !data.ok) {
+          var msg = data && data.needLogin ? '请先登录作者或管理员账号' : ((data && data.error) || ('HTTP ' + r.status));
+          throw new Error(msg);
+        }
+        return data;
+      });
+    })
+    .then(function(){
+      return loadWikiSearchIndex(true);
+    })
+    .then(function(){
+      setStatus('Wiki 离线索引已刷新');
+      runWikiSearchFromModal();
+    })
+    .catch(function(e){
+      renderWikiSearchError('刷新索引失败：' + (e && e.message ? e.message : e));
+    });
+}
+
+function pickWikiSearchLocalIndex() {
+  document.getElementById('wiki-search-local-file').click();
+}
+
+function loadWikiSearchLocalIndexFile(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    try {
+      var data = parseWikiSearchIndex(reader.result || '');
+      setWikiSearchIndex(data, file.name || '本地索引');
+      saveWikiSearchCache(data);
+      runWikiSearchFromModal();
+    } catch(e) {
+      renderWikiSearchError('本地索引加载失败：' + (e && e.message ? e.message : e));
+    }
+  };
+  reader.onerror = function(){ renderWikiSearchError('本地索引读取失败'); };
+  reader.readAsText(file, 'utf-8');
+}
 
 function onSearchInput() {
   var q = (document.getElementById('sb-search').value||'').toLowerCase().trim();
@@ -1330,7 +1685,7 @@ function renderTree() {
 
   arts = arts.filter(function(a) {
     var c = a.category || '';
-    return !isAdocCat(c) && !isHiddenCategory(c);
+    return !isHiddenCategory(c);
   });
 
   var bycat = {};
@@ -1341,7 +1696,7 @@ function renderTree() {
   });
 
   // include empty categories (e.g. just created, no articles yet)
-  S.categories.forEach(function(c){ if(!isAdocCat(c) && !isHiddenCategory(c) && !(c in bycat)) bycat[c]=[]; });
+  S.categories.forEach(function(c){ if(!isHiddenCategory(c) && !(c in bycat)) bycat[c]=[]; });
 
   bycat = filterBycatForFolder(bycat, S.folderFilter);
 
@@ -2192,22 +2547,6 @@ function rebuildAllHtml() {
     .catch(function(e){ setStatus('请求失败：' + e.message); });
 }
 
-/** 写回 html/wiki/wiki-index.json，结构与 /api/wiki-list 相同，供 notewikiindex 离线与备份 */
-function wikiRefreshIndexJson(silent) {
-  if (!ensureWriteAuth()) return Promise.resolve();
-  if (!silent) setStatus('更新离线索引…');
-  return fetch('/api/wiki-refresh-index')
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (d && d.ok) {
-        if (!silent) setStatus('✓ 已更新 wiki-index.json（html/wiki/）');
-      } else {
-        if (!silent) setStatus('离线索引更新失败：' + ((d && d.error) || ''));
-      }
-    })
-    .catch(function(e){ if (!silent) setStatus('请求失败：'+e.message); });
-}
-
 // ── Export MD ZIP ─────────────────────────────────────────────────────
 function exportMdZip() {
   if (!S.curId) return;
@@ -2534,7 +2873,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     ? ('<base href="' + String(baseHref).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">\n')
     : '';
 
-  var boot = '<script src="/wiki/rich-render.js"><\\/script>\n'
+  var boot = '<script src="rich-render.js"><\\/script>\n'
     + '<script>(function(){'
     + 'function eh(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}'
     + 'function sid(t,u){var b=String(t||"").toLowerCase().replace(/[^\\w\\-\\u4e00-\\u9fa5]+/g,"-").replace(/^-+|-+$/g,"")||"sec";var id=b,n=1;while(u[id]){id=b+"-"+(n++);}u[id]=1;return id;}'
@@ -2544,7 +2883,7 @@ function exportPdfBuildWindow(title, cat, updated, bodyInner) {
     + 'function done(){window.__pdfReady=1;}'
     + 'try{var root=document.getElementById("pdf-article-body");if(!root){done();return;}if(!window.createRichRenderer){buildPdfToc();done();return;}'
     + 'buildPdfToc();var needRich=!!root.querySelector(".mermaid,.mermaid-block,.math-inline,.math-block,[data-tex]");if(!needRich){done();return;}'
-    + 'var rr=createRichRenderer({mathjaxSrc:"/wiki/vendor/mathjax/tex-svg-full.js",mermaidSrc:"/wiki/vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});'
+    + 'var rr=createRichRenderer({mathjaxSrc:"vendor/mathjax/tex-svg-full.js",mermaidSrc:"vendor/mermaid/mermaid.min.js",mermaidTheme:"dark"});'
     + 'rr.ensure(function(){rr.render(root);setTimeout(function(){buildPdfToc();done();},220);});setTimeout(function(){buildPdfToc();done();},1400);'
     + '}catch(e){buildPdfToc();done();}})();<\\/script>\n';
 
@@ -3927,8 +4266,8 @@ function md2html(src, syncLines) {
 
 var _richRenderTimer = null;
 var richRenderer = createRichRenderer({
-  mathjaxSrc: '/wiki/vendor/mathjax/tex-svg-full.js',
-  mermaidSrc: '/wiki/vendor/mermaid/mermaid.min.js',
+  mathjaxSrc: 'vendor/mathjax/tex-svg-full.js',
+  mermaidSrc: 'vendor/mermaid/mermaid.min.js',
   mermaidTheme: 'dark'
 });
 
@@ -5164,6 +5503,7 @@ document.addEventListener('keydown', function(e){
     if(document.getElementById('modal-color').classList.contains('open')) closeColorModal();
     if(document.getElementById('modal-history').classList.contains('open')) closeHistoryModal();
     if(document.getElementById('modal-history-detail').classList.contains('open')) closeHistoryDetailModal();
+    if(document.getElementById('modal-wiki-search').classList.contains('open')) closeWikiSearchModal();
     if(document.getElementById('modal-login').classList.contains('open')) closeLoginModal();
     document.getElementById('ctx-menu').classList.remove('open');
   }
@@ -5199,6 +5539,9 @@ document.getElementById('modal-history').addEventListener('click', function(e){
 });
 document.getElementById('modal-history-detail').addEventListener('click', function(e){
   if(e.target===this) closeHistoryDetailModal();
+});
+document.getElementById('modal-wiki-search').addEventListener('click', function(e){
+  if(e.target===this) closeWikiSearchModal();
 });
 document.getElementById('modal-login').addEventListener('click', function(e){
   if(e.target===this) closeLoginModal();

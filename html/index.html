@@ -129,7 +129,7 @@
     <div class="card-link">wiki/notewiki.html →</div>
   </a>
 
-  <a class="card" target="_blank" href="wiki/ci_html/GT_SDK_UserGuide_CN_v1.0.0.html">
+  <a class="card" target="_blank" href="/api/gt-sdk-doc">
     <div class="card-icon ic-blue">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
@@ -138,8 +138,8 @@
       </svg>
     </div>
     <div class="card-title">GT 文档中心</div>
-    <div class="card-desc">GT SDK 用户手册（每日 CI 自动更新），支持 Asciidoctor HTML 全量发布。</div>
-    <div class="card-link">wiki/ci_html/GT_SDK_UserGuide_CN_v1.0.0.html →</div>
+    <div class="card-desc">GT SDK 用户手册（每日 CI 自动更新），自动跳转到最新版本。</div>
+    <div class="card-link">wiki/ci_html/GT_SDK_*.html →</div>
   </a>
 
   <a class="card" target="_blank" href="svntools.html">
@@ -162,18 +162,6 @@
   <h2 class="group-title"><span class="group-dot"></span>测试与执行</h2>
   <div class="grid">
 
-  <a class="card" target="_blank" href="linux_cmd_test.html">
-    <div class="card-icon ic-green">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-        <path d="M7 7l3 3-3 3"/><line x1="13" y1="13" x2="17" y2="13"/>
-      </svg>
-    </div>
-    <div class="card-title">Linux 命令行测试</div>
-    <div class="card-desc">通过 SSH 批量执行命令，生成报告，支持预期结果比对与命令匹配标记。</div>
-    <div class="card-link">linux_cmd_test.html →</div>
-  </a>
-
   <a class="card" target="_blank" href="test_plan.html">
     <div class="card-icon ic-yellow">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -185,48 +173,6 @@
     <div class="card-title">系统测试用例</div>
     <div class="card-desc">查看系统测试计划与用例，包含测试环境、执行流程与结果记录。</div>
     <div class="card-link">test_plan.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="reports.html">
-    <div class="card-icon ic-purple">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-        <path d="M12 11v6M9 14h6"/>
-      </svg>
-    </div>
-    <div class="card-title">已存档报告</div>
-    <div class="card-desc">浏览服务器 <code style="font-size:11px;color:#8b949e">html/report/SSH用户名/年月/</code> 下已存档的 HTML 报告（兼容旧路径 <code>report/年月/</code>），按用户与月份分组打开。</div>
-    <div class="card-link">reports.html →</div>
-  </a>
-
-  </div>
-</section>
-
-<!-- ── 日志与监控 ── -->
-<section class="group">
-  <h2 class="group-title"><span class="group-dot"></span>日志与监控</h2>
-  <div class="grid">
-
-  <a class="card" target="_blank" href="logviewer.html">
-    <div class="card-icon ic-blue">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
-      </svg>
-    </div>
-    <div class="card-title">日志查看器</div>
-    <div class="card-desc">实时查看服务器访问日志（文件 + WebData SQLite 双源），支持级别过滤、关键字搜索与本地文件上传。</div>
-    <div class="card-link">logviewer.html →</div>
-  </a>
-
-  <a class="card" target="_blank" href="monitor.html">
-    <div class="card-icon ic-red">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-      </svg>
-    </div>
-    <div class="card-title">服务器监控</div>
-    <div class="card-desc">实时查看 CPU、内存占用、在线人数、历史峰值及累计请求等服务器运行状态。</div>
-    <div class="card-link">monitor.html →</div>
   </a>
 
   </div>
@@ -260,6 +206,18 @@
     <div class="card-title">报文生成与解析</div>
     <div class="card-desc">可视化构造与解析以太网报文（MAC/IP/TCP/UDP/VLAN），支持多种协议模板与 PCAP 导出。</div>
     <div class="card-link">PacketGen.html →</div>
+  </a>
+
+  <a class="card" target="_blank" href="PacketDiagPic.html">
+    <div class="card-icon ic-green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="18" rx="2"/>
+        <path d="M2 9h20M2 15h20M8 3v18M16 3v18"/>
+      </svg>
+    </div>
+    <div class="card-title">报文位域图</div>
+    <div class="card-desc">离线解析 PacketDiag 格式，可视化报文位域布局，支持字段标注、编辑与多协议模板。</div>
+    <div class="card-link">PacketDiagPic.html →</div>
   </a>
 
   <a class="card" target="_blank" href="extract.html">

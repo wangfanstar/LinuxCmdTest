@@ -4,179 +4,753 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f172a">
-<title>PacketGen — 报文生成与解析</title>
+<title>PacketGen — 速率转换 · 报文生成 · 解析</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
-  --accent:#38bdf8;--accent2:#818cf8;
-  --text:#e2e8f0;--text2:#94a3b8;
-  --border:#334155;--success:#22c55e;
-  --warn:#f59e0b;--danger:#ef4444;
+  /* === Type scale (1080p+ baseline) === */
+  --fs-xs:12px;  --fs-sm:13px;  --fs-md:14px;
+  --fs-lg:16px;  --fs-xl:18px;  --fs-2xl:22px;
+  --font-ui:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,'Microsoft YaHei',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','Cascadia Mono','Consolas','Courier New',monospace;
+  /* === Surfaces & text (WCAG AA tuned) === */
+  --bg:#0b1220;  --surface:#131c2f;  --surface-2:#1c2841;  --surface-3:#243250;
+  --border:#2c3a55;  --border-2:#1e2a40;
+  --text:#e8eef8;  --text-2:#aab6cc;  --text-3:#7d8aa3;
+  /* === Accents === */
+  --accent:#38bdf8;  --accent-2:#a5b4fc;
+  --success:#4ade80;  --warn:#fbbf24;  --danger:#f87171;
+  /* === Tokens === */
+  --radius:6px;  --radius-lg:8px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.3);
+  --shadow:0 4px 14px rgba(0,0,0,.4);
+  /* Legacy aliases kept for backward-compat with inline styles in JS */
+  --bg2:var(--surface);  --bg3:var(--surface-2);  --text2:var(--text-2);  --accent2:var(--accent-2);
 }
-body{background:var(--bg);color:var(--text);font:13px/1.5 'Consolas','Courier New',monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-button,input,select{font:inherit}
-.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.topbar h1{font-size:15px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-right:6px}
-.quick-info{background:#0b1322;border-bottom:1px solid var(--border);padding:5px 12px;font-size:11px;color:var(--text2);display:flex;flex-wrap:wrap;gap:12px;flex-shrink:0}
-.quick-info b{color:var(--text)}
-.tbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 11px;border-radius:4px;cursor:pointer;font-size:12px}
-.tbtn:hover{border-color:var(--accent);color:var(--accent)}
-.tbtn.primary{border-color:var(--accent);color:var(--accent)}
-.tbtn.primary:hover{background:#0c2a3e}
+body{
+  background:var(--bg);color:var(--text);
+  font:var(--fs-md)/1.55 var(--font-ui);
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#2a3650;border-radius:5px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--surface-3)}
+
+/* === Topbar === */
+.topbar{
+  background:linear-gradient(180deg,#172238 0%,#131c2f 100%);
+  border-bottom:1px solid var(--border);
+  padding:0 16px;min-height:48px;
+  display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;
+}
+.topbar h1{
+  font-size:var(--fs-xl);color:var(--accent);font-weight:700;
+  letter-spacing:.4px;margin-right:4px;font-family:var(--font-ui);
+}
+.topbar-spacer{flex:1}
+
+/* === Buttons === */
+.tbtn{
+  background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text);padding:6px 12px;border-radius:var(--radius);
+  cursor:pointer;font-size:var(--fs-sm);line-height:1.4;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:border-color .15s,background .15s,color .15s;
+  white-space:nowrap;
+}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface-3)}
+.tbtn.primary{
+  background:linear-gradient(180deg,#1b3a5a,#0f2740);
+  border-color:#2a5a85;color:#bee7ff;font-weight:600;
+}
+.tbtn.primary:hover{background:linear-gradient(180deg,#235072,#163a5c);color:#fff}
+
+/* === Topbar dropdown (<details>) === */
+.tdrop{position:relative}
+.tdrop>summary{
+  list-style:none;background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text);padding:6px 12px;border-radius:var(--radius);
+  cursor:pointer;font-size:var(--fs-sm);line-height:1.4;
+  display:inline-flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;
+}
+.tdrop>summary::-webkit-details-marker{display:none}
+.tdrop>summary::marker{content:''}
+.tdrop>summary:hover{border-color:var(--accent);color:var(--accent)}
+.tdrop[open]>summary{border-color:var(--accent);color:var(--accent);background:var(--surface-3)}
+.tdrop-menu{
+  position:absolute;top:calc(100% + 5px);left:0;min-width:200px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:5px;z-index:25;
+  display:flex;flex-direction:column;gap:1px;
+}
+.tdrop-menu button,.tdrop-menu label{
+  background:none;border:none;color:var(--text);text-align:left;
+  padding:8px 12px;border-radius:4px;cursor:pointer;
+  font-size:var(--fs-sm);font-family:inherit;
+  display:flex;align-items:center;gap:8px;
+}
+.tdrop-menu button:hover,.tdrop-menu label:hover{background:var(--surface-2);color:var(--accent)}
+
+/* === Tabs === */
+.pg-tabs{
+  display:flex;gap:2px;background:var(--bg);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  padding:0 12px;
+}
+.pg-tab{
+  background:transparent;border:none;
+  border-bottom:3px solid transparent;
+  color:var(--text-2);padding:10px 20px;cursor:pointer;
+  font-size:var(--fs-md);font-weight:500;font-family:inherit;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:color .15s,border-color .15s,background .15s;
+}
+.pg-tab:hover{color:var(--text)}
+.pg-tab.active{
+  color:var(--accent);border-bottom-color:var(--accent);
+  background:linear-gradient(180deg,transparent,rgba(56,189,248,.06));
+}
+.pg-tab-icon{font-size:var(--fs-lg);line-height:1}
+
+/* === Quick info chips === */
+.quick-info{
+  background:var(--bg);border-bottom:1px solid var(--border-2);
+  padding:9px 16px;font-size:var(--fs-sm);
+  display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;
+}
+.quick-info>span{
+  background:var(--surface);border:1px solid var(--border-2);
+  border-radius:14px;padding:3px 11px;
+  color:var(--text);display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-size:var(--fs-xs);
+}
+.quick-info b{
+  color:var(--text-3);font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.6px;font-family:var(--font-ui);
+}
+
+/* === Panels === */
+.pg-panel{display:none;flex:1;overflow:hidden;min-height:0}
+.pg-panel.active{display:flex}
 .main{display:flex;flex:1;overflow:hidden}
-.pleft{width:176px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
-.col-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
-.psec{padding:7px 8px;border-bottom:1px solid var(--border)}
-.psec h3{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
-.hbtn{width:100%;text-align:left;background:transparent;border:1px solid transparent;color:var(--text);padding:4px 7px;margin-bottom:2px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px}
-.hbtn:hover{border-color:var(--border);background:var(--bg3)}
-.dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* === Generation: left palette === */
+.pleft{
+  width:200px;flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.col-resizer{width:5px;cursor:ew-resize;flex-shrink:0;background:var(--bg);transition:background .15s}
+.col-resizer:hover{background:var(--accent)}
+.psec{padding:12px;border-bottom:1px solid var(--border-2)}
+.psec h3{
+  font-size:11px;color:var(--text-3);text-transform:uppercase;
+  letter-spacing:1.1px;margin-bottom:8px;font-weight:700;
+}
+.hbtn{
+  width:100%;text-align:left;
+  background:transparent;border:1px solid transparent;color:var(--text);
+  padding:6px 9px;margin-bottom:3px;border-radius:4px;cursor:pointer;
+  font-size:var(--fs-sm);display:flex;align-items:center;gap:9px;
+  transition:background .15s,border-color .15s;font-family:inherit;
+}
+.hbtn:hover{border-color:var(--border);background:var(--surface-2)}
+.dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+
+/* === Generation: center stack === */
 .pcenter{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.stack-bar{padding:5px 10px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);flex-shrink:0}
-.layers-list{flex:1;overflow-y:auto;padding:6px;background:var(--bg);border-bottom:1px solid var(--border);min-height:0;display:flex;flex-direction:column;gap:3px}
-.layer-item{display:flex;align-items:center;gap:5px;padding:4px 7px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;cursor:pointer;user-select:none}
-.layer-item.active{border-color:var(--accent);background:#0a1e30}
-.layer-item:hover:not(.active){border-color:var(--bg3)}
-.layer-inline-editor{margin:2px 0 8px 18px;padding:8px 10px;border:1px dashed #1e3a5f;border-radius:4px;background:rgba(15,23,42,.4)}
-.ldot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
-.lname{flex:1;font-size:12px}
-.lsz{font-size:10px;color:var(--text2);min-width:92px;text-align:right}
-.livbtn{background:none;border:none;cursor:pointer;padding:0 2px;font-size:12px;line-height:1}
-.livbtn.del{color:var(--danger);opacity:.6}
-.livbtn.del:hover{opacity:1}
-.livbtn.mv{color:var(--text2)}
-.livbtn.mv:hover{color:var(--text)}
-.empty-msg{color:var(--text2);font-size:12px;text-align:center;padding:16px}
+.stack-bar{
+  padding:9px 14px;background:var(--surface);
+  border-bottom:1px solid var(--border-2);
+  font-size:var(--fs-xs);color:var(--text-2);flex-shrink:0;
+}
+.layers-list{
+  flex:1;overflow-y:auto;padding:10px;background:var(--bg);
+  border-bottom:1px solid var(--border);
+  min-height:0;display:flex;flex-direction:column;gap:5px;
+}
+.layer-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 11px;background:var(--surface);
+  border:1px solid var(--border-2);border-radius:var(--radius);
+  cursor:pointer;user-select:none;
+  transition:border-color .15s,background .15s;
+}
+.layer-item.active{
+  border-color:var(--accent);background:var(--surface-2);
+  box-shadow:inset 0 0 0 1px rgba(56,189,248,.3);
+}
+.layer-item:hover:not(.active){border-color:var(--border)}
+.layer-inline-editor{
+  margin:4px 0 10px 22px;padding:11px 13px;
+  border:1px dashed var(--border);border-radius:var(--radius);
+  background:rgba(19,28,47,.55);
+}
+.ldot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.lname{flex:1;font-size:var(--fs-md);font-weight:500}
+.lsz{font-size:var(--fs-xs);color:var(--text-2);min-width:100px;text-align:right;font-family:var(--font-mono)}
+.livbtn{
+  background:none;border:none;cursor:pointer;padding:2px 5px;
+  font-size:var(--fs-md);line-height:1;border-radius:3px;
+}
+.livbtn.del{color:var(--danger);opacity:.65}
+.livbtn.del:hover{opacity:1;background:rgba(248,113,113,.12)}
+.livbtn.mv{color:var(--text-2)}
+.livbtn.mv:hover{color:var(--text);background:var(--surface-2)}
+.empty-msg{color:var(--text-2);font-size:var(--fs-sm);text-align:center;padding:24px}
+
 .feditor{display:none}
-.sec-title{font-size:10px;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin:8px 0 5px;border-bottom:1px solid var(--border);padding-bottom:3px}
-.word-sep{font-size:10px;color:var(--text2);margin:8px 0 4px;padding-bottom:2px;border-bottom:1px dashed #1e3a5f}
-.word-fold{border:1px solid var(--border);border-radius:4px;margin:6px 0;background:rgba(15,23,42,.35)}
-.word-fold>summary{list-style:none;cursor:pointer;padding:6px 8px;color:var(--accent2);font-size:11px;border-bottom:1px solid var(--border);user-select:none}
+.sec-title{
+  font-size:11px;color:var(--accent-2);text-transform:uppercase;
+  letter-spacing:1.1px;margin:10px 0 6px;font-weight:700;
+  border-bottom:1px solid var(--border);padding-bottom:4px;
+}
+.word-sep{
+  font-size:11px;color:var(--text-2);margin:10px 0 5px;
+  padding-bottom:3px;border-bottom:1px dashed var(--border-2);
+}
+.word-fold{
+  border:1px solid var(--border-2);border-radius:var(--radius);
+  margin:8px 0;background:rgba(19,28,47,.55);
+}
+.word-fold>summary{
+  list-style:none;cursor:pointer;padding:8px 11px;
+  color:var(--accent-2);font-size:var(--fs-sm);
+  border-bottom:1px solid var(--border-2);user-select:none;font-weight:500;
+}
 .word-fold>summary::-webkit-details-marker{display:none}
-.word-fold .word-body{padding:7px 8px 3px}
-.frow{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
-.flabel{width:130px;flex-shrink:0}
-.fname{font-size:12px;color:var(--text)}
-.fbits{font-size:10px;color:var(--text2)}
-.fdesc{font-size:10px;color:#64748b;margin-top:1px;line-height:1.3}
-.finput{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-size:12px;min-width:0}
-.finput:focus{outline:none;border-color:var(--accent)}
-.cond-sel{background:var(--bg);border:1px solid var(--accent2);color:var(--text);padding:4px 7px;border-radius:3px;font-size:12px;width:100%;margin-bottom:8px}
-.pright{width:390px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.hex-bar{padding:6px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex-shrink:0}
-.hex-replace{padding:6px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0}
-.hex-replace-inp{flex:1;min-width:140px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:3px;font-size:12px}
-.hex-replace-inp:focus{outline:none;border-color:var(--accent)}
-.toggle{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px}
-.toggle.on{background:#14291a;border-color:var(--success);color:var(--success)}
-.len-ctl{display:flex;align-items:center;gap:4px;color:var(--text2);font-size:11px}
-.len-inp{width:78px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-size:11px}
+.word-fold .word-body{padding:9px 11px 5px}
+.frow{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.flabel{width:140px;flex-shrink:0}
+.fname{font-size:var(--fs-sm);color:var(--text);font-weight:500}
+.fbits{font-size:11px;color:var(--text-2);font-family:var(--font-mono)}
+.fdesc{font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.45}
+.finput{
+  flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:5px 9px;border-radius:4px;font-size:var(--fs-sm);
+  min-width:0;font-family:var(--font-mono);transition:border-color .15s,box-shadow .15s;
+}
+.finput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.2)}
+.cond-sel{
+  background:var(--bg);border:1px solid var(--accent-2);color:var(--text);
+  padding:6px 10px;border-radius:4px;font-size:var(--fs-sm);
+  width:100%;margin-bottom:10px;font-family:inherit;
+}
+
+/* === Hex panel (right) === */
+.pright{
+  width:440px;flex-shrink:0;background:var(--surface);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.hex-bar{
+  padding:10px 12px;border-bottom:1px solid var(--border-2);
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;
+}
+.hex-replace{
+  padding:9px 12px;border-bottom:1px solid var(--border-2);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.hex-replace-inp{
+  flex:1;min-width:140px;background:var(--bg);
+  border:1px solid var(--border);color:var(--text);
+  padding:6px 10px;border-radius:4px;font-size:var(--fs-sm);
+  font-family:var(--font-mono);
+}
+.hex-replace-inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.2)}
+.toggle{
+  background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text-2);padding:5px 12px;border-radius:14px;
+  cursor:pointer;font-size:var(--fs-xs);font-weight:500;font-family:inherit;
+}
+.toggle.on{background:rgba(74,222,128,.12);border-color:var(--success);color:var(--success)}
+.len-ctl{display:flex;align-items:center;gap:6px;color:var(--text-2);font-size:var(--fs-xs)}
+.len-inp{
+  width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:4px 8px;border-radius:4px;font-size:var(--fs-xs);font-family:var(--font-mono);
+}
 .len-inp:focus{outline:none;border-color:var(--accent)}
-.hex-view{flex:1;overflow-y:auto;padding:8px 10px;font-size:11.5px}
-.hex-edit{display:none;flex:1;overflow:auto;padding:8px 10px;background:var(--bg);color:var(--text);border:none;outline:none;font-size:11.5px;line-height:1.6;font-family:'Consolas','Courier New',monospace;resize:none}
-.hline{display:flex;gap:0;white-space:pre;line-height:1.7}
-.hoff{color:var(--text2);width:68px;flex-shrink:0}
+.hex-view{flex:1;overflow-y:auto;padding:10px 12px;font-size:var(--fs-md);font-family:var(--font-mono)}
+.hex-edit{
+  display:none;flex:1;overflow:auto;padding:10px 12px;
+  background:var(--bg);color:var(--text);border:none;outline:none;
+  font-size:var(--fs-md);line-height:1.65;font-family:var(--font-mono);resize:none;
+}
+.hline{display:flex;gap:0;white-space:pre;line-height:1.75;font-family:var(--font-mono)}
+.hoff{color:var(--text-3);width:74px;flex-shrink:0}
 .hhex{color:#a5d6ff;flex:1}
-.hasc{color:#7ee787;width:120px;flex-shrink:0}
+.hasc{color:#7ee787;width:132px;flex-shrink:0}
 .fcs-byte{color:var(--warn)}
-.hl-byte{background:rgba(56,189,248,.28);border-radius:2px;box-shadow:inset 0 0 0 1px rgba(56,189,248,.45)}
-.pkt-info{padding:5px 8px;border-top:1px solid var(--border);font-size:10.5px;color:var(--text2);flex-shrink:0}
+.hl-byte{background:rgba(56,189,248,.32);border-radius:2px;box-shadow:inset 0 0 0 1px rgba(56,189,248,.55)}
+.pkt-info{
+  padding:8px 12px;border-top:1px solid var(--border-2);
+  font-size:var(--fs-xs);color:var(--text-2);flex-shrink:0;
+}
 .fcs-info{color:var(--warn);font-weight:700}
 .warn-info{color:var(--danger);font-weight:700}
-.picker-mask{position:fixed;inset:0;background:rgba(2,6,23,.66);display:none;align-items:center;justify-content:center;z-index:30}
-.picker-box{width:360px;max-width:92vw;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px}
-.picker-title{font-size:13px;color:var(--accent);margin-bottom:10px}
-.picker-select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px}
+
+/* === Modals === */
+.picker-mask{
+  position:fixed;inset:0;background:rgba(2,6,23,.72);
+  display:none;align-items:center;justify-content:center;z-index:30;
+  backdrop-filter:blur(3px);
+}
+.picker-box{
+  width:400px;max-width:92vw;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.6);
+}
+.picker-title{font-size:var(--fs-lg);color:var(--accent);margin-bottom:14px;font-weight:600}
+.picker-select{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  color:var(--text);padding:8px 10px;border-radius:4px;font-size:var(--fs-sm);font-family:inherit;
+}
 .picker-select:focus{outline:none;border-color:var(--accent)}
-.picker-actions{margin-top:12px;display:flex;justify-content:flex-end;gap:8px}
-.picker-grid{display:grid;grid-template-columns:1fr;gap:8px}
-.picker-grid label{font-size:11px;color:var(--text2)}
-/* ── 速率转换模块 ── */
-.rc-body{display:flex;flex-direction:column;gap:4px}
-.rc-row{display:flex;align-items:center;gap:3px;font-size:10px}
-.rc-row label{color:var(--text2);white-space:nowrap;min-width:28px;font-size:10px}
-.rc-inp{width:62px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 4px;border-radius:3px;font-size:10px;text-align:right;flex-shrink:0}
-.rc-inp:focus{outline:none;border-color:var(--accent)}
-.rc-inp.wide{width:80px}
-.rc-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:1px 2px;border-radius:3px;font-size:9px;flex-shrink:0}
+.picker-actions{margin-top:18px;display:flex;justify-content:flex-end;gap:8px}
+.picker-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.picker-grid label{font-size:var(--fs-sm);color:var(--text-2)}
+
+/* ============================================================
+   Rate Conversion Panel — Two-column card layout
+   ============================================================ */
+#panel-rate{flex-direction:column;overflow-y:auto;padding:24px 32px;background:var(--bg)}
+.rc-shell{max-width:1200px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+
+.rc-mode-tabs{
+  display:flex;gap:4px;padding:4px;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;
+  width:fit-content;
+}
+.rc-tab{
+  background:transparent;border:none;color:var(--text-2);
+  padding:8px 22px;border-radius:6px;cursor:pointer;
+  font-size:var(--fs-sm);font-weight:500;font-family:inherit;
+  transition:background .15s,color .15s;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.rc-tab:hover{color:var(--text)}
+.rc-tab.active{
+  background:var(--surface-3);color:var(--accent);
+  box-shadow:0 1px 3px rgba(0,0,0,.35);
+}
+
+.rc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.rc-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px 20px;
+}
+.rc-card-title{
+  font-size:var(--fs-sm);color:var(--text-3);
+  text-transform:uppercase;letter-spacing:1.2px;font-weight:700;
+  margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid var(--border-2);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+}
+.rc-section{margin-bottom:18px}
+.rc-section:last-child{margin-bottom:0}
+.rc-section-label{
+  font-size:11px;color:var(--accent-2);
+  text-transform:uppercase;letter-spacing:.9px;
+  margin-bottom:9px;font-weight:700;
+}
+.rc-body{display:flex;flex-direction:column;gap:9px}
+.rc-row{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);flex-wrap:wrap}
+.rc-row label{color:var(--text-2);white-space:nowrap;min-width:62px;font-size:var(--fs-sm);font-weight:500}
+.rc-row .rc-unit-hint{color:var(--text-2);font-size:var(--fs-xs)}
+.rc-inp{
+  width:110px;background:var(--bg);border:1px solid var(--border);
+  color:var(--text);padding:6px 10px;border-radius:4px;
+  font-size:var(--fs-sm);font-family:var(--font-mono);
+  text-align:right;flex-shrink:0;transition:border-color .15s,box-shadow .15s;
+}
+.rc-inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.2)}
+.rc-inp.wide{width:150px}
+.rc-sel{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:6px 9px;border-radius:4px;font-size:var(--fs-sm);
+  flex-shrink:0;font-family:inherit;
+}
 .rc-sel:focus{outline:none;border-color:var(--accent)}
-.rc-sel.wide{font-size:9px;max-width:68px}
-.rc-ratio{color:var(--accent2);font-size:9px;word-break:break-all;line-height:1.4;padding:2px 4px;background:rgba(0,0,0,.2);border-radius:3px;border-left:2px solid var(--accent2)}
-.rc-arrow{color:var(--text2);font-size:10px;margin:0 1px}
-.rc-result{font-size:10px;white-space:nowrap}
+.rc-sel.wide{min-width:96px}
+
+.rc-ratio{
+  color:var(--accent-2);font-size:var(--fs-md);font-family:var(--font-mono);
+  word-break:break-all;line-height:1.55;
+  padding:9px 13px;background:rgba(165,180,252,.08);
+  border-radius:4px;border-left:3px solid var(--accent-2);
+  margin-top:10px;
+}
+.rc-arrow{color:var(--text-2);font-size:var(--fs-sm);margin:0 2px}
+.rc-result{font-size:var(--fs-sm);white-space:nowrap}
 .rc-result b{color:var(--success)}
-.rc-swap-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:1px 4px;border-radius:3px;cursor:pointer;font-size:10px;flex-shrink:0;white-space:nowrap}
+
+.rc-swap-btn{
+  background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text-2);padding:7px 14px;border-radius:5px;cursor:pointer;
+  font-size:var(--fs-xs);flex-shrink:0;white-space:nowrap;font-weight:500;font-family:inherit;
+  transition:border-color .15s,color .15s,background .15s;
+}
 .rc-swap-btn:hover{border-color:var(--accent);color:var(--accent)}
-.rc-swap-btn.active{border-color:var(--accent);color:var(--accent);background:#0c2a3e}
-.rc-copy-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:0 4px;border-radius:3px;cursor:pointer;font-size:9px;flex-shrink:0;transition:all .15s;line-height:1.6}
+.rc-swap-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(56,189,248,.12)}
+
+.rc-copy-btn{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);
+  padding:4px 10px;border-radius:4px;cursor:pointer;font-family:inherit;
+  font-size:var(--fs-xs);flex-shrink:0;transition:all .15s;line-height:1.5;
+}
 .rc-copy-btn:hover{border-color:var(--accent);color:var(--accent)}
-.rc-copy-btn.copied{border-color:var(--success);color:var(--success)}
-/* 分隔线标题 */
-.rc-divider{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;padding:3px 0 1px;border-bottom:1px dashed #1e3a5f;margin:3px 0 2px;display:flex;align-items:center;gap:4px}
-.rc-divider span{opacity:.6}
-/* 模式标签 */
-.rc-mode-tabs{display:flex;gap:2px;margin-bottom:3px}
-.rc-tab{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:2px 0;border-radius:3px;cursor:pointer;font-size:9px;text-align:center;transition:all .15s}
-.rc-tab.active{background:#0c2a3e;border-color:var(--accent);color:var(--accent)}
-/* 结果展示区 */
-.rc-results-panel{background:rgba(0,0,0,.25);border:1px solid #1a2a3a;border-radius:4px;padding:5px 6px;margin-top:3px;display:flex;flex-direction:column;gap:2px}
-.rc-res-section{display:flex;flex-direction:column;gap:1px}
-.rc-res-hdr{font-size:9px;color:var(--text2);padding:1px 0;border-bottom:1px solid #1a2a3a;margin-bottom:2px;display:flex;align-items:center;gap:4px}
-.rc-res-hdr b{color:var(--accent2)}
-.rc-res-row{display:flex;align-items:center;gap:3px;padding:1px 0}
-.rc-res-val{flex:1;font-size:10px;color:#7ee787;font-family:'Consolas','Courier New',monospace}
-.rc-res-unit{font-size:9px;color:var(--text2);min-width:32px}
-.rc-res-full{font-size:9px;color:#4a8060}
-.rc-highlight{color:var(--success)!important;font-size:11px!important;font-weight:700}
-/* 线速快算 */
-.rc-linerate-row{display:flex;align-items:center;gap:3px;padding:2px 0;font-size:9px;color:var(--text2)}
-.rc-linerate-val{color:#f0c040;font-size:10px;font-weight:700}
-/* 工具提示 */
-.rc-hint{font-size:9px;color:#4a6070;font-style:italic;padding:1px 0}
-#left-resizer{width:6px;cursor:ew-resize;background:linear-gradient(to right,#1e293b,#334155,#1e293b);flex-shrink:0}
-.decoder{flex-shrink:0;background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column;min-height:100px;height:220px}
-.dec-resizer{height:8px;cursor:ns-resize;background:linear-gradient(to bottom,#2b3b52,#1e293b)}
-.dec-bar{padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
-.dec-bar label{font-size:11px;color:var(--text2);white-space:nowrap}
-.dec-inp{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:3px;font-size:12px;min-width:140px}
-.dec-inp:focus{outline:none;border-color:var(--accent)}
-.dec-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-size:12px}
-.dec-res{flex:1;overflow-y:auto;padding:6px 10px;font-size:12px}
-.dhdr{color:var(--accent);font-weight:700;margin:6px 0 3px;font-size:12px}
-.dfield{display:flex;gap:0;padding:2px 0;border-bottom:1px solid #0f1e30}
+.rc-copy-btn.copied{border-color:var(--success);color:var(--success);background:rgba(74,222,128,.12)}
+
+/* legacy divider — no longer rendered in new HTML, but kept so old layouts still look acceptable */
+.rc-divider{
+  font-size:11px;color:var(--accent-2);text-transform:uppercase;letter-spacing:.9px;
+  padding:5px 0 3px;border-bottom:1px dashed var(--border-2);margin:6px 0 6px;
+  display:flex;align-items:center;gap:5px;font-weight:700;
+}
+.rc-divider span{opacity:.85}
+
+/* === Result panel === */
+.rc-results-panel{display:flex;flex-direction:column;gap:12px}
+.rc-res-section{
+  background:var(--bg);border:1px solid var(--border-2);
+  border-radius:var(--radius);padding:13px 15px;
+  display:flex;flex-direction:column;gap:6px;position:relative;
+}
+.rc-res-hdr{
+  font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;font-weight:700;
+  padding-bottom:7px;border-bottom:1px solid var(--border-2);margin-bottom:5px;
+  display:flex;align-items:center;gap:7px;justify-content:space-between;
+}
+.rc-res-hdr b{color:var(--accent-2);font-weight:700;letter-spacing:.6px}
+.rc-res-row{display:flex;align-items:baseline;gap:10px;padding:3px 0}
+.rc-res-val{
+  flex:1;font-size:var(--fs-lg);color:var(--success);
+  font-family:var(--font-mono);font-weight:600;
+}
+.rc-res-unit{font-size:var(--fs-xs);color:var(--text-2);min-width:104px;text-align:right;font-family:var(--font-mono)}
+.rc-res-full{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.rc-highlight{color:var(--success)!important;font-size:var(--fs-2xl)!important;font-weight:700;font-family:var(--font-mono)}
+.rc-linerate-row{display:flex;align-items:baseline;gap:9px;padding:3px 0;font-size:var(--fs-sm);color:var(--text-2)}
+.rc-linerate-val{color:var(--warn);font-size:var(--fs-lg);font-weight:700;font-family:var(--font-mono)}
+.rc-hint{font-size:var(--fs-xs);color:var(--text-3);font-style:italic;padding:4px 0;line-height:1.5}
+
+/* === Decoder === */
+#left-resizer{width:5px;cursor:ew-resize;background:var(--bg);flex-shrink:0;transition:background .15s}
+#left-resizer:hover{background:var(--accent)}
+.decoder{
+  flex-shrink:0;background:var(--surface);
+  border-top:2px solid var(--border);
+  display:flex;flex-direction:column;min-height:100px;height:240px;
+}
+.dec-resizer{height:6px;cursor:ns-resize;background:var(--bg);transition:background .15s}
+.dec-resizer:hover{background:var(--accent)}
+.dec-bar{
+  padding:12px 14px;border-bottom:1px solid var(--border-2);
+  display:flex;align-items:flex-start;gap:8px 10px;flex-shrink:0;flex-wrap:wrap;
+}
+.dec-bar>label{padding-top:8px}
+.dec-bar>button{margin-top:0}
+.dec-bar label{font-size:var(--fs-sm);color:var(--text-2);white-space:nowrap}
+.dec-inp{
+  flex:0 1 auto;width:48ch;max-width:48ch;min-width:240px;
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:8px 11px;border-radius:4px;font-size:var(--fs-sm);
+  font-family:var(--font-mono);line-height:1.5;
+  resize:vertical;
+}
+.dec-inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.2)}
+.dec-sel{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:5px 9px;border-radius:4px;font-size:var(--fs-sm);font-family:inherit;
+}
+.dec-sel:focus{outline:none;border-color:var(--accent)}
+.dec-res{flex:1;overflow-y:auto;padding:12px 16px;font-size:var(--fs-sm)}
+.dhdr{
+  color:var(--accent);font-weight:700;margin:12px 0 6px;
+  font-size:var(--fs-md);text-transform:uppercase;letter-spacing:.6px;
+}
+.dfield{
+  display:flex;gap:0;padding:5px 4px;
+  border-bottom:1px solid var(--border-2);border-radius:3px;
+}
 .dfield.clickable{cursor:pointer}
-.dfield.clickable:hover{background:rgba(56,189,248,.08)}
-.dfn{color:var(--text2);width:170px;flex-shrink:0;font-size:11px}
-.dfv{color:var(--text);flex:1;font-size:12px}
-.dfd{color:#4a6070;font-size:10px;padding-left:8px}
-.dec-fold{border:1px solid #1c2b40;border-radius:4px;margin:6px 0;background:rgba(15,23,42,.35)}
-.dec-fold>summary{list-style:none;cursor:pointer;padding:2px 8px}
+.dfield.clickable:hover{background:rgba(56,189,248,.1)}
+.dfn{color:var(--text-2);width:180px;flex-shrink:0;font-size:var(--fs-sm)}
+.dfv{color:var(--text);flex:1;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.dfd{color:var(--text-3);font-size:var(--fs-xs);padding-left:10px;line-height:1.5}
+.dec-fold{
+  border:1px solid var(--border-2);border-radius:var(--radius);
+  margin:8px 0;background:rgba(19,28,47,.5);
+}
+.dec-fold>summary{list-style:none;cursor:pointer;padding:7px 11px;color:var(--accent);font-weight:600}
 .dec-fold>summary::-webkit-details-marker{display:none}
-.word-hdr{color:var(--accent2);font-size:10px;margin:5px 0 2px;border-bottom:1px dashed #1e3a5f;padding-bottom:2px}
+.word-hdr{
+  color:var(--accent-2);font-size:11px;margin:7px 0 4px;
+  border-bottom:1px dashed var(--border-2);padding-bottom:3px;
+  text-transform:uppercase;letter-spacing:.6px;font-weight:600;
+}
+
+/* === Main tab visibility helpers === */
+.pg-gen-only{display:none}
+body.pg-tab-gen .quick-info.pg-gen-only{display:flex}
+body.pg-tab-gen button.pg-gen-only{display:inline-flex}
+body.pg-tab-gen label.pg-gen-only{display:inline-flex}
+body.pg-tab-gen details.pg-gen-only{display:block}
+body.pg-tab-gen span.pg-gen-only{display:inline}
+
+#panel-gen{flex-direction:column}
+#panel-gen .main{flex:1}
+#panel-decode{flex-direction:column}
+#panel-decode .decoder{flex:1;border-top:none;height:auto!important;min-height:0}
+
+/* === Responsive === */
+@media (max-width:1100px){.rc-grid{grid-template-columns:1fr}}
+@media (max-width:900px){
+  #panel-rate{padding:16px}
+  .pleft{width:170px}
+  .pright{width:380px}
+}
 </style>
 </head>
 <body>
 <div class="topbar">
   <a href="index.html" class="tbtn" style="text-decoration:none">&#8962; 主页</a>
   <h1>&#9889; PacketGen</h1>
-  <button class="tbtn primary" onclick="genPacket()">&#9654; 生成报文</button>
-  <button class="tbtn" onclick="clearAll()">&#10005; 清空</button>
-  <button class="tbtn" onclick="applyPauseTemplate()">⚡ 一键 PAUSE</button>
-  <button class="tbtn" onclick="applyPfcTemplate()">⚡ 一键 PFC</button>
-  <button class="tbtn" onclick="applyCbfcTemplate()">⚡ 一键 CBFC</button>
-  <button class="tbtn" onclick="apply1588Template()">🕒 一键 1588</button>
-  <button class="tbtn" onclick="applySyncETemplate()">⏱ 一键 SyncE</button>
-  <button class="tbtn" onclick="exportJsonTemplate()">&#128190; 导出模板JSON</button>
-  <button class="tbtn" onclick="loadCustomHdrs()">&#8635; 刷新自定义头</button>
-  <label class="tbtn" for="file-json-inp" style="cursor:pointer">&#128194; 加载JSON</label>
+  <div class="topbar-spacer"></div>
+  <button class="tbtn primary pg-gen-only" onclick="genPacket()">&#9654; 生成报文</button>
+  <button class="tbtn pg-gen-only" onclick="clearAll()">&#10005; 清空</button>
+  <details class="tdrop pg-gen-only">
+    <summary>&#9889; 模板 &#9662;</summary>
+    <div class="tdrop-menu">
+      <button type="button" onclick="_menuAct(this,applyPauseTemplate)">PAUSE</button>
+      <button type="button" onclick="_menuAct(this,applyPfcTemplate)">PFC</button>
+      <button type="button" onclick="_menuAct(this,applyCbfcTemplate)">CBFC</button>
+      <button type="button" onclick="_menuAct(this,apply1588Template)">1588 (PTPv2)&hellip;</button>
+      <button type="button" onclick="_menuAct(this,applySyncETemplate)">SyncE</button>
+    </div>
+  </details>
+  <details class="tdrop pg-gen-only">
+    <summary>&#128194; 文件 &#9662;</summary>
+    <div class="tdrop-menu">
+      <label for="file-json-inp" onclick="this.closest('details').removeAttribute('open')">&#128229; 加载 JSON</label>
+      <button type="button" onclick="_menuAct(this,exportJsonTemplate)">&#128190; 导出模板 JSON</button>
+      <button type="button" onclick="_menuAct(this,loadCustomHdrs)">&#8635; 刷新自定义头</button>
+    </div>
+  </details>
   <input type="file" id="file-json-inp" accept=".json" style="display:none" onchange="onFileJson(this)">
-  <span style="margin-left:auto;color:var(--text2);font-size:11px">报文生成 &middot; 解析 &middot; PCAP导出</span>
 </div>
-<div class="quick-info" id="quick-info">
-  <span><b>DMAC</b>: -</span><span><b>SMAC</b>: -</span><span><b>SIP</b>: -</span><span><b>DIP</b>: -</span><span><b>PORT</b>: -</span><span><b>LEN</b>: 0B</span>
+<div class="quick-info pg-gen-only" id="quick-info">
+  <span><b>DMAC</b> -</span><span><b>SMAC</b> -</span><span><b>SIP</b> -</span><span><b>DIP</b> -</span><span><b>PORT</b> -</span><span><b>LEN</b> 0B</span>
 </div>
-<div class="main">
+<div class="pg-tabs" role="tablist">
+  <button class="pg-tab active" id="pg-tab-rate" type="button" onclick="setMainTab('rate')"><span class="pg-tab-icon">&#8646;</span><span>速率转换</span></button>
+  <button class="pg-tab" id="pg-tab-gen" type="button" onclick="setMainTab('gen')"><span class="pg-tab-icon">&#9993;</span><span>报文生成</span></button>
+  <button class="pg-tab" id="pg-tab-decode" type="button" onclick="setMainTab('decode')"><span class="pg-tab-icon">&#128269;</span><span>报文解析</span></button>
+</div>
+<div id="panel-rate" class="pg-panel active">
+  <div class="rc-shell">
+
+    <!-- Mode selector (segmented control) -->
+    <div class="rc-mode-tabs" role="tablist">
+      <button class="rc-tab active" id="rc-tab-freq" type="button" onclick="rcSetMode('freq')">&#8646; 降频换算</button>
+      <button class="rc-tab" id="rc-tab-unit" type="button" onclick="rcSetMode('unit')">&#128208; 单位换算</button>
+      <button class="rc-tab" id="rc-tab-line" type="button" onclick="rcSetMode('line')">&#9889; 线速计算</button>
+    </div>
+
+    <div class="rc-grid">
+
+      <!-- ============== Input card ============== -->
+      <div class="rc-card">
+        <div class="rc-card-title"><span>输入参数</span></div>
+
+        <!-- ① 降频换算 -->
+        <div id="rc-pane-freq">
+          <div class="rc-section">
+            <div class="rc-section-label">时钟频率</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>参考</label>
+                <input id="rc-ref-freq" class="rc-inp" value="3125" oninput="calcRateConv()">
+                <select id="rc-ref-unit" class="rc-sel" onchange="calcRateConv()">
+                  <option value="GHz">GHz</option>
+                  <option value="MHz" selected>MHz</option>
+                  <option value="KHz">KHz</option>
+                  <option value="Hz">Hz</option>
+                </select>
+              </div>
+              <div class="rc-row">
+                <label>运行</label>
+                <input id="rc-op-freq" class="rc-inp" value="373" oninput="calcRateConv()">
+                <select id="rc-op-unit" class="rc-sel" onchange="calcRateConv()">
+                  <option value="GHz">GHz</option>
+                  <option value="MHz">MHz</option>
+                  <option value="KHz" selected>KHz</option>
+                  <option value="Hz">Hz</option>
+                </select>
+              </div>
+              <div class="rc-ratio" id="rc-ratio-display">降频比: -</div>
+            </div>
+          </div>
+
+          <div class="rc-section">
+            <div class="rc-section-label">帧参数</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>包长</label>
+                <input id="rc-pkt-len" class="rc-inp" value="64" oninput="calcRateConv()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+              <div class="rc-row">
+                <label>IPG</label>
+                <input id="rc-ipg" class="rc-inp" value="20" oninput="calcRateConv()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+              <div class="rc-hint">帧间隙 = Preamble 8B + IFG 12B = 20B</div>
+            </div>
+          </div>
+
+          <div class="rc-section">
+            <div class="rc-section-label">速率输入</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label id="rc-cur-label">当前</label>
+                <input id="rc-cur-rate" class="rc-inp wide" placeholder="速率值" oninput="calcRateConv()">
+                <select id="rc-rate-unit" class="rc-sel wide" onchange="calcRateConv()">
+                  <optgroup label="— pps —">
+                    <option value="pps:1" selected>pps</option>
+                    <option value="pps:1e3">Kpps (×10³)</option>
+                    <option value="pps:1e6">Mpps (×10⁶)</option>
+                    <option value="pps:1e9">Gpps (×10⁹)</option>
+                  </optgroup>
+                  <optgroup label="— bps —">
+                    <option value="bps:1">bps</option>
+                    <option value="bps:1e3">Kbps (×10³)</option>
+                    <option value="bps:1e6">Mbps (×10⁶)</option>
+                    <option value="bps:1e9">Gbps (×10⁹)</option>
+                    <option value="bps:1e12">Tbps (×10¹²)</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="rc-section">
+            <div class="rc-section-label">换算方向</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <button class="rc-swap-btn active" id="rc-btn-curr2eq" type="button" onclick="setRateConvDir(0)">TC输入 → 等效</button>
+                <button class="rc-swap-btn" id="rc-btn-eq2curr" type="button" onclick="setRateConvDir(1)">等效 → TC输入</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ② 单位换算 -->
+        <div id="rc-pane-unit" style="display:none">
+          <div class="rc-section">
+            <div class="rc-section-label">帧参数</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>包长</label>
+                <input id="rc-pkt-len2" class="rc-inp" value="64" oninput="calcUnitConv()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+              <div class="rc-row">
+                <label>IPG</label>
+                <input id="rc-unit-ifg" class="rc-inp" value="20" oninput="calcUnitConv()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+            </div>
+          </div>
+          <div class="rc-section">
+            <div class="rc-section-label">输入速率</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>数值</label>
+                <input id="rc-unit-inp" class="rc-inp wide" placeholder="速率值" oninput="calcUnitConv()">
+                <select id="rc-unit-from" class="rc-sel wide" onchange="calcUnitConv()">
+                  <optgroup label="— pps —">
+                    <option value="pps:1">pps</option>
+                    <option value="pps:1e3">Kpps</option>
+                    <option value="pps:1e6" selected>Mpps</option>
+                    <option value="pps:1e9">Gpps</option>
+                  </optgroup>
+                  <optgroup label="— bps —">
+                    <option value="bps:1">bps</option>
+                    <option value="bps:1e3">Kbps</option>
+                    <option value="bps:1e6">Mbps</option>
+                    <option value="bps:1e9">Gbps</option>
+                    <option value="bps:1e12">Tbps</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="rc-hint">自动换算全部 pps/bps 单位及互转</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 线速计算 -->
+        <div id="rc-pane-line" style="display:none">
+          <div class="rc-section">
+            <div class="rc-section-label">链路带宽</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>带宽</label>
+                <input id="rc-line-bw" class="rc-inp wide" value="100" oninput="calcLineRate()">
+                <select id="rc-line-unit" class="rc-sel wide" onchange="calcLineRate()">
+                  <option value="1e6">Mbps</option>
+                  <option value="1e9" selected>Gbps</option>
+                  <option value="1e12">Tbps</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="rc-section">
+            <div class="rc-section-label">帧参数</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>帧长</label>
+                <input id="rc-line-pkt" class="rc-inp" value="64" oninput="calcLineRate()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+              <div class="rc-row">
+                <label>IFG</label>
+                <input id="rc-line-ifg" class="rc-inp" value="20" oninput="calcLineRate()">
+                <span class="rc-unit-hint">Byte</span>
+              </div>
+              <div class="rc-row">
+                <label>利用率</label>
+                <input id="rc-line-util" class="rc-inp" value="100" oninput="calcLineRate()">
+                <span class="rc-unit-hint">%</span>
+              </div>
+              <div class="rc-hint">IFG = 以太网帧间隙 12B + Preamble 8B</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============== Result card ============== -->
+      <div class="rc-card">
+        <div class="rc-card-title">
+          <span>实时结果</span>
+          <label style="font-size:var(--fs-xs);color:var(--text-2);display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0">
+            <input type="checkbox" id="rc-copy-numonly" checked style="margin:0;width:auto"> 仅复制数值
+          </label>
+        </div>
+        <div class="rc-results-panel" id="rc-results-panel">
+          <div style="color:var(--text-2);font-size:var(--fs-sm);text-align:center;padding:32px 8px">输入参数后显示结果</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="panel-gen" class="pg-panel">
+  <div class="main">
   <div class="pleft">
     <div class="psec">
       <h3>标准协议头</h3>
@@ -195,154 +769,6 @@ button,input,select{font:inherit}
     <div class="psec" id="custom-list">
       <h3>自定义报文头</h3>
       <div style="color:var(--text2);font-size:11px;padding:2px 0">加载中...</div>
-    </div>
-    <div class="psec" id="rate-conv-sec">
-      <h3>&#9889; 速率转换</h3>
-      <div class="rc-body">
-
-        <!-- 模式切换 -->
-        <div class="rc-mode-tabs">
-          <button class="rc-tab active" id="rc-tab-freq" onclick="rcSetMode('freq')">降频换算</button>
-          <button class="rc-tab" id="rc-tab-unit" onclick="rcSetMode('unit')">单位换算</button>
-          <button class="rc-tab" id="rc-tab-line" onclick="rcSetMode('line')">线速计算</button>
-        </div>
-
-        <!-- ① 降频换算模式 -->
-        <div id="rc-pane-freq">
-          <div class="rc-divider"><span>时钟频率</span></div>
-          <div class="rc-row">
-            <label>参考</label>
-            <input id="rc-ref-freq" class="rc-inp" value="3125" oninput="calcRateConv()">
-            <select id="rc-ref-unit" class="rc-sel" onchange="calcRateConv()">
-              <option value="GHz">GHz</option>
-              <option value="MHz" selected>MHz</option>
-              <option value="KHz">KHz</option>
-              <option value="Hz">Hz</option>
-            </select>
-          </div>
-          <div class="rc-row">
-            <label>运行</label>
-            <input id="rc-op-freq" class="rc-inp" value="373" oninput="calcRateConv()">
-            <select id="rc-op-unit" class="rc-sel" onchange="calcRateConv()">
-              <option value="GHz">GHz</option>
-              <option value="MHz">MHz</option>
-              <option value="KHz" selected>KHz</option>
-              <option value="Hz">Hz</option>
-            </select>
-          </div>
-          <div class="rc-ratio" id="rc-ratio-display">降频比: -</div>
-          <div class="rc-divider"><span>输入速率</span></div>
-          <div class="rc-row">
-            <label>包长</label>
-            <input id="rc-pkt-len" class="rc-inp" value="64" placeholder="B" oninput="calcRateConv()" style="width:44px">
-            <span style="color:var(--text2);font-size:9px">Byte</span>
-          </div>
-          <div class="rc-row">
-            <label>IPG</label>
-            <input id="rc-ipg" class="rc-inp" value="20" placeholder="B" oninput="calcRateConv()" style="width:44px">
-            <span style="color:var(--text2);font-size:9px">Byte</span>
-            <span style="font-size:9px;color:#4a6070;margin-left:2px" title="帧间隙：Preamble 8B + IFG 12B = 20B">(?)</span>
-          </div>
-          <div class="rc-hint">帧间隙: Preamble 8B + IFG 12B = 20B</div>
-          <div class="rc-row">
-            <label id="rc-cur-label">当前</label>
-            <input id="rc-cur-rate" class="rc-inp wide" placeholder="速率值" oninput="calcRateConv()">
-            <select id="rc-rate-unit" class="rc-sel wide" onchange="calcRateConv()">
-              <optgroup label="— pps —">
-                <option value="pps:1" selected>pps</option>
-                <option value="pps:1e3">Kpps (×10³)</option>
-                <option value="pps:1e6">Mpps (×10⁶)</option>
-                <option value="pps:1e9">Gpps (×10⁹)</option>
-              </optgroup>
-              <optgroup label="— bps —">
-                <option value="bps:1">bps</option>
-                <option value="bps:1e3">Kbps (×10³)</option>
-                <option value="bps:1e6">Mbps (×10⁶)</option>
-                <option value="bps:1e9">Gbps (×10⁹)</option>
-                <option value="bps:1e12">Tbps (×10¹²)</option>
-              </optgroup>
-            </select>
-          </div>
-          <div class="rc-row" style="justify-content:flex-end;gap:4px">
-            <span style="font-size:9px;color:var(--text2)">方向</span>
-            <button class="rc-swap-btn active" id="rc-btn-curr2eq" onclick="setRateConvDir(0)">TC输入 → 等效</button>
-            <button class="rc-swap-btn" id="rc-btn-eq2curr" onclick="setRateConvDir(1)">等效 → TC输入</button>
-          </div>
-        </div>
-
-        <!-- ② 单位换算模式 -->
-        <div id="rc-pane-unit" style="display:none">
-          <div class="rc-divider"><span>直接单位换算（无需时钟）</span></div>
-          <div class="rc-row">
-            <label>包长</label>
-            <input id="rc-pkt-len2" class="rc-inp" value="64" placeholder="B" oninput="calcUnitConv()" style="width:44px">
-            <span style="color:var(--text2);font-size:9px">Byte</span>
-            <span style="font-size:9px;color:#4a6070;margin-left:2px">+IPG</span>
-            <input id="rc-unit-ifg" class="rc-inp" value="20" oninput="calcUnitConv()" style="width:30px">
-            <span style="font-size:9px;color:var(--text2)">B</span>
-          </div>
-          <div class="rc-row">
-            <label>输入</label>
-            <input id="rc-unit-inp" class="rc-inp wide" placeholder="数值" oninput="calcUnitConv()">
-            <select id="rc-unit-from" class="rc-sel wide" onchange="calcUnitConv()">
-              <optgroup label="— pps —">
-                <option value="pps:1">pps</option>
-                <option value="pps:1e3">Kpps</option>
-                <option value="pps:1e6" selected>Mpps</option>
-                <option value="pps:1e9">Gpps</option>
-              </optgroup>
-              <optgroup label="— bps —">
-                <option value="bps:1">bps</option>
-                <option value="bps:1e3">Kbps</option>
-                <option value="bps:1e6">Mbps</option>
-                <option value="bps:1e9">Gbps</option>
-                <option value="bps:1e12">Tbps</option>
-              </optgroup>
-            </select>
-          </div>
-          <div class="rc-hint">自动换算全部 pps/bps 单位及互转</div>
-        </div>
-
-        <!-- ③ 线速计算模式 -->
-        <div id="rc-pane-line" style="display:none">
-          <div class="rc-divider"><span>链路线速 → 最大 pps</span></div>
-          <div class="rc-row">
-            <label>链路</label>
-            <input id="rc-line-bw" class="rc-inp wide" value="100" oninput="calcLineRate()">
-            <select id="rc-line-unit" class="rc-sel wide" onchange="calcLineRate()">
-              <option value="1e6">Mbps</option>
-              <option value="1e9" selected>Gbps</option>
-              <option value="1e12">Tbps</option>
-            </select>
-          </div>
-          <div class="rc-row">
-            <label>帧长</label>
-            <input id="rc-line-pkt" class="rc-inp" value="64" oninput="calcLineRate()" style="width:44px">
-            <span style="color:var(--text2);font-size:9px">Byte</span>
-            <span style="font-size:9px;color:#4a6070;margin-left:2px">+IFG</span>
-            <input id="rc-line-ifg" class="rc-inp" value="20" oninput="calcLineRate()" style="width:30px">
-            <span style="font-size:9px;color:var(--text2)">B</span>
-          </div>
-          <div class="rc-row">
-            <label>利用率</label>
-            <input id="rc-line-util" class="rc-inp" value="100" oninput="calcLineRate()" style="width:36px">
-            <span style="font-size:9px;color:var(--text2)">%</span>
-          </div>
-          <div class="rc-hint">IFG=20B(以太网标准帧间隙12B+前导8B)</div>
-        </div>
-
-        <!-- 复制选项 -->
-        <div style="display:flex;align-items:center;gap:6px;padding:2px 0 4px 0">
-          <label style="font-size:9px;color:var(--text2);display:flex;align-items:center;gap:3px;cursor:pointer">
-            <input type="checkbox" id="rc-copy-numonly" style="width:auto;margin:0;vertical-align:middle"> 仅复制数值（不含单位）
-          </label>
-        </div>
-        <!-- 统一结果面板 -->
-        <div class="rc-results-panel" id="rc-results-panel">
-          <div style="color:var(--text2);font-size:9px;text-align:center;padding:4px">输入参数后显示结果</div>
-        </div>
-
-      </div>
     </div>
   </div>
   <div id="left-resizer" title="拖动调整左侧面板宽度"></div>
@@ -374,11 +800,15 @@ button,input,select{font:inherit}
     <div class="hex-view" id="hex-view"><div style="color:var(--text2);text-align:center;padding:20px;font-size:12px">点击「生成报文」查看十六进制</div></div>
     <textarea id="hex-edit" class="hex-edit" spellcheck="false"></textarea>
     <div class="pkt-info" id="pkt-info"></div>
+  </div>
+  </div>
+</div>
+<div id="panel-decode" class="pg-panel">
     <div class="decoder">
       <div class="dec-resizer" id="dec-resizer" title="拖动调整解析器高度"></div>
       <div class="dec-bar">
         <label>&#128269; 解析器</label>
-        <input class="dec-inp" id="dec-inp" placeholder="粘贴十六进制 (45 00 00 28... 或 4500002800...)">
+        <textarea class="dec-inp" id="dec-inp" rows="3" placeholder="粘贴十六进制 (45 00 00 28... 或 4500002800...)&#10;每行最多 16 字节，可拖动右下角调整高度"></textarea>
         <label>强制模板:</label>
         <select class="dec-sel" id="dec-force">
           <option value="">自动识别</option>
@@ -401,7 +831,6 @@ button,input,select{font:inherit}
       </div>
       <div class="dec-res" id="dec-res"><span style="color:var(--text2)">在上方粘贴十六进制数据后点击解析</span></div>
     </div>
-  </div>
 </div>
 <div id="picker-mask" class="picker-mask">
   <div class="picker-box">
@@ -451,6 +880,24 @@ button,input,select{font:inherit}
 
 <script>
 'use strict';
+/* === Topbar dropdown helpers === */
+function _menuAct(btn,fn){
+  var d=btn&&btn.closest?btn.closest('details'):null;
+  if(d)d.removeAttribute('open');
+  try{fn();}catch(e){console.error(e);}
+}
+document.addEventListener('click',function(e){
+  var open=document.querySelectorAll('details.tdrop[open]');
+  for(var i=0;i<open.length;i++){
+    if(!open[i].contains(e.target))open[i].removeAttribute('open');
+  }
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var open=document.querySelectorAll('details.tdrop[open]');
+    for(var i=0;i<open.length;i++)open[i].removeAttribute('open');
+  }
+});
 function parseMac(s){
   s=(s||'').replace(/[:\-\.\s]/g,'');
   if(s.length<12)s=s.padEnd(12,'0');
@@ -2978,17 +3425,17 @@ function renderPanel(sections){
   var panel=document.getElementById('rc-results-panel');
   if(!panel)return;
   if(!sections||sections.length===0){
-    panel.innerHTML='<div style="color:var(--text2);font-size:9px;text-align:center;padding:4px">输入参数后显示结果</div>';
+    panel.innerHTML='<div style="color:var(--text-2);font-size:var(--fs-sm);text-align:center;padding:32px 8px">输入参数后显示结果</div>';
     return;
   }
   var h='';
   for(var i=0;i<sections.length;i++){
     var s=sections[i];
     h+='<div class="rc-res-section">';
-    h+='<div class="rc-res-hdr"><b>'+esc(s.title)+'</b><span style="color:#4a6070">'+esc(s.sub||'')+'</span></div>';
+    h+='<div class="rc-res-hdr"><b>'+esc(s.title)+'</b><span style="color:var(--text-3);font-weight:500;letter-spacing:0;text-transform:none">'+esc(s.sub||'')+'</span></div>';
     h+=renderResRows(s.rows);
     h+='</div>';
-    if(i<sections.length-1)h+='<div style="border-top:1px solid #1a2a3a;margin:3px 0"></div>';
+    if(i<sections.length-1)h+='<div style="border-top:1px solid var(--border-2);margin:0"></div>';
   }
   panel.innerHTML=h;
 }
@@ -3180,6 +3627,17 @@ function initRateConv(){
   calcRateConv();
 }
 
+function setMainTab(tab){
+  var tabs=['rate','gen','decode'];
+  tabs.forEach(function(t){
+    var btn=document.getElementById('pg-tab-'+t);
+    var panel=document.getElementById('panel-'+t);
+    if(btn) btn.classList.toggle('active', t===tab);
+    if(panel) panel.classList.toggle('active', t===tab);
+  });
+  document.body.classList.toggle('pg-tab-gen', tab==='gen');
+}
+
 
 function initLeftPanelResize(){
   var bar=document.getElementById('left-resizer');
@@ -3215,6 +3673,7 @@ initDecoderResize();
 initRightPanelResize();
 initLeftPanelResize();
 initRateConv();
+setMainTab('rate');
 
 if(/^https?:$/.test(location.protocol)){
   var mf=document.createElement('link');

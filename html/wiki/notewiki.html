@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="vendor/vditor/dist/index.css">
 <title>NoteWiki</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -198,6 +199,15 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 .edit-right{flex:1;overflow-y:auto;padding:16px 20px;min-width:0}
 .edit-right.hidden{display:none}
 .edit-left.full{flex:2}
+.vditor-pane{flex:1;display:none;min-height:0;overflow:hidden;background:var(--bg)}
+.vditor-pane.on{display:flex;flex-direction:column}
+#vditor-editor{flex:1;min-width:0;height:100%}
+#vditor-editor .vditor{height:100%;border:none;background:var(--bg)}
+#vditor-editor .vditor-toolbar{background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
+#vditor-editor .vditor-content{background:var(--bg)}
+#vditor-editor .vditor-ir,#vditor-editor .vditor-wysiwyg,#vditor-editor .vditor-sv{background:var(--bg);color:var(--text)}
+#vditor-editor .vditor-reset{color:var(--text)}
+#vditor-editor .vditor-reset a{color:#58a6ff}
 .panel-label{padding:4px 12px;font-size:.7rem;color:var(--dim);border-bottom:1px solid var(--border);background:var(--surf);flex-shrink:0}
 
 /* view toggle */
@@ -470,6 +480,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
           <button class="vt-btn on" id="vt-split" onclick="setViewMode('split')" title="分屏">⊞</button>
           <button class="vt-btn"    id="vt-edit"  onclick="setViewMode('edit')"  title="仅编辑">✎</button>
           <button class="vt-btn"    id="vt-prev"  onclick="setViewMode('prev')"  title="仅预览">👁</button>
+          <button class="vt-btn"    id="btn-vditor-mode" onclick="toggleWikiEditEngine()" title="可视编辑 / Markdown 源码">WYS</button>
           <button class="vt-btn"    id="btn-preview-align" onclick="togglePreviewAlign()" title="默认关闭：开启后右侧预览随光标所在行自动滚动对齐">↕</button>
         </div>
         <span id="autosave-label" style="font-size:.72rem;color:var(--dim);white-space:nowrap"></span>
@@ -535,6 +546,9 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
         <div class="edit-right art-content" id="edit-right">
           <div class="panel-label" style="margin:-16px -20px 14px">预览</div>
         </div>
+      </div>
+      <div class="vditor-pane" id="vditor-pane">
+        <div id="vditor-editor"></div>
       </div>
     </div>
   </div>
@@ -989,6 +1003,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 
 <script src="rich-render.js"></script>
 <script src="vendor/fuse/fuse.min.js"></script>
+<script src="vendor/vditor/dist/index.min.js"></script>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────
@@ -1002,6 +1017,7 @@ var S = {
   editForce: false,       // 强制覆盖同名文件
   editForceCreated: '',   // 被覆盖文章原有 created 字段
   viewMode: 'split',      // split | edit | prev
+  editEngine: 'markdown', // markdown | vditor
   previewAlign: false,    // 右侧预览是否随光标自动对齐（默认关闭）
   showLineNumbers: true,  // 编辑区是否显示行号
   keyDebugEnabled: false, // 键值调试显示开关（默认关闭）
@@ -1013,6 +1029,9 @@ var S = {
   conflictServerUpdated: '' // 冲突时服务端返回的 updated
 };
 var Auth = { loggedIn:false, user:null };
+try {
+  if (localStorage.getItem('notewiki-edit-engine') === 'vditor') S.editEngine = 'vditor';
+} catch(e) {}
 
 function setAuthUi() {
   var st = document.getElementById('auth-status');
@@ -1111,6 +1130,7 @@ function init() {
   richRenderer.ensure();
   updateLineNumberUi();
   updateKeyDebugUi();
+  updateEditEngineUi();
   refreshAuthStatus().finally(function(){
     var params = new URLSearchParams(location.search);
     var editId = params.get('edit');
@@ -2008,6 +2028,7 @@ function doNewArticle() {
   populateCatSelect(cat);
   showPane('edit');
   setViewMode(S.viewMode);
+  applyWikiEditEngine(S.editEngine, {silent:true});
   updatePreview();
   updateEditorHighlight();
   histReset();
@@ -2029,6 +2050,8 @@ function loadEditorFromArticleId(id) {
   showPane('edit');
   setViewMode(S.viewMode);
   document.getElementById('edit-textarea').value = '加载中…';
+  applyWikiEditEngine(S.editEngine, {silent:true});
+  refreshVditorFromTextarea();
 
   fetch('/api/wiki-read?id=' + encodeURIComponent(id))
     .then(function(r) { return r.json(); })
@@ -2044,6 +2067,7 @@ function loadEditorFromArticleId(id) {
       }
       updatePreview();
       updateEditorHighlight();
+      refreshVditorFromTextarea();
       histReset();
       markEditBaseline();
       updateEditHtmlLink();
@@ -2106,8 +2130,147 @@ var _autoSaveTimer = null;
 var _autoSaveDirty = false;
 var _editBaseline = '';
 var _editDirty = false;
+var _vditor = null;
+var _vditorReady = false;
+var _vditorSyncing = false;
+var _vditorPendingValue = null;
+
+function getVditorValue() {
+  if (!_vditor) return '';
+  try { return _vditor.getValue(); } catch(e) { return ''; }
+}
+
+function syncVditorToTextarea(opts) {
+  opts = opts || {};
+  if (!_vditor || S.editEngine !== 'vditor') return;
+  var ta = document.getElementById('edit-textarea');
+  if (!ta) return;
+  var value = getVditorValue();
+  if (ta.value === value) return;
+  ta.value = value;
+  if (!opts.silent) onEditorInput();
+}
+
+function refreshVditorFromTextarea() {
+  var ta = document.getElementById('edit-textarea');
+  var value = ta ? (ta.value || '') : '';
+  _vditorPendingValue = value;
+  if (!_vditor || !_vditorReady) return;
+  if (getVditorValue() === value) return;
+  _vditorSyncing = true;
+  try { _vditor.setValue(value, true); } catch(e) {}
+  _vditorSyncing = false;
+}
+
+function ensureVditor() {
+  var box = document.getElementById('vditor-editor');
+  if (!box) return;
+  if (_vditor) {
+    refreshVditorFromTextarea();
+    return;
+  }
+  if (typeof Vditor !== 'function') {
+    setStatus('Vditor 未加载');
+    return;
+  }
+  var ta = document.getElementById('edit-textarea');
+  _vditorPendingValue = ta ? (ta.value || '') : '';
+  _vditorReady = false;
+  _vditor = new Vditor('vditor-editor', {
+    cdn: 'vendor/vditor',
+    value: _vditorPendingValue,
+    mode: 'ir',
+    theme: 'dark',
+    icon: 'material',
+    height: '100%',
+    cache: { enable: false },
+    counter: { enable: true, type: 'text' },
+    toolbarConfig: { pin: true },
+    preview: {
+      theme: { current: 'dark' },
+      hljs: { style: 'github-dark' }
+    },
+    toolbar: [
+      'emoji', 'headings', 'bold', 'italic', 'strike', '|',
+      'line', 'quote', 'list', 'ordered-list', 'check', '|',
+      'code', 'inline-code', 'table', 'link', '|',
+      'undo', 'redo', '|', 'edit-mode', 'both', 'preview', 'outline', 'fullscreen'
+    ],
+    input: function(value) {
+      if (_vditorSyncing) return;
+      var ta2 = document.getElementById('edit-textarea');
+      if (!ta2) return;
+      var next = value || '';
+      if (ta2.value === next) return;
+      ta2.value = next;
+      onEditorInput();
+    },
+    after: function() {
+      _vditorReady = true;
+      refreshVditorFromTextarea();
+    }
+  });
+}
+
+function updateEditEngineUi() {
+  var btn = document.getElementById('btn-vditor-mode');
+  if (!btn) return;
+  var visual = S.editEngine === 'vditor';
+  btn.classList.toggle('on', visual);
+  btn.textContent = visual ? 'MD' : 'WYS';
+  btn.title = visual ? '切回 Markdown 源码编辑' : '切换到 Vditor 可视编辑';
+}
+
+function applyMarkdownViewMode(mode) {
+  ['split','edit','prev'].forEach(function(m){
+    var b = document.getElementById('vt-'+m);
+    if (b) b.classList.toggle('on', m===mode);
+  });
+  var left  = document.getElementById('edit-left');
+  var right = document.getElementById('edit-right');
+  if (!left || !right) return;
+  if (mode==='split') { left.style.display='flex'; right.style.display='block'; left.style.flex='1'; }
+  else if (mode==='edit') { left.style.display='flex'; right.style.display='none'; left.style.flex='1'; }
+  else { left.style.display='none'; right.style.display='block'; }
+}
+
+function applyWikiEditEngine(engine, opts) {
+  opts = opts || {};
+  engine = (engine === 'vditor') ? 'vditor' : 'markdown';
+  if (S.editEngine === 'vditor' && engine !== 'vditor') syncVditorToTextarea({silent:false});
+  S.editEngine = engine;
+  try { localStorage.setItem('notewiki-edit-engine', engine); } catch(e) {}
+
+  var toolbar = document.getElementById('edit-toolbar');
+  var panels = document.getElementById('edit-panels');
+  var pane = document.getElementById('vditor-pane');
+  if (engine === 'vditor') {
+    if (toolbar) toolbar.style.display = 'none';
+    if (panels) panels.style.display = 'none';
+    if (pane) pane.classList.add('on');
+    ensureVditor();
+    refreshVditorFromTextarea();
+    setTimeout(function(){ try { if (_vditor && _vditor.focus) _vditor.focus(); } catch(e) {} }, 40);
+  } else {
+    if (toolbar) toolbar.style.display = 'flex';
+    if (panels) panels.style.display = 'flex';
+    if (pane) pane.classList.remove('on');
+    applyMarkdownViewMode(S.viewMode);
+    updatePreview();
+    updateEditorHighlight();
+    syncMirrorMetrics();
+    syncMirrorScroll();
+  }
+  updateEditEngineUi();
+  if (!opts.silent) setStatus(engine === 'vditor' ? '可视编辑模式' : 'Markdown 源码模式');
+}
+
+function toggleWikiEditEngine() {
+  applyWikiEditEngine(S.editEngine === 'vditor' ? 'markdown' : 'vditor');
+}
 
 function getEditDraftState() {
+  syncVditorToTextarea({silent:true});
   var pane = document.getElementById('pane-edit');
   if (!pane || pane.style.display === 'none') return '';
   return JSON.stringify({
@@ -2163,6 +2326,7 @@ function publishArticle(){ _doSave({ published: true }); }
 
 function _doSave(opts) {
   if (!ensureWriteAuth()) return;
+  syncVditorToTextarea({silent:true});
   opts = opts || {};
   var silent  = !!opts.silent;
   var published = !!opts.published;
@@ -3058,6 +3222,7 @@ function exportPdf() {
           return m ? m[1].trim() : '';
         })();
   } else if (inEdit) {
+    syncVditorToTextarea({silent:true});
     title = (document.getElementById('edit-title').value || '').trim() || 'untitled';
     var cv = document.getElementById('edit-category').value || '';
     cat = cv ? cv : '根目录';
@@ -4034,14 +4199,12 @@ function _updateUndoRedoBtns() {
 // ── View mode toggle ──────────────────────────────────────────────────
 function setViewMode(mode) {
   S.viewMode = mode;
-  ['split','edit','prev'].forEach(function(m){
-    document.getElementById('vt-'+m).classList.toggle('on', m===mode);
-  });
-  var left  = document.getElementById('edit-left');
-  var right = document.getElementById('edit-right');
-  if (mode==='split') { left.style.display='flex'; right.style.display='block'; left.style.flex='1'; }
-  else if (mode==='edit') { left.style.display='flex'; right.style.display='none'; left.style.flex='1'; }
-  else { left.style.display='none'; right.style.display='block'; }
+  if (S.editEngine === 'vditor') {
+    applyMarkdownViewMode(mode);
+    applyWikiEditEngine('vditor', {silent:true});
+    return;
+  }
+  applyMarkdownViewMode(mode);
   updatePreview();
   updateEditorHighlight();
 }

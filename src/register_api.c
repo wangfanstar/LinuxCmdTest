@@ -301,15 +301,3 @@ void handle_api_delete_register_file(http_sock_t client_fd, const char *body)
     send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
     LOG_INFO("delete_register  %s", full);
 }
-
-/* ── GET /api/client-info ────────────────────────────────── */
-
-void handle_api_client_info(http_sock_t client_fd, const char *client_ip)
-{
-    strbuf_t sb = {0};
-    SB_LIT(&sb, "{\"ip\":"); sb_json_str(&sb, client_ip ? client_ip : "");
-    SB_LIT(&sb, "}");
-    if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
-    else         send_json(client_fd, 500, "Internal Server Error", "{\"ip\":\"\"}", 9);
-    free(sb.data);
-}

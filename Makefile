@@ -74,20 +74,13 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/http_handler.c \
        $(SRC_DIR)/http_utils.c \
        $(SRC_DIR)/platform.c \
-       $(SRC_DIR)/report_api.c \
        $(SRC_DIR)/register_api.c \
        $(SRC_DIR)/wiki.c \
        $(SRC_DIR)/svn_api.c \
-       $(SRC_DIR)/ssh_api.c \
-       $(SRC_DIR)/monitor.c \
-       $(SRC_DIR)/ssh_exec.c \
        $(SRC_DIR)/auth_db.c \
-       $(SRC_DIR)/webdata.c
 
 ifeq ($(OS),Windows_NT)
 LDFLAGS += -lws2_32
-SRCS := $(filter-out $(SRC_DIR)/monitor.c $(SRC_DIR)/ssh_exec.c,$(SRCS)) \
-         $(SRC_DIR)/monitor_win.c $(SRC_DIR)/ssh_exec_win_stub.c
 endif
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)

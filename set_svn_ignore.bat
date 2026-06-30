@@ -7,7 +7,7 @@
 cd /d "%~dp0"
 
 set "WIKI_DIR=html\wiki"
-set "DIRS=adoc_db adoc_html ci_html code_html"
+set "DIRS=ci_html code_html"
 
 :: ── Step 1: Remove from SVN tracking ──
 echo [1/2] Removing from SVN tracking ...
@@ -25,9 +25,7 @@ for %%d in (%DIRS%) do (
 :: ── Step 2: Set svn:ignore ──
 echo.
 echo [2/2] Setting svn:ignore on %WIKI_DIR%/ ...
->  "%TEMP%\svn_ignore.txt" echo adoc_db
->> "%TEMP%\svn_ignore.txt" echo adoc_html
->> "%TEMP%\svn_ignore.txt" echo ci_html
+>  "%TEMP%\svn_ignore.txt" echo ci_html
 >> "%TEMP%\svn_ignore.txt" echo code_html
 
 svn propset svn:ignore -F "%TEMP%\svn_ignore.txt" %WIKI_DIR%\
@@ -36,5 +34,5 @@ del "%TEMP%\svn_ignore.txt"
 echo.
 echo ============================================================
 echo Done. You MUST commit the property change to make it permanent:
-echo   svn commit %WIKI_DIR% -m "ignore adoc_db adoc_html ci_html code_html"
+echo   svn commit %WIKI_DIR% -m "ignore ci_html code_html"
 echo ============================================================

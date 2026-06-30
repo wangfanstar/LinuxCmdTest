@@ -36,6 +36,7 @@ void send_json(http_sock_t fd, int status, const char *status_text,
 int  send_file(http_sock_t fd, const char *filepath);
 int  http_header_value(const char *headers, const char *name,
                        char *out, size_t cap);
+void send_redirect(http_sock_t fd, const char *location);
 
 /* ── URL / 路径工具 ─────────────────────────────────────── */
 void url_decode_report_fn(char *s);

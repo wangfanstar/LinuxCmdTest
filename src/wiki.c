@@ -33,11 +33,11 @@
 #define WIKI_ROOT      WEB_ROOT "/wiki"
 #define WIKI_MD_DB     WIKI_ROOT "/md_db"
 #define WIKI_UPLOADS   WIKI_ROOT "/uploads"
-#define WIKI_ADOC_DB   WIKI_ROOT "/adoc_db"
-#define WIKI_ADOC_HTML WIKI_ROOT "/adoc_html"
 #define WIKI_TRASH     WIKI_ROOT "/trash"
 #define WIKI_TRASH_MD  WIKI_TRASH "/md"
 #define WIKI_TRASH_HTML WIKI_TRASH "/html"
+#define WIKI_INDEX_FILE WIKI_ROOT "/wiki-index.json"
+#define WIKI_INDEX_TMP  WIKI_ROOT "/wiki-index.json.tmp"
 
 /* ── 前向声明 ─────────────────────────────────────────────── */
 
@@ -540,8 +540,6 @@ static void wiki_ensure_dirs(void)
 {
     mkdir_p(WIKI_MD_DB);
     mkdir_p(WIKI_UPLOADS);
-    mkdir_p(WIKI_ADOC_DB);
-    mkdir_p(WIKI_ADOC_HTML);
 }
 
 static void wiki_fhtml(FILE *fp, const char *s)
@@ -968,7 +966,8 @@ static int wiki_write_html_file(const char *filepath,
                "background:#0d1117;color:#c9d1d9;line-height:1.7;"
                "display:flex;flex-direction:column}\n"
           "nav.topbar{background:#161b22;border-bottom:1px solid #30363d;"
-                    "padding:8px 20px;font-size:.85rem;flex-shrink:0}\n"
+                    "padding:8px 20px;font-size:.85rem;flex-shrink:0;"
+                    "display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n"
           "nav.topbar a{color:#4a90e2;text-decoration:none}\n"
           ".layout{display:flex;flex:1;overflow:hidden}\n"
           ".sidebar{width:220px;background:#161b22;border-right:1px solid #30363d;"
@@ -1034,6 +1033,17 @@ static int wiki_write_html_file(const char *filepath,
                    "padding:3px 10px;border:1px solid #30363d;border-radius:5px;"
                    "cursor:pointer;white-space:nowrap;margin-left:6px}\n"
           ".copy-btn:hover{background:#21262d;color:#f0f6fc;border-color:#8b949e}\n"
+          ".wk-page-search{display:inline-flex;align-items:center;gap:4px;"
+                   "margin-left:6px;flex:0 1 260px;min-width:180px}\n"
+          ".wk-page-search input{width:100%;min-width:120px;background:#0d1117;"
+                   "color:#c9d1d9;border:1px solid #30363d;border-radius:5px;"
+                   "padding:4px 8px;font-size:.78rem;outline:none}\n"
+          ".wk-page-search input:focus{border-color:#4a90e2;"
+                   "box-shadow:0 0 0 2px rgba(74,144,226,.18)}\n"
+          ".wk-page-search .copy-btn{margin-left:0;padding:4px 9px}\n"
+          "@media(max-width:720px){nav.topbar{padding:8px 12px}"
+                   ".edit-btn{margin-left:0}.wk-page-search{order:20;"
+                   "flex-basis:100%;margin-left:0}.wk-page-search input{min-width:0}}\n"
           ".ab .code-block{position:relative;margin:1em 0}\n"
           ".ab .code-block pre{margin:0}\n"
           ".ab .code-block .copy-btn{position:absolute;top:7px;right:9px;"
@@ -1106,7 +1116,7 @@ static int wiki_write_html_file(const char *filepath,
           "body{display:block!important}\n"
           "nav.topbar,nav#sidebar,nav#toc,.sidebar,.toc,\n"
           ".st-top,.sidebar-body,.toc-top,.toc-body,\n"
-          ".edit-btn,.copy-btn,.panel-toggle,.panel-label{display:none!important;"
+          ".edit-btn,.copy-btn,.wk-page-search,.panel-toggle,.panel-label{display:none!important;"
           "width:0!important;height:0!important;max-height:0!important;overflow:hidden!important;"
           "visibility:hidden!important;position:absolute!important;left:-9999px!important;"
           "clip:rect(0,0,0,0)!important}\n"
@@ -1158,6 +1168,10 @@ static int wiki_write_html_file(const char *filepath,
           "<button class=\"copy-btn\" id=\"view-history-btn\" onclick=\"openHistoryModal()\">\u5386\u53f2\u8bb0\u5f55</button>"
           "<button class=\"copy-btn\" id=\"export-md-btn\" onclick=\"exportMdZip()\">\u5bfc\u51fa MD ZIP</button>"
           "<button class=\"copy-btn\" id=\"export-pdf-btn\" onclick=\"exportPdf()\">\u5bfc\u51fa PDF</button>"
+          "<span class=\"wk-page-search\" id=\"wk-page-search\">"
+          "<input id=\"wk-page-search-input\" type=\"search\" placeholder=\"\u641c\u7d22 Wiki\" autocomplete=\"off\" spellcheck=\"false\">"
+          "<button type=\"button\" class=\"copy-btn\" id=\"wk-page-search-btn\">\u641c\u7d22</button>"
+          "</span>"
           "</nav>\n", fp);
 
     fputs(
@@ -1578,6 +1592,7 @@ static void wiki_append_match_context(strbuf_t *out, const char *hay, size_t hay
 
 #define WIKI_SEARCH_MAX_RESULTS   200
 #define WIKI_SEARCH_MAX_FILE_BYTES (512 * 1024)  /* 单文件最多扫描 512KB */
+#define WIKI_INDEX_MAX_FILE_BYTES  (512 * 1024)  /* 单文件最多写入索引 512KB */
 
 /* 跳过非内容目录：构建产物、归档、版本控制等 */
 static int wiki_search_skip_dir(const char *name)
@@ -1586,7 +1601,6 @@ static int wiki_search_skip_dir(const char *name)
     if (name[0] == '.') return 1;
     if (strcmp(name, "archive") == 0 || strcmp(name, "build") == 0 ||
         strcmp(name, "trash") == 0 || strcmp(name, "node_modules") == 0) return 1;
-    if (strncmp(name, "adoc_", 5) == 0) return 1;
     return 0;
 }
 
@@ -1757,6 +1771,159 @@ static void wiki_search_dir(strbuf_t *sb, int *pfirst, const char *dir, const ch
     closedir(d);
 }
 
+static void wiki_index_collect_dirs(strbuf_t *sb, const char *base,
+                                    const char *rel, int *pfirst)
+{
+    char full[1024];
+    if (rel && rel[0]) snprintf(full, sizeof(full), "%s/%s", base, rel);
+    else               snprintf(full, sizeof(full), "%s", base);
+    DIR *d = opendir(full);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        if (wiki_search_skip_dir(de->d_name)) continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", full, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+        char relpath[512];
+        if (rel && rel[0]) snprintf(relpath, sizeof(relpath), "%s/%s", rel, de->d_name);
+        else               snprintf(relpath, sizeof(relpath), "%s", de->d_name);
+        if (!*pfirst) SB_LIT(sb, ",");
+        *pfirst = 0;
+        sb_json_str(sb, relpath);
+        wiki_index_collect_dirs(sb, base, relpath, pfirst);
+    }
+    closedir(d);
+}
+
+static void wiki_index_dir(strbuf_t *sb, int *pfirst, const char *dir, int *pcount)
+{
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char child[1024];
+        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            if (!wiki_search_skip_dir(de->d_name))
+                wiki_index_dir(sb, pfirst, child, pcount);
+            continue;
+        }
+
+        size_t nl = strlen(de->d_name);
+        if (nl < 4 || strcmp(de->d_name + nl - 3, ".md") != 0) continue;
+        FILE *fp = fopen(child, "rb");
+        if (!fp) continue;
+
+        char ml[4096] = {0};
+        int ok = (fgets(ml, sizeof(ml), fp) != NULL);
+        strbuf_t body = {0};
+        int truncated = 0;
+        char buf[8192];
+        size_t nr;
+        while (ok && (nr = fread(buf, 1, sizeof(buf), fp)) > 0) {
+            if (body.len + nr > (size_t)WIKI_INDEX_MAX_FILE_BYTES) {
+                size_t rem = (size_t)WIKI_INDEX_MAX_FILE_BYTES - body.len;
+                if (rem > 0) sb_append(&body, buf, rem);
+                truncated = 1;
+                break;
+            }
+            sb_append(&body, buf, nr);
+        }
+        fclose(fp);
+        if (!ok) {
+            free(body.data);
+            continue;
+        }
+
+        char path_cat[512] = {0}, path_id[128] = {0};
+        wiki_cat_id_from_md_abspath(child, path_cat, sizeof(path_cat), path_id, sizeof(path_id));
+
+        char id[128] = {0}, title[512] = {0}, cat[512] = {0}, cre[64] = {0}, upd[64] = {0};
+        char now_iso[64];
+        wiki_now_iso(now_iso, sizeof(now_iso));
+
+        if (strncmp(ml, "<!--META ", 9) == 0) {
+            char *end = strstr(ml, "-->");
+            if (!end) {
+                free(body.data);
+                continue;
+            }
+            *end = '\0';
+            const char *mj = ml + 9;
+            json_get_str(mj, "id", id, sizeof(id));
+            json_get_str(mj, "title", title, sizeof(title));
+            json_get_str(mj, "category", cat, sizeof(cat));
+            json_get_str(mj, "created", cre, sizeof(cre));
+            json_get_str(mj, "updated", upd, sizeof(upd));
+            if (!id[0]) {
+                free(body.data);
+                continue;
+            }
+            if (!cat[0]) snprintf(cat, sizeof(cat), "%s", path_cat);
+            if (!cre[0]) strncpy(cre, now_iso, sizeof(cre) - 1);
+            if (!upd[0]) strncpy(upd, now_iso, sizeof(upd) - 1);
+            if (!title[0]) snprintf(title, sizeof(title), "%s", id);
+        } else {
+            snprintf(id, sizeof(id), "%s", path_id);
+            snprintf(cat, sizeof(cat), "%s", path_cat);
+            strbuf_t fulltxt = {0};
+            sb_append(&fulltxt, ml, strlen(ml));
+            if (body.data && body.len)
+                sb_append(&fulltxt, body.data, body.len);
+            wiki_extract_md_title(fulltxt.data ? fulltxt.data : "", title, sizeof(title));
+            if (fulltxt.data) {
+                free(body.data);
+                body = fulltxt;
+            } else {
+                free(fulltxt.data);
+            }
+            if (!id[0]) {
+                free(body.data);
+                continue;
+            }
+            if (!title[0]) snprintf(title, sizeof(title), "%s", id);
+            strncpy(cre, now_iso, sizeof(cre) - 1);
+            strncpy(upd, now_iso, sizeof(upd) - 1);
+
+            wiki_md_meta_row_t row;
+            memset(&row, 0, sizeof(row));
+            if (auth_wiki_md_meta_get(id, &row) == 0 && row.found) {
+                if (row.created[0]) strncpy(cre, row.created, sizeof(cre) - 1);
+                if (row.updated[0]) strncpy(upd, row.updated, sizeof(upd) - 1);
+                if (row.title[0]) strncpy(title, row.title, sizeof(title) - 1);
+            }
+        }
+
+        if (!*pfirst) SB_LIT(sb, ",");
+        *pfirst = 0;
+        SB_LIT(sb, "{\"id\":");
+        sb_json_str(sb, id);
+        SB_LIT(sb, ",\"title\":");
+        sb_json_str(sb, title);
+        SB_LIT(sb, ",\"category\":");
+        sb_json_str(sb, cat);
+        SB_LIT(sb, ",\"created\":");
+        sb_json_str(sb, cre);
+        SB_LIT(sb, ",\"updated\":");
+        sb_json_str(sb, upd);
+        SB_LIT(sb, ",\"content\":");
+        sb_json_str(sb, body.data ? body.data : "");
+        SB_LIT(sb, ",\"truncated\":");
+        if (truncated) SB_LIT(sb, "true");
+        else           SB_LIT(sb, "false");
+        SB_LIT(sb, "}");
+        free(body.data);
+        (*pcount)++;
+    }
+    closedir(d);
+}
+
 /* ── rmdir_recursive ──────────────────────────────────────── */
 
 static void rmdir_recursive(const char *path)
@@ -1775,53 +1942,11 @@ static void rmdir_recursive(const char *path)
     rmdir(path);
 }
 
-/* ── 写入 html/wiki/wiki-index.json（与 /api/wiki-list 返回结构一致，供离线索引） ── */
-
-static void wiki_refresh_index_json(void)
-{
-    wiki_ensure_dirs();
-    strbuf_t sb = {0};
-    SB_LIT(&sb, "{\"articles\":[");
-    int first = 1;
-    wiki_scan_md_dir(&sb, &first, WIKI_MD_DB);
-    SB_LIT(&sb, "],\"categories\":[");
-    int firstcat = 1;
-    wiki_collect_dirs(&sb, WIKI_ROOT, "", &firstcat, 1);
-    SB_LIT(&sb, "]}");
-
-    char outpath[1024];
-    snprintf(outpath, sizeof(outpath), "%s/wiki-index.json", WIKI_ROOT);
-    FILE *fp = fopen(outpath, "wb");
-    if (fp) {
-        if (sb.data)
-            fwrite(sb.data, 1, sb.len, fp);
-        else
-            fwrite("{\"articles\":[],\"categories\":[]}", 1, 30, fp);
-        fclose(fp);
-    } else {
-        LOG_INFO("wiki_refresh_index_json: write failed %s", outpath);
-    }
-    free(sb.data);
-}
-
-void handle_api_wiki_refresh_index(http_sock_t client_fd)
-{
-    wiki_refresh_index_json();
-    send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
-}
-
 /* ── GET /api/wiki-list ───────────────────────────────────── */
 
 void handle_api_wiki_list(http_sock_t client_fd)
 {
     wiki_ensure_dirs();
-    {
-        char outpath[1024];
-        snprintf(outpath, sizeof(outpath), "%s/wiki-index.json", WIKI_ROOT);
-        struct stat st;
-        if (stat(outpath, &st) != 0)
-            wiki_refresh_index_json();
-    }
     strbuf_t sb = {0};
     SB_LIT(&sb, "{\"articles\":[");
     int first = 1;
@@ -2331,7 +2456,6 @@ void handle_api_wiki_save(http_sock_t client_fd, const char *body,
         send_json(client_fd,500,"Internal Server Error","{\"ok\":false,\"error\":\"write html\"}",35); return;
     }
 
-    wiki_refresh_index_json();
 
     {
         char save_txn_id[128] = {0};
@@ -2510,7 +2634,6 @@ void handle_api_wiki_delete(http_sock_t client_fd, const char *body,
     if (wiki_trash_move(html_path, WIKI_ROOT, WIKI_TRASH_HTML) != 0)
         unlink(html_path);
 
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_delete id=%s actor=%s",id, del_by);
 }
@@ -2694,7 +2817,6 @@ void handle_api_wiki_trash_restore(http_sock_t client_fd,
     if (stat(trash_html, &st) == 0)
         rename(trash_html, dest_html);
 
-    wiki_refresh_index_json();
     send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
     LOG_INFO("wiki_trash_restore id=%s cat=%s", id, cat);
 }
@@ -2772,6 +2894,67 @@ void handle_api_wiki_search(http_sock_t client_fd, const char *path_qs)
     free(sb.data);
 }
 
+/* ── GET /api/wiki-refresh-index ──────────────────────────── */
+
+void handle_api_wiki_refresh_index(http_sock_t client_fd)
+{
+    wiki_ensure_dirs();
+
+    char now_iso[64];
+    wiki_now_iso(now_iso, sizeof(now_iso));
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"version\":1,\"generatedAt\":");
+    sb_json_str(&sb, now_iso);
+    SB_LIT(&sb, ",\"articles\":[");
+    int first = 1, count = 0;
+    wiki_index_dir(&sb, &first, WIKI_MD_DB, &count);
+    SB_LIT(&sb, "],\"categories\":[");
+    int firstcat = 1;
+    wiki_index_collect_dirs(&sb, WIKI_MD_DB, "", &firstcat);
+    SB_LIT(&sb, "]}");
+
+    if (!sb.data) {
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"oom\"}", 26);
+        return;
+    }
+
+    FILE *fp = fopen(WIKI_INDEX_TMP, "wb");
+    if (!fp) {
+        free(sb.data);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"open index\"}", 35);
+        return;
+    }
+    if (fwrite(sb.data, 1, sb.len, fp) != sb.len || wiki_fsync_file(fp) != 0) {
+        fclose(fp);
+        unlink(WIKI_INDEX_TMP);
+        free(sb.data);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"write index\"}", 36);
+        return;
+    }
+    fclose(fp);
+
+    size_t bytes = sb.len;
+    free(sb.data);
+
+    if (wiki_rename_replace(WIKI_INDEX_TMP, WIKI_INDEX_FILE) != 0) {
+        unlink(WIKI_INDEX_TMP);
+        send_json(client_fd, 500, "Internal Server Error",
+                  "{\"ok\":false,\"error\":\"rename index\"}", 37);
+        return;
+    }
+
+    char resp[128];
+    int rlen = snprintf(resp, sizeof(resp),
+        "{\"ok\":true,\"path\":\"/wiki/wiki-index.json\",\"articles\":%d,\"bytes\":%lu}",
+        count, (unsigned long)bytes);
+    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
+    LOG_INFO("wiki_refresh_index articles=%d bytes=%lu", count, (unsigned long)bytes);
+}
+
 /* ── GET /api/wiki-rebuild-html ───────────────────────────── */
 
 void handle_api_wiki_rebuild_html(http_sock_t client_fd)
@@ -2779,335 +2962,11 @@ void handle_api_wiki_rebuild_html(http_sock_t client_fd)
     wiki_ensure_dirs();
     int count = 0;
     wiki_rebuild_md_dir(&count, WIKI_MD_DB);
-    wiki_refresh_index_json();
     char resp[64];
     int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"rebuilt\":%d}", count);
     send_json(client_fd, 200, "OK", resp, (size_t)rlen);
     LOG_INFO("wiki_rebuild_html count=%d", count);
 }
-
-/* ── ADOC 发布（asciidoctor + asciidoctor-pdf）─────────────── */
-
-static void wiki_sb_html_esc(strbuf_t *sb, const char *s)
-{
-    if (!sb || !s) return;
-    for (; *s; s++) {
-        switch (*s) {
-            case '&': SB_LIT(sb, "&amp;");  break;
-            case '<': SB_LIT(sb, "&lt;");   break;
-            case '>': SB_LIT(sb, "&gt;");   break;
-            case '"': SB_LIT(sb, "&quot;"); break;
-            default:  sb_append(sb, s, 1);  break;
-        }
-    }
-}
-
-static int wiki_adoc_has_tool(void)
-{
-#ifdef _WIN32
-    return system("where asciidoctor >nul 2>nul") == 0;
-#else
-    return system("command -v asciidoctor >/dev/null 2>&1") == 0;
-#endif
-}
-
-static int wiki_adoc_has_pdf_tool(void)
-{
-#ifdef _WIN32
-    return system("where asciidoctor-pdf >nul 2>nul") == 0;
-#else
-    return system("command -v asciidoctor-pdf >/dev/null 2>&1") == 0;
-#endif
-}
-
-/* ── 文件条目链表（供 adoc_index.html 分类统计使用）────────── */
-
-typedef struct adoc_entry_s {
-    char html_rel[512]; /* 相对 adoc_html 根路径，如 "subdir/doc.html" */
-    char dir[256];      /* 目录部分，如 "subdir" 或 "" */
-    int  has_pdf;       /* 是否已生成对应 PDF */
-    struct adoc_entry_s *next;
-} adoc_entry_t;
-
-static void adoc_entry_free(adoc_entry_t *h)
-{ while(h){ adoc_entry_t *n=h->next; free(h); h=n; } }
-
-/* ── 递归扫描 adoc_db，用 asciidoctor 生成 html + 可选 pdf ── */
-
-static void wiki_adoc_scan_dir(int *pok, int *pfail,
-                                const char *src_dir, const char *dst_dir,
-                                adoc_entry_t **entries, int do_pdf)
-{
-    DIR *d=opendir(src_dir); if(!d)return;
-    struct dirent *de;
-    while ((de=readdir(d))!=NULL) {
-        if (de->d_name[0]=='.') continue;
-        char sc[1024],dc[1024];
-        snprintf(sc,sizeof(sc),"%s/%s",src_dir,de->d_name);
-        snprintf(dc,sizeof(dc),"%s/%s",dst_dir,de->d_name);
-        struct stat st; if(stat(sc,&st)!=0) continue;
-        if (S_ISDIR(st.st_mode)) {
-            mkdir_p(dc);
-            wiki_adoc_scan_dir(pok,pfail,sc,dc,entries,do_pdf);
-            continue;
-        }
-        size_t nl=strlen(de->d_name);
-        if (nl<6||strcmp(de->d_name+nl-5,".adoc")!=0) continue;
-        char out_html[1024];
-        snprintf(out_html,sizeof(out_html),"%s/%.*s.html",dst_dir,(int)(nl-5),de->d_name);
-#ifdef _WIN32
-        if (strchr(sc,'"')||strchr(out_html,'"')) { (*pfail)++; continue; }
-        char cmd[2400];
-        snprintf(cmd,sizeof(cmd),"asciidoctor -b html5 -o \"%s\" \"%s\" >nul 2>nul",out_html,sc);
-#else
-        if (strchr(sc,'\'')||strchr(out_html,'\'')) { (*pfail)++; continue; }
-        char cmd[2400];
-        snprintf(cmd,sizeof(cmd),"asciidoctor -b html5 -o '%s' '%s' >/dev/null 2>&1",out_html,sc);
-#endif
-        if (system(cmd)==0) {
-            (*pok)++;
-            int has_pdf=0;
-            if (do_pdf) {
-                char out_pdf[1024];
-                snprintf(out_pdf,sizeof(out_pdf),"%s/%.*s.pdf",dst_dir,(int)(nl-5),de->d_name);
-#ifdef _WIN32
-                if (!strchr(out_pdf,'"')) {
-                    char pcmd[2400];
-                    snprintf(pcmd,sizeof(pcmd),"asciidoctor-pdf -o \"%s\" \"%s\" >nul 2>nul",out_pdf,sc);
-                    has_pdf=(system(pcmd)==0);
-                }
-#else
-                if (!strchr(out_pdf,'\'')) {
-                    char pcmd[2400];
-                    snprintf(pcmd,sizeof(pcmd),"asciidoctor-pdf -o '%s' '%s' >/dev/null 2>&1",out_pdf,sc);
-                    has_pdf=(system(pcmd)==0);
-                }
-#endif
-            }
-            if (entries) {
-                const char *rel=out_html;
-                size_t root_len=strlen(WIKI_ADOC_HTML);
-                if (strncmp(out_html,WIKI_ADOC_HTML,root_len)==0 &&
-                    (out_html[root_len]=='/'||out_html[root_len]=='\\'))
-                    rel=out_html+root_len+1;
-                adoc_entry_t *e=(adoc_entry_t*)calloc(1,sizeof(adoc_entry_t));
-                if (e) {
-                    strncpy(e->html_rel,rel,sizeof(e->html_rel)-1);
-                    e->has_pdf=has_pdf;
-                    const char *sl=strrchr(rel,'/');
-                    if (sl) {
-                        size_t dl=(size_t)(sl-rel);
-                        if(dl>=sizeof(e->dir))dl=sizeof(e->dir)-1;
-                        memcpy(e->dir,rel,dl);
-                    }
-                    e->next=*entries; *entries=e;
-                }
-            }
-        } else (*pfail)++;
-    }
-    closedir(d);
-}
-
-/* ── 生成 adoc_index.html（含分类统计 + PDF 链接）──────────── */
-
-static int wiki_adoc_write_index(adoc_entry_t *entries, int ok, int fail)
-{
-    char idx[1024]; snprintf(idx,sizeof(idx),"%s/adoc_index.html",WIKI_ADOC_HTML);
-    FILE *fp=fopen(idx,"wb"); if(!fp)return -1;
-
-    typedef struct { char dir[256]; int count; } dstat_t;
-    dstat_t dirs[128]; int ndir=0, total=0, pdf_total=0;
-    for (adoc_entry_t *e=entries; e; e=e->next) {
-        total++;
-        if (e->has_pdf) pdf_total++;
-        int found=0;
-        for (int i=0; i<ndir; i++) {
-            if (strcmp(dirs[i].dir,e->dir)==0) { dirs[i].count++; found=1; break; }
-        }
-        if (!found && ndir<128) {
-            strncpy(dirs[ndir].dir,e->dir,sizeof(dirs[0].dir)-1);
-            dirs[ndir].count=1; ndir++;
-        }
-    }
-    for (int i=0;i<ndir-1;i++)
-        for (int j=i+1;j<ndir;j++)
-            if (strcmp(dirs[i].dir,dirs[j].dir)>0) {
-                dstat_t tmp=dirs[i]; dirs[i]=dirs[j]; dirs[j]=tmp;
-            }
-
-    strbuf_t sb={0};
-    SB_LIT(&sb,"<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
-               "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-               "<title>ADOC \346\226\207\346\241\243\347\264\242\345\274\225</title><style>"
-               ":root{--bg:#0d1117;--surf:#161b22;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--accent:#4a90e2}"
-               "*{box-sizing:border-box;margin:0;padding:0}"
-               "body{background:var(--bg);color:var(--text);"
-               "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}"
-               ".topbar{height:50px;background:var(--surf);border-bottom:1px solid var(--border);"
-               "display:flex;align-items:center;padding:0 20px;gap:14px}"
-               ".topbar h1{font-size:.95rem;font-weight:700;color:#f0f6fc}"
-               ".topbar a{font-size:12px;color:var(--dim);text-decoration:none}"
-               ".topbar a:hover{color:var(--text)}"
-               ".wrap{max-width:920px;margin:0 auto;padding:28px 20px 48px}"
-               ".stats{display:flex;gap:16px;margin-bottom:22px;flex-wrap:wrap}"
-               ".stat{background:var(--surf);border:1px solid var(--border);border-radius:8px;"
-               "padding:12px 20px;font-size:.83rem;color:var(--dim);min-width:110px}"
-               ".stat strong{display:block;font-size:1.5rem;color:#f0f6fc;font-weight:700;"
-               "line-height:1.2;margin-bottom:2px}"
-               ".cat-block{margin-bottom:20px;border:1px solid var(--border);border-radius:8px;"
-               "overflow:hidden;background:var(--surf)}"
-               ".cat-head{padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--accent);"
-               "background:#161b22;border-bottom:1px solid var(--border)}"
-               ".cat-body{padding:4px 0}"
-               ".row{display:flex;align-items:center;padding:7px 14px;gap:10px;"
-               "border-bottom:1px solid #21262d;font-size:.86rem}"
-               ".row:last-child{border-bottom:none}.row:hover{background:rgba(255,255,255,.04)}"
-               ".row a.html-link{color:var(--text);text-decoration:none;flex:1}"
-               ".row a.html-link:hover{color:var(--accent)}"
-               ".row a.pdf-link{font-size:.73rem;color:#f85149;border:1px solid #f8514940;"
-               "border-radius:4px;padding:1px 7px;text-decoration:none;white-space:nowrap}"
-               ".row a.pdf-link:hover{background:#f8514920}"
-               ".warn{color:#f85149;font-size:.8rem;padding:12px 14px}"
-               "</style></head><body>\n"
-               "<div class=\"topbar\">"
-               "<h1>\360\237\223\232 ADOC \346\226\207\346\241\243\347\264\242\345\274\225</h1>"
-               "<div style=\"flex:1\"></div>"
-               "<a href=\"/wiki/notewikiindex.html\">"
-               "\342\206\220 NoteWiki \347\264\242\345\274\225</a></div>\n"
-               "<div class=\"wrap\">\n");
-
-    sb_appendf(&sb,
-               "<div class=\"stats\">"
-               "<div class=\"stat\"><strong>%d</strong>HTML \346\200\273\346\225\260</div>"
-               "<div class=\"stat\"><strong>%d</strong>PDF \346\200\273\346\225\260</div>"
-               "<div class=\"stat\"><strong>%d</strong>"
-               "\347\233\256\345\275\225\345\210\206\347\261\273</div>"
-               "<div class=\"stat\"><strong>%d</strong>"
-               "\350\275\254\346\215\242\345\244\261\350\264\245</div>"
-               "</div>\n", total, pdf_total, ndir, fail);
-
-    for (int i=0; i<ndir; i++) {
-        const char *dname=dirs[i].dir[0]
-            ? dirs[i].dir
-            : "\346\240\271\347\233\256\345\275\225";
-        SB_LIT(&sb,"<div class=\"cat-block\">"
-                   "<div class=\"cat-head\">\360\237\223\202 ");
-        wiki_sb_html_esc(&sb,dname);
-        sb_appendf(&sb,
-                   " <span style=\"font-weight:400;color:var(--dim)\">(%d)</span>"
-                   "</div><div class=\"cat-body\">\n",dirs[i].count);
-        for (adoc_entry_t *e=entries; e; e=e->next) {
-            if (strcmp(e->dir,dirs[i].dir)!=0) continue;
-            const char *fname=e->html_rel;
-            const char *sl=strrchr(e->html_rel,'/');
-            if (sl) fname=sl+1;
-            SB_LIT(&sb,"<div class=\"row\">"
-                       "<a class=\"html-link\" href=\"");
-            wiki_sb_html_esc(&sb,e->html_rel);
-            SB_LIT(&sb,"\">");
-            wiki_sb_html_esc(&sb,fname);
-            SB_LIT(&sb,"</a>");
-            if (e->has_pdf) {
-                char pdf_rel[512]; strncpy(pdf_rel,e->html_rel,sizeof(pdf_rel)-1);
-                size_t hl=strlen(pdf_rel);
-                if (hl>=5 && strcmp(pdf_rel+hl-5,".html")==0) {
-                    strcpy(pdf_rel+hl-5,".pdf");
-                    SB_LIT(&sb," <a class=\"pdf-link\" href=\"");
-                    wiki_sb_html_esc(&sb,pdf_rel);
-                    SB_LIT(&sb,"\" download>PDF\342\206\223</a>");
-                }
-            }
-            SB_LIT(&sb,"</div>\n");
-        }
-        SB_LIT(&sb,"</div></div>\n");
-    }
-    if (fail>0)
-        sb_appendf(&sb,
-                   "<p class=\"warn\">\342\232\240 \346\234\211 %d \344\270\252\346\226\207\344\273\266"
-                   "\350\275\254\346\215\242\345\244\261\350\264\245\343\200\202</p>\n",fail);
-    SB_LIT(&sb,"</div></body></html>\n");
-    if (sb.data) fwrite(sb.data,1,sb.len,fp);
-    fclose(fp); free(sb.data);
-    return 0;
-}
-
-/* ── POST /api/wiki-adoc-rebuild ──────────────────────────── */
-
-void handle_api_wiki_adoc_rebuild(http_sock_t client_fd)
-{
-    wiki_ensure_dirs();
-    if (!wiki_adoc_has_tool()) {
-        const char *err="{\"ok\":false,\"error\":\"asciidoctor not found on server\"}";
-        send_json(client_fd,500,"Internal Server Error",err,strlen(err));
-        return;
-    }
-    int do_pdf=wiki_adoc_has_pdf_tool();
-    rmdir_recursive(WIKI_ADOC_HTML);
-    mkdir_p(WIKI_ADOC_HTML);
-    int ok=0, fail=0;
-    adoc_entry_t *entries=NULL;
-    wiki_adoc_scan_dir(&ok,&fail,WIKI_ADOC_DB,WIKI_ADOC_HTML,&entries,do_pdf);
-    if (wiki_adoc_write_index(entries,ok,fail)!=0) fail++;
-    int pdf_count=0;
-    for (adoc_entry_t *e=entries; e; e=e->next) if (e->has_pdf) pdf_count++;
-    adoc_entry_free(entries);
-    char resp[160];
-    int rlen=snprintf(resp,sizeof(resp),
-                      "{\"ok\":true,\"count\":%d,\"fail\":%d,\"pdf\":%d}",
-                      ok,fail,pdf_count);
-    send_json(client_fd,200,"OK",resp,(size_t)rlen);
-    LOG_INFO("wiki_adoc_rebuild ok=%d fail=%d pdf=%d out=%s",ok,fail,pdf_count,WIKI_ADOC_HTML);
-}
-
-/* ── GET /api/wiki-adoc-list ──────────────────────────────── */
-
-static void wiki_adoc_list_scan(strbuf_t *sb, int *pfirst, int *pcount,
-                                  const char *dir, const char *root)
-{
-    DIR *d=opendir(dir); if(!d)return;
-    struct dirent *de;
-    while ((de=readdir(d))!=NULL) {
-        if (de->d_name[0]=='.') continue;
-        char child[1024]; snprintf(child,sizeof(child),"%s/%s",dir,de->d_name);
-        struct stat st; if(stat(child,&st)!=0) continue;
-        if (S_ISDIR(st.st_mode)) {
-            wiki_adoc_list_scan(sb,pfirst,pcount,child,root); continue;
-        }
-        size_t nl=strlen(de->d_name);
-        if (nl<6||strcmp(de->d_name+nl-5,".adoc")!=0) continue;
-        const char *rel=child;
-        size_t rl=strlen(root);
-        if (strncmp(child,root,rl)==0&&(child[rl]=='/'||child[rl]=='\\'))
-            rel=child+rl+1;
-        char dpart[256]={0};
-        const char *sl=strrchr(rel,'/');
-        if (sl) {
-            size_t dl=(size_t)(sl-rel);
-            if(dl>=sizeof(dpart))dl=sizeof(dpart)-1;
-            memcpy(dpart,rel,dl);
-        }
-        if (!*pfirst) SB_LIT(sb,","); *pfirst=0; (*pcount)++;
-        SB_LIT(sb,"{\"path\":"); sb_json_str(sb,rel);
-        SB_LIT(sb,",\"dir\":"); sb_json_str(sb,dpart);
-        SB_LIT(sb,"}");
-    }
-    closedir(d);
-}
-
-void handle_api_wiki_adoc_list(http_sock_t client_fd)
-{
-    wiki_ensure_dirs();
-    strbuf_t sb={0};
-    SB_LIT(&sb,"{\"ok\":true,\"files\":[");
-    int first=1, count=0;
-    wiki_adoc_list_scan(&sb,&first,&count,WIKI_ADOC_DB,WIKI_ADOC_DB);
-    SB_LIT(&sb,"],");
-    sb_appendf(&sb,"\"count\":%d}",count);
-    if (sb.data) send_json(client_fd,200,"OK",sb.data,sb.len);
-    else send_json(client_fd,200,"OK","{\"ok\":true,\"files\":[],\"count\":0}",37);
-    free(sb.data);
-}
-
 
 /* ── POST /api/wiki-rename-article ───────────────────────── */
 
@@ -3175,7 +3034,6 @@ void handle_api_wiki_rename_article(http_sock_t client_fd, const char *body)
 
     (void)auth_wiki_md_meta_on_editor_save(id, new_title, cat, now, "Admin");
     wiki_rewrite_html(id, new_title, cat, now);
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_rename_article id=%s new_title=%s", id, new_title);
 }
@@ -3219,7 +3077,6 @@ void handle_api_wiki_rename_cat(http_sock_t client_fd, const char *body)
 
     size_t old_len = strlen(old_path);
     wiki_update_cat_in_dir(WIKI_MD_DB, old_path, new_path, old_len);
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_rename_cat old=%s new=%s", old_path, new_path);
 }
@@ -3245,7 +3102,6 @@ void handle_api_wiki_delete_cat(http_sock_t client_fd, const char *body)
     snprintf(full_md,  sizeof(full_md),  "%s/%s",WIKI_MD_DB,path);
     rmdir_recursive(full_md);
     rmdir_recursive(full_root);
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_delete_cat path=%s", path);
 }
@@ -3348,7 +3204,6 @@ void handle_api_wiki_move_article(http_sock_t client_fd, const char *body)
     free(cbuf.data);
     if (strcmp(md_path, new_md_path) != 0) unlink(md_path);
 
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
     LOG_INFO("wiki_move_article id=%s old_cat=%s new_cat=%s", id, old_cat, new_cat);
 }
@@ -3370,7 +3225,6 @@ void handle_api_wiki_mkdir(http_sock_t client_fd, const char *body)
     }
     char full_md[1024]; snprintf(full_md,sizeof(full_md),"%s/%s",WIKI_MD_DB,path);
     mkdir_p(full_md);
-    wiki_refresh_index_json();
     send_json(client_fd,200,"OK","{\"ok\":true}",11);
 }
 
@@ -3460,78 +3314,6 @@ void handle_api_wiki_cleanup_uploads(http_sock_t client_fd)
     int rlen = snprintf(resp, sizeof(resp), "{\"ok\":true,\"deleted\":%d,\"kept\":%d}", deleted, kept);
     send_json(client_fd, 200, "OK", resp, (size_t)rlen);
     LOG_INFO("wiki_cleanup_uploads deleted=%d kept=%d", deleted, kept);
-}
-
-/* ── POST /api/wiki-cleanup-adoc-db ─────────────────────────
- * 删除 adoc_db 下所有非 .adoc 后缀的条目（含符号链接等非目录），
- * 自下而上删除空子目录（保留 adoc_db 根目录本身）。 */
-
-static int wiki_fname_is_adoc(const char *name)
-{
-    size_t n = strlen(name);
-    if (n < 5) return 0;
-    return strcasecmp(name + n - 5, ".adoc") == 0;
-}
-
-static void wiki_cleanup_adoc_db_recursive(const char *path, const char *root,
-                                           int *removed_files, int *removed_dirs)
-{
-    DIR *d = opendir(path);
-    if (!d) return;
-    struct dirent *de;
-    while ((de = readdir(d)) != NULL) {
-        if (de->d_name[0] == '.' && de->d_name[1] == '\0') continue;
-        if (de->d_name[0] == '.' && de->d_name[1] == '.' && de->d_name[2] == '\0') continue;
-        char child[1024];
-        snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
-        struct stat st;
-        if (stat(child, &st) != 0) continue;
-        if (S_ISDIR(st.st_mode)) {
-            wiki_cleanup_adoc_db_recursive(child, root, removed_files, removed_dirs);
-            continue;
-        }
-        if (!wiki_fname_is_adoc(de->d_name)) {
-            if (unlink(child) == 0) {
-                (*removed_files)++;
-                LOG_INFO("wiki_cleanup_adoc_db: delete %s", child);
-            } else {
-                LOG_INFO("wiki_cleanup_adoc_db: unlink failed %s (%s)", child, strerror(errno));
-            }
-        }
-    }
-    closedir(d);
-
-    if (strcmp(path, root) != 0) {
-        DIR *d2 = opendir(path);
-        int empty = 1;
-        if (d2) {
-            while ((de = readdir(d2)) != NULL) {
-                if (de->d_name[0] == '.' && de->d_name[1] == '\0') continue;
-                if (de->d_name[0] == '.' && de->d_name[1] == '.' && de->d_name[2] == '\0') continue;
-                empty = 0;
-                break;
-            }
-            closedir(d2);
-        }
-        if (empty && rmdir(path) == 0) {
-            (*removed_dirs)++;
-            LOG_INFO("wiki_cleanup_adoc_db: rmdir %s", path);
-        }
-    }
-}
-
-void handle_api_wiki_cleanup_adoc_db(http_sock_t client_fd)
-{
-    wiki_ensure_dirs();
-    int removed_files = 0, removed_dirs = 0;
-    wiki_cleanup_adoc_db_recursive(WIKI_ADOC_DB, WIKI_ADOC_DB, &removed_files, &removed_dirs);
-    mkdir_p(WIKI_ADOC_DB);
-    char resp[160];
-    int rlen = snprintf(resp, sizeof(resp),
-                        "{\"ok\":true,\"deletedFiles\":%d,\"removedEmptyDirs\":%d}",
-                        removed_files, removed_dirs);
-    send_json(client_fd, 200, "OK", resp, (size_t)rlen);
-    LOG_INFO("wiki_cleanup_adoc_db deletedFiles=%d removedEmptyDirs=%d", removed_files, removed_dirs);
 }
 
 /* ── POST /api/wiki-upload ────────────────────────────────── */

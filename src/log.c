@@ -1,5 +1,4 @@
 #include "log.h"
-#include "webdata.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -116,7 +115,6 @@ void log_close(void)
     pthread_mutex_lock(&g_mutex);
     if (g_fp) { fclose(g_fp); g_fp = NULL; }
     pthread_mutex_unlock(&g_mutex);
-    webdata_close();
 }
 
 void log_write(log_level_t level, const char *fmt, ...)
@@ -154,8 +152,6 @@ void log_write(log_level_t level, const char *fmt, ...)
                           msg);
     if (written > 0) g_cur_size += written;
     fflush(g_fp);   /* 每行立即落盘（配合 _IOFBF 将多次 write 合并为单次） */
-    if (written > 0)
-        webdata_append_log(time_buf, level_str[level], (int)getpid(), msg);
 
 unlock:
     pthread_mutex_unlock(&g_mutex);

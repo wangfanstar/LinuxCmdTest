@@ -22,10 +22,8 @@
 #endif
 
 #include "log.h"
-#include "webdata.h"
 #include "threadpool.h"
 #include "http_handler.h"
-#include "monitor.h"
 #include "auth_db.h"
 
 /* ------------------------------------------------------------------ */
@@ -190,14 +188,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "failed to init log system\n");
         return 1;
     }
-    if (webdata_init(log_dir) != 0) {
-        fprintf(stderr, "webdata_init failed (WebData.db unavailable)\n");
-    }
-
     platform_net_init();
     atexit(platform_net_end);
 
-    stats_init();
     LOG_INFO("=== simplewebserver starting ===");
     LOG_INFO("port=%d  threads=%d  queue=%d  logdir=%s",
              port, threads, queue_size, log_dir);

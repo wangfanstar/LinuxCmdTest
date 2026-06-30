@@ -13,6 +13,4 @@ void handle_api_rename_register_dir(http_sock_t client_fd, const char *body);
 void handle_api_delete_register_dir(http_sock_t client_fd, const char *body);
 void handle_api_rename_register_file(http_sock_t client_fd, const char *body);
 void handle_api_delete_register_file(http_sock_t client_fd, const char *body);
-void handle_api_client_info(http_sock_t client_fd, const char *client_ip);
-
 #endif /* REGISTER_API_H */

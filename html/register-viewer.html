@@ -703,6 +703,8 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <div id="select-bar">
       <div class="select-bar-inner">
         <span id="select-count">已选 0 个</span>
+        <button class="btn-toolbar secondary" onclick="selectCurrentPage()">☑ 全选当前页</button>
+        <button class="btn-toolbar secondary" onclick="selectAllFiltered()">☑ 全选全部</button>
         <button class="btn-toolbar" onclick="saveSelectedToRegister()">💾 存档选中</button>
         <button class="btn-toolbar success" onclick="exportSelected()">⬇ 导出选中 JSON</button>
         <button class="btn-toolbar secondary" onclick="exportAll()">⬇ 导出全部结果</button>
@@ -1645,17 +1647,35 @@ function buildCard(r, idx, q) {
 }
 
 // ── 全选 ─────────────────────────────────────────────────
-function toggleSelectAll(checked) {
+function getCurrentPageRegisters() {
   var start=(currentPage-1)*PAGE_SIZE;
-  var pg=filtered.slice(start,start+PAGE_SIZE);
-  for(var i=0;i<pg.length;i++){ if(checked) selected.add(pg[i].uid); else selected.delete(pg[i].uid); }
+  return filtered.slice(start,start+PAGE_SIZE);
+}
+function syncVisibleCheckboxes() {
   var chks=document.querySelectorAll('.reg-chk');
   for(var j=0;j<chks.length;j++) chks[j].checked=selected.has(Number(chks[j].dataset.uid));
+}
+function selectCurrentPage() {
+  var pg=getCurrentPageRegisters();
+  for(var i=0;i<pg.length;i++) selected.add(pg[i].uid);
+  syncVisibleCheckboxes();
+  syncHeaderCheckbox();
+  updateSelectBar();
+}
+function selectAllFiltered() {
+  for(var i=0;i<filtered.length;i++) selected.add(filtered[i].uid);
+  syncVisibleCheckboxes();
+  syncHeaderCheckbox();
+  updateSelectBar();
+}
+function toggleSelectAll(checked) {
+  var pg=getCurrentPageRegisters();
+  for(var i=0;i<pg.length;i++){ if(checked) selected.add(pg[i].uid); else selected.delete(pg[i].uid); }
+  syncVisibleCheckboxes();
   updateSelectBar();
 }
 function syncHeaderCheckbox() {
-  var start=(currentPage-1)*PAGE_SIZE;
-  var pg=filtered.slice(start,start+PAGE_SIZE);
+  var pg=getCurrentPageRegisters();
   var el=document.getElementById('chk-all'); if(!el)return;
   var allSel=pg.length>0;
   var anySel=false;
@@ -1668,8 +1688,7 @@ function syncHeaderCheckbox() {
 }
 function clearSelection() {
   selected.clear();
-  var chks=document.querySelectorAll('.reg-chk');
-  for(var i=0;i<chks.length;i++) chks[i].checked=false;
+  syncVisibleCheckboxes();
   syncHeaderCheckbox(); updateSelectBar();
 }
 function updateSelectBar() {

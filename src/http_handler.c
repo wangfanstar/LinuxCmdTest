@@ -1,15 +1,10 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
-#include "ssh_exec.h"
-#include "ssh_api.h"
 #include "svn_api.h"
-#include "monitor.h"
-#include "report_api.h"
 #include "register_api.h"
 #include "wiki.h"
 #include "auth_db.h"
-#include "webdata.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,11 +34,8 @@ static int is_wiki_write_api(const char *path)
            strcmp(path, "/api/wiki-move-article") == 0 ||
            strcmp(path, "/api/wiki-mkdir") == 0 ||
            strcmp(path, "/api/wiki-upload") == 0 ||
-           strcmp(path, "/api/wiki-refresh-index") == 0 ||
            strcmp(path, "/api/wiki-rebuild-html") == 0 ||
-           strcmp(path, "/api/wiki-adoc-rebuild") == 0 ||
            strcmp(path, "/api/wiki-cleanup-uploads") == 0 ||
-           strcmp(path, "/api/wiki-cleanup-adoc-db") == 0 ||
            strcmp(path, "/api/wiki-trash-restore") == 0 ||
            strcmp(path, "/api/wiki-trash-empty") == 0;
 }
@@ -56,7 +48,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
     inet_ntop(AF_INET, &addr->sin_addr, client_ip, sizeof(client_ip));
     int  client_port = ntohs(addr->sin_port);
 
-    stats_req_start(client_ip);
     clock_t t_start = clock();
 
     /* 读取请求头（最多 8KB） */
@@ -71,7 +62,7 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         if (strstr(req_buf, "\r\n\r\n")) break;
     }
 
-    if (total <= 0) { stats_req_end(); http_sock_close(client_fd); return; }
+    if (total <= 0) { http_sock_close(client_fd); return; }
 
     /* 解析请求行 */
     char method[16] = {0}, path[2048] = {0}, version[16] = {0};
@@ -86,13 +77,8 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         if (qm) *qm = '\0';
     }
 
-    int is_poll_api = (strncmp(path, "/api/monitor", 12) == 0 ||
-                       strncmp(path, "/api/procs",   10) == 0 ||
-                       strcmp(path, "/api/client-info") == 0 ||
-                       strncmp(path, "/api/webdata-", 13) == 0);
-    if (!is_poll_api)
-        LOG_INFO("request  %s:%d \"%s %s %s\"",
-                 client_ip, client_port, method, path, version);
+    LOG_INFO("request  %s:%d \"%s %s %s\"",
+             client_ip, client_port, method, path, version);
 
     /* ── POST ──────────────────────────────────────────────────── */
     if (strcasecmp(method, "POST") == 0) {
@@ -105,9 +91,7 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         }
 
         long max_body_allowed = MAX_BODY_SIZE;
-        if (strcmp(path, "/api/save-report") == 0 ||
-            strcmp(path, "/api/save-config") == 0 ||
-            strcmp(path, "/api/save-register-file") == 0 ||
+        if (strcmp(path, "/api/save-register-file") == 0 ||
             strcmp(path, "/api/wiki-save") == 0 ||
             strcmp(path, "/api/wiki-upload") == 0 ||
             strcmp(path, "/api/wiki-export-pdf") == 0)
@@ -160,75 +144,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-logout") == 0) {
             handle_api_wiki_logout(client_fd, req_buf);
-        } else if (strcmp(path, "/api/ssh-exec") == 0) {
-            if (body) handle_api_ssh_exec(client_fd, body);
-            else send_json(client_fd, 400, "Bad Request",
-                           "{\"error\":\"empty body\"}", 21);
-        } else if (strcmp(path, "/api/ssh-exec-stream") == 0) {
-            if (body) handle_api_ssh_exec_stream(client_fd, body);
-            else send_json(client_fd, 400, "Bad Request",
-                           "{\"error\":\"empty body\"}", 21);
-        } else if (strcmp(path, "/api/ssh-exec-one") == 0) {
-            if (body) handle_api_ssh_exec_one(client_fd, body);
-            else send_json(client_fd, 400, "Bad Request",
-                           "{\"error\":\"empty body\"}", 21);
-        } else if (strcmp(path, "/api/cancel") == 0) {
-            if (body && body[0]) {
-                char sid[128] = {0};
-                json_get_str(body, "session_id", sid, sizeof(sid));
-                if (sid[0]) {
-                    ssh_cancel_session(sid);
-                    LOG_INFO("api_cancel: session_id=%s", sid);
-                } else {
-                    ssh_cancel_current();
-                }
-            } else {
-                ssh_cancel_current();
-            }
-            send_json(client_fd, 200, "OK", "{\"ok\":true}", 11);
-        } else if (strcmp(path, "/api/kill") == 0) {
-            if (body) {
-                int pid = json_get_int(body, "pid", -1);
-                if (pid > 1) {
-                    if (platform_process_kill(pid) == 0) {
-                        char resp[64];
-                        int rlen = snprintf(resp, sizeof(resp),
-                                            "{\"ok\":true,\"pid\":%d}", pid);
-                        send_json(client_fd, 200, "OK", resp, (size_t)rlen);
-                    } else {
-                        char resp[128];
-                        int rlen = snprintf(resp, sizeof(resp),
-                                            "{\"ok\":false,\"error\":\"%s\",\"pid\":%d}",
-                                            strerror(errno), pid);
-                        send_json(client_fd, 200, "OK", resp, (size_t)rlen);
-                    }
-                } else {
-                    send_json(client_fd, 400, "Bad Request",
-                              "{\"ok\":false,\"error\":\"invalid pid\"}", 35);
-                }
-            } else {
-                send_json(client_fd, 400, "Bad Request",
-                          "{\"error\":\"empty body\"}", 21);
-            }
-        } else if (strcmp(path, "/api/save-report") == 0) {
-            if (body)
-                handle_api_save_report(client_fd, req_buf, body,
-                                       (size_t)content_length);
-            else if (content_length > SAVE_REPORT_MAX_BODY) {
-                send_json(client_fd, 413, "Payload Too Large",
-                          "{\"ok\":false,\"error\":\"body too large\"}", 38);
-            } else {
-                send_json(client_fd, 400, "Bad Request",
-                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
-            }
-        } else if (strcmp(path, "/api/save-config") == 0) {
-            if (body)
-                handle_api_save_config(client_fd, req_buf, body,
-                                       (size_t)content_length);
-            else {
-                send_json(client_fd, 400, "Bad Request",
-                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
-            }
         } else if (strcmp(path, "/api/save-register-file") == 0) {
             if (body)
                 handle_api_save_register_file(client_fd, req_buf, body,
@@ -253,12 +168,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             if (body) handle_api_delete_register_dir(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
-        } else if (strcmp(path, "/api/delete-report") == 0) {
-            if (body)
-                handle_api_delete_report(client_fd, body);
-            else
-                send_json(client_fd, 400, "Bad Request",
-                          "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/svn-log") == 0) {
             if (body) handle_api_svn_log(client_fd, body);
             else send_json(client_fd, 400, "Bad Request",
@@ -309,18 +218,9 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         } else if (strcmp(path, "/api/wiki-cleanup-uploads") == 0) {
             auth_audit(client_ip, req_user.username, "wiki_cleanup_uploads", "", "");
             handle_api_wiki_cleanup_uploads(client_fd);
-        } else if (strcmp(path, "/api/wiki-cleanup-adoc-db") == 0) {
-            auth_audit(client_ip, req_user.username, "wiki_cleanup_adoc_db", "", "");
-            handle_api_wiki_cleanup_adoc_db(client_fd);
-        } else if (strcmp(path, "/api/wiki-adoc-rebuild") == 0) {
-            auth_audit(client_ip, req_user.username, "wiki_adoc_rebuild", "", "");
-            handle_api_wiki_adoc_rebuild(client_fd);
         } else if (strcmp(path, "/api/wiki-rebuild-html") == 0) {
             auth_audit(client_ip, req_user.username, "wiki_rebuild_html", "", "");
             handle_api_wiki_rebuild_html(client_fd);
-        } else if (strcmp(path, "/api/wiki-refresh-index") == 0) {
-            auth_audit(client_ip, req_user.username, "wiki_refresh_index", "", "");
-            handle_api_wiki_refresh_index(client_fd);
         } else if (strcmp(path, "/api/wiki-trash-restore") == 0) {
             if (body) {
                 auth_audit(client_ip, req_user.username,
@@ -378,26 +278,35 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
-    if (strcmp(path, "/api/monitor") == 0) {
-        handle_api_monitor(client_fd);
-        goto done;
-    }
-
-    if (strcmp(path, "/api/reports") == 0) {
-        handle_api_reports(client_fd);
-        goto done;
-    }
-
-    if (strncmp(path, "/api/list-ssh-configs", 21) == 0) {
-        const char *rest = path + 21;
-        if (*rest == '\0' || *rest == '?') {
-            handle_api_list_ssh_configs(client_fd, path_qs);
+    if (strcmp(path, "/api/gt-sdk-doc") == 0) {
+        char cidir[512];
+        snprintf(cidir, sizeof(cidir), "%s/wiki/ci_html", WEB_ROOT);
+        DIR *d = opendir(cidir);
+        if (!d) {
+            send_response(client_fd, 404, "Not Found",
+                          "<h1>404 Not Found</h1><p>GT SDK document not found</p>");
             goto done;
         }
-    }
-
-    if (strcmp(path, "/api/list-all-configs") == 0) {
-        handle_api_list_all_configs(client_fd);
+        char best[256] = {0};
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL) {
+            const char *nm = de->d_name;
+            size_t nml = strlen(nm);
+            if (nml < 11) continue;  /* GT_SDK_ + .html = 11 min */
+            if (strncmp(nm, "GT_SDK_", 7) != 0) continue;
+            if (nml < 5 || strcasecmp(nm + nml - 5, ".html") != 0) continue;
+            if (!best[0] || strcmp(nm, best) < 0)
+                strncpy(best, nm, sizeof(best) - 1);
+        }
+        closedir(d);
+        if (!best[0]) {
+            send_response(client_fd, 404, "Not Found",
+                          "<h1>404 Not Found</h1><p>GT SDK document not found</p>");
+            goto done;
+        }
+        char loc[640];
+        snprintf(loc, sizeof(loc), "/wiki/ci_html/%s", best);
+        send_redirect(client_fd, loc);
         goto done;
     }
 
@@ -472,19 +381,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
-    if (strcmp(path, "/api/wiki-adoc-rebuild") == 0) {
-        auth_user_t u;
-        if (auth_require_author(req_buf, client_fd, &u) != 0) goto done;
-        auth_audit(client_ip, u.username, "wiki_adoc_rebuild", "", "");
-        handle_api_wiki_adoc_rebuild(client_fd);
-        goto done;
-    }
-
-    if (strcmp(path, "/api/wiki-adoc-list") == 0) {
-        handle_api_wiki_adoc_list(client_fd);
-        goto done;
-    }
-
     if (strncmp(path, "/api/wiki-export-md-zip", 23) == 0 &&
         (path[23] == '\0' || path[23] == '?')) {
         handle_api_wiki_export_md_zip(client_fd, path_qs);
@@ -513,65 +409,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
-    if (strcmp(path, "/api/client-info") == 0) {
-        handle_api_client_info(client_fd, client_ip);
-        goto done;
-    }
-
-    if (strncmp(path, "/api/procs", 10) == 0 &&
-        (path[10] == '\0' || path[10] == '?')) {
-        const char *q = "";
-        const char *qs = strchr(path_qs, '?');
-        char query_buf[128] = "";
-        int include_ports = 0;
-        if (qs && strstr(qs, "ports=1")) include_ports = 1;
-        if (qs) {
-            const char *qp = strstr(qs, "q=");
-            if (qp) {
-                qp += 2;
-                size_t qi = 0;
-                while (*qp && *qp != '&' && qi < sizeof(query_buf) - 1) {
-                    if (*qp == '+') { query_buf[qi++] = ' '; qp++; }
-                    else if (*qp == '%' && isxdigit((unsigned char)qp[1]) && isxdigit((unsigned char)qp[2])) {
-                        char hex[3] = { qp[1], qp[2], '\0' };
-                        query_buf[qi++] = (char)strtol(hex, NULL, 16);
-                        qp += 3;
-                    } else {
-                        query_buf[qi++] = *qp++;
-                    }
-                }
-                query_buf[qi] = '\0';
-                q = query_buf;
-            }
-        }
-        handle_api_procs(client_fd, q, include_ports);
-        goto done;
-    }
-
-    if (strncmp(path, "/api/port", 9) == 0 &&
-        (path[9] == '\0' || path[9] == '?')) {
-        int port_num = 0;
-        const char *qs = strchr(path_qs, '?');
-        if (qs) {
-            const char *pp = strstr(qs, "port=");
-            if (pp) port_num = atoi(pp + 5);
-        }
-        handle_api_port(client_fd, port_num);
-        goto done;
-    }
-
-    if (strncmp(path, "/api/webdata-login-stats", 24) == 0 &&
-        (path[24] == '\0' || path[24] == '?')) {
-        handle_api_webdata_login_stats(client_fd, path_qs);
-        goto done;
-    }
-
-    if (strncmp(path, "/api/webdata-app-logs", 21) == 0 &&
-        (path[21] == '\0' || path[21] == '?')) {
-        handle_api_webdata_app_logs(client_fd, path_qs);
-        goto done;
-    }
-
     /* 浏览器默认请求 /favicon.ico；无 .ico 时回退到 html/favicon.svg，避免 404 */
     if (strcmp(path, "/favicon.ico") == 0) {
         char fpath[512];
@@ -586,56 +423,6 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                 (void)http_sock_send_all(client_fd, nofav, sizeof(nofav) - 1);
             }
         }
-        goto done;
-    }
-
-    if (strcmp(path, "/api/log-files") == 0) {
-        strbuf_t sb = {0};
-        SB_LIT(&sb, "{\"ok\":true,\"files\":[");
-        DIR *ld = opendir("logs");
-        if (ld) {
-            char names[LOG_MAX_FILES + 2][64];
-            int  nc = 0;
-            struct dirent *de;
-            while ((de = readdir(ld)) != NULL && nc < LOG_MAX_FILES) {
-                const char *nm  = de->d_name;
-                size_t      nml = strlen(nm);
-                if (nml > 4 && strcmp(nm + nml - 4, ".log") == 0) {
-                    strncpy(names[nc], nm, 63);
-                    names[nc][63] = '\0';
-                    nc++;
-                }
-            }
-            closedir(ld);
-            for (int i = 0; i < nc - 1; i++)
-                for (int j = 0; j < nc - i - 1; j++)
-                    if (strcmp(names[j], names[j + 1]) > 0) {
-                        char tmp[64];
-                        memcpy(tmp,        names[j],     64);
-                        memcpy(names[j],   names[j + 1], 64);
-                        memcpy(names[j+1], tmp,          64);
-                    }
-            for (int i = 0; i < nc; i++) {
-                if (i) SB_LIT(&sb, ",");
-                sb_json_str(&sb, names[i]);
-            }
-        }
-        SB_LIT(&sb, "]}");
-        if (sb.data) { send_json(client_fd, 200, "OK", sb.data, sb.len); free(sb.data); }
-        else send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false}", 12);
-        goto done;
-    }
-
-    if (strncmp(path, "/logs/", 6) == 0 && path[6] != '\0') {
-        char filepath[2048];
-        char logs_seg[2048];
-        strncpy(logs_seg, path + 6, sizeof(logs_seg) - 1);
-        logs_seg[sizeof(logs_seg) - 1] = '\0';
-        url_decode_report_fn(logs_seg);
-        snprintf(filepath, sizeof(filepath), "logs/%s", logs_seg);
-        if (send_file(client_fd, filepath) < 0)
-            send_response(client_fd, 404, "Not Found",
-                          "<h1>404 Not Found</h1>");
         goto done;
     }
 
@@ -664,11 +451,9 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
     }
 
 done:;
-    stats_req_end();
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
-    if (!is_poll_api)
-        LOG_INFO("response %s:%d \"%s\" done in %.2fms",
-                 client_ip, client_port, path, elapsed);
+    LOG_INFO("response %s:%d \"%s\" done in %.2fms",
+             client_ip, client_port, path, elapsed);
 
     http_sock_close(client_fd);
 }

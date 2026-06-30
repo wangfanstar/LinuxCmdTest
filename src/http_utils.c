@@ -357,6 +357,19 @@ void send_json(http_sock_t fd, int status, const char *status_text,
     (void)http_sock_send_all(fd, json, json_len);
 }
 
+void send_redirect(http_sock_t fd, const char *location)
+{
+    char header[1024];
+    int hlen = snprintf(header, sizeof(header),
+        "HTTP/1.1 302 Found\r\n"
+        "Location: %s\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        location);
+    (void)http_sock_send_all(fd, header, (size_t)hlen);
+}
+
 int send_file(http_sock_t fd, const char *filepath)
 {
     struct stat st;

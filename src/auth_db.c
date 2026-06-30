@@ -3,7 +3,6 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
-#include "webdata.h"
 
 #ifdef ENABLE_SQLITE3
 #define AUTH_SQLITE_AVAILABLE 1
@@ -968,7 +967,6 @@ static void log_login(const char *ip, const char *username, int ok, const char *
     char ts[32];
     now_iso(ts, sizeof(ts));
     if (auth_db_init() != 0) {
-        webdata_login_event(ts, ip, username, ok, note);
         return;
     }
     pthread_mutex_lock(&g_auth_mu);
@@ -984,7 +982,6 @@ static void log_login(const char *ip, const char *username, int ok, const char *
     }
     if (st) sqlite3_finalize(st);
     pthread_mutex_unlock(&g_auth_mu);
-    webdata_login_event(ts, ip, username, ok, note);
 }
 
 void handle_api_wiki_login(http_sock_t fd, const char *req_headers, const char *body, const char *ip)

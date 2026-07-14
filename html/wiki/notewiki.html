@@ -489,6 +489,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
         <button class="btn btn-secondary btn-sm" onclick="openHistoryModal()" title="查看该文章历史修改记录">🕘 历史</button>
         <button class="btn btn-secondary btn-sm" onclick="exportPdf()" title="打印/导出 PDF（阅读态用已打开正文，编辑态用当前草稿）">🖨 PDF</button>
         <a class="btn btn-secondary btn-sm" id="edit-html-link" href="#" target="_blank" rel="noopener noreferrer" title="已发布 HTML 页面">🔗 HTML</a>
+        <button class="btn btn-secondary btn-sm" onclick="snapshotBackup()" title="保存当前编辑内容到浏览器本地备份">📸 快照</button>
         <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">✕</button>
       </div>
       <div class="edit-toolbar" id="edit-toolbar">
@@ -1139,6 +1140,8 @@ function init() {
         openArticle(editId);
         editCurrent();
       }
+      // 延迟检查孤儿备份（等文章列表加载完毕）
+      setTimeout(function() { checkOrphanBackups(); }, 500);
     });
   });
 }
@@ -2021,6 +2024,8 @@ function doNewArticle() {
   /* 进入编辑器 */
   S.editId = null;
   S.editIsNew = true;
+  _contentLoaded = true;
+  _autoSaveDirty = false;
   document.getElementById('edit-title').value = title;
   document.getElementById('edit-textarea').value = '';
   var fnEl = document.getElementById('edit-filename');
@@ -2043,6 +2048,7 @@ function loadEditorFromArticleId(id) {
   S.editId = id;
   S.editIsNew = false;
   _autoSaveDirty = false;
+  _contentLoaded = false;
   updateAutoSaveLabel('');
   document.getElementById('edit-title').value = meta.title || '';
   document.getElementById('edit-filename').style.display = 'none';
@@ -2050,9 +2056,11 @@ function loadEditorFromArticleId(id) {
   showPane('edit');
   setViewMode(S.viewMode);
   document.getElementById('edit-textarea').value = '加载中…';
+  document.getElementById('edit-textarea').disabled = true;
   applyWikiEditEngine(S.editEngine, {silent:true});
   refreshVditorFromTextarea();
 
+  // 编辑前先拉取服务端最新内容做备份
   fetch('/api/wiki-read?id=' + encodeURIComponent(id))
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -2060,11 +2068,16 @@ function loadEditorFromArticleId(id) {
         document.getElementById('edit-textarea').value = data.content || '';
         S.editBaseUpdated = (data.meta && data.meta.updated) ? data.meta.updated : '';
         S.editBaseContent  = data.content || '';
+        _contentLoaded = true;
+        // 保存备份到 localStorage（用于崩溃恢复）
+        saveEditBackup(id, meta.title || '', meta.category || '', data.content || '', '');
       } else {
         document.getElementById('edit-textarea').value = '';
         S.editBaseUpdated = '';
         S.editBaseContent  = '';
+        setStatus('读取文章失败：' + (data.error || '未知错误'));
       }
+      document.getElementById('edit-textarea').disabled = false;
       updatePreview();
       updateEditorHighlight();
       refreshVditorFromTextarea();
@@ -2072,6 +2085,26 @@ function loadEditorFromArticleId(id) {
       markEditBaseline();
       updateEditHtmlLink();
       setTimeout(function() { document.getElementById('edit-textarea').focus(); }, 50);
+    })
+    .catch(function(e) {
+      document.getElementById('edit-textarea').value = '';
+      document.getElementById('edit-textarea').disabled = false;
+      S.editBaseUpdated = '';
+      S.editBaseContent  = '';
+      setStatus('加载文章失败：' + (e.message || '网络错误') + '，请重试');
+      // 尝试从 local backup 恢复
+      var backup = loadEditBackup(id);
+      if (backup) {
+        document.getElementById('edit-textarea').value = backup.content || '';
+        _contentLoaded = true;
+        updatePreview();
+        updateEditorHighlight();
+        refreshVditorFromTextarea();
+        histReset();
+        markEditBaseline();
+        updateEditHtmlLink();
+        setStatus('已从本地备份恢复（服务端读取失败）');
+      }
     });
 }
 
@@ -2082,6 +2115,9 @@ function editCurrent() {
 }
 
 function cancelEdit() {
+  _contentLoaded = false;
+  _autoSaveDirty = false;
+  updateAutoSaveLabel('');
   if (S.curId) showPane('view');
   else showPane('welcome');
 }
@@ -2130,6 +2166,8 @@ var _autoSaveTimer = null;
 var _autoSaveDirty = false;
 var _editBaseline = '';
 var _editDirty = false;
+var _contentLoaded = false;
+var _backupContent = null;
 var _vditor = null;
 var _vditorReady = false;
 var _vditorSyncing = false;
@@ -2294,6 +2332,172 @@ function markEditBaseline() {
   setEditDirty(false);
 }
 
+// ── LocalStorage 备份与恢复 ──────────────────────────────────────────
+var BACKUP_PREFIX = 'notewiki-backup-';
+var BACKUP_INDEX_KEY = 'notewiki-backup-index';
+
+function saveEditBackup(id, title, category, content, filename) {
+  try {
+    var key = BACKUP_PREFIX + id;
+    var entry = {
+      id: id,
+      title: title,
+      category: category,
+      content: content,
+      filename: filename || '',
+      savedAt: Date.now()
+    };
+    localStorage.setItem(key, JSON.stringify(entry));
+    // 更新索引
+    var idx = loadBackupIndex();
+    if (idx.indexOf(id) === -1) {
+      idx.push(id);
+      localStorage.setItem(BACKUP_INDEX_KEY, JSON.stringify(idx));
+    }
+  } catch(e) { /* localStorage 满或不可用，静默忽略 */ }
+}
+
+function loadEditBackup(id) {
+  try {
+    var raw = localStorage.getItem(BACKUP_PREFIX + id);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function clearEditBackup(id) {
+  try {
+    localStorage.removeItem(BACKUP_PREFIX + id);
+    var idx = loadBackupIndex();
+    var pos = idx.indexOf(id);
+    if (pos !== -1) {
+      idx.splice(pos, 1);
+      localStorage.setItem(BACKUP_INDEX_KEY, JSON.stringify(idx));
+    }
+  } catch(e) {}
+}
+
+function loadBackupIndex() {
+  try {
+    var raw = localStorage.getItem(BACKUP_INDEX_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) { return []; }
+}
+
+/** 页面加载时检查是否有未清理的备份 */
+function checkOrphanBackups() {
+  var idx = loadBackupIndex();
+  if (!idx.length) return;
+  // 过滤掉仍然存在于文章列表中的（已正常保存的）
+  var articleIds = {};
+  (S.articles || []).forEach(function(a) { articleIds[a.id] = true; });
+  var orphans = idx.filter(function(id) { return !articleIds[id]; });
+  if (!orphans.length) return;
+  // 有孤儿备份，显示恢复提示
+  var count = orphans.length;
+  var tips = '检测到 ' + count + ' 篇文章有本地备份（可能因异常退出未清理）。';
+  if (count <= 3) {
+    tips += '\n\n备份文章：' + orphans.join(', ');
+  }
+  tips += '\n\n点击「确定」进入恢复模式，可在备份列表中查看和恢复内容。\n点击「取消」忽略（备份仍保留在浏览器中）。';
+  if (confirm(tips)) {
+    showBackupRecoveryModal(orphans);
+  }
+}
+
+function showBackupRecoveryModal(orphanIds) {
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'modal-backup-recovery';
+  var html = '<div class="modal-box modal-wide"><div class="modal-head">📋 本地备份恢复';
+  html += '<button class="modal-close" onclick="closeBackupRecoveryModal()">✕</button></div>';
+  html += '<div class="modal-body"><div style="font-size:.82rem;color:var(--dim);margin-bottom:12px;line-height:1.6">';
+  html += '以下文章在浏览器中有本地备份。点击「恢复」将内容填入编辑器（不会自动保存），或点击「删除」移除备份。</div>';
+  html += '<div style="max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:6px">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.78rem">';
+  html += '<thead><tr style="background:var(--surf)"><th style="padding:8px;text-align:left;border-bottom:1px solid var(--border)">文章 ID</th><th style="padding:8px;text-align:left;border-bottom:1px solid var(--border)">标题</th><th style="padding:8px;text-align:left;border-bottom:1px solid var(--border)">备份时间</th><th style="padding:8px;text-align:center;border-bottom:1px solid var(--border)">操作</th></tr></thead><tbody>';
+
+  orphanIds.forEach(function(id) {
+    var backup = loadEditBackup(id);
+    if (!backup) return;
+    var timeStr = '';
+    if (backup.savedAt) {
+      var d = new Date(backup.savedAt);
+      timeStr = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    }
+    html += '<tr>';
+    html += '<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);font-family:monospace;font-size:.74rem">' + escH(id) + '</td>';
+    html += '<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05)">' + escH(backup.title || '(无标题)') + '</td>';
+    html += '<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--dim)">' + escH(timeStr) + '</td>';
+    html += '<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:center;white-space:nowrap">';
+    html += '<button class="btn btn-primary btn-sm" onclick="recoverFromBackup(\'' + escQ(id) + '\')">恢复</button> ';
+    html += '<button class="btn btn-danger btn-sm" onclick="deleteBackupEntry(\'' + escQ(id) + '\')">删除</button>';
+    html += '</td></tr>';
+  });
+
+  html += '</tbody></table></div></div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function closeBackupRecoveryModal() {
+  var el = document.getElementById('modal-backup-recovery');
+  if (el) el.remove();
+}
+
+function recoverFromBackup(id) {
+  var backup = loadEditBackup(id);
+  if (!backup) { setStatus('备份不存在'); return; }
+  closeBackupRecoveryModal();
+  S.editId = id;
+  S.editIsNew = false;
+  _contentLoaded = true;
+  _autoSaveDirty = false;
+  updateAutoSaveLabel('');
+  document.getElementById('edit-title').value = backup.title || '';
+  document.getElementById('edit-filename').style.display = 'none';
+  populateCatSelect(backup.category || '');
+  showPane('edit');
+  setViewMode(S.viewMode);
+  document.getElementById('edit-textarea').value = backup.content || '';
+  document.getElementById('edit-textarea').disabled = false;
+  applyWikiEditEngine(S.editEngine, {silent:true});
+  refreshVditorFromTextarea();
+  updatePreview();
+  updateEditorHighlight();
+  histReset();
+  markEditBaseline();
+  updateEditHtmlLink();
+  setStatus('已从本地备份恢复「' + (backup.title || id) + '」，请确认后手动保存');
+  setTimeout(function() { document.getElementById('edit-textarea').focus(); }, 50);
+}
+
+function deleteBackupEntry(id) {
+  if (!confirm('确定删除「' + id + '」的本地备份？此操作不可撤销。')) return;
+  clearEditBackup(id);
+  closeBackupRecoveryModal();
+  // 重新打开
+  var idx = loadBackupIndex();
+  var articleIds = {};
+  (S.articles || []).forEach(function(a) { articleIds[a.id] = true; });
+  var orphans = idx.filter(function(i) { return !articleIds[i]; });
+  if (orphans.length) showBackupRecoveryModal(orphans);
+  else setStatus('所有备份已清理');
+}
+
+/** 手动创建当前编辑内容的快照备份 */
+function snapshotBackup() {
+  syncVditorToTextarea({silent:true});
+  var title = document.getElementById('edit-title').value.trim();
+  var cat = document.getElementById('edit-category').value;
+  var content = document.getElementById('edit-textarea').value;
+  var fn = document.getElementById('edit-filename').value;
+  var id = S.editId || fn || '__new__';
+  if (!title && !content) { setStatus('无内容可备份'); return; }
+  saveEditBackup(id, title, cat, content, fn);
+  setStatus('已创建本地快照备份');
+}
+
 function refreshEditDirtyState() {
   if (!_editBaseline) {
     setEditDirty(false);
@@ -2312,6 +2516,12 @@ function doAutoSave() {
   if (!_autoSaveDirty) return;
   var title = document.getElementById('edit-title').value.trim();
   if (!title || !S.editId) return; // 仅已有 id 的文章自动保存
+  // 自动保存前先更新本地备份
+  syncVditorToTextarea({silent:true});
+  var cat = document.getElementById('edit-category').value;
+  var content = document.getElementById('edit-textarea').value;
+  var fn = document.getElementById('edit-filename').value;
+  saveEditBackup(S.editId, title, cat, content, fn);
   _doSave({silent: true});
 }
 
@@ -2337,6 +2547,11 @@ function _doSave(opts) {
 
   if (!title) {
     if (!silent) { document.getElementById('edit-title').focus(); setStatus('请输入标题'); }
+    return;
+  }
+
+  if (!_contentLoaded && !S.editIsNew) {
+    if (!silent) { setStatus('文章内容尚未加载完成，请稍后重试'); }
     return;
   }
 
@@ -2398,6 +2613,7 @@ function _doSave(opts) {
       S.editIsNew = false;
       _autoSaveDirty = false;
       S.editBaseUpdated = '';
+      clearEditBackup(data.id);
       var now = new Date(); var hm = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
       if (silent) {
         updateAutoSaveLabel('自动保存 '+hm);
@@ -4518,6 +4734,7 @@ function il(s, footCtx){
 // ── Utils ─────────────────────────────────────────────────────────────
 function setStatus(msg){ document.getElementById('status-msg').textContent = msg; }
 function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escQ(s){ return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function esc(s){ return (s||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
 function updateKeyDebug(e, src) {
   var el = document.getElementById('status-keydbg');

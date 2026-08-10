@@ -4,8 +4,504 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>文件与 Base64 转换工具</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fa;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --border: #dbe3ee;
+      --border-strong: #c6d1df;
+      --text: #152033;
+      --text-soft: #66758a;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eff6ff;
+      --green: #15803d;
+      --green-dark: #166534;
+      --green-soft: #f0fdf4;
+      --red: #b42318;
+      --red-soft: #fef3f2;
+      --amber: #9a6700;
+      --amber-soft: #fffbeb;
+      --shadow: 0 18px 50px rgba(30, 50, 80, 0.10);
+      --radius: 16px;
+    }
+
+    html { min-height: 100%; background: var(--bg); }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.08), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+
+    .app-shell {
+      width: min(860px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .back-link {
+      color: var(--text-soft);
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .back-link:hover { color: var(--blue); }
+
+    .privacy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green-dark);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .privacy-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14);
+    }
+
+    .page-header { margin-bottom: 22px; }
+
+    h1 {
+      margin: 0;
+      color: #0f172a;
+      font-size: clamp(26px, 4vw, 36px);
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .page-subtitle {
+      margin: 9px 0 0;
+      color: var(--text-soft);
+      font-size: 14px;
+    }
+
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 14px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #e9eef5;
+    }
+
+    .mode-tab {
+      min-height: 46px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--text-soft);
+      cursor: pointer;
+      font-weight: 750;
+      transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .mode-tab[aria-selected="true"] {
+      background: var(--surface);
+      color: var(--blue);
+      box-shadow: 0 2px 8px rgba(30, 50, 80, 0.10);
+    }
+
+    .tool-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .drop-zone {
+      position: relative;
+      display: flex;
+      min-height: 180px;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+      border: 2px dashed #8ab4f8;
+      border-radius: 13px;
+      background: var(--blue-soft);
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone:focus-visible,
+    .drop-zone.is-dragging {
+      border-color: var(--blue);
+      background: #e4efff;
+      outline: none;
+    }
+
+    .drop-zone.is-dragging { transform: scale(1.006); }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .upload-icon {
+      display: grid;
+      width: 48px;
+      height: 48px;
+      place-items: center;
+      margin: 0 auto 11px;
+      border-radius: 13px;
+      background: var(--surface);
+      color: var(--blue);
+      box-shadow: 0 7px 22px rgba(37, 99, 235, 0.14);
+    }
+
+    .upload-icon svg { width: 24px; height: 24px; }
+    .drop-title { display: block; color: #173b7a; font-size: 16px; font-weight: 800; }
+    .drop-help { display: block; margin-top: 5px; color: var(--text-soft); font-size: 12px; }
+
+    .choose-pill {
+      display: inline-flex;
+      min-height: 38px;
+      align-items: center;
+      margin-top: 15px;
+      padding: 0 17px;
+      border-radius: 9px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .file-summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      padding: 12px 13px;
+      border: 1px solid #d9e6dc;
+      border-radius: 11px;
+      background: #f7fbf8;
+    }
+
+    .file-type-icon {
+      display: grid;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      place-items: center;
+      border-radius: 10px;
+      background: #dcfce7;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .file-copy { min-width: 0; flex: 1; }
+    .file-name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { margin-top: 2px; color: var(--text-soft); font-size: 11px; }
+
+    .progress-wrap { margin-top: 14px; }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 7px;
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    progress {
+      display: block;
+      width: 100%;
+      height: 8px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 999px;
+      background: #e6ebf2;
+    }
+
+    progress::-webkit-progress-bar { background: #e6ebf2; }
+    progress::-webkit-progress-value { border-radius: 999px; background: var(--blue); }
+    progress::-moz-progress-bar { border-radius: 999px; background: var(--blue); }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 18px 0 8px;
+    }
+
+    .field-label { color: #344256; font-size: 13px; font-weight: 800; }
+    .field-hint { color: var(--text-soft); font-size: 11px; text-align: right; }
+
+    textarea,
+    .text-input {
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      border-radius: 11px;
+      background: var(--surface-soft);
+      color: var(--text);
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    textarea:focus,
+    .text-input:focus {
+      border-color: var(--blue);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
+    }
+
+    textarea {
+      min-height: 190px;
+      padding: 13px;
+      resize: vertical;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      word-break: break-all;
+    }
+
+    #base64-output { min-height: 220px; background: #111827; color: #d9e4f2; border-color: #111827; }
+    #base64-output::placeholder { color: #8090a6; }
+    #decode-input { min-height: 260px; }
+
+    .text-input { min-height: 44px; padding: 9px 12px; }
+
+    .decode-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 20px;
+      margin-top: 6px;
+      color: var(--text-soft);
+      font-size: 11px;
+    }
+
+    .decode-meta.is-valid { color: var(--green); }
+    .decode-meta.is-invalid { color: var(--red); }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    .decode-actions { grid-template-columns: 2fr 1fr; }
+
+    .button {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 14px;
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      background: var(--surface);
+      color: #3d4b5f;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 750;
+      transition: transform 80ms ease, border-color 150ms ease, background 150ms ease, opacity 150ms ease;
+    }
+
+    .button:hover:not(:disabled) { border-color: #9eb0c6; background: #f8fafc; }
+    .button:active:not(:disabled) { transform: translateY(1px); }
+    .button:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.22); outline-offset: 2px; }
+    .button:disabled { cursor: not-allowed; opacity: 0.48; }
+    .button-primary { border-color: var(--blue); background: var(--blue); color: #fff; }
+    .button-primary:hover:not(:disabled) { border-color: var(--blue-dark); background: var(--blue-dark); }
+    .button-success { border-color: var(--green); background: var(--green); color: #fff; }
+    .button-success:hover:not(:disabled) { border-color: var(--green-dark); background: var(--green-dark); }
+    .button-quiet { min-height: 36px; padding: 6px 11px; font-size: 12px; }
+    .button-cancel { border: 0; background: transparent; color: var(--red); min-height: auto; padding: 2px 0; }
+
+    .filename-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    .filename-field label { display: block; margin-bottom: 7px; }
+
+    .status {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-left: 4px solid;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .status-success { border-color: #22c55e; background: var(--green-soft); color: var(--green-dark); }
+    .status-error { border-color: #ef4444; background: var(--red-soft); color: var(--red); }
+    .status-warning { border-color: #f59e0b; background: var(--amber-soft); color: var(--amber); }
+    .status-info { border-color: #60a5fa; background: var(--blue-soft); color: #1e4f9c; }
+
+    .page-note {
+      margin: 16px 0 0;
+      color: #8491a3;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      .app-shell { width: min(100% - 20px, 860px); padding-top: 16px; }
+      .top-row { align-items: flex-start; margin-bottom: 20px; }
+      .privacy-badge { white-space: normal; text-align: right; }
+      .tool-card { padding: 14px; border-radius: 13px; }
+      .drop-zone { min-height: 165px; padding: 18px 12px; }
+      .file-summary { align-items: flex-start; }
+      .actions, .decode-actions { grid-template-columns: 1fr; }
+      .filename-row { grid-template-columns: 1fr; }
+      .filename-row .button { width: 100%; }
+      textarea, #base64-output, #decode-input { min-height: 180px; }
+      .section-head { align-items: flex-start; flex-direction: column; gap: 2px; }
+      .field-hint { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
 </head>
 <body>
+<main class="app-shell">
+  <div class="top-row">
+    <a class="back-link" href="index.html">← 返回工具首页</a>
+    <div class="privacy-badge"><span class="privacy-dot" aria-hidden="true"></span>本地处理 · 文件不会上传</div>
+  </div>
+
+  <header class="page-header">
+    <h1>文件 ↔ Base64</h1>
+    <p class="page-subtitle">任意文件与纯 Base64 字符串互转，离线可用</p>
+  </header>
+
+  <div class="mode-tabs" role="tablist" aria-label="转换方向">
+    <button class="mode-tab" id="mode-encode" aria-selected="true" aria-controls="panel-encode" role="tab" type="button">文件转 Base64</button>
+    <button class="mode-tab" id="mode-decode" aria-selected="false" aria-controls="panel-decode" role="tab" type="button">Base64 转文件</button>
+  </div>
+
+  <section class="tool-card" id="panel-encode" role="tabpanel" aria-labelledby="mode-encode">
+    <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-label="选择或拖放需要转换的文件">
+      <input class="file-input" id="file-input" type="file" tabindex="-1">
+      <div>
+        <span class="upload-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+        </span>
+        <span class="drop-title">拖放文件到这里，或点击选择</span>
+        <span class="drop-help">推荐 Excel 文件，也支持任意类型 · 自动转换</span>
+        <span class="choose-pill">选择文件</span>
+      </div>
+    </div>
+
+    <div class="file-summary" id="file-summary" hidden>
+      <div class="file-type-icon" id="file-type-icon" aria-hidden="true">✓</div>
+      <div class="file-copy">
+        <div class="file-name" id="file-name"></div>
+        <div class="file-meta" id="file-meta"></div>
+      </div>
+      <button class="button button-quiet" id="change-file-button" type="button">更换</button>
+    </div>
+
+    <div class="progress-wrap" id="progress-wrap" hidden>
+      <div class="progress-row">
+        <span id="progress-text">正在读取文件…</span>
+        <button class="button button-cancel" id="cancel-button" type="button">取消转换</button>
+      </div>
+      <progress id="progress" max="1" value="0" aria-label="转换进度"></progress>
+    </div>
+
+    <div class="section-head">
+      <label class="field-label" for="base64-output">Base64 结果</label>
+      <span class="field-hint" id="output-hint">纯 Base64 · 自动生成，无 Data URL 前缀</span>
+    </div>
+    <textarea id="base64-output" readonly spellcheck="false" placeholder="选择文件后，Base64 编码会显示在这里"></textarea>
+
+    <div class="actions">
+      <button class="button button-success" id="copy-button" type="button" disabled>复制 Base64</button>
+      <button class="button" id="download-text-button" type="button" disabled>下载 .txt</button>
+      <button class="button" id="clear-encode-button" type="button">清空</button>
+    </div>
+  </section>
+
+  <section class="tool-card" id="panel-decode" role="tabpanel" aria-labelledby="mode-decode" hidden>
+    <div class="section-head" style="margin-top:0">
+      <label class="field-label" for="decode-input">粘贴纯 Base64</label>
+      <span class="field-hint">允许包含空格、换行和制表符</span>
+    </div>
+    <textarea id="decode-input" spellcheck="false" placeholder="在这里粘贴 Base64 字符串，例如：UEsDBBQAAAAI…"></textarea>
+    <div class="decode-meta" id="decode-meta">
+      <span id="decode-validation">等待输入</span>
+      <span id="decode-count">0 字符</span>
+    </div>
+
+    <div class="filename-row">
+      <div class="filename-field">
+        <label class="field-label" for="download-name">下载文件名</label>
+        <input class="text-input" id="download-name" type="text" value="decoded.xlsx" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="decode-progress-wrap" hidden>
+      <div class="progress-row">
+        <span id="decode-progress-text">正在生成文件…</span>
+        <button class="button button-cancel" id="decode-cancel-button" type="button">取消转换</button>
+      </div>
+      <progress id="decode-progress" max="1" value="0" aria-label="解码进度"></progress>
+    </div>
+
+    <div class="actions decode-actions">
+      <button class="button button-primary" id="download-file-button" type="button" disabled>转换并下载文件</button>
+      <button class="button" id="clear-decode-button" type="button">清空</button>
+    </div>
+  </section>
+
+  <div class="status" id="status" aria-live="polite" hidden></div>
+  <p class="page-note">所有转换均在浏览器内完成，文件内容不会离开本机</p>
+</main>
+
 <script id="core-logic">
 (function () {
   'use strict';
@@ -115,6 +611,383 @@
     safeDownloadName,
     formatBytes
   };
+}());
+</script>
+
+<script id="app-logic">
+(function () {
+  'use strict';
+
+  const core = window.FileBase64Core;
+  const byId = id => document.getElementById(id);
+  const elements = {
+    modeEncode: byId('mode-encode'),
+    modeDecode: byId('mode-decode'),
+    panelEncode: byId('panel-encode'),
+    panelDecode: byId('panel-decode'),
+    dropZone: byId('drop-zone'),
+    fileInput: byId('file-input'),
+    fileSummary: byId('file-summary'),
+    fileName: byId('file-name'),
+    fileMeta: byId('file-meta'),
+    fileTypeIcon: byId('file-type-icon'),
+    changeFileButton: byId('change-file-button'),
+    progressWrap: byId('progress-wrap'),
+    progress: byId('progress'),
+    progressText: byId('progress-text'),
+    cancelButton: byId('cancel-button'),
+    base64Output: byId('base64-output'),
+    outputHint: byId('output-hint'),
+    copyButton: byId('copy-button'),
+    downloadTextButton: byId('download-text-button'),
+    clearEncodeButton: byId('clear-encode-button'),
+    decodeInput: byId('decode-input'),
+    decodeMeta: byId('decode-meta'),
+    decodeValidation: byId('decode-validation'),
+    decodeCount: byId('decode-count'),
+    downloadName: byId('download-name'),
+    downloadFileButton: byId('download-file-button'),
+    decodeProgressWrap: byId('decode-progress-wrap'),
+    decodeProgress: byId('decode-progress'),
+    decodeProgressText: byId('decode-progress-text'),
+    decodeCancelButton: byId('decode-cancel-button'),
+    clearDecodeButton: byId('clear-decode-button'),
+    status: byId('status')
+  };
+
+  let currentJob = null;
+  let sourceFileName = 'file';
+  let dragDepth = 0;
+
+  function showStatus(type, message) {
+    elements.status.className = `status status-${type}`;
+    elements.status.textContent = message;
+    elements.status.hidden = false;
+  }
+
+  function clearStatus() {
+    elements.status.hidden = true;
+    elements.status.textContent = '';
+  }
+
+  function beginJob() {
+    cancelCurrentJob(false);
+    currentJob = { cancelled: false, reader: null };
+    return currentJob;
+  }
+
+  function cancelCurrentJob(notify = true) {
+    if (!currentJob) return;
+    currentJob.cancelled = true;
+    if (currentJob.reader && currentJob.reader.readyState === FileReader.LOADING) {
+      currentJob.reader.abort();
+    }
+    if (notify) showStatus('info', '转换已取消，没有保留未完成的结果。');
+  }
+
+  function setEncodeBusy(busy) {
+    elements.progressWrap.hidden = !busy;
+    elements.changeFileButton.disabled = busy;
+    elements.fileInput.disabled = busy;
+    elements.clearEncodeButton.disabled = busy;
+  }
+
+  function setDecodeBusy(busy) {
+    elements.decodeProgressWrap.hidden = !busy;
+    elements.decodeInput.disabled = busy;
+    elements.downloadName.disabled = busy;
+    elements.clearDecodeButton.disabled = busy;
+    if (busy) {
+      elements.downloadFileButton.disabled = true;
+    } else {
+      updateDecodeState();
+    }
+  }
+
+  function switchMode(mode) {
+    cancelCurrentJob(false);
+    const encode = mode === 'encode';
+    elements.modeEncode.setAttribute('aria-selected', String(encode));
+    elements.modeDecode.setAttribute('aria-selected', String(!encode));
+    elements.modeEncode.tabIndex = encode ? 0 : -1;
+    elements.modeDecode.tabIndex = encode ? -1 : 0;
+    elements.panelEncode.hidden = !encode;
+    elements.panelDecode.hidden = encode;
+    clearStatus();
+    if (!encode) elements.decodeInput.focus();
+  }
+
+  function readFile(file, job, onProgress) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      job.reader = reader;
+      reader.onprogress = event => {
+        if (event.lengthComputable) onProgress(event.loaded / event.total);
+      };
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('无法读取所选文件，请确认文件仍可访问。'));
+      reader.onabort = () => {
+        const error = new Error('转换已取消');
+        error.code = 'CONVERSION_CANCELLED';
+        reject(error);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function updateFileSummary(file, detail, state) {
+    elements.fileSummary.hidden = false;
+    elements.fileName.textContent = file.name || '未命名文件';
+    elements.fileMeta.textContent = detail;
+    elements.fileTypeIcon.textContent = state === 'done' ? '✓' : '…';
+  }
+
+  function clearEncodeResult() {
+    elements.base64Output.value = '';
+    elements.base64Output.removeAttribute('data-has-result');
+    elements.base64Output.placeholder = '选择文件后，Base64 编码会显示在这里';
+    elements.outputHint.textContent = '纯 Base64 · 自动生成，无 Data URL 前缀';
+    elements.copyButton.disabled = true;
+    elements.downloadTextButton.disabled = true;
+  }
+
+  async function handleFile(file) {
+    if (!file) return;
+    const job = beginJob();
+    sourceFileName = file.name || 'file';
+    clearStatus();
+    clearEncodeResult();
+    updateFileSummary(file, `${core.formatBytes(file.size)} · 等待转换`, 'working');
+    elements.progress.value = 0;
+    elements.progressText.textContent = '正在读取文件… 0%';
+    setEncodeBusy(true);
+
+    if (file.size > 50 * 1024 * 1024) {
+      showStatus('warning', '文件超过 50 MB，转换期间浏览器会占用较多内存，请保持页面打开。');
+    }
+
+    try {
+      const buffer = await readFile(file, job, value => {
+        const progress = value * 0.35;
+        elements.progress.value = progress;
+        elements.progressText.textContent = `正在读取文件… ${Math.round(progress * 100)}%`;
+      });
+      const base64 = await core.bytesToBase64(
+        new Uint8Array(buffer),
+        value => {
+          const progress = 0.35 + value * 0.65;
+          elements.progress.value = progress;
+          elements.progressText.textContent = `正在生成 Base64… ${Math.round(progress * 100)}%`;
+        },
+        job
+      );
+      if (job.cancelled || currentJob !== job) return;
+
+      elements.base64Output.value = base64;
+      elements.base64Output.setAttribute('data-has-result', 'true');
+      if (!base64) elements.base64Output.placeholder = '空文件对应的 Base64 是空字符串（长度 0）';
+      elements.copyButton.disabled = false;
+      elements.downloadTextButton.disabled = false;
+      elements.outputHint.textContent = `${base64.length.toLocaleString()} 字符 · 纯 Base64`;
+      updateFileSummary(
+        file,
+        `${core.formatBytes(file.size)} · 已转换 · Base64 ${core.formatBytes(new Blob([base64]).size)}`,
+        'done'
+      );
+      showStatus('success', `转换完成：${sourceFileName}，可以复制或下载 Base64。`);
+    } catch (error) {
+      if (currentJob !== job) return;
+      clearEncodeResult();
+      updateFileSummary(file, `${core.formatBytes(file.size)} · 未生成结果`, 'working');
+      showStatus(error.code === 'CONVERSION_CANCELLED' ? 'info' : 'error', error.message);
+    } finally {
+      if (currentJob === job) {
+        currentJob = null;
+        setEncodeBusy(false);
+      }
+    }
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function copyResult() {
+    if (!elements.base64Output.hasAttribute('data-has-result')) {
+      showStatus('error', '请先选择文件并完成转换。');
+      return;
+    }
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard-fallback');
+      await navigator.clipboard.writeText(elements.base64Output.value);
+    } catch (error) {
+      elements.base64Output.focus();
+      elements.base64Output.select();
+      if (!document.execCommand('copy')) {
+        showStatus('error', '自动复制失败，请在结果框中全选后手动复制。');
+        return;
+      }
+    }
+    showStatus('success', '已复制到剪贴板，可直接粘贴使用。');
+  }
+
+  function downloadBase64Text() {
+    if (!elements.base64Output.hasAttribute('data-has-result')) {
+      showStatus('error', '请先选择文件并完成转换。');
+      return;
+    }
+    downloadBlob(
+      new Blob([elements.base64Output.value], { type: 'text/plain;charset=utf-8' }),
+      `${sourceFileName}.base64.txt`
+    );
+    showStatus('success', 'Base64 文本已开始下载。');
+  }
+
+  function updateDecodeState() {
+    const raw = elements.decodeInput.value;
+    const check = core.validateBase64(raw);
+    const normalizedLength = core.normalizeBase64(raw).length;
+    elements.decodeCount.textContent = `${normalizedLength.toLocaleString()} 字符`;
+    elements.decodeMeta.className = 'decode-meta';
+
+    if (!raw.trim()) {
+      elements.decodeValidation.textContent = '等待输入';
+      elements.downloadFileButton.disabled = true;
+      return;
+    }
+
+    elements.decodeMeta.classList.add(check.valid ? 'is-valid' : 'is-invalid');
+    elements.decodeValidation.textContent = check.valid ? '格式有效，可以生成文件' : check.message;
+    elements.downloadFileButton.disabled = !check.valid;
+  }
+
+  async function decodeAndDownload() {
+    const check = core.validateBase64(elements.decodeInput.value);
+    if (!check.valid) {
+      showStatus('error', check.message);
+      elements.decodeInput.focus();
+      return;
+    }
+
+    const job = beginJob();
+    elements.decodeProgress.value = 0;
+    elements.decodeProgressText.textContent = '正在生成文件… 0%';
+    setDecodeBusy(true);
+    clearStatus();
+
+    try {
+      const bytes = await core.base64ToBytes(
+        check.normalized,
+        value => {
+          elements.decodeProgress.value = value;
+          elements.decodeProgressText.textContent = `正在生成文件… ${Math.round(value * 100)}%`;
+        },
+        job
+      );
+      if (job.cancelled || currentJob !== job) return;
+      const filename = core.safeDownloadName(elements.downloadName.value);
+      elements.downloadName.value = filename;
+      downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), filename);
+      showStatus('success', `文件 ${filename} 已生成并开始下载（${core.formatBytes(bytes.length)}）。`);
+    } catch (error) {
+      if (currentJob !== job) return;
+      showStatus(error.code === 'CONVERSION_CANCELLED' ? 'info' : 'error', error.message);
+    } finally {
+      if (currentJob === job) {
+        currentJob = null;
+        setDecodeBusy(false);
+      }
+    }
+  }
+
+  function resetEncode() {
+    cancelCurrentJob(false);
+    currentJob = null;
+    elements.fileInput.value = '';
+    elements.fileSummary.hidden = true;
+    setEncodeBusy(false);
+    clearEncodeResult();
+    clearStatus();
+  }
+
+  function resetDecode() {
+    cancelCurrentJob(false);
+    currentJob = null;
+    elements.decodeInput.value = '';
+    elements.downloadName.value = 'decoded.xlsx';
+    setDecodeBusy(false);
+    updateDecodeState();
+    clearStatus();
+    elements.decodeInput.focus();
+  }
+
+  function openFilePicker() {
+    if (!elements.fileInput.disabled) elements.fileInput.click();
+  }
+
+  elements.modeEncode.addEventListener('click', () => switchMode('encode'));
+  elements.modeDecode.addEventListener('click', () => switchMode('decode'));
+  elements.modeEncode.addEventListener('keydown', event => {
+    if (event.key === 'ArrowRight') { event.preventDefault(); elements.modeDecode.focus(); switchMode('decode'); }
+  });
+  elements.modeDecode.addEventListener('keydown', event => {
+    if (event.key === 'ArrowLeft') { event.preventDefault(); elements.modeEncode.focus(); switchMode('encode'); }
+  });
+
+  elements.dropZone.addEventListener('click', openFilePicker);
+  elements.dropZone.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openFilePicker(); }
+  });
+  elements.changeFileButton.addEventListener('click', event => { event.stopPropagation(); openFilePicker(); });
+  elements.fileInput.addEventListener('change', () => {
+    const file = elements.fileInput.files && elements.fileInput.files[0];
+    if (file) handleFile(file);
+    elements.fileInput.value = '';
+  });
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(type => {
+    elements.dropZone.addEventListener(type, event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  });
+  elements.dropZone.addEventListener('dragenter', () => {
+    dragDepth += 1;
+    elements.dropZone.classList.add('is-dragging');
+  });
+  elements.dropZone.addEventListener('dragover', event => {
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  });
+  elements.dropZone.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) elements.dropZone.classList.remove('is-dragging');
+  });
+  elements.dropZone.addEventListener('drop', event => {
+    dragDepth = 0;
+    elements.dropZone.classList.remove('is-dragging');
+    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+  document.addEventListener('dragover', event => event.preventDefault());
+  document.addEventListener('drop', event => event.preventDefault());
+
+  elements.cancelButton.addEventListener('click', () => cancelCurrentJob(true));
+  elements.copyButton.addEventListener('click', copyResult);
+  elements.downloadTextButton.addEventListener('click', downloadBase64Text);
+  elements.clearEncodeButton.addEventListener('click', resetEncode);
+  elements.decodeInput.addEventListener('input', () => { updateDecodeState(); clearStatus(); });
+  elements.downloadFileButton.addEventListener('click', decodeAndDownload);
+  elements.decodeCancelButton.addEventListener('click', () => cancelCurrentJob(true));
+  elements.clearDecodeButton.addEventListener('click', resetDecode);
+
+  updateDecodeState();
 }());
 </script>
 </body>

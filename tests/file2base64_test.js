@@ -8,6 +8,18 @@ const htmlPath = 'html/file2base64.html';
 assert.ok(fs.existsSync(htmlPath), 'html/file2base64.html must exist');
 
 const html = fs.readFileSync(htmlPath, 'utf8');
+assert.match(html, /id="mode-encode"[^>]*aria-selected="true"/);
+assert.match(html, /id="mode-decode"[^>]*aria-selected="false"/);
+assert.match(html, /id="drop-zone"/);
+assert.match(html, /id="base64-output"[^>]*readonly/);
+assert.match(html, /id="copy-button"/);
+assert.match(html, /id="decode-input"/);
+assert.match(html, /id="download-name"[^>]*value="decoded\.xlsx"/);
+assert.match(html, /id="status"[^>]*aria-live="polite"/);
+assert.match(html, /id="cancel-button"/);
+assert.match(html, /id="app-logic"/);
+assert.doesNotMatch(html, /<(?:script|link)[^>]+(?:src|href)=["']https?:/i);
+
 const match = html.match(/<script id="core-logic">([\s\S]*?)<\/script>/);
 assert.ok(match, 'core-logic script must exist');
 

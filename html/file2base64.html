@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件与 Base64 转换工具</title>
+</head>
+<body>
+<script id="core-logic">
+(function () {
+  'use strict';
+
+  const ENCODE_CHUNK_SIZE = 3 * 8192;
+  const DECODE_CHUNK_SIZE = 4 * 8192;
+
+  function cancelledError() {
+    const error = new Error('转换已取消');
+    error.code = 'CONVERSION_CANCELLED';
+    return error;
+  }
+
+  function nextFrame() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  async function bytesToBase64(bytes, onProgress, job) {
+    if (job && job.cancelled) throw cancelledError();
+    if (!bytes.length) {
+      if (onProgress) onProgress(1);
+      return '';
+    }
+
+    const parts = [];
+    for (let offset = 0; offset < bytes.length; offset += ENCODE_CHUNK_SIZE) {
+      if (job && job.cancelled) throw cancelledError();
+      const chunk = bytes.subarray(offset, Math.min(offset + ENCODE_CHUNK_SIZE, bytes.length));
+      let binary = '';
+      for (let index = 0; index < chunk.length; index += 1) {
+        binary += String.fromCharCode(chunk[index]);
+      }
+      parts.push(btoa(binary));
+      if (onProgress) onProgress(Math.min(1, (offset + chunk.length) / bytes.length));
+      if (parts.length % 16 === 0) await nextFrame();
+    }
+    return parts.join('');
+  }
+
+  function normalizeBase64(value) {
+    return String(value || '').replace(/\s+/g, '');
+  }
+
+  function validateBase64(value) {
+    const normalized = normalizeBase64(value);
+    if (!normalized) {
+      return { valid: false, normalized, message: '请先粘贴 Base64 内容。' };
+    }
+    if (normalized.length % 4 !== 0) {
+      return { valid: false, normalized, message: 'Base64 长度必须是 4 的倍数。' };
+    }
+    const pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+    if (!pattern.test(normalized)) {
+      return { valid: false, normalized, message: 'Base64 包含非法字符或填充。' };
+    }
+    return { valid: true, normalized, message: '' };
+  }
+
+  async function base64ToBytes(value, onProgress, job) {
+    const check = validateBase64(value);
+    if (!check.valid) throw new Error(check.message);
+
+    const chunks = [];
+    let total = 0;
+    for (let offset = 0; offset < check.normalized.length; offset += DECODE_CHUNK_SIZE) {
+      if (job && job.cancelled) throw cancelledError();
+      const binary = atob(check.normalized.slice(offset, offset + DECODE_CHUNK_SIZE));
+      const chunk = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        chunk[index] = binary.charCodeAt(index);
+      }
+      chunks.push(chunk);
+      total += chunk.length;
+      if (onProgress) {
+        onProgress(Math.min(1, (offset + DECODE_CHUNK_SIZE) / check.normalized.length));
+      }
+      if (chunks.length % 16 === 0) await nextFrame();
+    }
+
+    const result = new Uint8Array(total);
+    let position = 0;
+    chunks.forEach(chunk => {
+      result.set(chunk, position);
+      position += chunk.length;
+    });
+    return result;
+  }
+
+  function safeDownloadName(value) {
+    const name = String(value || '').trim().replace(/[\\/:*?"<>|\x00-\x1F]/g, '_');
+    if (!name || !/[^\s._-]/.test(name)) return 'decoded.xlsx';
+    return name;
+  }
+
+  function formatBytes(size) {
+    if (!size) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const unit = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+    return `${Number((size / (1024 ** unit)).toFixed(unit ? 2 : 0))} ${units[unit]}`;
+  }
+
+  window.FileBase64Core = {
+    bytesToBase64,
+    base64ToBytes,
+    normalizeBase64,
+    validateBase64,
+    safeDownloadName,
+    formatBytes
+  };
+}());
+</script>
+</body>
+</html>

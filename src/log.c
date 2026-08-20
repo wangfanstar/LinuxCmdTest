@@ -117,6 +117,11 @@ void log_close(void)
     pthread_mutex_unlock(&g_mutex);
 }
 
+const char *log_get_dir(void)
+{
+    return g_log_dir;
+}
+
 void log_write(log_level_t level, const char *fmt, ...)
 {
     pthread_mutex_lock(&g_mutex);

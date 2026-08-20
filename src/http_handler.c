@@ -5,6 +5,7 @@
 #include "register_api.h"
 #include "wiki.h"
 #include "auth_db.h"
+#include "admin_api.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -517,6 +518,30 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/codechecker-list") == 0) {
         handle_api_codechecker_list(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/admin-log-files", 20) == 0 &&
+        (path[20] == '\0' || path[20] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_admin_log_files(client_fd);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/admin-log-read", 19) == 0 &&
+        (path[19] == '\0' || path[19] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_admin_log_read(client_fd, path_qs);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/admin-ip-stats", 19) == 0 &&
+        (path[19] == '\0' || path[19] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_admin_ip_stats(client_fd, path_qs);
         goto done;
     }
 

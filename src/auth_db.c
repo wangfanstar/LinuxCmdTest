@@ -216,11 +216,12 @@ static int ensure_schema(void)
 
     if (exec_sql(sql_users)) return -1;
     if (exec_sql_allow_dup_column(sql_alt1)) return -1;
-    if (exec_sql_allow_dup_column(sql_alt2)) return -1;
     if (exec_sql(sql_sessions)) return -1;
     if (exec_sql(sql_audit)) return -1;
     if (exec_sql(sql_login)) return -1;
     if (exec_sql(sql_md)) return -1;
+    /* 老库迁移：表已存在（CREATE 为 no-op）时补加 save_txn_id 列 */
+    if (exec_sql_allow_dup_column(sql_alt2)) return -1;
     if (exec_sql(sql_wiki_meta)) return -1;
     if (exec_sql(sql_notewiki_prefs)) return -1;
     if (exec_sql(sql_idx1)) return -1;

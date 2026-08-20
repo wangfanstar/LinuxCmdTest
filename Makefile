@@ -78,6 +78,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/wiki.c \
        $(SRC_DIR)/svn_api.c \
        $(SRC_DIR)/auth_db.c \
+       $(SRC_DIR)/admin_api.c \
 
 ifeq ($(OS),Windows_NT)
 LDFLAGS += -lws2_32

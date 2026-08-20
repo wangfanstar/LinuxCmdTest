@@ -13,6 +13,9 @@ html/logs
 # CodeChecker CI 报告（外部软链接目录，只读）
 html/codechecker_html/
 
+# wiki 鉴权用户库（运行时生成，含密码哈希）
+html/wiki/sqlite_db/wiki_auth.db
+
 # 本地私有配置（可能含凭据）
 .claude/settings.local.json
 .claude/credentials*

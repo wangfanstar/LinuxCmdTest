@@ -32,4 +32,7 @@ void log_write(log_level_t level, const char *fmt, ...);
 #define LOG_WARN(fmt, ...)  log_write(LOG_WARN,  fmt, ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) log_write(LOG_ERROR, fmt, ##__VA_ARGS__)
 
+/* 返回当前日志目录（只读，供管理 API 使用） */
+const char *log_get_dir(void);
+
 #endif /* LOG_H */

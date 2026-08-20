@@ -14,11 +14,22 @@ assert.match(html, /id="drop-zone"/);
 assert.match(html, /id="base64-output"[^>]*readonly/);
 assert.match(html, /id="copy-button"/);
 assert.match(html, /id="decode-input"/);
+assert.match(html, /id="capacity-note"/);
 assert.match(html, /id="download-name"[^>]*value="decoded\.xlsx"/);
 assert.match(html, /id="status"[^>]*aria-live="polite"/);
 assert.match(html, /id="cancel-button"/);
 assert.match(html, /id="app-logic"/);
 assert.doesNotMatch(html, /<(?:script|link)[^>]+(?:src|href)=["']https?:/i);
+// 离线单文件适配: file:// 打开时隐藏返回首页链接
+assert.match(html, /id="back-link"/);
+assert.match(html, /location\.protocol\s*===\s*'file:'[\s\S]*?hidden\s*=\s*true/);
+// 离线/旧版浏览器粘贴兼容: 不能只依赖 input 事件
+assert.match(html, /decodeInput\.addEventListener\('paste'/);
+assert.match(html, /decodeInput\.addEventListener\('change'/);
+assert.match(html, /decodeInput\.addEventListener\('propertychange'/);
+assert.match(html, /jsHeapSizeLimit/);
+assert.doesNotMatch(html, /file\.size\s*>\s*50\s*\*\s*1024\s*\*\s*1024/);
+assert.match(html, /file\.slice\(/);
 
 const match = html.match(/<script id="core-logic">([\s\S]*?)<\/script>/);
 assert.ok(match, 'core-logic script must exist');
@@ -51,6 +62,11 @@ const core = context.window.FileBase64Core;
   assert.strictEqual(core.validateBase64('abc').valid, false);
   assert.strictEqual(core.validateBase64('ab=c').valid, false);
   assert.strictEqual(core.validateBase64('****').valid, false);
+  const largeBase64 = 'A'.repeat(5 * 1024 * 1024);
+  assert.doesNotThrow(() => core.validateBase64(largeBase64));
+  assert.strictEqual(core.validateBase64(largeBase64).valid, true);
+  const largeRestored = await core.base64ToBytes(largeBase64);
+  assert.strictEqual(largeRestored.length, 5 * 1024 * 1024 / 4 * 3);
   assert.strictEqual(core.safeDownloadName('  report.xlsx  '), 'report.xlsx');
   assert.strictEqual(core.safeDownloadName('../'), 'decoded.xlsx');
   assert.strictEqual(core.formatBytes(0), '0 B');

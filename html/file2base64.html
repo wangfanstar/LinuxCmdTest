@@ -108,6 +108,12 @@
       font-size: 14px;
     }
 
+    .capacity-note {
+      margin: 7px 0 0;
+      color: #7b8798;
+      font-size: 11px;
+    }
+
     .mode-tabs {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -409,13 +415,14 @@
 <body>
 <main class="app-shell">
   <div class="top-row">
-    <a class="back-link" href="index.html">← 返回工具首页</a>
+    <a class="back-link" id="back-link" href="index.html">← 返回工具首页</a>
     <div class="privacy-badge"><span class="privacy-dot" aria-hidden="true"></span>本地处理 · 文件不会上传</div>
   </div>
 
   <header class="page-header">
     <h1>文件 ↔ Base64</h1>
     <p class="page-subtitle">任意文件与纯 Base64 字符串互转，离线可用</p>
+    <p class="capacity-note" id="capacity-note">容量参考：无固定硬上限，正在估算当前浏览器可用内存…</p>
   </header>
 
   <div class="mode-tabs" role="tablist" aria-label="转换方向">
@@ -545,6 +552,13 @@
     return String(value || '').replace(/\s+/g, '');
   }
 
+  function isBase64CharCode(code) {
+    return (code >= 65 && code <= 90) ||
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      code === 43 || code === 47;
+  }
+
   function validateBase64(value) {
     const normalized = normalizeBase64(value);
     if (!normalized) {
@@ -553,9 +567,21 @@
     if (normalized.length % 4 !== 0) {
       return { valid: false, normalized, message: 'Base64 长度必须是 4 的倍数。' };
     }
-    const pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-    if (!pattern.test(normalized)) {
-      return { valid: false, normalized, message: 'Base64 包含非法字符或填充。' };
+
+    /* 不使用整段正则: 大文件 Base64 可能触发引擎回溯/调用栈限制 */
+    let padding = 0;
+    if (normalized.charAt(normalized.length - 1) === '=') padding += 1;
+    if (normalized.charAt(normalized.length - 2) === '=') padding += 1;
+    const contentLength = normalized.length - padding;
+    for (let index = 0; index < contentLength; index += 1) {
+      if (!isBase64CharCode(normalized.charCodeAt(index))) {
+        return { valid: false, normalized, message: 'Base64 包含非法字符或填充。' };
+      }
+    }
+    for (let index = contentLength; index < normalized.length; index += 1) {
+      if (normalized.charAt(index) !== '=') {
+        return { valid: false, normalized, message: 'Base64 包含非法字符或填充。' };
+      }
     }
     return { valid: true, normalized, message: '' };
   }
@@ -564,29 +590,25 @@
     const check = validateBase64(value);
     if (!check.valid) throw new Error(check.message);
 
-    const chunks = [];
-    let total = 0;
+    let padding = 0;
+    if (check.normalized.charAt(check.normalized.length - 1) === '=') padding += 1;
+    if (check.normalized.charAt(check.normalized.length - 2) === '=') padding += 1;
+    const result = new Uint8Array(check.normalized.length / 4 * 3 - padding);
+    let position = 0;
+    let chunkCount = 0;
     for (let offset = 0; offset < check.normalized.length; offset += DECODE_CHUNK_SIZE) {
       if (job && job.cancelled) throw cancelledError();
       const binary = atob(check.normalized.slice(offset, offset + DECODE_CHUNK_SIZE));
-      const chunk = new Uint8Array(binary.length);
       for (let index = 0; index < binary.length; index += 1) {
-        chunk[index] = binary.charCodeAt(index);
+        result[position] = binary.charCodeAt(index);
+        position += 1;
       }
-      chunks.push(chunk);
-      total += chunk.length;
       if (onProgress) {
         onProgress(Math.min(1, (offset + DECODE_CHUNK_SIZE) / check.normalized.length));
       }
-      if (chunks.length % 16 === 0) await nextFrame();
+      chunkCount += 1;
+      if (chunkCount % 16 === 0) await nextFrame();
     }
-
-    const result = new Uint8Array(total);
-    let position = 0;
-    chunks.forEach(chunk => {
-      result.set(chunk, position);
-      position += chunk.length;
-    });
     return result;
   }
 
@@ -619,12 +641,15 @@
   'use strict';
 
   const core = window.FileBase64Core;
+  const FILE_READ_CHUNK_SIZE = 3 * 1024 * 1024;
   const byId = id => document.getElementById(id);
   const elements = {
+    backLink: byId('back-link'),
     modeEncode: byId('mode-encode'),
     modeDecode: byId('mode-decode'),
     panelEncode: byId('panel-encode'),
     panelDecode: byId('panel-decode'),
+    capacityNote: byId('capacity-note'),
     dropZone: byId('drop-zone'),
     fileInput: byId('file-input'),
     fileSummary: byId('file-summary'),
@@ -658,6 +683,12 @@
   let currentJob = null;
   let sourceFileName = 'file';
   let dragDepth = 0;
+
+  /* 离线单文件适配: 以 file:// 直接打开时, 旁边没有工具首页, 隐藏返回链接;
+   * 所有转换逻辑本就纯本地, 无任何网络请求, 单文件即可离线使用 */
+  if (window.location.protocol === 'file:') {
+    elements.backLink.hidden = true;
+  }
 
   function showStatus(type, message) {
     elements.status.className = `status status-${type}`;
@@ -735,6 +766,76 @@
     });
   }
 
+  async function fileToBase64(file, job, onProgress) {
+    if (!file.size) {
+      if (onProgress) onProgress(1);
+      return '';
+    }
+
+    const parts = [];
+    const chunkSize = FILE_READ_CHUNK_SIZE;
+    for (let offset = 0; offset < file.size; offset += chunkSize) {
+      if (job && job.cancelled) {
+        const error = new Error('转换已取消');
+        error.code = 'CONVERSION_CANCELLED';
+        throw error;
+      }
+      const end = Math.min(offset + chunkSize, file.size);
+      const currentSize = end - offset;
+      const buffer = await readFile(file.slice(offset, end), job, value => {
+        if (onProgress) {
+          onProgress(((offset + value * currentSize) / file.size) * 0.5);
+        }
+      });
+      const encoded = await core.bytesToBase64(
+        new Uint8Array(buffer),
+        value => {
+          if (onProgress) {
+            onProgress(0.5 + ((offset + value * currentSize) / file.size) * 0.5);
+          }
+        },
+        job
+      );
+      parts.push(encoded);
+    }
+    return parts.join('');
+  }
+
+  function estimatedHeapLimitBytes() {
+    if (typeof performance !== 'undefined' && performance.memory) {
+      const heapLimit = Number(performance.memory.jsHeapSizeLimit);
+      if (Number.isFinite(heapLimit) && heapLimit > 0) return heapLimit;
+    }
+    if (typeof navigator !== 'undefined') {
+      const deviceMemory = Number(navigator.deviceMemory);
+      if (Number.isFinite(deviceMemory) && deviceMemory > 0) {
+        return deviceMemory * (1024 ** 3) * 0.5;
+      }
+    }
+    return 0;
+  }
+
+  function estimatedInputLimitBytes(mode) {
+    const heapLimit = estimatedHeapLimitBytes();
+    if (!heapLimit) return 0;
+    const memoryRatio = mode === 'encode' ? 0.18 : 0.12;
+    const megabyte = 1024 ** 2;
+    return Math.floor(heapLimit * memoryRatio / megabyte) * megabyte;
+  }
+
+  function updateCapacityNote() {
+    const encodeLimit = estimatedInputLimitBytes('encode');
+    const decodeLimit = estimatedInputLimitBytes('decode');
+    if (!encodeLimit && !decodeLimit) {
+      elements.capacityNote.textContent = '容量参考：无固定硬上限，当前浏览器未提供内存估算；实际受可用内存限制。';
+      return;
+    }
+    elements.capacityNote.textContent =
+      `容量参考：文件转 Base64 建议不超过 ${core.formatBytes(encodeLimit)}，` +
+      `Base64 转文件建议原文件不超过 ${core.formatBytes(decodeLimit)}（Base64 文本约 ${core.formatBytes(decodeLimit * 4 / 3)}）；` +
+      '无固定硬上限，实际受浏览器可用内存限制。';
+  }
+
   function updateFileSummary(file, detail, state) {
     elements.fileSummary.hidden = false;
     elements.fileName.textContent = file.name || '未命名文件';
@@ -762,25 +863,19 @@
     elements.progressText.textContent = '正在读取文件… 0%';
     setEncodeBusy(true);
 
-    if (file.size > 50 * 1024 * 1024) {
-      showStatus('warning', '文件超过 50 MB，转换期间浏览器会占用较多内存，请保持页面打开。');
+    const encodeLimit = estimatedInputLimitBytes('encode');
+    if (encodeLimit && file.size > encodeLimit) {
+      showStatus('warning', `文件超过当前估算建议上限 ${core.formatBytes(encodeLimit)}，仍会尝试转换，请保持页面打开。`);
     }
 
     try {
-      const buffer = await readFile(file, job, value => {
-        const progress = value * 0.35;
+      const base64 = await fileToBase64(file, job, value => {
+        const progress = 0.35 + value * 0.65;
         elements.progress.value = progress;
-        elements.progressText.textContent = `正在读取文件… ${Math.round(progress * 100)}%`;
+        elements.progressText.textContent = value < 0.5
+          ? `正在读取文件… ${Math.round(progress * 100)}%`
+          : `正在生成 Base64… ${Math.round(progress * 100)}%`;
       });
-      const base64 = await core.bytesToBase64(
-        new Uint8Array(buffer),
-        value => {
-          const progress = 0.35 + value * 0.65;
-          elements.progress.value = progress;
-          elements.progressText.textContent = `正在生成 Base64… ${Math.round(progress * 100)}%`;
-        },
-        job
-      );
       if (job.cancelled || currentJob !== job) return;
 
       elements.base64Output.value = base64;
@@ -791,7 +886,7 @@
       elements.outputHint.textContent = `${base64.length.toLocaleString()} 字符 · 纯 Base64`;
       updateFileSummary(
         file,
-        `${core.formatBytes(file.size)} · 已转换 · Base64 ${core.formatBytes(new Blob([base64]).size)}`,
+        `${core.formatBytes(file.size)} · 已转换 · Base64 ${core.formatBytes(base64.length)}`,
         'done'
       );
       showStatus('success', `转换完成：${sourceFileName}，可以复制或下载 Base64。`);
@@ -852,7 +947,6 @@
 
   function updateDecodeState() {
     const raw = elements.decodeInput.value;
-    const check = core.validateBase64(raw);
     const normalizedLength = core.normalizeBase64(raw).length;
     elements.decodeCount.textContent = `${normalizedLength.toLocaleString()} 字符`;
     elements.decodeMeta.className = 'decode-meta';
@@ -863,9 +957,21 @@
       return;
     }
 
+    const check = core.validateBase64(raw);
     elements.decodeMeta.classList.add(check.valid ? 'is-valid' : 'is-invalid');
     elements.decodeValidation.textContent = check.valid ? '格式有效，可以生成文件' : check.message;
     elements.downloadFileButton.disabled = !check.valid;
+  }
+
+  function syncDecodeInputState() {
+    updateDecodeState();
+    clearStatus();
+  }
+
+  /* 某些 file:// 场景或旧版浏览器粘贴时不会触发 input;
+   * paste 延迟一帧, 确保浏览器先把剪贴板内容写入 textarea */
+  function scheduleDecodeInputSync() {
+    setTimeout(syncDecodeInputState, 0);
   }
 
   async function decodeAndDownload() {
@@ -982,11 +1088,17 @@
   elements.copyButton.addEventListener('click', copyResult);
   elements.downloadTextButton.addEventListener('click', downloadBase64Text);
   elements.clearEncodeButton.addEventListener('click', resetEncode);
-  elements.decodeInput.addEventListener('input', () => { updateDecodeState(); clearStatus(); });
+  elements.decodeInput.addEventListener('input', syncDecodeInputState);
+  elements.decodeInput.addEventListener('paste', scheduleDecodeInputSync);
+  elements.decodeInput.addEventListener('change', syncDecodeInputState);
+  elements.decodeInput.addEventListener('keyup', syncDecodeInputState);
+  elements.decodeInput.addEventListener('compositionend', syncDecodeInputState);
+  elements.decodeInput.addEventListener('propertychange', syncDecodeInputState);
   elements.downloadFileButton.addEventListener('click', decodeAndDownload);
   elements.decodeCancelButton.addEventListener('click', () => cancelCurrentJob(true));
   elements.clearDecodeButton.addEventListener('click', resetDecode);
 
+  updateCapacityNote();
   updateDecodeState();
 }());
 </script>

@@ -43,6 +43,8 @@ void handle_api_wiki_user_delete(http_sock_t fd, const char *body);
 void handle_api_wiki_audit_logs(http_sock_t fd, const char *path_qs);
 void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs);
 void handle_api_wiki_user_article_rank(http_sock_t fd, const char *path_qs);
+void handle_api_wiki_restore_version(http_sock_t fd, const char *body,
+                                      const char *actor, const char *ip);
 
 /* Markdown 文章元数据（无首行 META 的 md 依赖 SQLite 记录作者与时间） */
 typedef struct {

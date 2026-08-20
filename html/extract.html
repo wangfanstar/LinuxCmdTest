@@ -232,8 +232,8 @@
         <h3>基本流程</h3>
         <ul>
           <li>① 加载文件：拖拽上传、输入 URL 或本地路径均可，三种方式可混合使用。</li>
-          <li>② 添加包含关键词：输入后按 <span class="kbd">Enter</span> 或「+ 添加」，多个关键词彩色标签区分。</li>
-          <li>③ 可选：添加排除关键词，命中排除词的行将从结果中剔除。</li>
+          <li>② 可选：添加包含关键词，输入后按 <span class="kbd">Enter</span> 或「+ 添加」，多个关键词彩色标签区分。</li>
+          <li>③ 可选：添加排除关键词，命中排除词的行将从结果中剔除；不添加包含关键词时，将提取所有未被排除的行。</li>
           <li>④ 设置匹配选项（大小写、正则、分组等）。</li>
           <li>⑤ 点击「提取匹配行」或按 <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> 执行。</li>
           <li>⑥ 在结果框直接编辑，填写文件名后点击「下载结果文件」保存。</li>
@@ -366,7 +366,7 @@
 
   <!-- 输入行 -->
   <div class="search-row">
-    <input type="text" id="search-input" placeholder="输入关键词或正则，按 Enter 或点击「添加」..." spellcheck="false">
+    <input type="text" id="search-input" placeholder="输入包含关键词或正则（可选），按 Enter 或点击「添加」..." spellcheck="false">
     <button class="btn-primary" onclick="addPattern()" style="white-space:nowrap">+ 添加</button>
     <button class="btn-neutral" onclick="clearPatterns()" style="white-space:nowrap">清除全部</button>
   </div>
@@ -754,6 +754,10 @@ function rebuildRegexes() {
   return true;
 }
 
+function appendLines(target, lines) {
+  for (const line of lines) target.push(line);
+}
+
 // ─── 搜索 ───────────────────────────────────────────────────
 function doSearch() {
   const showFile = document.getElementById('opt-filename').checked;
@@ -767,15 +771,20 @@ function doSearch() {
   const excludeVal = document.getElementById('exclude-input').value.trim();
   if (excludeVal && !excludes.find(e => e.raw === excludeVal)) addExclude();
 
-  if (patterns.length === 0) { setStatus('请至少添加一个关键词', 'err'); return; }
-  if (fileMap.size === 0)    { setStatus('请先上传文件', 'err'); return; }
-  if (!rebuildRegexes())     return;
-  if (!rebuildExcludeRegexes()) return;
+  const hasIncludePatterns = patterns.length > 0;
+  const hasExcludePatterns = excludes.length > 0;
+  if (!hasIncludePatterns && !hasExcludePatterns) {
+    setStatus('请至少添加一个关键词或排除词', 'err');
+    return;
+  }
+  if (fileMap.size === 0) { setStatus('请先上传文件', 'err'); return; }
+  if (hasIncludePatterns && !rebuildRegexes()) return;
+  if (hasExcludePatterns && !rebuildExcludeRegexes()) return;
 
   const outputLines = [];
   let totalMatch = 0;
 
-  if (groupMode === 'split') {
+  if (groupMode === 'split' && hasIncludePatterns) {
     // 按关键词分组
     for (const p of patterns) {
       const groupLines = [];
@@ -793,7 +802,7 @@ function doSearch() {
         });
       }
       outputLines.push(`\n▶ 关键词「${p.raw}」— ${groupLines.length} 行`);
-      outputLines.push(...groupLines);
+      appendLines(outputLines, groupLines);
       totalMatch += groupLines.length;
     }
   } else {
@@ -802,9 +811,11 @@ function doSearch() {
       const fileLines = text.split(/\r?\n/);
       const matched = [];
       fileLines.forEach((line, idx) => {
-        const hit = matchMode === 'and'
-          ? patterns.every(p => { p.regex.lastIndex = 0; return p.regex.test(line); })
-          : patterns.some(p  => { p.regex.lastIndex = 0; return p.regex.test(line); });
+        const hit = hasIncludePatterns
+          ? (matchMode === 'and'
+              ? patterns.every(p => { p.regex.lastIndex = 0; return p.regex.test(line); })
+              : patterns.some(p  => { p.regex.lastIndex = 0; return p.regex.test(line); }))
+          : true;
         if (hit && !isExcluded(line)) {
           let out = '';
           if (showFile) out += `[${name}] `;
@@ -815,7 +826,7 @@ function doSearch() {
       });
       if (matched.length > 0) {
         if (showFile && fileMap.size > 1) outputLines.push(`\n── ${name} (${matched.length} 行) ──`);
-        outputLines.push(...matched);
+        appendLines(outputLines, matched);
         totalMatch += matched.length;
       }
     }
@@ -823,10 +834,14 @@ function doSearch() {
 
   document.getElementById('output').value = outputLines.join('\n').replace(/^\n/, '');
   document.getElementById('result-count').textContent = `共匹配 ${totalMatch} 行`;
+  const scopeInfo = hasIncludePatterns
+    ? `${patterns.length} 个关键词 × ${fileMap.size} 个文件`
+    : `仅排除模式 × ${fileMap.size} 个文件`;
   const exInfo = excludes.length > 0 ? `，排除词 ${excludes.length} 个` : '';
+  const modeInfo = hasIncludePatterns ? `${matchMode.toUpperCase()} 模式` : '仅排除模式';
   setStatus(
-    `搜索完成：${patterns.length} 个关键词 × ${fileMap.size} 个文件${exInfo}，` +
-    `匹配 ${totalMatch} 行（${matchMode.toUpperCase()} 模式）`,
+    `搜索完成：${scopeInfo}${exInfo}，` +
+    `匹配 ${totalMatch} 行（${modeInfo}）`,
     totalMatch > 0 ? 'ok' : ''
   );
 }

@@ -1,0 +1,3399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CentOS Pastebin 上传与恢复工具</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #202124;
+      --muted: #5f6368;
+      --line: #d9dee7;
+      --accent: #e95420;
+      --accent-dark: #c83f12;
+      --ok: #137333;
+      --warn: #b06000;
+      --bad: #b3261e;
+      --blue: #1558d6;
+      --soft-blue: #e8f0fe;
+      --soft-orange: #fff1e8;
+      --soft-green: #e7f5ec;
+      --soft-red: #fce8e6;
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+
+    header {
+      background: #2f3437;
+      color: #fff;
+      padding: 18px 24px;
+      border-bottom: 4px solid var(--accent);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    header p {
+      margin: 6px 0 0;
+      color: #d9dde3;
+      font-size: 14px;
+    }
+
+    main {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      padding: 12px 14px 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab.is-active {
+      color: var(--accent-dark);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.is-active { display: block; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #3c4043;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="url"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 112px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 9px 0;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button,
+    .button-link {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 9px 12px;
+      min-height: 38px;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    button.primary,
+    .button-link.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover,
+    .button-link.primary:hover { background: var(--accent-dark); }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bookmark-box {
+      display: grid;
+      grid-template-columns: minmax(220px, auto) 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bookmark-link {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      background: var(--soft-orange);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .work-area {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      margin-top: 12px;
+    }
+
+    .progress-rail {
+      position: sticky;
+      top: 12px;
+      align-self: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #f8fafc;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+    }
+
+    .work-main {
+      min-width: 0;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(100px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .progress-rail .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 0 0 12px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      min-height: 74px;
+    }
+
+    .progress-rail .stat {
+      min-height: 62px;
+      padding: 8px;
+    }
+
+    .stat .value {
+      font-size: 24px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    .progress-rail .stat .value {
+      font-size: 20px;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .progress {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: #e8eaed;
+      overflow: hidden;
+      border: 1px solid #d3d6dc;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      transition: width 160ms ease;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 980px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f1f3f4;
+      font-size: 12px;
+      color: #3c4043;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    tr.is-active { background: #fff8f3; }
+    tr.status-saved,
+    tr.status-collected { background: #f7fff9; }
+    tr.status-failed,
+    tr.status-pathInvalid,
+    tr.status-invalidUrl { background: #fff7f6; }
+
+    .path-cell {
+      max-width: 320px;
+      word-break: break-word;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    .url-input {
+      min-width: 300px;
+      font-size: 12px;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .status {
+      display: inline-flex;
+      min-width: 72px;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #eef0f3;
+      color: #3c4043;
+    }
+
+    .status.done,
+    .status.saved,
+    .status.collected { background: var(--soft-green); color: var(--ok); }
+    .status.warn,
+    .status.needsManualCollect,
+    .status.conflict { background: #fff6df; color: var(--warn); }
+    .status.bad,
+    .status.failed,
+    .status.pathInvalid,
+    .status.invalidUrl { background: var(--soft-red); color: var(--bad); }
+    .status.working { background: var(--soft-blue); color: var(--blue); }
+
+    .message {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .message.ok { color: var(--ok); }
+    .message.warn { color: var(--warn); }
+    .message.bad { color: var(--bad); }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-top: 12px;
+      padding: 10px 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .skip-list,
+    .failure-list {
+      margin: 10px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #3c4043;
+      font-weight: 700;
+    }
+
+    .mode-switch-panel {
+      display: block;
+    }
+
+    .mode-switch-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .segment {
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      padding: 9px 16px;
+      min-height: 38px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .segment:last-child { border-right: 0; }
+
+    .segment.is-active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .segmented:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .mode-switch-hint {
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .unified-base64-box {
+      align-self: end;
+      padding: 9px 0;
+    }
+
+    .unified-base64-box[hidden] { display: none; }
+
+    .chunk-settings {
+      margin-top: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .chunk-settings summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .chunk-summary {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+      margin-left: 8px;
+    }
+
+    .chunk-settings-grid {
+      margin-top: 12px;
+    }
+
+    .chunk-settings .inline-check {
+      margin-right: 10px;
+      margin-bottom: 6px;
+    }
+
+    .chunk-count-box[hidden] { display: none; }
+
+    .help-panel summary {
+      font-size: 16px;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .help-block {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      min-width: 0;
+    }
+
+    .help-block h3 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    .help-block ol,
+    .help-block ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .help-block code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      background: #f1f3f4;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 4px;
+      word-break: break-all;
+    }
+
+    .compact {
+      padding: 6px 8px;
+      min-height: 32px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      main { padding: 12px; }
+      .topbar,
+      .grid-2,
+      .grid-3,
+      .bookmark-box,
+      .help-grid,
+      .mode-switch-grid {
+        grid-template-columns: 1fr;
+      }
+      .work-area {
+        grid-template-columns: 1fr;
+      }
+      .progress-rail {
+        position: static;
+        max-height: none;
+      }
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      table,
+      thead,
+      tbody,
+      th,
+      td,
+      tr {
+        display: block;
+      }
+      table { min-width: 0; }
+      thead { display: none; }
+      tr {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+      }
+      td {
+        border-bottom: 0;
+        padding: 6px 0;
+      }
+      td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        margin-bottom: 2px;
+      }
+      .url-input { min-width: 0; }
+      .path-cell { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CentOS Pastebin 上传与恢复工具</h1>
+    <p>本工具支持一键发布/恢复、网页表单自动提交与书签脚本 URL 回填；不保存密码，不自动登录。</p>
+  </header>
+
+  <main>
+    <section class="panel topbar">
+      <div>
+        <label for="usernameNote">用户名备注</label>
+        <input id="usernameNote" type="text" placeholder="可选：记录当前操作账号">
+      </div>
+      <a class="button-link primary" href="https://pastebin.centos.org/" target="_blank" rel="noopener">打开 CentOS Pastebin</a>
+      <a class="button-link" href="https://paste.centos.org/api" target="_blank" rel="noopener">查看 API</a>
+      <button id="clearStateBtn" type="button">清空本地状态</button>
+    </section>
+
+    <section class="panel mode-switch-panel">
+      <div class="mode-switch-grid">
+        <div>
+          <label>处理模式</label>
+          <div class="segmented" role="group" aria-label="处理模式">
+            <button id="modeIndependentBtn" class="segment is-active" type="button" data-mode="independent" role="radio" aria-checked="true">独立模式</button>
+            <button id="modeUnifiedBtn" class="segment" type="button" data-mode="unified" role="radio" aria-checked="false">统一模式</button>
+          </div>
+          <div class="subtle mode-switch-hint">
+            独立模式：每个文件独立选择原文或 Base64 按钮，与现状一致。<br>
+            统一模式：用下面的总开关一键控制全部文件，只显示对应的一组按钮，避免误点。
+          </div>
+        </div>
+        <div id="unifiedBase64Box" class="inline-check unified-base64-box">
+          <input id="unifiedBase64" type="checkbox">
+          <span>统一模式：全部文件按 Base64 处理（发布编码、恢复解码均自动按 Base64）</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="bookmark-box">
+        <a id="bookmarkletLink" class="button-link bookmark-link" href="#">CentOS Pastebin 书签脚本</a>
+        <div class="subtle">
+          将左侧按钮拖到浏览器书签栏。创建页点击它可填入剪贴板内容和 1 天有效期；结果页点击它可回填网址；恢复下载时可从当前 paste 页面采集正文。
+        </div>
+      </div>
+    </section>
+
+    <details id="helpPanel" class="panel help-panel">
+      <summary>帮助说明</summary>
+      <div class="help-grid">
+        <div class="help-block">
+          <h3>发布文件</h3>
+          <ol>
+            <li>选择文件或文件夹后点「一键发布」，工具会自动逐条网页提交并等待 URL 回填。</li>
+            <li>小型或中型多文件集合可先点「单 Paste 打包」，把整个文件集压成 1 条 Paste，恢复时自动展开。</li>
+            <li>默认免 API key；每条弹出结果页点 1 次书签脚本即可回传 URL。</li>
+            <li>配置 API Key + 本地代理后可实现全程无书签自动发布（见下方高级设置）。</li>
+            <li>也可分步使用「网页提交下一个」「准备填表」手动控制。</li>
+          </ol>
+        </div>
+        <div class="help-block">
+          <h3>恢复文件</h3>
+          <ol>
+            <li>粘贴结果 CSV 后点「一键恢复」，工具会自动尝试下载并保存到指定文件夹。</li>
+            <li>遇到跨域限制时会自动打开 raw 采集页；在弹出页点击书签脚本即可回传正文。</li>
+            <li>全部采集完成后默认保存到指定文件夹；Base64 内容按当前统一模式或 CSV 元数据解码。</li>
+            <li>也可分步使用「导入文本」「自动下载」「保存到指定文件夹」或「保存 ZIP」手动控制。</li>
+          </ol>
+        </div>
+        <div class="help-block">
+          <h3>结果与状态</h3>
+          <ul>
+            <li>“复制结果表”用于普通 CSV 备份。</li>
+            <li>“复制结果表(Base64)”适合贴到聊天、工单或其他会破坏换行的地方。</li>
+            <li>Base64 模式恢复时请选择带“Base64 解码”的保存按钮。</li>
+            <li>刷新页面后本地状态会保留；内容丢失时重新选择文件即可继续。</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
+    <section class="panel">
+      <div class="tabs" role="tablist" aria-label="主功能">
+        <button id="publishTabBtn" class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="publishPanel">发布到 Paste</button>
+        <button id="downloadTabBtn" class="tab" type="button" role="tab" aria-selected="false" aria-controls="downloadPanel">从 Paste 恢复</button>
+      </div>
+
+      <section id="publishPanel" class="tab-panel is-active" role="tabpanel" aria-labelledby="publishTabBtn">
+        <div class="grid-3">
+          <div>
+            <label for="filePicker">选择文件</label>
+            <input id="filePicker" type="file" multiple>
+          </div>
+          <div>
+            <label for="folderPicker">选择文件夹</label>
+            <input id="folderPicker" type="file" webkitdirectory multiple>
+          </div>
+          <div>
+            <label for="maxFileSize">最大单文件大小 MB</label>
+            <input id="maxFileSize" type="number" min="0.05" step="0.05" value="4">
+          </div>
+        </div>
+        <div class="grid-1" style="margin-top: 6px;">
+          <label class="inline-check"><input id="appendMode" type="checkbox"> 追加模式（保留已选文件，新文件追加到列表末尾）</label>
+        </div>
+        <details class="chunk-settings">
+          <summary>
+            大文件自动分片
+            <span class="chunk-summary">超过 1 MB 自动分片；每片最大 1 MB；高级设置</span>
+          </summary>
+          <div class="grid-3 chunk-settings-grid">
+            <div>
+              <label for="chunkThresholdMb">自动分片阈值 MB</label>
+              <input id="chunkThresholdMb" type="number" min="0.05" step="0.05" value="1">
+            </div>
+            <div>
+              <label for="chunkSizeMb">每片大小 MB</label>
+              <input id="chunkSizeMb" type="number" min="0.05" step="0.05" value="1">
+            </div>
+            <div>
+              <label>分片方式</label>
+              <label class="inline-check"><input id="chunkModeSize" type="radio" name="chunkMode" value="size" checked> 按每片大小</label>
+              <label class="inline-check"><input id="chunkModeCount" type="radio" name="chunkMode" value="count"> 按固定片数</label>
+            </div>
+            <div id="chunkCountBox" class="chunk-count-box" hidden>
+              <label for="chunkCount">固定片数</label>
+              <input id="chunkCount" type="number" min="2" step="1" value="2">
+            </div>
+            <div>
+              <label for="chunkContentMode">独立模式分片内容</label>
+              <select id="chunkContentMode">
+                <option value="base64">Base64</option>
+                <option value="text">原文</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="chunk-settings api-settings" open>
+          <summary>
+            CentOS 网页提交辅助
+            <span class="chunk-summary">免 API key、私有发布、自动语言、返回页书签回填</span>
+          </summary>
+          <div class="grid-3 chunk-settings-grid">
+            <div>
+              <label class="inline-check"><input id="webPrivate" type="checkbox" checked> 私有 Paste</label>
+            </div>
+            <div>
+              <label for="webExpireMinutes">删除时间</label>
+              <select id="webExpireMinutes">
+                <option value="5">5 分钟</option>
+                <option value="60">1 小时</option>
+                <option value="1440" selected>1 天</option>
+              </select>
+            </div>
+            <div>
+              <label>语言</label>
+              <div class="subtle">按文件扩展名自动选择语法高亮。</div>
+            </div>
+          </div>
+          <details class="chunk-settings" style="margin-top: 12px;">
+            <summary>
+              API Key（可选，全自动发布）
+              <span class="chunk-summary">配合本地代理可零书签发布；仅保存在本机</span>
+            </summary>
+            <div class="grid-3 chunk-settings-grid">
+              <div>
+                <label for="apiKey">CentOS API Key</label>
+                <input id="apiKey" type="password" placeholder="可选，向 CentOS 管理员申请" autocomplete="off">
+              </div>
+              <div>
+                <label for="apiProxyUrl">本地代理地址</label>
+                <input id="apiProxyUrl" type="url" placeholder="http://127.0.0.1:8765/api/create">
+                <div class="subtle">绕过浏览器 CORS；留空则走网页提交 + 书签回填。</div>
+              </div>
+            </div>
+          </details>
+        </details>
+
+        <div class="work-area">
+          <aside class="progress-rail" aria-label="发布数量与进度">
+            <div class="stats" aria-label="发布统计">
+              <div class="stat"><div class="label">全部文件</div><div id="publishTotal" class="value">0</div></div>
+              <div class="stat"><div class="label">可处理</div><div id="publishProcessable" class="value">0</div></div>
+              <div class="stat"><div class="label">已跳过</div><div id="publishSkipped" class="value">0</div></div>
+              <div class="stat"><div class="label">已粘贴</div><div id="publishDone" class="value">0</div></div>
+              <div class="stat"><div class="label">待粘贴</div><div id="publishPending" class="value">0</div></div>
+              <div class="stat"><div class="label">进度</div><div id="publishPercent" class="value">0%</div></div>
+            </div>
+            <div class="progress" aria-label="发布进度"><span id="publishProgressBar"></span></div>
+          </aside>
+
+          <div class="work-main">
+            <div class="filter-row">
+              <button id="publishAllBtn" type="button" class="primary">一键发布</button>
+              <button id="startBatchBtn" type="button">开始批量</button>
+              <button id="nextPendingBtn" type="button">下一个待粘贴</button>
+              <button id="webNextPendingBtn" type="button">网页提交下一个</button>
+              <button id="bundlePublishBtn" type="button">单 Paste 打包</button>
+              <button id="copyPublishCsvBtn" type="button">复制结果表</button>
+              <button id="copyPublishCsvBase64Btn" type="button">复制结果表(Base64)</button>
+              <button id="exportPublishCsvBtn" type="button">导出 CSV</button>
+              <button id="clearPublishBtn" type="button">清空发布列表</button>
+            </div>
+            <div id="publishMessage" class="message"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件</th>
+                    <th>大小</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                    <th>Paste URL</th>
+                  </tr>
+                </thead>
+                <tbody id="publishTableBody"></tbody>
+              </table>
+            </div>
+
+            <details>
+              <summary>已跳过文件 <span id="skippedCountText">0</span></summary>
+              <ul id="skippedList" class="skip-list"></ul>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="downloadPanel" class="tab-panel" role="tabpanel" aria-labelledby="downloadTabBtn">
+        <div class="grid-2">
+          <div>
+            <label for="importText">粘贴 CSV 或两列清单</label>
+            <textarea id="importText" placeholder="file_path,paste_url&#10;src/a.txt,https://pastebin.centos.org/view/abc"></textarea>
+            <div class="button-row" style="margin-top: 8px;">
+              <button id="restoreAllBtn" type="button" class="primary">一键恢复</button>
+              <button id="importTextBtn" type="button">导入文本</button>
+              <button id="clearImportTextBtn" type="button">清空输入</button>
+            </div>
+          </div>
+          <div>
+            <label for="csvPicker">导入 CSV 文件</label>
+            <input id="csvPicker" type="file" accept=".csv,.txt,text/csv,text/plain">
+            <div class="subtle">支持本工具导出的 CSV，也支持每行“文件名,URL”或“文件名 Tab URL”。</div>
+          </div>
+        </div>
+
+        <div class="work-area">
+          <aside class="progress-rail" aria-label="恢复数量与进度">
+            <div class="stats" aria-label="下载统计">
+              <div class="stat"><div class="label">导入总数</div><div id="downloadTotal" class="value">0</div></div>
+              <div class="stat"><div class="label">有效 URL</div><div id="downloadValid" class="value">0</div></div>
+              <div class="stat"><div class="label">已成功</div><div id="downloadDone" class="value">0</div></div>
+              <div class="stat"><div class="label">需采集</div><div id="downloadManual" class="value">0</div></div>
+              <div class="stat"><div class="label">失败</div><div id="downloadFailed" class="value">0</div></div>
+              <div class="stat"><div class="label">进度</div><div id="downloadPercent" class="value">0%</div></div>
+            </div>
+            <div class="progress" aria-label="恢复进度"><span id="downloadProgressBar"></span></div>
+          </aside>
+
+          <div class="work-main">
+            <div class="filter-row" id="downloadFilterRow">
+              <button id="autoDownloadBtn" type="button">自动下载</button>
+              <button id="retryFailedBtn" type="button">重试失败</button>
+              <button id="saveZipBtn" type="button" data-save-action="save-zip">保存 ZIP</button>
+              <button id="saveZipDecodedBtn" type="button" data-save-action="save-zip-decoded">保存 ZIP(Base64 解码)</button>
+              <button id="saveFolderBtn" type="button" data-save-action="save-folder">保存到指定文件夹</button>
+              <button id="saveFolderDecodedBtn" type="button" data-save-action="save-folder-decoded">保存到指定文件夹(Base64 解码)</button>
+              <label class="inline-check"><input id="overwriteFiles" type="checkbox"> 允许覆盖</label>
+              <button id="exportFailuresBtn" type="button">导出失败清单</button>
+              <button id="clearDownloadBtn" type="button">清空恢复列表</button>
+            </div>
+            <div id="downloadMessage" class="message"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                    <th>Paste URL</th>
+                    <th>错误</th>
+                  </tr>
+                </thead>
+                <tbody id="downloadTableBody"></tbody>
+              </table>
+            </div>
+
+            <details>
+              <summary>失败与需采集项目</summary>
+              <ul id="failureList" class="failure-list"></ul>
+            </details>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script id="core-logic">
+  (function () {
+    "use strict";
+
+    const forbiddenPathChars = /[<>:"|?*\x00-\x1f]/;
+    const pasteHosts = new Set(["pastebin.centos.org", "paste.centos.org"]);
+    const pasteCreateUrl = "https://paste.centos.org/";
+    const pasteApiCreateUrl = "https://paste.centos.org/api/create";
+    const bundleMarker = "PASTE_WEB_TOOL_BUNDLE_V1";
+    const bundleType = "paste-web-tool.bundle";
+    const pasteLanguageByExtension = new Map([
+      ["js", "javascript"], ["jsx", "javascript"], ["ts", "javascript"], ["tsx", "javascript"],
+      ["html", "html5"], ["htm", "html5"], ["css", "css"], ["php", "php"],
+      ["py", "python"], ["rb", "ruby"], ["lua", "lua"], ["sh", "bash"], ["bash", "bash"],
+      ["zsh", "bash"], ["fish", "bash"], ["ps1", "powershell"], ["go", "go"],
+      ["c", "c"], ["h", "c"], ["cc", "cpp"], ["cpp", "cpp"], ["hpp", "cpp"],
+      ["cs", "csharp"], ["rs", "rust"], ["sql", "sql"], ["xml", "xml"], ["diff", "diff"],
+      ["patch", "diff"], ["tex", "latex"], ["yaml", "yaml"], ["yml", "yaml"],
+      ["ini", "ini"], ["conf", "text"], ["cfg", "text"], ["json", "javascript"],
+      ["md", "text"], ["markdown", "text"], ["txt", "text"], ["log", "text"],
+      ["csv", "text"], ["tsv", "text"]
+    ]);
+    const textExtensions = new Set([
+      "txt", "md", "markdown", "js", "jsx", "ts", "tsx", "html", "htm", "css",
+      "scss", "less", "json", "xml", "yaml", "yml", "py", "java", "c", "cc",
+      "cpp", "h", "hpp", "cs", "go", "rs", "sh", "bash", "zsh", "fish",
+      "bat", "cmd", "ps1", "sql", "log", "ini", "conf", "cfg", "toml",
+      "lock", "env", "gitignore", "dockerfile", "makefile", "gradle", "rb",
+      "php", "vue", "svelte", "properties", "csv", "tsv"
+    ]);
+
+    function getPastePathId(url) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] === "view" && parts[1] === "raw" && parts[2]) return decodeURIComponent(parts[2]);
+      if (parts[0] === "view" && parts[1]) return decodeURIComponent(parts[1]);
+      if (parts[0] === "api" && parts[1] === "paste" && parts[2]) return decodeURIComponent(parts[2]);
+      return "";
+    }
+
+    function getPasteUrl(value) {
+      try {
+        const url = new URL(String(value || "").trim());
+        if (url.protocol !== "https:") return null;
+        if (!pasteHosts.has(url.hostname.toLowerCase())) return null;
+        if (!getPastePathId(url)) return null;
+        return url;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function isPasteUrl(value) {
+      return !!getPasteUrl(value);
+    }
+
+    function getPasteId(value) {
+      const url = getPasteUrl(value);
+      return url ? getPastePathId(url) : "";
+    }
+
+    function getRawPasteUrl(value) {
+      const id = getPasteId(value);
+      return id ? `https://paste.centos.org/view/raw/${encodeURIComponent(id)}` : "";
+    }
+
+    function inferPasteLanguage(filePath) {
+      const name = String(filePath || "").split(/[\\/]/).pop().toLowerCase();
+      const extension = name.includes(".") ? name.split(".").pop() : name;
+      return pasteLanguageByExtension.get(extension) || "text";
+    }
+
+    function buildWebCreateParams(record, options = {}) {
+      const title = String(options.title || record.sourcePath || record.path || record.filePath || record.name || "paste").slice(0, 200);
+      const expireMinutes = Number.parseInt(options.expireMinutes, 10);
+      return {
+        code: String(options.code ?? record.content ?? ""),
+        title,
+        name: String(options.name || "").trim(),
+        private: options.private ? "1" : "",
+        lang: String(options.lang || inferPasteLanguage(title)),
+        expire: Number.isFinite(expireMinutes) && expireMinutes > 0 ? String(expireMinutes) : "",
+        submit: "submit"
+      };
+    }
+
+    function buildApiCreateParams(record, options = {}) {
+      const title = String(options.title || record.sourcePath || record.path || record.filePath || record.name || "paste").slice(0, 200);
+      const expireMinutes = Number.parseInt(options.expireMinutes, 10);
+      const params = {
+        text: String(options.text ?? options.code ?? record.content ?? ""),
+        title,
+        name: String(options.name || "").trim(),
+        lang: String(options.lang || inferPasteLanguage(title))
+      };
+      if (options.private) params.private = "1";
+      if (Number.isFinite(expireMinutes) && expireMinutes > 0) params.expire = String(expireMinutes);
+      if (options.apikey) params.apikey = String(options.apikey);
+      return params;
+    }
+
+    function parseApiCreateResponse(body) {
+      const text = String(body ?? "").trim();
+      if (!text) return { ok: false, url: "", error: "空响应" };
+      if (/^error:/i.test(text)) return { ok: false, url: "", error: text };
+      const match = text.match(/^https:\/\/(?:pastebin\.centos\.org|paste\.centos\.org)\/view\/[^\s]+$/i);
+      if (match) return { ok: true, url: match[0], error: "" };
+      if (isPasteUrl(text)) {
+        const parsedUrl = getPasteUrl(text);
+        if (parsedUrl) return { ok: true, url: parsedUrl.href, error: "" };
+      }
+      return { ok: false, url: "", error: text };
+    }
+
+    async function createPasteViaApi(record, options = {}, fetchImpl) {
+      const fetchFn = fetchImpl || (typeof fetch === "function" ? fetch : null);
+      if (!fetchFn) {
+        return { ok: false, url: "", error: "当前环境不支持 fetch。" };
+      }
+      const params = buildApiCreateParams(record, options);
+      if (!String(params.text || "").trim()) {
+        return { ok: false, url: "", error: "缺少 paste 正文" };
+      }
+      const endpoint = String(options.proxyUrl || "").trim() || pasteApiCreateUrl;
+      const body = new URLSearchParams(params);
+      try {
+        const response = await fetchFn(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+          body: body.toString(),
+          credentials: options.proxyUrl ? "omit" : "include"
+        });
+        if (!response.ok) {
+          return { ok: false, url: "", error: `HTTP ${response.status}` };
+        }
+        const raw = await response.text();
+        const parsed = parseApiCreateResponse(raw);
+        return parsed.ok ? parsed : { ok: false, url: "", error: parsed.error || raw };
+      } catch (error) {
+        return { ok: false, url: "", error: error && error.message ? error.message : "API 请求失败" };
+      }
+    }
+
+    function getDirectFetchBlockReason(value, origin) {
+      if (getPasteUrl(value)) {
+        const originText = origin === "null"
+          ? "当前页面是 file:// 本地文件，浏览器会把来源标记为 null；同时 CentOS Pastebin 没有返回 Access-Control-Allow-Origin，触发 CORS 跨域限制。"
+          : "CentOS Pastebin 没有返回 Access-Control-Allow-Origin，触发 CORS 跨域限制。";
+        return `${originText} 纯 HTML 不能直接 fetch 读取正文，请用“采集”按钮打开页面后点击书签脚本。`;
+      }
+      return "";
+    }
+
+    async function fetchPasteContent(pasteUrl, fetchImpl) {
+      const fetchFn = fetchImpl || (typeof fetch === "function" ? fetch : null);
+      if (!fetchFn) {
+        return { ok: false, text: "", error: "当前环境不支持 fetch。" };
+      }
+      const fetchUrl = getRawPasteUrl(pasteUrl) || pasteUrl;
+      try {
+        const response = await fetchFn(fetchUrl, { credentials: "include" });
+        if (!response.ok) {
+          return { ok: false, text: "", error: `HTTP ${response.status}` };
+        }
+        const raw = await response.text();
+        const text = extractPasteText(raw);
+        if (!String(text || "").trim()) {
+          return { ok: false, text: "", error: "无法解析正文，可能需要登录或手动采集" };
+        }
+        return { ok: true, text, error: "" };
+      } catch (error) {
+        const origin = typeof location !== "undefined" && location ? location.origin : "null";
+        const blockReason = getDirectFetchBlockReason(pasteUrl, origin);
+        return {
+          ok: false,
+          text: "",
+          error: error && error.message ? error.message : (blockReason || "浏览器无法直接读取该 URL")
+        };
+      }
+    }
+
+    function sanitizeRelativePath(value) {
+      const raw = String(value || "").trim().replace(/\\/g, "/");
+      if (!raw || raw.startsWith("/") || raw.startsWith("~/") || /^[a-z]:\//i.test(raw)) return null;
+      const parts = raw.split("/").filter(Boolean);
+      if (!parts.length) return null;
+      for (const part of parts) {
+        if (part === "." || part === ".." || forbiddenPathChars.test(part)) return null;
+      }
+      return parts.join("/");
+    }
+
+    function bytesToBinary(bytes) {
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        const end = Math.min(index + chunkSize, bytes.length);
+        let chunk = "";
+        for (let offset = index; offset < end; offset += 1) {
+          chunk += String.fromCharCode(bytes[offset]);
+        }
+        binary += chunk;
+      }
+      return binary;
+    }
+
+    function binaryToBytes(binary) {
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return bytes;
+    }
+
+    function isBase64CharCode(code) {
+      return (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || code === 43 || code === 47;
+    }
+
+    function isValidBase64Text(compact) {
+      if (compact.length % 4 !== 0) return false;
+      let padding = 0;
+      for (let index = compact.length - 1; index >= 0 && compact[index] === "="; index -= 1) {
+        padding += 1;
+      }
+      if (padding > 2) return false;
+      const dataLength = compact.length - padding;
+      for (let index = 0; index < dataLength; index += 1) {
+        if (!isBase64CharCode(compact.charCodeAt(index))) return false;
+      }
+      for (let index = dataLength; index < compact.length; index += 1) {
+        if (compact[index] !== "=") return false;
+      }
+      return true;
+    }
+
+    function concatBytes(parts, totalLength) {
+      if (parts.length === 1) return parts[0];
+      const output = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const part of parts) {
+        output.set(part, offset);
+        offset += part.length;
+      }
+      return output;
+    }
+
+    function encodeBase64Bytes(bytes) {
+      if (typeof btoa === "function") {
+        const chunkSize = 0x6000; // Multiple of 3, so only the final chunk gets padding.
+        let encoded = "";
+        for (let index = 0; index < bytes.length; index += chunkSize) {
+          encoded += btoa(bytesToBinary(bytes.subarray(index, index + chunkSize)));
+        }
+        return encoded;
+      }
+      if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+      throw new Error("当前环境不支持 Base64 编码。");
+    }
+
+    function encodeBase64Text(value) {
+      const bytes = new TextEncoder().encode(String(value ?? ""));
+      return encodeBase64Bytes(bytes);
+    }
+
+    function decodeBase64Bytes(compact) {
+      if (typeof atob === "function") {
+        const chunkSize = 0x8000; // Multiple of 4, preserving Base64 character groups.
+        const parts = [];
+        let totalLength = 0;
+        for (let index = 0; index < compact.length; index += chunkSize) {
+          const bytes = binaryToBytes(atob(compact.slice(index, index + chunkSize)));
+          parts.push(bytes);
+          totalLength += bytes.length;
+        }
+        return concatBytes(parts, totalLength);
+      }
+      if (typeof Buffer !== "undefined") return Uint8Array.from(Buffer.from(compact, "base64"));
+      throw new Error("当前环境不支持 Base64 解码。");
+    }
+
+    function decodeBase64Text(value) {
+      const compact = String(value ?? "").replace(/\s+/g, "");
+      if (!compact) return "";
+      if (!isValidBase64Text(compact)) {
+        throw new Error("Base64 解码失败：内容不是有效的 Base64。");
+      }
+      try {
+        const bytes = decodeBase64Bytes(compact);
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch (error) {
+        throw new Error(`Base64 解码失败：${error.message || error}`);
+      }
+    }
+
+    function normalizePositiveInteger(value, label) {
+      const number = Number(value);
+      if (!Number.isFinite(number) || number < 1) {
+        throw new Error(`${label}必须是大于 0 的整数。`);
+      }
+      return Math.floor(number);
+    }
+
+    function splitTextBySize(text, maxChars) {
+      const value = String(text ?? "");
+      const size = normalizePositiveInteger(maxChars, "分片大小");
+      if (!value.length) return [""];
+      const parts = [];
+      for (let index = 0; index < value.length; index += size) {
+        parts.push(value.slice(index, index + size));
+      }
+      return parts;
+    }
+
+    function splitTextByCount(text, count) {
+      const value = String(text ?? "");
+      const target = normalizePositiveInteger(count, "分片数量");
+      if (!value.length) return [""];
+      const partCount = Math.min(target, value.length);
+      const baseSize = Math.floor(value.length / partCount);
+      const remainder = value.length % partCount;
+      const parts = [];
+      let offset = 0;
+      for (let index = 0; index < partCount; index += 1) {
+        const size = baseSize + (index < remainder ? 1 : 0);
+        parts.push(value.slice(offset, offset + size));
+        offset += size;
+      }
+      return parts;
+    }
+
+    function getRecordPath(record) {
+      return sanitizeRelativePath(record && (record.sourcePath || record.filePath || record.path));
+    }
+
+    function getRecordPartIndex(record) {
+      const index = Number(record && record.partIndex);
+      return Number.isFinite(index) && index > 0 ? index : 0;
+    }
+
+    function sortRecordsByPath(records) {
+      return Array.from(records || [])
+        .map((record, index) => ({ record, index, path: getRecordPath(record) }))
+        .sort((left, right) => {
+          const leftKey = left.path ? left.path.toLowerCase() : "\uffff";
+          const rightKey = right.path ? right.path.toLowerCase() : "\uffff";
+          const comparison = leftKey.localeCompare(rightKey, "en", { numeric: true });
+          return comparison || getRecordPartIndex(left.record) - getRecordPartIndex(right.record) || left.index - right.index;
+        })
+        .map((item) => item.record);
+    }
+
+    function hasChunkMetadata(record) {
+      return !!(record && record.groupId && Number(record.partTotal) > 1 && Number(record.partIndex) > 0);
+    }
+
+    function normalizeContentMode(value) {
+      return value === "base64" ? "base64" : "text";
+    }
+
+    function normalizeChunkMode(value) {
+      if (value === "count") return "count";
+      if (value === "size") return "size";
+      return "none";
+    }
+
+    function buildPublishChunks(record, options = {}) {
+      const sourcePath = sanitizeRelativePath(record && (record.sourcePath || record.path || record.filePath));
+      if (!sourcePath) throw new Error("文件路径不安全");
+      const originalContent = String((record && record.content) ?? "");
+      const thresholdBytes = Math.max(0, Number(options.thresholdBytes) || 0);
+      const shouldChunk = !!options.enabled && Number(record.size || 0) > thresholdBytes;
+      if (!shouldChunk) {
+        return [{
+          ...record,
+          path: sourcePath,
+          sourcePath,
+          displayPath: sourcePath,
+          content: originalContent,
+          groupId: "",
+          partIndex: 0,
+          partTotal: 0,
+          contentMode: "",
+          chunkMode: "none",
+          chunkSize: 0,
+          partSize: 0
+        }];
+      }
+
+      const contentMode = normalizeContentMode(options.contentMode);
+      const uploadContent = contentMode === "base64" ? encodeBase64Text(originalContent) : originalContent;
+      const chunkMode = normalizeChunkMode(options.chunkMode) === "count" ? "count" : "size";
+      const chunkSize = chunkMode === "count"
+        ? normalizePositiveInteger(options.chunkCount, "分片数量")
+        : normalizePositiveInteger(options.chunkSize, "分片大小");
+      const parts = chunkMode === "count"
+        ? splitTextByCount(uploadContent, chunkSize)
+        : splitTextBySize(uploadContent, chunkSize);
+      const partSizes = parts.map((part) => String(part ?? "").length);
+      const calculatedChunkSize = chunkMode === "count" ? Math.max(...partSizes) : chunkSize;
+      const makeRecordId = typeof options.makeId === "function" ? options.makeId : makeId;
+      const groupId = makeRecordId("chunk");
+      return parts.map((part, index) => ({
+        ...record,
+        id: makeRecordId("publish"),
+        path: sourcePath,
+        sourcePath,
+        displayPath: `${sourcePath} [part ${index + 1}/${parts.length}]`,
+        name: sourcePath.split("/").pop(),
+        content: part,
+        pasteUrl: "",
+        status: "pending",
+        error: "",
+        groupId,
+        partIndex: index + 1,
+        partTotal: parts.length,
+        contentMode,
+        chunkMode,
+        chunkSize: calculatedChunkSize,
+        partSize: partSizes[index]
+      }));
+    }
+
+    function removePublishRecord(records, recordId) {
+      const list = Array.from(records || []);
+      const target = list.find((record) => record && record.id === recordId);
+      if (!target) {
+        return { records: list, removedCount: 0, removedGroup: false, removedPath: "" };
+      }
+
+      const targetPath = target.sourcePath || target.path || "";
+      const removedGroup = hasChunkMetadata(target);
+      const kept = removedGroup
+        ? list.filter((record) => !(record.groupId === target.groupId && (record.sourcePath || record.path || "") === targetPath))
+        : list.filter((record) => record.id !== recordId);
+      return {
+        records: kept,
+        removedCount: list.length - kept.length,
+        removedGroup,
+        removedPath: targetPath || target.path || ""
+      };
+    }
+
+    function getUtf8ByteLength(value) {
+      return new TextEncoder().encode(String(value ?? "")).length;
+    }
+
+    function makeBundleFile(pathValue, contentValue, sizeValue) {
+      const safePath = sanitizeRelativePath(pathValue);
+      if (!safePath) throw new Error("Bundle file path is unsafe.");
+      const content = String(contentValue ?? "");
+      return {
+        path: safePath,
+        encoding: "base64",
+        size: Number.isFinite(Number(sizeValue)) && Number(sizeValue) >= 0 ? Number(sizeValue) : getUtf8ByteLength(content),
+        content: encodeBase64Text(content)
+      };
+    }
+
+    function makeBundleFileFromRecord(record) {
+      return makeBundleFile(
+        record && (record.sourcePath || record.filePath || record.path),
+        record && record.content,
+        record && record.size
+      );
+    }
+
+    function buildBundleFiles(records) {
+      const grouped = groupDownloadRecords(records);
+      const files = [];
+      const seen = new Set();
+      const pushFile = (file) => {
+        const key = file.path.toLowerCase();
+        if (seen.has(key)) throw new Error(`Duplicate bundle file path: ${file.path}`);
+        seen.add(key);
+        files.push(file);
+      };
+
+      for (const record of grouped.normal) {
+        if (isBundlePayload(record && record.content)) {
+          parseBundlePayload(record.content).forEach((file) => pushFile(makeBundleFile(file.filePath, file.content, file.size)));
+        } else {
+          pushFile(makeBundleFileFromRecord(record));
+        }
+      }
+
+      for (const group of grouped.groups) {
+        const asSaved = group.map((record) => ({ ...record, status: "saved" }));
+        pushFile(makeBundleFileFromRecord(mergeChunkRecords(asSaved)));
+      }
+
+      return sortRecordsByPath(files.map((file) => ({ ...file, filePath: file.path }))).map((file) => {
+        const { filePath, ...rest } = file;
+        return rest;
+      });
+    }
+
+    function makeBundlePayloadFromFiles(files, options = {}) {
+      const normalizedFiles = Array.from(files || []);
+      if (!normalizedFiles.length) throw new Error("Bundle is empty.");
+      const payload = {
+        type: bundleType,
+        version: 1,
+        createdAt: options.createdAt || new Date().toISOString(),
+        files: normalizedFiles
+      };
+      return `${bundleMarker}\n${encodeBase64Text(JSON.stringify(payload))}`;
+    }
+
+    function makeBundlePayload(records, options = {}) {
+      return makeBundlePayloadFromFiles(buildBundleFiles(records), options);
+    }
+
+    function parseBundlePayload(text) {
+      const value = String(text ?? "").trim();
+      if (!value.startsWith(bundleMarker)) throw new Error("Not a paste-web-tool bundle.");
+      const encoded = value.slice(bundleMarker.length).trim();
+      if (!encoded) throw new Error("Bundle payload is empty.");
+
+      let payload;
+      try {
+        payload = JSON.parse(decodeBase64Text(encoded));
+      } catch (error) {
+        throw new Error(`Bundle payload is invalid: ${error.message || error}`);
+      }
+
+      if (!payload || payload.type !== bundleType || payload.version !== 1 || !Array.isArray(payload.files)) {
+        throw new Error("Bundle payload schema is unsupported.");
+      }
+
+      const seen = new Set();
+      return payload.files.map((file) => {
+        const safePath = sanitizeRelativePath(file && file.path);
+        if (!safePath) throw new Error("Bundle file path is unsafe.");
+        const key = safePath.toLowerCase();
+        if (seen.has(key)) throw new Error(`Duplicate bundle file path: ${safePath}`);
+        seen.add(key);
+        const encoding = file && file.encoding === "base64" ? "base64" : "";
+        if (encoding !== "base64") throw new Error("Bundle file encoding is unsupported.");
+        return {
+          filePath: safePath,
+          path: safePath,
+          content: decodeBase64Text(file.content || ""),
+          size: Number(file.size) || 0,
+          status: "saved",
+          error: "",
+          bundleVersion: 1
+        };
+      });
+    }
+
+    function isBundlePayload(text) {
+      try {
+        parseBundlePayload(text);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function getBundlePayloadRecords(record, options = {}) {
+      const raw = String((record && record.content) ?? "");
+      if (raw.trim().startsWith(bundleMarker)) {
+        return parseBundlePayload(raw);
+      }
+      if (options.decodeBase64) {
+        try {
+          const decoded = decodeBase64Text(raw);
+          if (decoded.trim().startsWith(bundleMarker)) return parseBundlePayload(decoded);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    function buildBundlePublishRecord(records, options = {}) {
+      const files = buildBundleFiles(records);
+      const content = makeBundlePayloadFromFiles(files, options);
+      const makeRecordId = typeof options.makeId === "function" ? options.makeId : makeId;
+      return {
+        id: makeRecordId("publish"),
+        path: "paste-web-bundle.txt",
+        sourcePath: "paste-web-bundle.txt",
+        displayPath: `paste-web-bundle (${files.length} files)`,
+        name: "paste-web-bundle.txt",
+        size: getUtf8ByteLength(content),
+        content,
+        pasteUrl: "",
+        status: "pending",
+        error: "",
+        groupId: "",
+        partIndex: 0,
+        partTotal: 0,
+        contentMode: "bundle",
+        chunkMode: "none",
+        chunkSize: 0,
+        partSize: 0,
+        bundleVersion: 1,
+        bundleFileCount: files.length
+      };
+    }
+
+    function getRestoreContent(record, options = {}) {
+      const content = String((record && record.content) ?? "");
+      return options.decodeBase64 ? decodeBase64Text(content) : content;
+    }
+
+    function csvEscape(value) {
+      const text = String(value ?? "");
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }
+
+    function parseCsvLine(line) {
+      const cells = [];
+      let current = "";
+      let quoted = false;
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        if (quoted) {
+          if (char === '"' && line[index + 1] === '"') {
+            current += '"';
+            index += 1;
+          } else if (char === '"') {
+            quoted = false;
+          } else {
+            current += char;
+          }
+        } else if (char === '"') {
+          quoted = true;
+        } else if (char === ",") {
+          cells.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      cells.push(current.trim());
+      return cells;
+    }
+
+    function parseImportRows(text) {
+      const rows = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const records = [];
+      let headers = null;
+      rows.forEach((line, lineIndex) => {
+        const cells = line.includes("\t") ? line.split("\t").map((cell) => cell.trim()) : parseCsvLine(line);
+        const lower = cells.map((cell) => cell.toLowerCase());
+        if (lineIndex === 0 && lower.includes("file_path") && lower.includes("paste_url")) {
+          headers = lower;
+          return;
+        }
+        const getCell = (name, fallbackIndex) => {
+          if (headers) {
+            const index = headers.indexOf(name);
+            if (index >= 0) return cells[index] || "";
+          }
+          return cells[fallbackIndex] || "";
+        };
+        const filePathCell = getCell("file_path", 0);
+        const urlCell = getCell("paste_url", 1);
+        if (!filePathCell && !urlCell) return;
+        const cleanPath = sanitizeRelativePath(filePathCell);
+        const validUrl = isPasteUrl(urlCell);
+        const groupId = getCell("group_id", 4);
+        const partIndex = Number.parseInt(getCell("part_index", 5), 10) || 0;
+        const partTotal = Number.parseInt(getCell("part_total", 6), 10) || 0;
+        const chunkSize = Number.parseInt(getCell("chunk_size", 9), 10) || 0;
+        const isChunk = !!groupId && partIndex > 0 && partTotal > 1;
+        records.push({
+          id: makeId("download"),
+          filePath: cleanPath || filePathCell,
+          pasteUrl: urlCell,
+          content: "",
+          error: cleanPath ? (validUrl ? "" : "Paste URL 无效") : "文件路径不安全",
+          status: cleanPath ? (validUrl ? "queued" : "invalidUrl") : "pathInvalid",
+          groupId: isChunk ? groupId : "",
+          partIndex: isChunk ? partIndex : 0,
+          partTotal: isChunk ? partTotal : 0,
+          contentMode: isChunk ? normalizeContentMode(getCell("content_mode", 7)) : "",
+          chunkMode: isChunk ? normalizeChunkMode(getCell("chunk_mode", 8)) : "none",
+          chunkSize: isChunk ? chunkSize : 0
+        });
+      });
+      return records;
+    }
+
+    function decodeHtmlEntities(value) {
+      const text = String(value || "");
+      if (typeof document !== "undefined" && document.createElement) {
+        const textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+      }
+      const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+      return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
+        if (entity[0] === "#") {
+          const isHex = entity[1].toLowerCase() === "x";
+          const code = Number.parseInt(entity.slice(isHex ? 2 : 1), isHex ? 16 : 10);
+          return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+        }
+        return Object.prototype.hasOwnProperty.call(named, entity.toLowerCase()) ? named[entity.toLowerCase()] : match;
+      });
+    }
+
+    function stripTags(value) {
+      return String(value || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|tr)>/gi, "\n").replace(/<[^>]+>/g, "");
+    }
+
+    function extractPasteText(input) {
+      const raw = String(input || "");
+      if (!raw.trim()) return "";
+      if (!/<[a-z][\s\S]*>/i.test(raw)) return raw;
+      if (/you need to be logged in to view this paste|please log in/i.test(raw)) return "";
+      const candidates = [
+        /<textarea[^>]*>([\s\S]*?)<\/textarea>/i,
+        /<pre[^>]*>([\s\S]*?)<\/pre>/i,
+        /<code[^>]*>([\s\S]*?)<\/code>/i,
+        /<td[^>]*class=["'][^"']*(?:code|paste)[^"']*["'][^>]*>([\s\S]*?)<\/td>/i,
+        /<div[^>]*class=["'][^"']*(?:paste|highlight|code)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+      ];
+      for (const pattern of candidates) {
+        const match = raw.match(pattern);
+        if (match && match[1]) {
+          const decoded = decodeHtmlEntities(stripTags(match[1])).replace(/\r\n/g, "\n");
+          if (decoded.trim()) return decoded;
+        }
+      }
+      return "";
+    }
+
+    function makeId(prefix) {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function looksTextFile(file) {
+      const name = String(file.name || "").toLowerCase();
+      const mime = String(file.type || "").toLowerCase();
+      const base = name.split("/").pop();
+      const extension = base.includes(".") ? base.split(".").pop() : base;
+      if (mime.startsWith("text/")) return true;
+      if (mime.includes("json") || mime.includes("xml") || mime.includes("javascript")) return true;
+      if (textExtensions.has(extension) || textExtensions.has(base)) return true;
+      return mime === "" && file.size <= 256 * 1024;
+    }
+
+    function formatBytes(size) {
+      const value = Number(size) || 0;
+      if (value < 1024) return `${value} B`;
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${(value / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    function makeCsv(records) {
+      const lines = ["file_path,paste_url,size_bytes,status,group_id,part_index,part_total,content_mode,chunk_mode,chunk_size"];
+      sortRecordsByPath(records).forEach((record) => {
+        lines.push([
+          record.sourcePath || record.filePath || record.path || "",
+          record.pasteUrl || "",
+          record.size || "",
+          record.status || "",
+          record.groupId || "",
+          record.partIndex || "",
+          record.partTotal || "",
+          record.contentMode || "",
+          record.chunkMode || "",
+          record.chunkSize || ""
+        ].map(csvEscape).join(","));
+      });
+      return lines.join("\n");
+    }
+
+    function makeCsvBase64(records) {
+      return encodeBase64Text(makeCsv(records));
+    }
+
+    function makeFailureCsv(records) {
+      const lines = ["file_path,paste_url,status,error"];
+      records.forEach((record) => {
+        if (["saved", "collected"].includes(record.status)) return;
+        lines.push([record.filePath || "", record.pasteUrl || "", record.status || "", record.error || ""].map(csvEscape).join(","));
+      });
+      return lines.join("\n");
+    }
+
+    const crcTable = (() => {
+      const table = new Uint32Array(256);
+      for (let index = 0; index < 256; index += 1) {
+        let code = index;
+        for (let bit = 0; bit < 8; bit += 1) {
+          code = code & 1 ? 0xedb88320 ^ (code >>> 1) : code >>> 1;
+        }
+        table[index] = code >>> 0;
+      }
+      return table;
+    })();
+
+    function crc32(bytes) {
+      let crc = 0xffffffff;
+      for (let index = 0; index < bytes.length; index += 1) {
+        crc = crcTable[(crc ^ bytes[index]) & 0xff] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function writeU16(view, offset, value) {
+      view.setUint16(offset, value, true);
+    }
+
+    function writeU32(view, offset, value) {
+      view.setUint32(offset, value >>> 0, true);
+    }
+
+    function dosDateTime(date) {
+      const year = Math.max(1980, date.getFullYear());
+      const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+      const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+      return { dosDate, dosTime };
+    }
+
+    function groupDownloadRecords(records) {
+      const normal = [];
+      const groups = new Map();
+      for (const record of records || []) {
+        if (!hasChunkMetadata(record)) {
+          normal.push(record);
+          continue;
+        }
+        const safePath = sanitizeRelativePath(record.filePath || record.path || record.sourcePath);
+        const key = `${record.groupId}::${safePath || record.filePath || ""}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(record);
+      }
+      return { normal, groups: Array.from(groups.values()) };
+    }
+
+    function mergeChunkRecords(records) {
+      const parts = Array.from(records || []);
+      if (!parts.length) throw new Error("分片组为空");
+      const first = parts[0];
+      const safePath = sanitizeRelativePath(first.filePath || first.path || first.sourcePath);
+      if (!safePath) throw new Error("文件路径不安全");
+      const expectedTotal = Number(first.partTotal) || 0;
+      if (expectedTotal < 2) throw new Error("分片总数不一致");
+      const contentMode = normalizeContentMode(first.contentMode);
+      const byIndex = new Map();
+      const duplicates = [];
+
+      for (const record of parts) {
+        const recordPath = sanitizeRelativePath(record.filePath || record.path || record.sourcePath);
+        if (!recordPath || recordPath !== safePath) throw new Error("文件路径不安全");
+        if ((Number(record.partTotal) || 0) !== expectedTotal) throw new Error("分片总数不一致");
+        if (normalizeContentMode(record.contentMode) !== contentMode) throw new Error("分片内容模式不一致");
+        const index = Number(record.partIndex) || 0;
+        if (index < 1 || index > expectedTotal) throw new Error("分片总数不一致");
+        if (byIndex.has(index)) duplicates.push(index);
+        else byIndex.set(index, record);
+      }
+
+      if (duplicates.length) throw new Error(`重复分片 ${Array.from(new Set(duplicates)).join(",")}`);
+      const missing = [];
+      for (let index = 1; index <= expectedTotal; index += 1) {
+        if (!byIndex.has(index)) missing.push(index);
+      }
+      if (missing.length) throw new Error(`缺少分片 ${missing.join(",")}`);
+
+      const ordered = [];
+      for (let index = 1; index <= expectedTotal; index += 1) {
+        const record = byIndex.get(index);
+        if (!["saved", "collected"].includes(record.status) || String(record.content ?? "") === "") {
+          throw new Error(`分片 ${index} 尚未采集`);
+        }
+        ordered.push(record);
+      }
+
+      const joined = ordered.map((record) => String(record.content ?? "")).join("");
+      let content = joined;
+      if (contentMode === "base64") {
+        try {
+          content = decodeBase64Text(joined);
+        } catch (error) {
+          const message = String(error.message || error).replace(/^Base64 解码失败：?/, "");
+          throw new Error(`Base64 合并解码失败：${message}`);
+        }
+      }
+      return {
+        ...first,
+        filePath: safePath,
+        path: safePath,
+        content,
+        status: "saved",
+        error: "",
+        sourceRecords: ordered
+      };
+    }
+
+    function buildRestorableRecords(records, options = {}) {
+      const grouped = groupDownloadRecords(records);
+      const restorable = [];
+      let failed = 0;
+
+      for (const group of grouped.groups) {
+        try {
+          restorable.push(mergeChunkRecords(group));
+        } catch (error) {
+          const message = error.message || String(error);
+          group.forEach((record) => {
+            record.status = "failed";
+            record.error = message;
+          });
+          failed += 1;
+        }
+      }
+
+      for (const record of grouped.normal) {
+        try {
+          const bundleRecords = getBundlePayloadRecords(record, options);
+          if (bundleRecords) {
+            bundleRecords.forEach((file) => {
+              restorable.push({
+                ...file,
+                sourceRecord: record
+              });
+            });
+          } else {
+            restorable.push({
+              ...record,
+              status: ["saved", "collected"].includes(record.status) ? record.status : "saved",
+              content: getRestoreContent(record, options),
+              sourceRecord: record
+            });
+          }
+        } catch (error) {
+          const message = error.message || String(error);
+          record.status = "failed";
+          record.error = message.startsWith("Base64 解码失败") ? message : `Base64 解码失败：${message}`;
+          failed += 1;
+        }
+      }
+
+      return { records: sortRecordsByPath(restorable), failed };
+    }
+
+    async function createZipBlob(records, options = {}) {
+      const encoder = new TextEncoder();
+      const parts = [];
+      const central = [];
+      let offset = 0;
+      const now = dosDateTime(new Date());
+
+      for (const record of sortRecordsByPath(records)) {
+        if (!["saved", "collected"].includes(record.status)) continue;
+        const safePath = sanitizeRelativePath(record.filePath || record.path);
+        if (!safePath) continue;
+        const nameBytes = encoder.encode(safePath);
+        const dataBytes = encoder.encode(getRestoreContent(record, options));
+        const crc = crc32(dataBytes);
+        const localHeader = new Uint8Array(30);
+        const localView = new DataView(localHeader.buffer);
+        writeU32(localView, 0, 0x04034b50);
+        writeU16(localView, 4, 20);
+        writeU16(localView, 6, 0x0800);
+        writeU16(localView, 8, 0);
+        writeU16(localView, 10, now.dosTime);
+        writeU16(localView, 12, now.dosDate);
+        writeU32(localView, 14, crc);
+        writeU32(localView, 18, dataBytes.length);
+        writeU32(localView, 22, dataBytes.length);
+        writeU16(localView, 26, nameBytes.length);
+        writeU16(localView, 28, 0);
+        parts.push(localHeader, nameBytes, dataBytes);
+
+        const centralHeader = new Uint8Array(46);
+        const centralView = new DataView(centralHeader.buffer);
+        writeU32(centralView, 0, 0x02014b50);
+        writeU16(centralView, 4, 20);
+        writeU16(centralView, 6, 20);
+        writeU16(centralView, 8, 0x0800);
+        writeU16(centralView, 10, 0);
+        writeU16(centralView, 12, now.dosTime);
+        writeU16(centralView, 14, now.dosDate);
+        writeU32(centralView, 16, crc);
+        writeU32(centralView, 20, dataBytes.length);
+        writeU32(centralView, 24, dataBytes.length);
+        writeU16(centralView, 28, nameBytes.length);
+        writeU16(centralView, 30, 0);
+        writeU16(centralView, 32, 0);
+        writeU16(centralView, 34, 0);
+        writeU16(centralView, 36, 0);
+        writeU32(centralView, 38, 0);
+        writeU32(centralView, 42, offset);
+        central.push(centralHeader, nameBytes);
+        offset += localHeader.length + nameBytes.length + dataBytes.length;
+      }
+
+      const centralSize = central.reduce((sum, piece) => sum + piece.length, 0);
+      const centralOffset = offset;
+      const entryCount = central.length / 2;
+      parts.push(...central);
+      const end = new Uint8Array(22);
+      const endView = new DataView(end.buffer);
+      writeU32(endView, 0, 0x06054b50);
+      writeU16(endView, 4, 0);
+      writeU16(endView, 6, 0);
+      writeU16(endView, 8, entryCount);
+      writeU16(endView, 10, entryCount);
+      writeU32(endView, 12, centralSize);
+      writeU32(endView, 16, centralOffset);
+      writeU16(endView, 20, 0);
+      parts.push(end);
+      return new Blob(parts, { type: "application/zip" });
+    }
+
+    function buildBookmarklet() {
+      const source = `(()=>{const S='paste-web-tool';const $=s=>document.querySelector(s);const params=new URLSearchParams((location.hash||'').replace(/^#/,''));const token=params.get('put_token')||sessionStorage.getItem('put_token')||'';const file=params.get('put_file')||sessionStorage.getItem('put_file')||'';const mode=params.get('put_mode')||sessionStorage.getItem('put_mode')||'';const download=params.get('put_download')||sessionStorage.getItem('put_download')||'';if(token)sessionStorage.setItem('put_token',token);if(file)sessionStorage.setItem('put_file',file);if(mode)sessionStorage.setItem('put_mode',mode);if(download)sessionStorage.setItem('put_download',download);const post=m=>{if(window.opener)window.opener.postMessage(Object.assign({source:S},m),'*');};const textFromDom=()=>{const n=$('textarea')||$('pre')||$('code')||$('[class*=paste]')||$('[class*=highlight]');return n?n.innerText||n.value||n.textContent||'':document.body.innerText||'';};if(mode==='collect'){const content=textFromDom();post({type:'paste-content',id:download,url:location.href,content});alert(content?'已把正文回传到工具。':'未找到正文，请确认已登录且页面可见。');return;}const textarea=[...document.querySelectorAll('textarea')].find(x=>x.offsetParent!==null)||$('textarea');if(textarea){(navigator.clipboard?navigator.clipboard.readText():Promise.reject()).catch(()=>prompt('请粘贴当前文件内容','')||'').then(t=>{textarea.value=t;textarea.dispatchEvent(new Event('input',{bubbles:true}));const title=[...document.querySelectorAll('input')].find(x=>/name|title|filename|poster/i.test((x.name||'')+' '+(x.id||'')+' '+(x.placeholder||'')));if(title&&file){title.value=file;title.dispatchEvent(new Event('input',{bubbles:true}));}const selects=[...document.querySelectorAll('select')];for(const sel of selects){const opt=[...sel.options].find(o=>/1\\s*(day|天)|24\\s*(hour|小时)/i.test(o.text+' '+o.value));if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}alert('已填入内容，请人工检查并提交。');});return;}const href=location.href;if(/^https:\\/\\/(?:pastebin\\.centos\\.org|paste\\.centos\\.org)\\/[^?#]+(?:[?#].*)?$/i.test(href)){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:href});navigator.clipboard&&navigator.clipboard.writeText(href).catch(()=>{});alert('已把当前网址回传到工具。');return;}alert('未找到可填表单或可回填的网址。');})();`;
+      const fixedSource = `(()=>{const S='paste-web-tool';const $=s=>document.querySelector(s);const params=new URLSearchParams((location.hash||'').replace(/^#/,''));const token=params.get('put_token')||sessionStorage.getItem('put_token')||'';const file=params.get('put_file')||sessionStorage.getItem('put_file')||'';const mode=params.get('put_mode')||sessionStorage.getItem('put_mode')||'';const download=params.get('put_download')||sessionStorage.getItem('put_download')||'';if(token)sessionStorage.setItem('put_token',token);if(file)sessionStorage.setItem('put_file',file);if(mode)sessionStorage.setItem('put_mode',mode);if(download)sessionStorage.setItem('put_download',download);const isPasteDetail=/^https:\\/\\/(?:pastebin\\.centos\\.org|paste\\.centos\\.org)\\/[^?#]+(?:[?#].*)?$/i.test(location.href);const post=m=>{if(window.opener)window.opener.postMessage(Object.assign({source:S},m),'*');};const copy=t=>{try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){}};const textFromDom=()=>{const n=$('pre')||$('code')||$('[class*=paste]')||$('[class*=highlight]')||$('textarea');return n?n.innerText||n.value||n.textContent||'':document.body.innerText||'';};const collect=()=>{const content=textFromDom();post({type:'paste-content',id:download,url:location.href,content});if(content)copy(content);alert(content?'Collected paste content and sent it to the tool. If the tool did not update, return there and use Paste body.':'No paste body found. Make sure you are logged in and the paste content is visible.');};if(mode==='collect'||download||(isPasteDetail&&!token&&!file)){collect();return;}if(isPasteDetail){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:location.href});copy(location.href);alert('Sent current paste URL back to the tool.');return;}const textarea=[...document.querySelectorAll('textarea')].find(x=>x.offsetParent!==null)||$('textarea');if(textarea){(navigator.clipboard?navigator.clipboard.readText():Promise.reject()).catch(()=>prompt('Paste current file content','')||'').then(t=>{textarea.value=t;textarea.dispatchEvent(new Event('input',{bubbles:true}));const title=[...document.querySelectorAll('input')].find(x=>/name|title|filename|poster/i.test((x.name||'')+' '+(x.id||'')+' '+(x.placeholder||'')));if(title&&file){title.value=file;title.dispatchEvent(new Event('input',{bubbles:true}));}const selects=[...document.querySelectorAll('select')];for(const sel of selects){const opt=[...sel.options].find(o=>/1\\s*(day|天)|24\\s*(hour|小时)/i.test(o.text+' '+o.value));if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}alert('Filled content. Please review and submit manually.');});return;}alert('No paste form or paste detail page found.');})();`;
+      const apiFixedSource = `(()=>{const S='paste-web-tool';const $=s=>document.querySelector(s);const params=new URLSearchParams((location.hash||'').replace(/^#/,''));const token=params.get('put_token')||sessionStorage.getItem('put_token')||'';const file=params.get('put_file')||sessionStorage.getItem('put_file')||'';const mode=params.get('put_mode')||sessionStorage.getItem('put_mode')||'';const download=params.get('put_download')||sessionStorage.getItem('put_download')||'';if(token)sessionStorage.setItem('put_token',token);if(file)sessionStorage.setItem('put_file',file);if(mode)sessionStorage.setItem('put_mode',mode);if(download)sessionStorage.setItem('put_download',download);const isPasteDetail=/^https:\\/\\/(?:pastebin\\.centos\\.org|paste\\.centos\\.org)\\/view\\/[^?#]+(?:[?#].*)?$/i.test(location.href);const post=m=>{if(window.opener)window.opener.postMessage(Object.assign({source:S},m),'*');};const copy=t=>{try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){}};const textFromDom=()=>{const n=$('pre')||$('code')||$('[class*=paste]')||$('[class*=highlight]')||$('textarea');return n?n.innerText||n.value||n.textContent||'':document.body.innerText||'';};const pasteUrlFromApiResponse=()=>{const text=(document.body&&document.body.innerText||'').trim();const match=text.match(/https:\\/\\/(?:pastebin\\.centos\\.org|paste\\.centos\\.org)\\/view\\/[^\\s<>"']+/i);return match?match[0]:'';};const collect=()=>{const content=textFromDom();post({type:'paste-content',id:download,url:location.href,content});if(content)copy(content);alert(content?'Collected paste content and sent it to the tool. If the tool did not update, return there and use Paste body.':'No paste body found. Make sure you are logged in and the paste content is visible.');};const publishCallback=()=>{const apiUrl=pasteUrlFromApiResponse();if(apiUrl){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:apiUrl});copy(apiUrl);alert('Sent paste URL back to the tool.');return true;}if(isPasteDetail){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:location.href});copy(location.href);alert('Sent current paste URL back to the tool.');return true;}return false;};if(mode==='collect'||download||(isPasteDetail&&!token&&!file)){collect();return;}if(mode==='publish'){if(!publishCallback())setTimeout(()=>{publishCallback();},500);return;}const apiUrl=pasteUrlFromApiResponse();if(apiUrl){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:apiUrl});copy(apiUrl);alert('Sent API-created paste URL back to the tool.');return;}if(isPasteDetail){post({type:'paste-url',token:sessionStorage.getItem('put_token')||token,url:location.href});copy(location.href);alert('Sent current paste URL back to the tool.');return;}const textarea=[...document.querySelectorAll('textarea')].find(x=>x.offsetParent!==null)||$('textarea');if(textarea){(navigator.clipboard?navigator.clipboard.readText():Promise.reject()).catch(()=>prompt('Paste current file content','')||'').then(t=>{textarea.value=t;textarea.dispatchEvent(new Event('input',{bubbles:true}));const title=[...document.querySelectorAll('input')].find(x=>/name|title|filename|poster/i.test((x.name||'')+' '+(x.id||'')+' '+(x.placeholder||'')));if(title&&file){title.value=file;title.dispatchEvent(new Event('input',{bubbles:true}));}const selects=[...document.querySelectorAll('select')];for(const sel of selects){const opt=[...sel.options].find(o=>/1\\s*(day|天)|24\\s*(hour|小时)/i.test(o.text+' '+o.value));if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}));break;}}alert('Filled content. Please review and submit manually.');});return;}alert('No paste form, API response URL, or paste detail page found.');})();`;
+      return `javascript:${encodeURIComponent(apiFixedSource)}`;
+    }
+
+    window.PasteUbuntuCore = {
+      isPasteUrl,
+      getPasteId,
+      getRawPasteUrl,
+      inferPasteLanguage,
+      buildWebCreateParams,
+      buildApiCreateParams,
+      parseApiCreateResponse,
+      createPasteViaApi,
+      pasteApiCreateUrl,
+      pasteCreateUrl,
+      sanitizeRelativePath,
+      sortRecordsByPath,
+      encodeBase64Text,
+      decodeBase64Text,
+      splitTextBySize,
+      splitTextByCount,
+      buildPublishChunks,
+      removePublishRecord,
+      makeBundlePayload,
+      parseBundlePayload,
+      isBundlePayload,
+      buildBundlePublishRecord,
+      hasChunkMetadata,
+      groupDownloadRecords,
+      mergeChunkRecords,
+      buildRestorableRecords,
+      getRestoreContent,
+      parseImportRows,
+      extractPasteText,
+      createZipBlob,
+      getDirectFetchBlockReason,
+      fetchPasteContent,
+      buildBookmarklet,
+      looksTextFile,
+      formatBytes,
+      makeCsv,
+      makeCsvBase64,
+      makeFailureCsv,
+      csvEscape,
+      makeId
+    };
+  })();
+  </script>
+
+  <script>
+  (function () {
+    "use strict";
+
+    const core = window.PasteUbuntuCore;
+    const storageKey = "pasteUbuntuUnifiedTool.v1";
+    const pasteBase = "https://pastebin.centos.org/";
+    const dom = {};
+    let restoreRunId = 0;
+    let activeRestoreRunId = 0;
+    let collectQueue = [];
+    let collectQueueActive = false;
+    let collectQueueTotal = 0;
+    let publishRunId = 0;
+    let activePublishRunId = 0;
+    let publishQueue = [];
+    let publishQueueActive = false;
+    let publishQueueTotal = 0;
+    let publishWaitTimer = null;
+    const DEFAULT_MAX_FILE_SIZE_MB = 4;
+    const PUBLISH_WAIT_MS = 60000;
+    const state = {
+      usernameNote: "",
+      maxFileSizeMb: DEFAULT_MAX_FILE_SIZE_MB,
+      mode: "unified",
+      unifiedBase64: true,
+      chunkThresholdMb: 1,
+      chunkSizeMb: 1,
+      chunkMode: "size",
+      chunkCount: 2,
+      chunkContentMode: "base64",
+      webPrivate: true,
+      webExpireMinutes: 1440,
+      apiKey: "",
+      apiProxyUrl: "",
+      publishTotal: 0,
+      publishFiles: [],
+      skippedFiles: [],
+      downloads: [],
+      activePublishId: "",
+      activeDownloadId: ""
+    };
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function cacheDom() {
+      [
+        "usernameNote", "clearStateBtn", "bookmarkletLink", "publishTabBtn", "downloadTabBtn",
+        "publishPanel", "downloadPanel", "filePicker", "folderPicker", "maxFileSize", "appendMode",
+        "modeIndependentBtn", "modeUnifiedBtn", "unifiedBase64", "unifiedBase64Box",
+        "chunkThresholdMb", "chunkSizeMb", "chunkModeSize", "chunkModeCount", "chunkCount", "chunkCountBox", "chunkContentMode",
+        "webPrivate", "webExpireMinutes", "apiKey", "apiProxyUrl",
+        "publishTotal", "publishProcessable", "publishSkipped", "publishDone", "publishPending",
+        "publishPercent", "publishProgressBar", "publishAllBtn", "startBatchBtn", "nextPendingBtn", "webNextPendingBtn", "bundlePublishBtn",
+        "copyPublishCsvBtn", "copyPublishCsvBase64Btn", "exportPublishCsvBtn", "clearPublishBtn", "publishMessage",
+        "publishTableBody", "skippedCountText", "skippedList", "importText", "importTextBtn",
+        "clearImportTextBtn", "csvPicker", "restoreAllBtn", "downloadTotal", "downloadValid", "downloadDone",
+        "downloadManual", "downloadFailed", "downloadPercent", "downloadProgressBar",
+        "autoDownloadBtn", "retryFailedBtn", "saveZipBtn", "saveZipDecodedBtn", "saveFolderBtn",
+        "saveFolderDecodedBtn", "overwriteFiles", "exportFailuresBtn", "clearDownloadBtn", "downloadMessage", "downloadTableBody",
+        "failureList"
+      ].forEach((id) => { dom[id] = $(id); });
+    }
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        state.usernameNote = saved.usernameNote || "";
+        state.maxFileSizeMb = Number(saved.maxFileSizeMb) || DEFAULT_MAX_FILE_SIZE_MB;
+        state.mode = saved.mode === "independent" ? "independent" : "unified";
+        state.unifiedBase64 = saved.unifiedBase64 === false ? false : true;
+        state.chunkThresholdMb = Number(saved.chunkThresholdMb) || 1;
+        state.chunkSizeMb = Number(saved.chunkSizeMb) || 1;
+        state.chunkMode = saved.chunkMode === "count" ? "count" : "size";
+        state.chunkCount = Math.max(2, Number.parseInt(saved.chunkCount, 10) || 2);
+        state.chunkContentMode = saved.chunkContentMode === "text" ? "text" : "base64";
+        state.webPrivate = saved.webPrivate === false || saved.apiPrivate === false ? false : true;
+        state.webExpireMinutes = [5, 60, 1440].includes(Number(saved.webExpireMinutes || saved.apiExpireMinutes)) ? Number(saved.webExpireMinutes || saved.apiExpireMinutes) : 1440;
+        state.apiKey = saved.apiKey || saved.apiToken || "";
+        state.apiProxyUrl = saved.apiProxyUrl || "";
+        state.publishTotal = 0;
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.downloads = [];
+        state.activePublishId = "";
+        state.activeDownloadId = "";
+      } catch (error) {
+        console.warn("Cannot load saved state", error);
+      }
+    }
+
+    function saveState() {
+      const compact = {
+        usernameNote: state.usernameNote,
+        maxFileSizeMb: state.maxFileSizeMb,
+        mode: state.mode,
+        unifiedBase64: state.unifiedBase64,
+        chunkThresholdMb: state.chunkThresholdMb,
+        chunkSizeMb: state.chunkSizeMb,
+        chunkMode: state.chunkMode,
+        chunkCount: state.chunkCount,
+        chunkContentMode: state.chunkContentMode,
+        webPrivate: state.webPrivate,
+        webExpireMinutes: state.webExpireMinutes,
+        apiKey: state.apiKey,
+        apiProxyUrl: state.apiProxyUrl,
+        publishTotal: state.publishTotal,
+        activePublishId: state.activePublishId,
+        activeDownloadId: state.activeDownloadId,
+        publishFiles: state.publishFiles.map((record) => ({
+          id: record.id,
+          path: record.path,
+          sourcePath: record.sourcePath || record.path,
+          displayPath: record.displayPath || record.path,
+          name: record.name,
+          size: record.size,
+          pasteUrl: record.pasteUrl || "",
+          status: record.status || "pending",
+          error: record.error || "",
+          groupId: record.groupId || "",
+          partIndex: record.partIndex || 0,
+          partTotal: record.partTotal || 0,
+          contentMode: record.contentMode || "",
+          chunkMode: record.chunkMode || "none",
+          chunkSize: record.chunkSize || 0,
+          partSize: record.partSize || 0
+        })),
+        skippedFiles: state.skippedFiles,
+        downloads: state.downloads.map((record) => ({
+          id: record.id,
+          filePath: record.filePath,
+          pasteUrl: record.pasteUrl,
+          status: record.status,
+          error: record.error || "",
+          content: record.content || "",
+          groupId: record.groupId || "",
+          partIndex: record.partIndex || 0,
+          partTotal: record.partTotal || 0,
+          contentMode: record.contentMode || "",
+          chunkMode: record.chunkMode || "none",
+          chunkSize: record.chunkSize || 0,
+          partSize: record.partSize || 0
+        }))
+      };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(compact));
+      } catch (error) {
+        showMessage(dom.publishMessage, "本地状态过大，已保留页面内数据，但无法完整写入 localStorage。", "warn");
+      }
+    }
+
+    function showMessage(target, text, kind) {
+      target.textContent = text || "";
+      target.className = `message ${kind || ""}`.trim();
+    }
+
+    function statusLabel(status, hasUrl) {
+      if (hasUrl) return "已粘贴";
+      const labels = {
+        pending: "待处理",
+        prepared: "已准备",
+        copied: "已复制",
+        encoded: "已编码",
+        webSubmitted: "网页已提交",
+        queued: "待下载",
+        fetching: "下载中",
+        saved: "已保存",
+        collected: "已采集",
+        needsManualCollect: "需采集",
+        failed: "失败",
+        pathInvalid: "路径非法",
+        invalidUrl: "URL 无效",
+        conflict: "冲突"
+      };
+      return labels[status] || status || "待处理";
+    }
+
+    function statusClass(status, hasUrl) {
+      if (hasUrl) return "done";
+      if (["saved", "collected"].includes(status)) return status;
+      if (["fetching", "prepared", "copied", "encoded", "webSubmitted"].includes(status)) return "working";
+      if (["needsManualCollect", "conflict"].includes(status)) return status;
+      if (["failed", "pathInvalid", "invalidUrl"].includes(status)) return status;
+      return "";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function getDisplayPath(record) {
+      if (!record) return "";
+      if (record.displayPath) return record.displayPath;
+      if (core.hasChunkMetadata(record)) {
+        const path = record.filePath || record.path || record.sourcePath || "";
+        return `${path} [part ${record.partIndex}/${record.partTotal}]`;
+      }
+      return record.filePath || record.path || record.sourcePath || "";
+    }
+
+    function getPublishSizeLabel(record) {
+      if (core.hasChunkMetadata(record)) {
+        const partSize = Number(record.partSize);
+        const size = Number.isFinite(partSize) ? partSize : String(record.content ?? "").length;
+        return `${core.formatBytes(size)} / ${core.formatBytes(record.size)}`;
+      }
+      return core.formatBytes(record.size);
+    }
+
+    function mbToBytes(value) {
+      return Math.max(0.05, Number(value) || 1) * 1024 * 1024;
+    }
+
+    function isUnifiedBase64() {
+      return state.mode === "unified" && state.unifiedBase64;
+    }
+
+    function shouldShowPublishButton(action) {
+      if (state.mode === "independent") return true;
+      const base64On = isUnifiedBase64();
+      if (action === "copy-row") return true;
+      if (base64On) return action === "prepare-base64" || action === "copy-base64";
+      return action === "prepare" || action === "copy-content";
+    }
+
+    function isBundlePublishRecord(record) {
+      return !!(record && (record.contentMode === "bundle" || record.bundleVersion === 1 || core.isBundlePayload(record.content)));
+    }
+
+    function shouldShowRecordPublishButton(record, action) {
+      if (isBundlePublishRecord(record)) {
+        return action === "prepare" || action === "copy-content" || action === "copy-row";
+      }
+      if (!core.hasChunkMetadata(record)) return shouldShowPublishButton(action);
+      if (action === "copy-row") return true;
+      if (record.contentMode === "base64") return action === "prepare-base64" || action === "copy-base64";
+      return action === "prepare" || action === "copy-content";
+    }
+
+    function shouldShowSaveButton(action) {
+      if (state.mode === "independent") return true;
+      const base64On = isUnifiedBase64();
+      if (base64On) return action === "save-zip-decoded" || action === "save-folder-decoded";
+      return action === "save-zip" || action === "save-folder";
+    }
+
+    function updateModeSwitch() {
+      const unified = state.mode === "unified";
+      dom.modeIndependentBtn.classList.toggle("is-active", !unified);
+      dom.modeIndependentBtn.setAttribute("aria-checked", unified ? "false" : "true");
+      dom.modeUnifiedBtn.classList.toggle("is-active", unified);
+      dom.modeUnifiedBtn.setAttribute("aria-checked", unified ? "true" : "false");
+      dom.unifiedBase64.checked = state.unifiedBase64;
+      dom.unifiedBase64Box.hidden = !unified;
+      updateSaveButtonVisibility();
+    }
+
+    function updateChunkSettings() {
+      dom.chunkThresholdMb.value = state.chunkThresholdMb;
+      dom.chunkSizeMb.value = state.chunkSizeMb;
+      dom.chunkModeSize.checked = state.chunkMode !== "count";
+      dom.chunkModeCount.checked = state.chunkMode === "count";
+      dom.chunkCount.value = state.chunkCount;
+      dom.chunkCountBox.hidden = state.chunkMode !== "count";
+      dom.chunkContentMode.value = state.chunkContentMode;
+    }
+
+    function updateApiSettings() {
+      dom.webPrivate.checked = state.webPrivate;
+      dom.webExpireMinutes.value = String(state.webExpireMinutes);
+      dom.apiKey.value = state.apiKey;
+      dom.apiProxyUrl.value = state.apiProxyUrl;
+    }
+
+    function updateSaveButtonVisibility() {
+      const buttons = [dom.saveZipBtn, dom.saveZipDecodedBtn, dom.saveFolderBtn, dom.saveFolderDecodedBtn];
+      buttons.forEach((button) => {
+        if (!button) return;
+        const action = button.dataset.saveAction;
+        button.hidden = !shouldShowSaveButton(action);
+      });
+    }
+
+    function renderAll() {
+      dom.usernameNote.value = state.usernameNote;
+      dom.maxFileSize.value = state.maxFileSizeMb;
+      if (dom.appendMode) dom.appendMode.checked = false;
+      dom.bookmarkletLink.href = core.buildBookmarklet();
+      updateModeSwitch();
+      updateChunkSettings();
+      updateApiSettings();
+      renderPublish();
+      renderDownload();
+      updateFolderButton();
+    }
+
+    function renderPublishStats() {
+      const done = state.publishFiles.filter((record) => core.isPasteUrl(record.pasteUrl)).length;
+      const processable = state.publishFiles.length;
+      const pending = Math.max(0, processable - done);
+      const percent = processable ? Math.round((done / processable) * 100) : 0;
+      dom.publishTotal.textContent = state.publishTotal;
+      dom.publishProcessable.textContent = processable;
+      dom.publishSkipped.textContent = state.skippedFiles.length;
+      dom.publishDone.textContent = done;
+      dom.publishPending.textContent = pending;
+      dom.publishPercent.textContent = `${percent}%`;
+      dom.publishProgressBar.style.width = `${percent}%`;
+      dom.skippedCountText.textContent = state.skippedFiles.length;
+      dom.skippedList.innerHTML = state.skippedFiles.length
+        ? state.skippedFiles.map((item) => `<li><span class="path-cell">${escapeHtml(item.path)}</span> - ${escapeHtml(item.reason)}</li>`).join("")
+        : "<li>暂无跳过文件</li>";
+    }
+
+    function renderPublish() {
+      renderPublishStats();
+      dom.publishTableBody.innerHTML = state.publishFiles.map((record) => {
+        const hasUrl = core.isPasteUrl(record.pasteUrl);
+        const active = record.id === state.activePublishId ? "is-active" : "";
+        const buttons = [];
+        if (shouldShowRecordPublishButton(record, "prepare")) buttons.push(`<button class="compact" type="button" data-action="prepare" data-id="${record.id}">准备填表</button>`);
+        if (shouldShowRecordPublishButton(record, "prepare-base64")) buttons.push(`<button class="compact" type="button" data-action="prepare-base64" data-id="${record.id}">Base64 填表</button>`);
+        if (shouldShowRecordPublishButton(record, "copy-content")) buttons.push(`<button class="compact" type="button" data-action="copy-content" data-id="${record.id}">复制内容</button>`);
+        if (shouldShowRecordPublishButton(record, "copy-base64")) buttons.push(`<button class="compact" type="button" data-action="copy-base64" data-id="${record.id}">复制 Base64</button>`);
+        buttons.push(`<button class="compact" type="button" data-action="web-submit" data-id="${record.id}">网页提交</button>`);
+        if (shouldShowRecordPublishButton(record, "copy-row")) buttons.push(`<button class="compact" type="button" data-action="copy-row" data-id="${record.id}">复制行</button>`);
+        buttons.push(`<button class="compact" type="button" data-action="delete-publish" data-id="${record.id}">删除</button>`);
+        return `<tr class="${active}">
+          <td data-label="文件" class="path-cell">${escapeHtml(getDisplayPath(record))}</td>
+          <td data-label="大小">${escapeHtml(getPublishSizeLabel(record))}</td>
+          <td data-label="状态"><span class="status ${statusClass(record.status, hasUrl)}">${statusLabel(record.status, hasUrl)}</span></td>
+          <td data-label="操作">
+            <div class="button-row">${buttons.join("")}</div>
+          </td>
+          <td data-label="Paste URL"><input class="url-input" type="url" data-action="paste-url" data-id="${record.id}" value="${escapeHtml(record.pasteUrl || "")}" placeholder="https://pastebin.centos.org/view/..."></td>
+        </tr>`;
+      }).join("");
+    }
+
+    function findPublishRow(id) {
+      const input = Array.from(dom.publishTableBody.querySelectorAll("input[data-action='paste-url']"))
+        .find((element) => element.dataset.id === id);
+      return input ? input.closest("tr") : null;
+    }
+
+    function updatePublishActiveRows() {
+      dom.publishTableBody.querySelectorAll("tr").forEach((row) => {
+        const element = row.querySelector("[data-id]");
+        row.classList.toggle("is-active", !!element && element.dataset.id === state.activePublishId);
+      });
+    }
+
+    function updatePublishRowState(record, options = {}) {
+      const row = findPublishRow(record.id);
+      if (!row) return;
+      const hasUrl = core.isPasteUrl(record.pasteUrl);
+      const status = row.querySelector(".status");
+      if (status) {
+        status.className = `status ${statusClass(record.status, hasUrl)}`.trim();
+        status.textContent = statusLabel(record.status, hasUrl);
+      }
+      if (options.updateInput) {
+        const input = row.querySelector("input[data-action='paste-url']");
+        if (input) input.value = record.pasteUrl || "";
+      }
+      updatePublishActiveRows();
+    }
+
+    function renderDownload() {
+      const total = state.downloads.length;
+      const valid = state.downloads.filter((record) => core.isPasteUrl(record.pasteUrl) && core.sanitizeRelativePath(record.filePath)).length;
+      const done = state.downloads.filter((record) => ["saved", "collected"].includes(record.status)).length;
+      const manual = state.downloads.filter((record) => record.status === "needsManualCollect").length;
+      const failed = state.downloads.filter((record) => ["failed", "pathInvalid", "invalidUrl", "conflict"].includes(record.status)).length;
+      const percent = valid ? Math.round((done / valid) * 100) : 0;
+      dom.downloadTotal.textContent = total;
+      dom.downloadValid.textContent = valid;
+      dom.downloadDone.textContent = done;
+      dom.downloadManual.textContent = manual;
+      dom.downloadFailed.textContent = failed;
+      dom.downloadPercent.textContent = `${percent}%`;
+      dom.downloadProgressBar.style.width = `${percent}%`;
+
+      dom.downloadTableBody.innerHTML = state.downloads.map((record) => {
+        const rowClass = `status-${record.status}`;
+        return `<tr class="${rowClass}">
+          <td data-label="文件" class="path-cell">${escapeHtml(getDisplayPath(record))}</td>
+          <td data-label="状态"><span class="status ${statusClass(record.status, false)}">${statusLabel(record.status, false)}</span></td>
+          <td data-label="操作">
+            <div class="button-row">
+              <button class="compact" type="button" data-download-action="open" data-id="${record.id}">打开</button>
+              <button class="compact" type="button" data-download-action="open-raw" data-id="${record.id}">Raw</button>
+              <button class="compact" type="button" data-download-action="collect" data-id="${record.id}">采集</button>
+              <button class="compact" type="button" data-download-action="paste-body" data-id="${record.id}">粘贴正文</button>
+              <button class="compact" type="button" data-download-action="retry" data-id="${record.id}">重试</button>
+            </div>
+          </td>
+          <td data-label="Paste URL" class="path-cell">${escapeHtml(record.pasteUrl)}</td>
+          <td data-label="错误">${escapeHtml(record.error || "")}</td>
+        </tr>`;
+      }).join("");
+
+      const problemRows = state.downloads.filter((record) => !["saved", "collected"].includes(record.status));
+      dom.failureList.innerHTML = problemRows.length
+        ? problemRows.map((record) => `<li><span class="path-cell">${escapeHtml(getDisplayPath(record))}</span> - ${escapeHtml(statusLabel(record.status, false))} - ${escapeHtml(record.error || "")}</li>`).join("")
+        : "<li>暂无失败项</li>";
+    }
+
+    function updateFolderButton() {
+      if (!("showDirectoryPicker" in window)) {
+        [dom.saveFolderBtn, dom.saveFolderDecodedBtn].forEach((button) => {
+          button.disabled = true;
+          button.title = "当前浏览器不支持直接保存到指定文件夹，请使用 ZIP。";
+        });
+      }
+      if (location.protocol === "file:") {
+        showMessage(dom.downloadMessage, "当前以 file:// 打开，跨域来源会显示为 null；CentOS Pastebin 自动读取会进入“需采集”，这是浏览器安全限制。", "warn");
+      }
+    }
+
+    async function readFileAsText(file) {
+      if (typeof file.text === "function") return file.text();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+      });
+    }
+
+    function getCurrentChunkContentMode() {
+      if (state.mode === "unified") return state.unifiedBase64 ? "base64" : "text";
+      return state.chunkContentMode === "text" ? "text" : "base64";
+    }
+
+    function getChunkBuildOptions(fileSize) {
+      const thresholdBytes = mbToBytes(state.chunkThresholdMb);
+      return {
+        enabled: fileSize > thresholdBytes,
+        thresholdBytes,
+        chunkMode: state.chunkMode,
+        chunkSize: Math.max(1, Math.floor(mbToBytes(state.chunkSizeMb))),
+        chunkCount: state.chunkCount,
+        contentMode: getCurrentChunkContentMode(),
+        makeId: core.makeId
+      };
+    }
+
+    async function handleFileInputChange(event) {
+      const files = Array.from(event.target.files || []);
+      event.target.value = "";
+      await handleSelectedFiles(files);
+    }
+
+    async function handleSelectedFiles(fileList) {
+      const files = Array.from(fileList || []);
+      const maxBytes = mbToBytes(state.maxFileSizeMb);
+      const chunkThresholdBytes = mbToBytes(state.chunkThresholdMb);
+      const isAppend = dom.appendMode && dom.appendMode.checked;
+      if (!isAppend) {
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.activePublishId = "";
+      }
+      state.publishTotal = isAppend ? state.publishFiles.length + files.length : files.length;
+      showMessage(dom.publishMessage, files.length ? "正在读取文件..." : "未选择文件。", "");
+      renderPublish();
+
+      for (const file of files) {
+        const originalPath = file.webkitRelativePath || file.name;
+        const safePath = core.sanitizeRelativePath(originalPath) || core.sanitizeRelativePath(file.name);
+        if (!safePath) {
+          state.skippedFiles.push({ path: originalPath || file.name, reason: "文件路径不安全" });
+          continue;
+        }
+        if (file.size > maxBytes && file.size <= chunkThresholdBytes) {
+          state.skippedFiles.push({ path: safePath, reason: `超过最大大小 ${state.maxFileSizeMb} MB` });
+          continue;
+        }
+        if (!core.looksTextFile(file)) {
+          state.skippedFiles.push({ path: safePath, reason: "不是常见文本文件" });
+          continue;
+        }
+        try {
+          const content = await readFileAsText(file);
+          if (content.includes("\u0000")) {
+            state.skippedFiles.push({ path: safePath, reason: "疑似二进制内容" });
+            continue;
+          }
+          const sourceRecord = {
+            id: core.makeId("publish"),
+            path: safePath,
+            sourcePath: safePath,
+            displayPath: safePath,
+            name: safePath.split("/").pop(),
+            size: file.size,
+            content,
+            pasteUrl: "",
+            status: "pending",
+            error: ""
+          };
+          state.publishFiles.push(...core.buildPublishChunks(sourceRecord, getChunkBuildOptions(file.size)));
+        } catch (error) {
+          state.skippedFiles.push({ path: safePath, reason: error.message || "读取失败" });
+        }
+      }
+      state.publishFiles = core.sortRecordsByPath(state.publishFiles);
+      const chunked = state.publishFiles.filter((record) => core.hasChunkMetadata(record)).length;
+      const chunkText = chunked ? `，其中分片 ${chunked} 行` : "";
+      showMessage(dom.publishMessage, `已读取 ${state.publishFiles.length} 个可处理上传行${chunkText}，跳过 ${state.skippedFiles.length} 个。`, "ok");
+      saveState();
+      renderPublish();
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+
+    function getPublishContent(record, options = {}) {
+      const chunked = core.hasChunkMetadata(record);
+      if (isBundlePublishRecord(record)) {
+        return { content: record.content || "", encoded: false };
+      }
+      const encoded = chunked ? record.contentMode === "base64" : !!options.encodeBase64;
+      const content = chunked ? record.content : (encoded ? core.encodeBase64Text(record.content) : record.content);
+      return { content, encoded };
+    }
+
+    async function preparePaste(record, options = {}) {
+      if (!record.content) {
+        showMessage(dom.publishMessage, "该文件内容不在当前页面内存中，请重新选择文件后继续。", "warn");
+        return;
+      }
+      state.activePublishId = record.id;
+      const { content, encoded } = getPublishContent(record, options);
+      record.status = encoded ? "encoded" : "prepared";
+      const hash = new URLSearchParams({ put_token: record.id, put_file: record.sourcePath || record.path }).toString();
+      const a = document.createElement("a");
+      a.href = `${pasteBase}#${hash}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
+      try {
+        await copyText(content);
+        record.status = encoded ? "encoded" : "copied";
+        const modeText = encoded ? "Base64 编码内容" : "内容";
+        showMessage(dom.publishMessage, `已复制 ${getDisplayPath(record)} 的${modeText}，请在 paste 页面点击书签脚本填表。`, "ok");
+      } catch (error) {
+        showMessage(dom.publishMessage, `复制失败：${error.message || error}。可手动复制内容后继续。`, "warn");
+      }
+      saveState();
+      renderPublish();
+    }
+
+    function submitPasteCreateForm(params, hash) {
+      const targetName = "pasteCentosCreateTab";
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = `${core.pasteCreateUrl}#${hash}`;
+      form.target = targetName;
+      form.style.display = "none";
+      Object.entries(params).forEach(([name, value]) => {
+        if (name !== "code" && !value) return;
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      const popup = window.open("", targetName);
+      if (!popup) {
+        showMessage(dom.publishMessage, "弹窗被浏览器拦截，请允许弹窗后重试。", "warn");
+        form.remove();
+        return;
+      }
+      form.submit();
+      form.remove();
+    }
+
+    function submitPasteViaWebForm(record, options = {}) {
+      if (!record.content) {
+        showMessage(dom.publishMessage, "该文件内容不在当前页面内存中，请重新选择文件后继续。", "warn");
+        return;
+      }
+      state.activePublishId = record.id;
+      const encodeBase64 = isBundlePublishRecord(record) || core.hasChunkMetadata(record) ? false : (options.encodeBase64 ?? isUnifiedBase64());
+      const { content, encoded } = getPublishContent(record, { encodeBase64 });
+      const hash = new URLSearchParams({
+        put_token: record.id,
+        put_file: record.sourcePath || record.path,
+        put_api: "1",
+        put_mode: "publish"
+      }).toString();
+      const params = core.buildWebCreateParams(
+        { ...record, content },
+        {
+          name: state.usernameNote,
+          private: state.webPrivate,
+          expireMinutes: state.webExpireMinutes
+        }
+      );
+      submitPasteCreateForm(params, hash);
+      record.status = "webSubmitted";
+      saveState();
+      renderPublish();
+      if (!options.silent) {
+        const modeText = encoded ? "Base64 内容" : "原文内容";
+        showMessage(dom.publishMessage, `已通过 CentOS 网页表单提交 ${getDisplayPath(record)} 的${modeText}；结果页点击书签脚本可回填 URL。`, "ok");
+      }
+    }
+
+    function getPendingPublishRecords() {
+      return state.publishFiles.filter((record) => !core.isPasteUrl(record.pasteUrl));
+    }
+
+    function clearPublishWaitTimer() {
+      if (publishWaitTimer) {
+        clearTimeout(publishWaitTimer);
+        publishWaitTimer = null;
+      }
+    }
+
+    function finishPublishRun(runId) {
+      if (runId !== activePublishRunId) return;
+      publishQueueActive = false;
+      publishQueue = [];
+      publishQueueTotal = 0;
+      clearPublishWaitTimer();
+      const done = state.publishFiles.filter((record) => core.isPasteUrl(record.pasteUrl)).length;
+      const pending = getPendingPublishRecords().length;
+      if (pending === 0) {
+        showMessage(dom.publishMessage, `一键发布完成，共 ${done} 条已回填 URL。`, "ok");
+      } else {
+        showMessage(dom.publishMessage, `发布流程结束：已完成 ${done} 条，仍有 ${pending} 条待处理（请在弹出页点击书签脚本）。`, "warn");
+      }
+    }
+
+    function schedulePublishWaitTimeout(runId, record) {
+      clearPublishWaitTimer();
+      publishWaitTimer = setTimeout(() => {
+        if (runId !== activePublishRunId || !publishQueueActive) return;
+        showMessage(
+          dom.publishMessage,
+          `等待 ${getDisplayPath(record)} 的 URL 回传超时；请在弹出结果页点击书签脚本，或手动粘贴 URL 后继续。`,
+          "warn"
+        );
+      }, PUBLISH_WAIT_MS);
+    }
+
+    async function submitPublishRecord(record) {
+      if (!record.content) {
+        record.status = "failed";
+        record.error = "内容不在内存中";
+        saveState();
+        renderPublish();
+        return false;
+      }
+      if (state.apiKey && state.apiProxyUrl) {
+        const encodeBase64 = isBundlePublishRecord(record) || core.hasChunkMetadata(record) ? false : isUnifiedBase64();
+        const { content } = getPublishContent(record, { encodeBase64 });
+        const result = await core.createPasteViaApi(
+          { ...record, content },
+          {
+            name: state.usernameNote,
+            private: state.webPrivate,
+            expireMinutes: state.webExpireMinutes,
+            apikey: state.apiKey,
+            proxyUrl: state.apiProxyUrl
+          }
+        );
+        if (result.ok) {
+          record.pasteUrl = result.url;
+          record.status = "saved";
+          record.error = "";
+          saveState();
+          renderPublishStats();
+          updatePublishRowState(record, { updateInput: true });
+          return true;
+        }
+        record.status = "failed";
+        record.error = result.error || "API 发布失败";
+        saveState();
+        renderPublish();
+        return false;
+      }
+      if (state.apiKey) {
+        const encodeBase64 = isBundlePublishRecord(record) || core.hasChunkMetadata(record) ? false : isUnifiedBase64();
+        const { content } = getPublishContent(record, { encodeBase64 });
+        const result = await core.createPasteViaApi(
+          { ...record, content },
+          {
+            name: state.usernameNote,
+            private: state.webPrivate,
+            expireMinutes: state.webExpireMinutes,
+            apikey: state.apiKey
+          }
+        );
+        if (result.ok) {
+          record.pasteUrl = result.url;
+          record.status = "saved";
+          record.error = "";
+          saveState();
+          renderPublishStats();
+          updatePublishRowState(record, { updateInput: true });
+          return true;
+        }
+      }
+      submitPasteViaWebForm(record, { silent: true });
+      return false;
+    }
+
+    function publishNext(runId) {
+      if (runId !== activePublishRunId || !publishQueueActive) return;
+      while (publishQueue.length) {
+        const head = state.publishFiles.find((item) => item.id === publishQueue[0]);
+        if (head && core.isPasteUrl(head.pasteUrl)) publishQueue.shift();
+        else break;
+      }
+      if (!publishQueue.length) {
+        finishPublishRun(runId);
+        return;
+      }
+      const nextId = publishQueue[0];
+      const record = state.publishFiles.find((item) => item.id === nextId);
+      if (!record) {
+        publishQueue.shift();
+        publishNext(runId);
+        return;
+      }
+      const index = publishQueueTotal - publishQueue.length + 1;
+      showMessage(
+        dom.publishMessage,
+        `正在发布 ${index}/${publishQueueTotal}：${getDisplayPath(record)} — 等待 URL 回传；若弹出结果页未自动回填，请点书签脚本。`,
+        "ok"
+      );
+      submitPublishRecord(record).then((apiDone) => {
+        if (runId !== activePublishRunId) return;
+        if (apiDone) {
+          publishQueue.shift();
+          publishNext(runId);
+        } else {
+          schedulePublishWaitTimeout(runId, record);
+        }
+      });
+    }
+
+    function startPublishQueue(runId, queueIds) {
+      if (runId !== activePublishRunId || !queueIds.length) {
+        finishPublishRun(runId);
+        return;
+      }
+      publishQueue = queueIds.slice();
+      publishQueueActive = true;
+      publishQueueTotal = publishQueue.length;
+      publishNext(runId);
+    }
+
+    function advancePublishQueue(runId, recordId) {
+      if (runId !== activePublishRunId || !publishQueueActive) return;
+      clearPublishWaitTimer();
+      if (publishQueue[0] === recordId) publishQueue.shift();
+      else {
+        const idx = publishQueue.indexOf(recordId);
+        if (idx >= 0) publishQueue.splice(idx, 1);
+      }
+      setTimeout(() => publishNext(runId), 300);
+    }
+
+    async function publishAll() {
+      const pending = getPendingPublishRecords().filter((record) => record.content);
+      if (!pending.length) {
+        showMessage(dom.publishMessage, "没有待发布的文件；请先选择文件并确保内容在内存中。", "warn");
+        return;
+      }
+      const runId = ++publishRunId;
+      activePublishRunId = runId;
+      publishQueueActive = false;
+      publishQueue = [];
+      clearPublishWaitTimer();
+      switchTab("publish");
+      showMessage(dom.publishMessage, "正在启动一键发布...", "ok");
+      startPublishQueue(runId, pending.map((record) => record.id));
+    }
+
+    function nextPending() {
+      const record = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl));
+      if (!record) {
+        showMessage(dom.publishMessage, "没有待粘贴文件。", "ok");
+        return;
+      }
+      preparePaste(record);
+    }
+
+    function nextPendingViaWebForm() {
+      const record = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl));
+      if (!record) {
+        showMessage(dom.publishMessage, "没有待提交文件。", "ok");
+        return;
+      }
+      submitPasteViaWebForm(record);
+    }
+
+    function buildSinglePasteBundle() {
+      if (!state.publishFiles.length) {
+        showMessage(dom.publishMessage, "请先选择文件或文件夹。", "warn");
+        return;
+      }
+      const missingContent = state.publishFiles.filter((record) => {
+        const expectedSize = core.hasChunkMetadata(record) ? Number(record.partSize) : Number(record.size);
+        return String(record.content ?? "") === "" && expectedSize > 0;
+      });
+      if (missingContent.length) {
+        showMessage(dom.publishMessage, "当前页面内存里缺少文件正文，请重新选择文件后再打包。", "warn");
+        return;
+      }
+      try {
+        const bundle = core.buildBundlePublishRecord(state.publishFiles, { makeId: core.makeId });
+        state.publishTotal = bundle.bundleFileCount || state.publishFiles.length;
+        state.publishFiles = [bundle];
+        state.activePublishId = bundle.id;
+        saveState();
+        renderPublish();
+        showMessage(dom.publishMessage, `已打包为 1 条 Paste 记录，包含 ${bundle.bundleFileCount} 个文件。可直接点“网页提交”。`, "ok");
+      } catch (error) {
+        showMessage(dom.publishMessage, `打包失败：${error.message || error}`, "warn");
+      }
+    }
+
+    function deletePublishRecord(record) {
+      const hasUrl = core.isPasteUrl(record.pasteUrl);
+      const displayPath = getDisplayPath(record);
+      if (core.hasChunkMetadata(record)) {
+        const sameGroupCount = state.publishFiles.filter((item) => item.groupId === record.groupId && (item.sourcePath || item.path) === (record.sourcePath || record.path)).length;
+        if (!confirm(`确认删除 ${record.sourcePath || record.path} 的 ${sameGroupCount} 个分片？`)) return;
+      } else if (hasUrl && !confirm(`确认删除已回填 URL 的 ${displayPath}？`)) {
+        return;
+      }
+
+      const result = core.removePublishRecord(state.publishFiles, record.id);
+      if (!result.removedCount) return;
+      state.publishFiles = core.sortRecordsByPath(result.records);
+      if (!state.publishFiles.some((item) => item.id === state.activePublishId)) {
+        const next = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl)) || state.publishFiles[0];
+        state.activePublishId = next ? next.id : "";
+      }
+      saveState();
+      renderPublish();
+      const message = result.removedGroup
+        ? `已删除 ${result.removedPath} 的 ${result.removedCount} 个分片。`
+        : `已删除 ${displayPath}。`;
+      showMessage(dom.publishMessage, message, "ok");
+    }
+
+    function updatePublishUrl(id, value, options = {}) {
+      const record = state.publishFiles.find((item) => item.id === id);
+      if (!record) return;
+      record.pasteUrl = value.trim();
+      record.status = core.isPasteUrl(record.pasteUrl) ? "saved" : "pending";
+      saveState();
+      renderPublishStats();
+      updatePublishRowState(record, options);
+    }
+
+    function downloadTextFile(filename, content, type) {
+      const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importRowsFromText(text) {
+      const records = core.parseImportRows(text);
+      state.downloads = core.sortRecordsByPath(records);
+      state.activeDownloadId = "";
+      showMessage(dom.downloadMessage, `已导入 ${records.length} 条记录。`, records.length ? "ok" : "warn");
+      saveState();
+      renderDownload();
+    }
+
+    async function autoDownload(records, options = {}) {
+      const silent = !!options.silent;
+      const trackCollectQueue = !!options.collectQueue;
+      const queuedIds = [];
+      const targets = records || state.downloads.filter((record) => ["queued", "failed", "needsManualCollect"].includes(record.status));
+      if (!targets.length) {
+        if (!silent) showMessage(dom.downloadMessage, "没有可自动下载的项目。", "warn");
+        return queuedIds;
+      }
+      for (const record of targets) {
+        if (!core.sanitizeRelativePath(record.filePath)) {
+          record.status = "pathInvalid";
+          record.error = "文件路径不安全";
+          continue;
+        }
+        if (!core.isPasteUrl(record.pasteUrl)) {
+          record.status = "invalidUrl";
+          record.error = "Paste URL 无效";
+          continue;
+        }
+        record.status = "fetching";
+        record.error = "";
+        renderDownload();
+        saveState();
+        const result = await core.fetchPasteContent(record.pasteUrl);
+        if (result.ok) {
+          record.content = result.text;
+          record.status = "saved";
+          record.error = "";
+        } else {
+          const blockReason = core.getDirectFetchBlockReason(record.pasteUrl, location.origin);
+          record.status = "needsManualCollect";
+          record.error = result.error || blockReason || "浏览器无法直接读取该 URL";
+          if (trackCollectQueue) queuedIds.push(record.id);
+        }
+        renderDownload();
+        saveState();
+      }
+      if (!silent) {
+        showMessage(dom.downloadMessage, "自动下载流程已结束；需采集项目可打开页面后点击书签脚本。", "ok");
+      }
+      return queuedIds;
+    }
+
+    function shouldDecodeOnRestore() {
+      if (state.mode === "unified") return state.unifiedBase64;
+      return state.downloads.some((record) => record.contentMode === "base64");
+    }
+
+    function hasRecoverableDownloadContent(record) {
+      if (!record || String(record.content ?? "") === "") return false;
+      return ["saved", "collected", "failed"].includes(record.status);
+    }
+
+    async function saveRecoveredFilesByDefault(options = {}) {
+      if (!("showDirectoryPicker" in window)) {
+        showMessage(dom.downloadMessage, "当前浏览器不支持直接保存到指定文件夹；请使用“保存 ZIP”手动兜底。", "warn");
+        return false;
+      }
+      try {
+        await saveToFolder(options);
+        return true;
+      } catch (error) {
+        const message = error && error.name === "AbortError"
+          ? "已取消选择文件夹；未自动生成 ZIP，可重新点“保存到指定文件夹”或手动保存 ZIP。"
+          : `保存到指定文件夹失败：${error.message || error}`;
+        showMessage(dom.downloadMessage, message, "warn");
+        return false;
+      }
+    }
+
+    async function finishRestoreRun(runId) {
+      if (runId !== activeRestoreRunId) return;
+      collectQueueActive = false;
+      collectQueue = [];
+      collectQueueTotal = 0;
+
+      const successCount = state.downloads.filter((record) => ["saved", "collected"].includes(record.status)).length;
+      const problemCount = state.downloads.filter((record) => !["saved", "collected"].includes(record.status)).length;
+
+      if (successCount > 0) {
+        await saveRecoveredFilesByDefault({ decodeBase64: shouldDecodeOnRestore() });
+      }
+      if (problemCount > 0) {
+        showMessage(
+          dom.downloadMessage,
+          `一键恢复结束：成功 ${successCount} 条${successCount > 0 ? "，已尝试保存到文件夹" : ""}；仍有 ${problemCount} 条需人工处理。`,
+          successCount > 0 ? "warn" : "bad"
+        );
+      } else if (successCount === 0) {
+        showMessage(dom.downloadMessage, "没有可恢复的成功内容。", "warn");
+      }
+    }
+
+    function startCollectQueue(runId, queueIds) {
+      if (runId !== activeRestoreRunId || !queueIds.length) {
+        finishRestoreRun(runId);
+        return;
+      }
+      collectQueue = queueIds.slice();
+      collectQueueActive = true;
+      collectQueueTotal = collectQueue.length;
+      openNextCollect(runId);
+    }
+
+    function openNextCollect(runId) {
+      if (runId !== activeRestoreRunId || !collectQueueActive) return;
+      if (!collectQueue.length) {
+        finishRestoreRun(runId);
+        return;
+      }
+      const nextId = collectQueue[0];
+      const record = state.downloads.find((item) => item.id === nextId);
+      if (!record) {
+        collectQueue.shift();
+        openNextCollect(runId);
+        return;
+      }
+      const index = collectQueueTotal - collectQueue.length + 1;
+      showMessage(
+        dom.downloadMessage,
+        `正在采集 ${index}/${collectQueueTotal}：${getDisplayPath(record)} — 请在弹出页点击书签脚本（会自动回传正文）`,
+        "ok"
+      );
+      openCollect(record);
+    }
+
+    function advanceCollectQueue(runId, recordId) {
+      if (runId !== activeRestoreRunId || !collectQueueActive) return;
+      if (collectQueue[0] === recordId) collectQueue.shift();
+      else {
+        const idx = collectQueue.indexOf(recordId);
+        if (idx >= 0) collectQueue.splice(idx, 1);
+      }
+      setTimeout(() => openNextCollect(runId), 300);
+    }
+
+    async function restoreAll() {
+      const runId = ++restoreRunId;
+      activeRestoreRunId = runId;
+      collectQueueActive = false;
+      collectQueue = [];
+
+      if (dom.importText.value.trim()) {
+        await importRowsFromText(dom.importText.value);
+      }
+
+      if (!state.downloads.length) {
+        showMessage(dom.downloadMessage, "请先粘贴 CSV、导入文件，或确保恢复列表不为空。", "warn");
+        return;
+      }
+
+      switchTab("download");
+      showMessage(dom.downloadMessage, "正在尝试一键恢复...", "ok");
+
+      const targets = state.downloads.filter((record) => !["saved", "collected"].includes(record.status));
+      const queueIds = await autoDownload(targets, { collectQueue: true, silent: true });
+
+      if (runId !== activeRestoreRunId) return;
+
+      if (queueIds.length) {
+        startCollectQueue(runId, queueIds);
+      } else {
+        await finishRestoreRun(runId);
+      }
+    }
+
+    function openRawPaste(record) {
+      const rawUrl = core.getRawPasteUrl(record.pasteUrl);
+      window.open(rawUrl || record.pasteUrl, "_blank");
+    }
+
+    function openCollect(record) {
+      state.activeDownloadId = record.id;
+      const collectUrl = core.getRawPasteUrl(record.pasteUrl) || record.pasteUrl;
+      const separator = collectUrl.includes("#") ? "&" : "#";
+      const hash = new URLSearchParams({ put_mode: "collect", put_download: record.id }).toString();
+      window.open(`${collectUrl}${separator}${hash}`, "pasteUbuntuCollectTab");
+      saveState();
+      renderDownload();
+    }
+
+    function buildRestorableRecords(records, options = {}) {
+      return core.buildRestorableRecords(records, options);
+    }
+
+    async function saveZip(options = {}) {
+      const success = state.downloads.filter(hasRecoverableDownloadContent);
+      if (!success.length) {
+        showMessage(dom.downloadMessage, "没有可保存的成功内容。", "warn");
+        return;
+      }
+      const result = buildRestorableRecords(success, options);
+      if (!result.records.length) {
+        saveState();
+        renderDownload();
+        showMessage(dom.downloadMessage, "没有可保存的成功内容；请检查 Base64 解码错误。", "warn");
+        return;
+      }
+      const blob = await core.createZipBlob(result.records);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `paste-restore-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      saveState();
+      renderDownload();
+      const modeText = options.decodeBase64 ? "(Base64 解码)" : "";
+      const failedText = result.failed ? `，解码失败 ${result.failed} 个` : "";
+      showMessage(dom.downloadMessage, `已生成 ZIP${modeText}，包含 ${result.records.length} 个文件${failedText}。`, "ok");
+    }
+
+    async function saveToFolder(options = {}) {
+      if (!("showDirectoryPicker" in window)) {
+        showMessage(dom.downloadMessage, "当前浏览器不支持直接保存到指定文件夹，请使用 ZIP。", "warn");
+        return;
+      }
+      const success = state.downloads.filter(hasRecoverableDownloadContent);
+      if (!success.length) {
+        showMessage(dom.downloadMessage, "没有可保存的成功内容。", "warn");
+        return;
+      }
+      const result = buildRestorableRecords(success, options);
+      if (!result.records.length) {
+        saveState();
+        renderDownload();
+        showMessage(dom.downloadMessage, "没有可保存的成功内容；请检查 Base64 解码错误。", "warn");
+        return;
+      }
+      const root = await window.showDirectoryPicker({ mode: "readwrite" });
+      const overwrite = dom.overwriteFiles.checked;
+      let saved = 0;
+      for (const record of result.records) {
+        const source = record.sourceRecord || record;
+        const safePath = core.sanitizeRelativePath(record.filePath);
+        if (!safePath) {
+          source.status = "pathInvalid";
+          source.error = "文件路径不安全";
+          continue;
+        }
+        const parts = safePath.split("/");
+        const filename = parts.pop();
+        let directory = root;
+        for (const part of parts) {
+          directory = await directory.getDirectoryHandle(part, { create: true });
+        }
+        try {
+          if (!overwrite) {
+            await directory.getFileHandle(filename, { create: false });
+            source.status = "conflict";
+            source.error = "目标文件已存在";
+            continue;
+          }
+        } catch (_) {
+          // File does not exist, safe to create.
+        }
+        const handle = await directory.getFileHandle(filename, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(record.content);
+        await writable.close();
+        source.status = "saved";
+        source.error = "";
+        saved += 1;
+      }
+      saveState();
+      renderDownload();
+      const modeText = options.decodeBase64 ? "(Base64 解码)" : "";
+      const failedText = result.failed ? `，解码失败 ${result.failed} 个` : "";
+      showMessage(dom.downloadMessage, `已写入 ${saved} 个文件${modeText}${failedText}。`, "ok");
+    }
+
+    function handleMessage(event) {
+      const data = event.data || {};
+      if (data.source !== "paste-web-tool") return;
+      if (event.origin && !["https://pastebin.centos.org", "https://paste.centos.org"].includes(event.origin)) return;
+      if (data.type === "paste-url") {
+        const record = state.publishFiles.find((item) => item.id === data.token) || state.publishFiles.find((item) => item.id === state.activePublishId);
+        if (!record) {
+          showMessage(dom.publishMessage, "收到网址，但没有匹配到当前文件。", "warn");
+          return;
+        }
+        if (!core.isPasteUrl(data.url)) {
+          showMessage(dom.publishMessage, "收到的网址不是有效的 CentOS Pastebin URL。", "bad");
+          return;
+        }
+        record.pasteUrl = data.url;
+        record.status = "saved";
+        const next = state.publishFiles.find((item) => !core.isPasteUrl(item.pasteUrl));
+        if (next) state.activePublishId = next.id;
+        else state.activePublishId = record.id;
+        saveState();
+        renderPublishStats();
+        updatePublishRowState(record, { updateInput: true });
+        updatePublishActiveRows();
+        const nextText = next ? `下一条已选中：${getDisplayPath(next)}，可继续点“网页提交下一个”。` : "全部待提交记录已回填。";
+        showMessage(dom.publishMessage, `已回填 ${getDisplayPath(record)} 的网址。${nextText}`, "ok");
+        if (publishQueueActive) advancePublishQueue(activePublishRunId, record.id);
+      }
+      if (data.type === "paste-content") {
+        const record = state.downloads.find((item) => item.id === data.id) || state.downloads.find((item) => item.id === state.activeDownloadId);
+        if (!record) {
+          showMessage(dom.downloadMessage, "收到正文，但没有匹配到下载记录。", "warn");
+          return;
+        }
+        if (!String(data.content || "").trim()) {
+          record.status = "needsManualCollect";
+          record.error = "书签脚本未采集到正文";
+        } else {
+          record.content = String(data.content);
+          record.status = "collected";
+          record.error = "";
+        }
+        saveState();
+        renderDownload();
+        showMessage(dom.downloadMessage, `已采集 ${getDisplayPath(record)}。`, "ok");
+        if (collectQueueActive) advanceCollectQueue(activeRestoreRunId, record.id);
+      }
+    }
+
+    function bindEvents() {
+      dom.usernameNote.addEventListener("input", () => {
+        state.usernameNote = dom.usernameNote.value.trim();
+        saveState();
+      });
+      dom.maxFileSize.addEventListener("change", () => {
+        state.maxFileSizeMb = Number(dom.maxFileSize.value) || DEFAULT_MAX_FILE_SIZE_MB;
+        saveState();
+      });
+      dom.clearStateBtn.addEventListener("click", () => {
+        if (!confirm("确认清空本工具保存在当前浏览器里的所有状态？")) return;
+        localStorage.removeItem(storageKey);
+        state.usernameNote = "";
+        state.maxFileSizeMb = DEFAULT_MAX_FILE_SIZE_MB;
+        state.mode = "unified";
+        state.unifiedBase64 = true;
+        state.chunkThresholdMb = 1;
+        state.chunkSizeMb = 1;
+        state.chunkMode = "size";
+        state.chunkCount = 2;
+        state.chunkContentMode = "base64";
+        state.webPrivate = true;
+        state.webExpireMinutes = 1440;
+        state.apiKey = "";
+        state.apiProxyUrl = "";
+        state.publishTotal = 0;
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.downloads = [];
+        state.activePublishId = "";
+        state.activeDownloadId = "";
+        restoreRunId += 1;
+        activeRestoreRunId = 0;
+        collectQueue = [];
+        collectQueueActive = false;
+        collectQueueTotal = 0;
+        publishRunId += 1;
+        activePublishRunId = 0;
+        publishQueue = [];
+        publishQueueActive = false;
+        publishQueueTotal = 0;
+        clearPublishWaitTimer();
+        renderAll();
+      });
+      dom.publishTabBtn.addEventListener("click", () => switchTab("publish"));
+      dom.downloadTabBtn.addEventListener("click", () => switchTab("download"));
+      const onModeChange = () => {
+        updateModeSwitch();
+        saveState();
+        renderPublish();
+        renderDownload();
+      };
+      dom.modeIndependentBtn.addEventListener("click", () => {
+        if (state.mode === "independent") return;
+        state.mode = "independent";
+        onModeChange();
+      });
+      dom.modeUnifiedBtn.addEventListener("click", () => {
+        if (state.mode === "unified") return;
+        state.mode = "unified";
+        onModeChange();
+      });
+      dom.unifiedBase64.addEventListener("change", () => {
+        state.unifiedBase64 = dom.unifiedBase64.checked;
+        onModeChange();
+      });
+      const saveChunkSettings = () => {
+        state.chunkThresholdMb = Math.max(0.05, Number(dom.chunkThresholdMb.value) || 1);
+        state.chunkSizeMb = Math.max(0.05, Number(dom.chunkSizeMb.value) || 1);
+        state.chunkMode = dom.chunkModeCount.checked ? "count" : "size";
+        state.chunkCount = Math.max(2, Number.parseInt(dom.chunkCount.value, 10) || 2);
+        state.chunkContentMode = dom.chunkContentMode.value === "text" ? "text" : "base64";
+        updateChunkSettings();
+        saveState();
+      };
+      [dom.chunkThresholdMb, dom.chunkSizeMb, dom.chunkModeSize, dom.chunkModeCount, dom.chunkCount, dom.chunkContentMode]
+        .forEach((element) => element.addEventListener("change", saveChunkSettings));
+      const saveApiSettings = () => {
+        state.webPrivate = dom.webPrivate.checked;
+        state.webExpireMinutes = [5, 60, 1440].includes(Number(dom.webExpireMinutes.value)) ? Number(dom.webExpireMinutes.value) : 1440;
+        state.apiKey = dom.apiKey.value.trim();
+        state.apiProxyUrl = dom.apiProxyUrl.value.trim();
+        updateApiSettings();
+        saveState();
+      };
+      [dom.webPrivate, dom.webExpireMinutes, dom.apiKey, dom.apiProxyUrl].forEach((element) => element.addEventListener("change", saveApiSettings));
+      [dom.apiKey, dom.apiProxyUrl].forEach((element) => element.addEventListener("input", saveApiSettings));
+      dom.filePicker.addEventListener("change", handleFileInputChange);
+      dom.folderPicker.addEventListener("change", handleFileInputChange);
+      dom.startBatchBtn.addEventListener("click", nextPending);
+      dom.publishAllBtn.addEventListener("click", () => publishAll());
+      dom.nextPendingBtn.addEventListener("click", nextPending);
+      dom.webNextPendingBtn.addEventListener("click", nextPendingViaWebForm);
+      dom.bundlePublishBtn.addEventListener("click", buildSinglePasteBundle);
+      dom.copyPublishCsvBtn.addEventListener("click", async () => {
+        await copyText(core.makeCsv(state.publishFiles));
+        showMessage(dom.publishMessage, "结果表已复制。", "ok");
+      });
+      dom.copyPublishCsvBase64Btn.addEventListener("click", async () => {
+        await copyText(core.makeCsvBase64(state.publishFiles));
+        showMessage(dom.publishMessage, "结果表 Base64 已复制。", "ok");
+      });
+      dom.exportPublishCsvBtn.addEventListener("click", () => downloadTextFile("paste-results.csv", core.makeCsv(state.publishFiles), "text/csv;charset=utf-8"));
+      dom.clearPublishBtn.addEventListener("click", () => {
+        state.publishTotal = 0;
+        state.publishFiles = [];
+        state.skippedFiles = [];
+        state.activePublishId = "";
+        saveState();
+        renderPublish();
+      });
+      dom.publishTableBody.addEventListener("click", async (event) => {
+        const button = event.target.closest("button[data-action]");
+        if (!button) return;
+        const record = state.publishFiles.find((item) => item.id === button.dataset.id);
+        if (!record) return;
+        if (button.dataset.action === "prepare") await preparePaste(record);
+        if (button.dataset.action === "prepare-base64") await preparePaste(record, { encodeBase64: true });
+        if (button.dataset.action === "web-submit") submitPasteViaWebForm(record);
+        if (button.dataset.action === "copy-content") {
+          await copyText(record.content || "");
+          record.status = "copied";
+          saveState();
+          renderPublish();
+          showMessage(dom.publishMessage, `已复制 ${getDisplayPath(record)} 内容。`, "ok");
+        }
+        if (button.dataset.action === "copy-base64") {
+          await copyText(core.hasChunkMetadata(record) ? (record.content || "") : core.encodeBase64Text(record.content || ""));
+          record.status = "encoded";
+          saveState();
+          renderPublish();
+          showMessage(dom.publishMessage, `已复制 ${getDisplayPath(record)} 的 Base64 编码内容。`, "ok");
+        }
+        if (button.dataset.action === "copy-row") {
+          await copyText(`${record.sourcePath || record.path}\t${record.pasteUrl || ""}`);
+          showMessage(dom.publishMessage, "该行已复制。", "ok");
+        }
+        if (button.dataset.action === "delete-publish") {
+          deletePublishRecord(record);
+        }
+      });
+      dom.publishTableBody.addEventListener("input", (event) => {
+        const input = event.target.closest("input[data-action='paste-url']");
+        if (!input) return;
+        updatePublishUrl(input.dataset.id, input.value);
+      });
+      dom.importTextBtn.addEventListener("click", () => importRowsFromText(dom.importText.value));
+      dom.restoreAllBtn.addEventListener("click", () => restoreAll());
+      dom.clearImportTextBtn.addEventListener("click", () => { dom.importText.value = ""; });
+      dom.csvPicker.addEventListener("change", async (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const text = await readFileAsText(file);
+        await importRowsFromText(text);
+      });
+      dom.autoDownloadBtn.addEventListener("click", () => autoDownload());
+      dom.retryFailedBtn.addEventListener("click", () => {
+        const targets = state.downloads.filter((record) => ["failed", "needsManualCollect", "invalidUrl"].includes(record.status));
+        autoDownload(targets);
+      });
+      dom.saveZipBtn.addEventListener("click", () => saveZip());
+      dom.saveZipDecodedBtn.addEventListener("click", () => saveZip({ decodeBase64: true }));
+      dom.saveFolderBtn.addEventListener("click", () => saveToFolder());
+      dom.saveFolderDecodedBtn.addEventListener("click", () => saveToFolder({ decodeBase64: true }));
+      dom.exportFailuresBtn.addEventListener("click", () => downloadTextFile("download-failures.csv", core.makeFailureCsv(state.downloads), "text/csv;charset=utf-8"));
+      dom.clearDownloadBtn.addEventListener("click", () => {
+        state.downloads = [];
+        state.activeDownloadId = "";
+        saveState();
+        renderDownload();
+      });
+      dom.downloadTableBody.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-download-action]");
+        if (!button) return;
+        const record = state.downloads.find((item) => item.id === button.dataset.id);
+        if (!record) return;
+        if (button.dataset.downloadAction === "open") window.open(record.pasteUrl, "_blank");
+        if (button.dataset.downloadAction === "open-raw") openRawPaste(record);
+        if (button.dataset.downloadAction === "collect") openCollect(record);
+        if (button.dataset.downloadAction === "paste-body") {
+          const content = prompt(`请粘贴 ${getDisplayPath(record)} 的正文内容`, record.content || "");
+          if (content !== null && content.trim()) {
+            record.content = content;
+            record.status = "collected";
+            record.error = "";
+            state.activeDownloadId = record.id;
+            saveState();
+            renderDownload();
+            showMessage(dom.downloadMessage, `已保存 ${getDisplayPath(record)} 的采集正文。`, "ok");
+          }
+        }
+        if (button.dataset.downloadAction === "retry") autoDownload([record]);
+      });
+      window.addEventListener("message", handleMessage);
+    }
+
+    function switchTab(name) {
+      const publish = name === "publish";
+      dom.publishTabBtn.classList.toggle("is-active", publish);
+      dom.publishTabBtn.setAttribute("aria-selected", publish ? "true" : "false");
+      dom.downloadTabBtn.classList.toggle("is-active", !publish);
+      dom.downloadTabBtn.setAttribute("aria-selected", publish ? "false" : "true");
+      dom.publishPanel.classList.toggle("is-active", publish);
+      dom.downloadPanel.classList.toggle("is-active", !publish);
+    }
+
+    cacheDom();
+    loadState();
+    bindEvents();
+    renderAll();
+  })();
+  </script>
+</body>
+</html>

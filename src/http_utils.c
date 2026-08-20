@@ -370,27 +370,78 @@ void send_redirect(http_sock_t fd, const char *location)
     (void)http_sock_send_all(fd, header, (size_t)hlen);
 }
 
-int send_file(http_sock_t fd, const char *filepath)
+int send_file(http_sock_t fd, const char *filepath, const char *req_headers)
 {
     struct stat st;
     if (stat(filepath, &st) < 0 || S_ISDIR(st.st_mode)) return -1;
 
+    const char *mime = get_mime(filepath);
+    /* 文本类内容(html/js/css/svg/txt 等)更新后必须立即生效: 用 no-cache
+     * 强制浏览器每次回源校验(配合 ETag 304, 未变化时不重复下载);
+     * 二进制资源(图片/字体/压缩包)可安全长缓存 */
+    const char *cache = (strstr(mime, "text/") != NULL ||
+                         strstr(mime, "javascript") != NULL ||
+                         strstr(mime, "json") != NULL)
+                        ? "no-cache" : "public, max-age=3600";
+
+    /* ETag = 大小 + 修改时间, 文件一变即失效 */
+    char etag[64];
+    snprintf(etag, sizeof(etag), "\"%llx-%llx\"",
+             (unsigned long long)st.st_size,
+             (unsigned long long)st.st_mtime);
+
+    /* If-None-Match 命中 → 304, 浏览器继续用本地缓存 */
+    if (req_headers) {
+        char inm[96];
+        if (http_header_value(req_headers, "If-None-Match", inm, sizeof(inm)) == 0 &&
+            strcmp(inm, etag) == 0) {
+            char h304[512];
+            int n304 = snprintf(h304, sizeof(h304),
+                "HTTP/1.1 304 Not Modified\r\n"
+                "ETag: %s\r\n"
+                "Cache-Control: %s\r\n"
+                "Connection: close\r\n"
+                "\r\n",
+                etag, cache);
+            (void)http_sock_send_all(fd, h304, (size_t)n304);
+            return 0;
+        }
+    }
+
+    /* Last-Modified: RFC 1123 GMT 格式 */
+    char lm_header[96] = "";
+    {
+        static const char *WDAY[] = { "Sun","Mon","Tue","Wed","Thu","Fri","Sat" };
+        static const char *MON[]  = { "Jan","Feb","Mar","Apr","May","Jun",
+                                      "Jul","Aug","Sep","Oct","Nov","Dec" };
+        struct tm tmv;
+        time_t mtime = st.st_mtime;
+        platform_gmtime_utc(&mtime, &tmv);
+        if (tmv.tm_wday >= 0 && tmv.tm_wday <= 6 &&
+            tmv.tm_mon >= 0 && tmv.tm_mon <= 11) {
+            snprintf(lm_header, sizeof(lm_header),
+                     "Last-Modified: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+                     WDAY[tmv.tm_wday], tmv.tm_mday, MON[tmv.tm_mon],
+                     tmv.tm_year + 1900,
+                     tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+        }
+    }
+
     int file_fd = open(filepath, O_RDONLY);
     if (file_fd < 0) return -1;
 
-    const char *mime  = get_mime(filepath);
-    const char *cache = (strstr(mime, "text/plain") != NULL)
-                        ? "no-store" : "public, max-age=3600";
     char header[512];
     int hlen = snprintf(header, sizeof(header),
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %ld\r\n"
         "Cache-Control: %s\r\n"
+        "ETag: %s\r\n"
+        "%s"
         "Access-Control-Allow-Origin: *\r\n"
         "Connection: close\r\n"
         "\r\n",
-        mime, (long)st.st_size, cache);
+        mime, (long)st.st_size, cache, etag, lm_header);
     (void)http_sock_send_all(fd, header, (size_t)hlen);
 
     char buf[65536];

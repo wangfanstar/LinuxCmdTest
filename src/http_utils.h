@@ -33,7 +33,8 @@ void send_response(http_sock_t fd, int status, const char *status_text,
                    const char *body);
 void send_json(http_sock_t fd, int status, const char *status_text,
                const char *json, size_t json_len);
-int  send_file(http_sock_t fd, const char *filepath);
+/* req_headers 可为 NULL; 传入原始请求头以支持 If-None-Match/304 协商缓存 */
+int  send_file(http_sock_t fd, const char *filepath, const char *req_headers);
 int  http_header_value(const char *headers, const char *name,
                        char *out, size_t cap);
 void send_redirect(http_sock_t fd, const char *location);

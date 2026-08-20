@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="vendor/vditor/dist/index.css">
 <title>NoteWiki</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -795,6 +794,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
       </div>
     </div>
     <div class="modal-foot">
+      <button class="btn btn-primary" id="btn-history-restore" onclick="restoreFromHistoryDetail()" style="display:none">恢复此版本</button>
       <button class="btn btn-secondary" onclick="closeHistoryDetailModal()">关闭</button>
     </div>
   </div>
@@ -1003,8 +1003,7 @@ body.col-resizing .sidebar-resizer,body.col-resizing .toc-resizer{pointer-events
 </div>
 
 <script src="rich-render.js"></script>
-<script src="vendor/fuse/fuse.min.js"></script>
-<script src="vendor/vditor/dist/index.min.js"></script>
+<script src="vendor/fuse/fuse.min.js" defer></script>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────
@@ -1132,17 +1131,17 @@ function init() {
   updateLineNumberUi();
   updateKeyDebugUi();
   updateEditEngineUi();
-  refreshAuthStatus().finally(function(){
-    var params = new URLSearchParams(location.search);
-    var editId = params.get('edit');
-    refreshAll(function() {
-      if (editId) {
-        openArticle(editId);
-        editCurrent();
-      }
-      // 延迟检查孤儿备份（等文章列表加载完毕）
-      setTimeout(function() { checkOrphanBackups(); }, 500);
-    });
+  // Fire auth check and article list in parallel — don't block first paint
+  refreshAuthStatus();  // fire-and-forget, updates UI when done
+  var params = new URLSearchParams(location.search);
+  var editId = params.get('edit');
+  refreshAll(function() {
+    if (editId) {
+      openArticle(editId);
+      editCurrent();
+    }
+    // 延迟检查孤儿备份（等文章列表加载完毕）
+    setTimeout(function() { checkOrphanBackups(); }, 500);
   });
 }
 
@@ -2022,12 +2021,15 @@ function doNewArticle() {
     if (old) S.editForceCreated = old.created || '';
   }
   /* 进入编辑器 */
+  _editLoadSeq++;
+  _editBaseline = '';
   S.editId = null;
   S.editIsNew = true;
   _contentLoaded = true;
   _autoSaveDirty = false;
   document.getElementById('edit-title').value = title;
   document.getElementById('edit-textarea').value = '';
+  document.getElementById('edit-textarea').disabled = false;
   var fnEl = document.getElementById('edit-filename');
   fnEl.value = fn; fnEl.style.display = 'none';
   populateCatSelect(cat);
@@ -2045,10 +2047,12 @@ function doNewArticle() {
 function loadEditorFromArticleId(id) {
   var meta = S.articles.find(function(a){ return a.id === id; });
   if (!meta) return;
+  var loadSeq = ++_editLoadSeq;
   S.editId = id;
   S.editIsNew = false;
   _autoSaveDirty = false;
   _contentLoaded = false;
+  _editBaseline = '';
   updateAutoSaveLabel('');
   document.getElementById('edit-title').value = meta.title || '';
   document.getElementById('edit-filename').style.display = 'none';
@@ -2056,7 +2060,7 @@ function loadEditorFromArticleId(id) {
   showPane('edit');
   setViewMode(S.viewMode);
   document.getElementById('edit-textarea').value = '加载中…';
-  document.getElementById('edit-textarea').disabled = true;
+  setEditorLoadingState(true);
   applyWikiEditEngine(S.editEngine, {silent:true});
   refreshVditorFromTextarea();
 
@@ -2064,6 +2068,7 @@ function loadEditorFromArticleId(id) {
   fetch('/api/wiki-read?id=' + encodeURIComponent(id))
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      if (!isCurrentEditLoad(id, loadSeq)) return;
       if (data.ok) {
         document.getElementById('edit-textarea').value = data.content || '';
         S.editBaseUpdated = (data.meta && data.meta.updated) ? data.meta.updated : '';
@@ -2077,7 +2082,7 @@ function loadEditorFromArticleId(id) {
         S.editBaseContent  = '';
         setStatus('读取文章失败：' + (data.error || '未知错误'));
       }
-      document.getElementById('edit-textarea').disabled = false;
+      setEditorLoadingState(false);
       updatePreview();
       updateEditorHighlight();
       refreshVditorFromTextarea();
@@ -2087,6 +2092,7 @@ function loadEditorFromArticleId(id) {
       setTimeout(function() { document.getElementById('edit-textarea').focus(); }, 50);
     })
     .catch(function(e) {
+      if (!isCurrentEditLoad(id, loadSeq)) return;
       document.getElementById('edit-textarea').value = '';
       document.getElementById('edit-textarea').disabled = false;
       S.editBaseUpdated = '';
@@ -2105,6 +2111,7 @@ function loadEditorFromArticleId(id) {
         updateEditHtmlLink();
         setStatus('已从本地备份恢复（服务端读取失败）');
       }
+      setEditorLoadingState(false);
     });
 }
 
@@ -2115,9 +2122,12 @@ function editCurrent() {
 }
 
 function cancelEdit() {
+  _editLoadSeq++;
+  _editBaseline = '';
   _contentLoaded = false;
   _autoSaveDirty = false;
   updateAutoSaveLabel('');
+  setEditorLoadingState(false);
   if (S.curId) showPane('view');
   else showPane('welcome');
 }
@@ -2167,11 +2177,20 @@ var _autoSaveDirty = false;
 var _editBaseline = '';
 var _editDirty = false;
 var _contentLoaded = false;
+var _editLoadSeq = 0;
 var _backupContent = null;
 var _vditor = null;
 var _vditorReady = false;
 var _vditorSyncing = false;
 var _vditorPendingValue = null;
+
+function isCurrentEditLoad(id, seq) {
+  return S.editId === id && _editLoadSeq === seq;
+}
+
+function isCurrentEditContext(id, seq) {
+  return _editLoadSeq === seq && (id ? S.editId === id : S.editIsNew);
+}
 
 function getVditorValue() {
   if (!_vditor) return '';
@@ -2181,6 +2200,7 @@ function getVditorValue() {
 function syncVditorToTextarea(opts) {
   opts = opts || {};
   if (!_vditor || S.editEngine !== 'vditor') return;
+  if (!S.editIsNew && !_contentLoaded) return;
   var ta = document.getElementById('edit-textarea');
   if (!ta) return;
   var value = getVditorValue();
@@ -2200,6 +2220,8 @@ function refreshVditorFromTextarea() {
   _vditorSyncing = false;
 }
 
+var _vditorLoading = false;
+
 function ensureVditor() {
   var box = document.getElementById('vditor-editor');
   if (!box) return;
@@ -2207,10 +2229,36 @@ function ensureVditor() {
     refreshVditorFromTextarea();
     return;
   }
-  if (typeof Vditor !== 'function') {
-    setStatus('Vditor 未加载');
+  if (typeof Vditor === 'function') {
+    _initVditorInstance();
     return;
   }
+  // Lazy-load Vditor CSS + JS on first use
+  if (_vditorLoading) return;
+  _vditorLoading = true;
+  setStatus('加载可视编辑器…');
+  // Load CSS
+  var css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = 'vendor/vditor/dist/index.css';
+  document.head.appendChild(css);
+  // Load JS
+  var s = document.createElement('script');
+  s.src = 'vendor/vditor/dist/index.min.js';
+  s.onload = function() {
+    _vditorLoading = false;
+    _initVditorInstance();
+  };
+  s.onerror = function() {
+    _vditorLoading = false;
+    setStatus('Vditor 加载失败');
+  };
+  document.head.appendChild(s);
+}
+
+function _initVditorInstance() {
+  if (_vditor) return;
+  if (typeof Vditor !== 'function') return;
   var ta = document.getElementById('edit-textarea');
   _vditorPendingValue = ta ? (ta.value || '') : '';
   _vditorReady = false;
@@ -2321,10 +2369,20 @@ function getEditDraftState() {
   });
 }
 
+function setEditorLoadingState(loading) {
+  var ta = document.getElementById('edit-textarea');
+  if (ta) ta.disabled = !!loading;
+  if (loading) {
+    setEditDirty(false);
+  } else {
+    refreshEditDirtyState();
+  }
+}
+
 function setEditDirty(dirty) {
   _editDirty = !!dirty;
   var saveBtn = document.getElementById('btn-save');
-  if (saveBtn) saveBtn.disabled = !_editDirty;
+  if (saveBtn) saveBtn.disabled = !_editDirty || (!S.editIsNew && !_contentLoaded);
 }
 
 function markEditBaseline() {
@@ -2535,11 +2593,19 @@ function saveArticle()   { _doSave({}); }
 function publishArticle(){ _doSave({ published: true }); }
 
 function _doSave(opts) {
-  if (!ensureWriteAuth()) return;
-  syncVditorToTextarea({silent:true});
   opts = opts || {};
   var silent  = !!opts.silent;
   var published = !!opts.published;
+
+  if (!ensureWriteAuth()) return;
+  if (!_contentLoaded && !S.editIsNew) {
+    if (!silent) { setStatus('文章内容尚未加载完成，请稍后重试'); }
+    return;
+  }
+
+  var saveEditId = S.editId || '';
+  var saveLoadSeq = _editLoadSeq;
+  syncVditorToTextarea({silent:true});
 
   var title   = document.getElementById('edit-title').value.trim();
   var cat     = document.getElementById('edit-category').value;
@@ -2591,6 +2657,7 @@ function _doSave(opts) {
     return r.json();
   })
   .then(function(data){
+    if (!isCurrentEditContext(saveEditId, saveLoadSeq)) return;
     if (data._conflict) {
       if (data.error === 'conflict') {
         S.conflictServerContent = data.server_content || '';
@@ -2630,6 +2697,7 @@ function _doSave(opts) {
     }
   })
   .catch(function(e){
+    if (!isCurrentEditContext(saveEditId, saveLoadSeq)) return;
     if (!silent) setStatus('请求失败：'+e.message);
     else updateAutoSaveLabel('保存失败');
   });
@@ -2951,6 +3019,7 @@ function closeHistoryModal() {
 }
 
 var _historyItems = [];
+var _lastOpenHistoryId = -1;
 var _histDiffShowContext = false;
 var _histDiffCurContent = '';
 var _histDiffPrevContent = '';
@@ -3044,6 +3113,54 @@ function closeHistoryDetailModal() {
   if (m) m.classList.remove('open');
 }
 
+function restoreFromHistoryDetail() {
+  var hit = null;
+  for (var i = 0; i < _historyItems.length; i++) {
+    if (_historyItems[i].id === _lastOpenHistoryId) {
+      hit = _historyItems[i];
+      break;
+    }
+  }
+  if (!hit) {
+    setStatus('未找到当前历史记录，请重试');
+    return;
+  }
+
+  var articleId = getCurrentHistoryId();
+  if (!articleId) {
+    setStatus('无法确定文章 ID');
+    return;
+  }
+
+  if (!confirm('确定要将文章"' + (hit.title || articleId) + '"恢复到历史版本 #' + _lastOpenHistoryId + ' 吗？\n\n恢复操作会创建一条新的版本记录。\n当前编辑器中未保存的内容将丢失。')) {
+    return;
+  }
+
+  setStatus('恢复中…');
+
+  fetch('/api/wiki-restore-version', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({articleId: articleId, backupId: _lastOpenHistoryId})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.ok) {
+      setStatus('已恢复到历史版本 #' + _lastOpenHistoryId);
+      closeHistoryDetailModal();
+      closeHistoryModal();
+      refreshAll(function() {
+        openArticle(articleId);
+      });
+    } else {
+      setStatus('恢复失败：' + ((data && data.error) ? data.error : '未知错误'));
+    }
+  })
+  .catch(function(e) {
+    setStatus('恢复请求失败：' + (e.message || '网络错误'));
+  });
+}
+
 function buildHistoryDiff(currContent, prevContent, showContext) {
   var cur = String(currContent || '').replace(/\r\n?/g, '\n').split('\n');
   var prev = String(prevContent || '').replace(/\r\n?/g, '\n').split('\n');
@@ -3128,7 +3245,17 @@ function openHistoryDetailModal(historyId) {
   _histDiffCurContent = hit.content || '';
   _histDiffPrevContent = prev ? (prev.content || '') : '';
   _histDiffShowContext = false;
+  _lastOpenHistoryId = hit.id;
   renderHistoryDiffView();
+  // Show restore button only for users with write permission
+  var restoreBtn = document.getElementById('btn-history-restore');
+  if (restoreBtn) {
+    if (Auth.loggedIn && Auth.user && (Auth.user.role === 'admin' || Auth.user.role === 'author')) {
+      restoreBtn.style.display = '';
+    } else {
+      restoreBtn.style.display = 'none';
+    }
+  }
   document.getElementById('modal-history-detail').classList.add('open');
 }
 

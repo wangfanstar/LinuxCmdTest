@@ -37,7 +37,8 @@ static int is_wiki_write_api(const char *path)
            strcmp(path, "/api/wiki-rebuild-html") == 0 ||
            strcmp(path, "/api/wiki-cleanup-uploads") == 0 ||
            strcmp(path, "/api/wiki-trash-restore") == 0 ||
-           strcmp(path, "/api/wiki-trash-empty") == 0;
+           strcmp(path, "/api/wiki-trash-empty") == 0 ||
+           strcmp(path, "/api/wiki-restore-version") == 0;
 }
 
 /* ── 主处理入口 ──────────────────────────────────────────────── */
@@ -235,6 +236,12 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                 handle_api_wiki_trash_empty(client_fd, body);
             } else send_json(client_fd, 400, "Bad Request",
                              "{\"ok\":false,\"error\":\"empty body\"}", 35);
+        } else if (strcmp(path, "/api/wiki-restore-version") == 0) {
+            if (body) {
+                handle_api_wiki_restore_version(client_fd, body,
+                                                 req_user.username, client_ip);
+            } else send_json(client_fd, 400, "Bad Request",
+                             "{\"ok\":false,\"error\":\"empty body\"}", 35);
         } else if (strcmp(path, "/api/wiki-user-save") == 0) {
             if (body) {
                 auth_audit(client_ip, req_user.username, "user_save", "", "");
@@ -413,9 +420,9 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
     if (strcmp(path, "/favicon.ico") == 0) {
         char fpath[512];
         snprintf(fpath, sizeof(fpath), "%s/favicon.ico", WEB_ROOT);
-        if (send_file(client_fd, fpath) < 0) {
+        if (send_file(client_fd, fpath, req_buf) < 0) {
             snprintf(fpath, sizeof(fpath), "%s/favicon.svg", WEB_ROOT);
-            if (send_file(client_fd, fpath) < 0) {
+            if (send_file(client_fd, fpath, req_buf) < 0) {
                 static const char nofav[] =
                     "HTTP/1.1 204 No Content\r\n"
                     "Connection: close\r\n"
@@ -441,7 +448,7 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         else
             snprintf(filepath, sizeof(filepath), "%s%s", WEB_ROOT, decoded_path);
 
-        if (send_file(client_fd, filepath) < 0) {
+        if (send_file(client_fd, filepath, req_buf) < 0) {
             char body[256];
             snprintf(body, sizeof(body),
                      "<h1>404 Not Found</h1><p>%s</p>", path);

@@ -1392,6 +1392,84 @@ void handle_api_wiki_md_history(http_sock_t fd, const char *path_qs)
     free(sb.data);
 }
 
+void handle_api_wiki_restore_version(http_sock_t fd, const char *body,
+                                      const char *actor, const char *ip)
+{
+    char article_id[256] = {0};
+    int backup_id = json_get_int(body, "backupId", 0);
+    json_get_str(body, "articleId", article_id, sizeof(article_id));
+
+    if (!article_id[0] || backup_id <= 0) {
+        send_json(fd, 400, "Bad Request",
+                  "{\"ok\":false,\"error\":\"missing articleId or backupId\"}", 51);
+        return;
+    }
+
+    pthread_mutex_lock(&g_auth_mu);
+    sqlite3_stmt *st = NULL;
+    const char *sql = "SELECT article_id, title, category, content, html "
+                      "FROM md_backups WHERE id=?1 LIMIT 1;";
+    char bk_article_id[256] = {0};
+    char bk_title[512] = {0};
+    char bk_category[512] = {0};
+    char *bk_content = NULL;
+    char *bk_html = NULL;
+    int found = 0;
+
+    if (sqlite3_prepare_v2(g_db, sql, -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_int(st, 1, backup_id);
+        if (sqlite3_step(st) == SQLITE_ROW) {
+            const char *a = (const char *)sqlite3_column_text(st, 0);
+            const char *t = (const char *)sqlite3_column_text(st, 1);
+            const char *c = (const char *)sqlite3_column_text(st, 2);
+            const char *co = (const char *)sqlite3_column_text(st, 3);
+            const char *h = (const char *)sqlite3_column_text(st, 4);
+            if (a) { snprintf(bk_article_id, sizeof(bk_article_id), "%s", a); }
+            if (t) { snprintf(bk_title, sizeof(bk_title), "%s", t); }
+            if (c) { snprintf(bk_category, sizeof(bk_category), "%s", c); }
+            if (co) bk_content = strdup(co);
+            if (h) bk_html = strdup(h);
+            found = 1;
+        }
+    }
+    if (st) sqlite3_finalize(st);
+    pthread_mutex_unlock(&g_auth_mu);
+
+    if (!found) {
+        send_json(fd, 404, "Not Found",
+                  "{\"ok\":false,\"error\":\"backup not found\"}", 40);
+        return;
+    }
+
+    if (strcmp(bk_article_id, article_id) != 0) {
+        send_json(fd, 403, "Forbidden",
+                  "{\"ok\":false,\"error\":\"backup does not belong to this article\"}", 61);
+        free(bk_content); free(bk_html);
+        return;
+    }
+
+    /* audit before save */
+    char detail[128];
+    snprintf(detail, sizeof(detail), "restore from backup id=%d", backup_id);
+    auth_audit(ip, actor, "wiki_restore_version", article_id, detail);
+
+    /* construct save body and delegate to handle_api_wiki_save */
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{");
+    SB_LIT(&sb, "\"id\":"); sb_json_str(&sb, article_id); SB_LIT(&sb, ",");
+    SB_LIT(&sb, "\"title\":"); sb_json_str(&sb, bk_title); SB_LIT(&sb, ",");
+    SB_LIT(&sb, "\"category\":"); sb_json_str(&sb, bk_category); SB_LIT(&sb, ",");
+    SB_LIT(&sb, "\"content\":"); sb_json_str(&sb, bk_content ? bk_content : ""); SB_LIT(&sb, ",");
+    SB_LIT(&sb, "\"html\":"); sb_json_str(&sb, bk_html ? bk_html : ""); SB_LIT(&sb, ",");
+    SB_LIT(&sb, "\"force_override\":\"true\"}");
+    /* note: not passing "created" — handle_api_wiki_save will read it from existing META */
+
+    free(bk_content); free(bk_html);
+
+    handle_api_wiki_save(fd, sb.data, actor, ip);
+    free(sb.data);
+}
+
 void handle_api_wiki_user_article_rank(http_sock_t fd, const char *path_qs)
 {
     int limit = 10;
@@ -1623,6 +1701,14 @@ void handle_api_wiki_user_article_rank(http_sock_t fd, const char *path_qs)
     (void)path_qs;
     send_json(fd, 500, "Internal Server Error",
               "{\"ok\":false,\"error\":\"sqlite3 dev headers not found, rank unavailable\"}", 71);
+}
+
+void handle_api_wiki_restore_version(http_sock_t fd, const char *body,
+                                      const char *actor, const char *ip)
+{
+    (void)body; (void)actor; (void)ip;
+    send_json(fd, 500, "Internal Server Error",
+              "{\"ok\":false,\"error\":\"sqlite3 dev headers not found, restore unavailable\"}", 76);
 }
 
 #endif

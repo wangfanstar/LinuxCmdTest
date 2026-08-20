@@ -559,6 +559,7 @@ body.pg-tab-gen span.pg-gen-only{display:inline}
       <button class="rc-tab active" id="rc-tab-freq" type="button" onclick="rcSetMode('freq')">&#8646; 降频换算</button>
       <button class="rc-tab" id="rc-tab-unit" type="button" onclick="rcSetMode('unit')">&#128208; 单位换算</button>
       <button class="rc-tab" id="rc-tab-line" type="button" onclick="rcSetMode('line')">&#9889; 线速计算</button>
+      <button class="rc-tab" id="rc-tab-time" type="button" onclick="rcSetMode('time')">&#9202; 时间换算</button>
     </div>
 
     <div class="rc-grid">
@@ -728,6 +729,62 @@ body.pg-tab-gen span.pg-gen-only{display:inline}
                 <span class="rc-unit-hint">%</span>
               </div>
               <div class="rc-hint">IFG = 以太网帧间隙 12B + Preamble 8B</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ④ 时间换算 -->
+        <div id="rc-pane-time" style="display:none">
+          <div class="rc-section">
+            <div class="rc-section-label">时钟频率</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>参考</label>
+                <input id="rc-time-ref-freq" class="rc-inp" value="3125" oninput="calcTimeConv()">
+                <select id="rc-time-ref-unit" class="rc-sel" onchange="calcTimeConv()">
+                  <option value="GHz">GHz</option>
+                  <option value="MHz" selected>MHz</option>
+                  <option value="KHz">KHz</option>
+                  <option value="Hz">Hz</option>
+                </select>
+              </div>
+              <div class="rc-row">
+                <label>运行</label>
+                <input id="rc-time-op-freq" class="rc-inp" value="373" oninput="calcTimeConv()">
+                <select id="rc-time-op-unit" class="rc-sel" onchange="calcTimeConv()">
+                  <option value="GHz">GHz</option>
+                  <option value="MHz">MHz</option>
+                  <option value="KHz" selected>KHz</option>
+                  <option value="Hz">Hz</option>
+                </select>
+              </div>
+              <div class="rc-ratio" id="rc-time-ratio-display">降频比: -</div>
+            </div>
+          </div>
+
+          <div class="rc-section">
+            <div class="rc-section-label">时间输入</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <label>数值</label>
+                <input id="rc-time-val" class="rc-inp wide" value="1000" oninput="calcTimeConv()">
+                <select id="rc-time-unit" class="rc-sel" onchange="calcTimeConv()">
+                  <option value="1">s</option>
+                  <option value="1e-3">ms</option>
+                  <option value="1e-6">us</option>
+                  <option value="1e-9" selected>ns</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="rc-section">
+            <div class="rc-section-label">换算方向</div>
+            <div class="rc-body">
+              <div class="rc-row">
+                <button class="rc-swap-btn active" id="rc-btn-act2dev" type="button" onclick="setTimeConvDir(0)">实际时间 → 设备时间</button>
+                <button class="rc-swap-btn" id="rc-btn-dev2act" type="button" onclick="setTimeConvDir(1)">设备时间 → 实际时间</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3336,6 +3393,7 @@ function decodeCustom(data,startByte,def){
 }
 
 var rateConvDir=0;
+var timeConvDir=0;
 var rcMode='freq';
 
 /* ── 单位换算辅助 ── */
@@ -3443,7 +3501,7 @@ function renderPanel(sections){
 /* ── 模式切换 ── */
 function rcSetMode(m){
   rcMode=m;
-  var modes=['freq','unit','line'];
+  var modes=['freq','unit','line','time'];
   for(var i=0;i<modes.length;i++){
     var tab=document.getElementById('rc-tab-'+modes[i]);
     var pane=document.getElementById('rc-pane-'+modes[i]);
@@ -3454,6 +3512,7 @@ function rcSetMode(m){
   if(m==='freq')calcRateConv();
   if(m==='unit')calcUnitConv();
   if(m==='line')calcLineRate();
+  if(m==='time')calcTimeConv();
 }
 
 /* ── 模式①：降频换算 ── */
@@ -3543,6 +3602,80 @@ function setRateConvDir(dir){
   if(b0){b0.className=dir===0?'rc-swap-btn active':'rc-swap-btn';}
   if(b1){b1.className=dir===1?'rc-swap-btn active':'rc-swap-btn';}
   calcRateConv();
+}
+
+/* ── 模式④：时间换算 ── */
+function calcTimeConv(){
+  if(rcMode!=='time')return;
+  var refHz=freqToHz(document.getElementById('rc-time-ref-freq').value,document.getElementById('rc-time-ref-unit').value);
+  var opHz=freqToHz(document.getElementById('rc-time-op-freq').value,document.getElementById('rc-time-op-unit').value);
+  var ratioEl=document.getElementById('rc-time-ratio-display');
+  if(!refHz||!opHz||refHz<=0||opHz<=0){
+    ratioEl.textContent='降频比: -';
+    renderPanel([]);
+    return;
+  }
+  var ratio=refHz/opHz;
+  ratioEl.innerHTML='降频比 '+fmtFreqHz(refHz)+' : '+fmtFreqHz(opHz)+' = <b style="color:var(--success)">'+ratio.toFixed(6)+'</b>';
+
+  var rawVal=parseFloat(document.getElementById('rc-time-val').value);
+  var unitScale=parseFloat(document.getElementById('rc-time-unit').value);
+  if(isNaN(rawVal)||rawVal<0){
+    renderPanel([]);
+    return;
+  }
+  var inputSec=rawVal*unitScale; // 输入时间转换为秒
+
+  var resultSec;
+  var dirLabel;
+  if(timeConvDir===0){
+    // 实际时间 → 设备时间：设备时间 = 实际时间 / 降频比
+    resultSec=inputSec/ratio;
+    dirLabel='实际 → 设备 (÷'+ratio.toFixed(4)+')';
+  }else{
+    // 设备时间 → 实际时间：实际时间 = 设备时间 × 降频比
+    resultSec=inputSec*ratio;
+    dirLabel='设备 → 实际 (×'+ratio.toFixed(4)+')';
+  }
+
+  var sections=[];
+  var inputRows=timeRows(inputSec);
+  sections.push({title:'输入时间',sub:timeConvDir===0?' (实际时间)':' (设备时间)',rows:inputRows});
+
+  var outRows=timeRows(resultSec);
+  sections.push({title:'换算结果',sub:dirLabel,rows:outRows});
+
+  renderPanel(sections);
+}
+
+function timeRows(totalSec){
+  var rows=[];
+  var absS=Math.abs(totalSec);
+  var s=totalSec;
+  var m=s/60, h=s/3600;
+  var ms=s*1e3, us=s*1e6, ns=s*1e9;
+  var hiH=absS>=3600;
+  var hiM=absS>=60&&absS<3600;
+  var hiS=absS>=0.5&&absS<60;
+  var hiMs=absS>=0.5e-3&&absS<0.5;
+  var hiUs=absS>=0.5e-6&&absS<0.5e-3;
+  var hiNs=absS>=0&&absS<0.5e-6;
+  if(absS>=60) rows.push({val:fmtNum(h,2),unit:'h',raw:fmtNum(h,2)+'h',hi:hiH,rawNum:fmtNumRaw(h,2)});
+  if(absS>=60) rows.push({val:fmtNum(m,2),unit:'min',raw:fmtNum(m,2)+'min',hi:hiM,rawNum:fmtNumRaw(m,2)});
+  rows.push({val:fmtNum(s,6),unit:'s',raw:fmtNum(s,6)+'s',hi:hiS,rawNum:fmtNumRaw(s,6)});
+  rows.push({val:fmtNum(ms,3),unit:'ms',raw:fmtNum(ms,3)+'ms',hi:hiMs,rawNum:fmtNumRaw(ms,3)});
+  rows.push({val:fmtNum(us,0),unit:'us',raw:fmtNum(us,0)+'us',hi:hiUs,rawNum:fmtNumRaw(us,0)});
+  rows.push({val:fmtNum(ns,0),unit:'ns',raw:fmtNum(ns,0)+'ns',hi:hiNs,rawNum:fmtNumRaw(ns,0)});
+  return rows;
+}
+
+function setTimeConvDir(dir){
+  timeConvDir=dir;
+  var b0=document.getElementById('rc-btn-act2dev');
+  var b1=document.getElementById('rc-btn-dev2act');
+  if(b0){b0.className=dir===0?'rc-swap-btn active':'rc-swap-btn';}
+  if(b1){b1.className=dir===1?'rc-swap-btn active':'rc-swap-btn';}
+  calcTimeConv();
 }
 
 /* ── 模式②：单位换算 ── */

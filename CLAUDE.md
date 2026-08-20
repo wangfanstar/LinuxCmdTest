@@ -20,12 +20,14 @@ make memcheck     # Valgrind 内存检查（需先 make debug）
 
 ## 架构概览
 
-四个模块，职责分明，依赖方向单向：
+模块职责分明，依赖方向单向：
 
 ```
 main.c
   ├─ threadpool.c/h   线程池（循环队列 + mutex/cond）
-  ├─ http_handler.c/h HTTP 解析与文件服务
+  ├─ http_handler.c/h HTTP 解析、路由分发与静态文件服务
+  ├─ admin_api.c/h    管理员 API：日志列表/分块读取、IP 访问统计
+  ├─ wiki.c/h + auth_db.c/h  Wiki 引擎与登录/权限/审计（SQLite，make SQLITE3=1 启用）
   └─ log.c/h          滚动日志（线程安全）
 ```
 
@@ -33,9 +35,13 @@ main.c
 
 **threadpool.c**：生产者-消费者模型。固定大小循环队列；`not_empty` / `not_full` 两个条件变量控制阻塞；`shutdown` 标志让所有工作线程在队列排空后退出。
 
-**http_handler.c**：GET 提供静态文件（`html/<path>`）与只读 JSON API；POST 处理 `/api/ssh-exec*`、`/api/save-report`、`/api/save-config`、`/api/delete-report` 等。解析请求行后去掉 path 中的 `?` / `#` 后缀再匹配路由与静态路径；需查询串的 GET（如 `list-ssh-configs`、`procs`、`port`）使用保留查询的副本解析。报告列表见 `GET /api/reports`，存档目录 `html/report/`（`http_handler.c` 内扫描与校验）。
+**http_handler.c**：GET 提供静态文件（`html/<path>`）与只读 JSON API（`/api/gt-sdk-doc` 最新版跳转、`/api/codechecker-list` 扫描 `html/codechecker_html/`、`/api/admin-log-*` 与 `/api/admin-ip-stats` 日志与 IP 统计）；POST 处理 `/api/wiki-*`、`/api/save-register-file`、`/api/svn-log` 等。解析请求行后去掉 path 中的 `?` / `#` 后缀再匹配路由与静态路径；需查询串的 GET 使用保留查询的副本（`path_qs`）解析。
 
-**log.c**：全局互斥锁保护文件句柄；单文件写满 100 MB 后自动切换到下一序号（`server_N.log`）；超过 10 个文件时将最旧的删除后整体前移序号（rotate_files）。使用 `_IONBF` 关闭用户空间缓冲。
+**admin_api.c**：三个管理员接口（`auth_require_admin` 保护）：`/api/admin-log-files` 列出 `log_get_dir()` 内 `server_N.log`；`/api/admin-log-read` 按字节偏移读日志块并回退对齐行首；`/api/admin-ip-stats` 逐行提取时间戳与 IPv4，按日期范围/路径/IP 关键字过滤后聚合计数、按次数降序返回 TOP N。前端 `html/admin.html`（登录复用 wiki 账号，仅 admin 角色）。
+
+**log.c**：全局互斥锁保护文件句柄；单文件写满 100 MB 后自动切换到下一序号（`server_N.log`）；超过 10 个文件时将最旧的删除后整体前移序号（rotate_files）。`log_get_dir()` 导出当前日志目录（支持 `-l` 自定义）。使用 `_IOFBF` 块缓冲 + 每行 fflush。
+
+> 鉴权相关功能（wiki 登录、管理员 API）必须 `make SQLITE3=1` 编译；默认构建 auth 全部返回 500 禁用。鉴权库 `html/wiki/sqlite_db/wiki_auth.db` 首次启动自动创建，默认管理员见同目录 `db.config`。
 
 ## 关键常量位置
 

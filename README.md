@@ -7,9 +7,10 @@
 | 模块 | 说明 |
 |------|------|
 | NoteWiki | 分类笔记管理，Markdown 编辑与实时预览，自动生成独立 HTML 文章页 |
-| 报告存档与列表 | 执行结果可存档到 `html/report/`；`reports.html` 浏览 HTML/JSON，支持筛选、排序、删除 |
 | 域段解析 | `TableParse.html`：Length/Range 解析 hex/dec/bin，嵌套域段与 JSON 配置 |
-| 日志查看器 | 实时查看服务器日志（文件 + SQLite WebData 双源），支持级别过滤、关键字搜索、本地文件上传 |
+| 寄存器工具 | `register-viewer.html` 可视化解析寄存器描述文件；`register.html` 管理 register 归档目录 |
+| CodeChecker 每日网页 | 浏览 CI 每日生成的 CodeChecker 报告（`codechecker_html/` 只读软链接目录），搜索、排序、每页 100 条分页 + iframe 内嵌预览 |
+| 网站管理（管理员） | 登录后查看网站日志（分块读取、关键字过滤）与访问 IP 统计（日期范围/路径/IP 过滤、TOP 排行） |
 | Wiki 权限与审计（可选） | 基于 SQLite 的登录、角色权限（admin/author/guest）、操作日志、MD 历史备份 |
 
 ## 快速开始
@@ -155,22 +156,26 @@ make SQLITE3=1 SQLITE3_INCLUDE="$HOME/local/sqlite3/include" SQLITE3_LIBDIR="$HO
 .
 ├── src/
 │   ├── main.c              # 入口：参数解析、socket、accept 循环
-│   ├── http_handler.c/h    # HTTP 请求调度（路由分发）、静态文件服务
+│   ├── http_handler.c/h    # HTTP 请求调度（路由分发）、静态文件服务、报告存档接口
 │   ├── http_utils.c/h      # 共享工具：strbuf、JSON 解析/构建、HTTP 响应、URL 解码
-│   ├── report_api.c/h      # 报告存档管理（/api/save-report、/api/reports 等）
 │   ├── register_api.c/h    # 注册表文件管理（/api/save-register-file 等）
 │   ├── wiki.c/h            # Wiki 引擎（Markdown→HTML、搜索、上传、CRUD）
 │   ├── auth_db.c/h         # Wiki 登录/权限/会话/审计/MD 历史（SQLite，可选启用）
+│   ├── admin_api.c/h       # 管理员 API：日志文件列表/分块读取、IP 访问统计
 │   ├── svn_api.c/h         # SVN 日志查询（/api/svn-log）
 │   ├── threadpool.c/h      # 线程池（生产者-消费者，循环队列）
-│   ├── webdata.c/h         # 日志/登录事件写入 SQLite，提供查询 API
 │   ├── platform.c/h        # 平台兼容层
 │   └── log.c/h             # 滚动日志（线程安全，最多 10 × 100 MB）
 ├── html/
 │   ├── index.html           # 工具导航首页
-│   ├── reports.html         # 已存档报告列表（调用 /api/reports）
 │   ├── TableParse.html      # 域段解析工具
-│   ├── logviewer.html       # 日志查看器（文件 + WebData SQLite 双源）
+│   ├── register-viewer.html # 寄存器查看器（上传 XML/JSON 可视化解析）
+│   ├── register.html        # register 归档目录文件管理
+│   ├── svntools.html        # SVN 日志查询
+│   ├── codechecker.html     # CodeChecker 每日报告浏览（搜索/排序/分页/内嵌预览）
+│   ├── codechecker_html/    # CI 生成的 CodeChecker 报告目录（只读软链接，不入库）
+│   ├── admin.html           # 网站管理（登录 + IP 统计 + 日志浏览，管理员）
+│   ├── packet/              # 报文生成与解析模板
 │   └── wiki/               # Wiki 阅读 / 编辑页面
 │       ├── notewiki.html
 │       └── wiki-auth-admin.html   # Wiki 账号权限与日志查询页（管理员）
@@ -186,28 +191,16 @@ make SQLITE3=1 SQLITE3_INCLUDE="$HOME/local/sqlite3/include" SQLITE3_LIBDIR="$HO
 
 | 模块 | 职责 |
 |------|------|
-| `http_handler` | 路由调度：解析请求行，按路径分发到各 API 模块；提供静态文件服务 |
+| `http_handler` | 路由调度：解析请求行，按路径分发到各 API 模块；提供静态文件服务；`/api/gt-sdk-doc` 跳转与 `/api/codechecker-list` 报告列表 |
 | `http_utils` | 跨模块共享工具：动态字符串缓冲（`strbuf_t`）、JSON 读写、HTTP 响应发送、URL 解码、目录创建 |
-| `report_api` | 报告文件的存取、列表扫描、删除 |
 | `register_api` | 注册表 JSON/XML 文件的上传、重命名、删除及目录管理 |
 | `wiki` | Markdown 文章的读写、HTML 渲染、全文搜索、分类/重命名/移动、图片上传 |
 | `auth_db` | Wiki 认证与权限：用户、会话、审计日志、MD 历史备份、偏好设置持久化（SQLite） |
-| `webdata` | 将运行日志与登录事件双写至 SQLite（WebData.db），提供登录统计与日志查询 API |
+| `admin_api` | 管理员 API：日志文件列表、按偏移分块读取日志、按日期/路径/IP 聚合访问统计（需管理员会话） |
 | `svn_api` | 调用系统 `svn log --xml`，透传 XML 结果给前端 |
 | `threadpool` | 固定线程池，循环队列，`not_empty`/`not_full` 两个条件变量控制背压 |
 | `log` | 线程安全滚动日志：单文件 100 MB 切换，超限时整体前移并删最旧 |
 | `platform` | 平台兼容层：目录创建、时间、网络初始化等 |
-
-## 报告存档目录与接口
-
-存档默认写入 **`html/report/<用户名>/<服务器年月 YYYYMM>/`**（兼容旧路径 `html/report/<YYYYMM>/`）。
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/reports` | GET | JSON：`groups[]` 含 `legacy`、`user`、`ym`、`files[]`（`name`、`kind` 为 html 或 json、`mtime`、`size`） |
-| `/api/delete-report` | POST | JSON：`legacy`、`ym`、`name`；非 legacy 时必填 `user`；删除上述目录下对应文件 |
-
-前端 **`reports.html`**：按类型筛选（全部 / 仅 HTML / 仅 JSON）、组内按文件名或修改时间排序、打开链接与删除。
 
 ## 编译选项
 
@@ -228,9 +221,15 @@ make clean      # 清除构建产物
 
 ## HTTP 路由说明
 
-解析请求行后，**路径中 `?` 与 `#` 之后会被截断**再用于静态文件路径与多数 API 匹配（例如 `/api/reports`、`.html` 页面），避免带缓存参数时 404。
+解析请求行后，**路径中 `?` 与 `#` 之后会被截断**再用于静态文件路径与多数 API 匹配（例如 `/api/codechecker-list`、`.html` 页面），避免带缓存参数时 404；需查询串的 GET（如 `/api/admin-ip-stats`）使用保留查询的副本（`path_qs`）解析。
 
-### Wiki 权限接口（`SQLITE3=1` 启用时）
+### Wiki 接口（`SQLITE3=1` 启用时）
+
+内容读写：`/api/wiki-list`、`/api/wiki-read`、`/api/wiki-search`、`/api/wiki-save`、`/api/wiki-delete`、`/api/wiki-rename-article`、`/api/wiki-rename-cat`、`/api/wiki-delete-cat`、`/api/wiki-move-article`、`/api/wiki-mkdir`、`/api/wiki-upload`、`/api/wiki-export-pdf`、`/api/wiki-export-md-zip`、`/api/wiki-rebuild-html`、`/api/wiki-refresh-index`、`/api/wiki-cleanup-uploads`、`/api/wiki-restore-version`
+
+回收站：`/api/wiki-trash-list`、`/api/wiki-trash-restore`、`/api/wiki-trash-empty`
+
+认证与账号（管理员接口见各接口说明）：
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
@@ -242,21 +241,35 @@ make clean      # 清除构建产物
 | `/api/wiki-user-delete` | POST | 删除用户（管理员） |
 | `/api/wiki-audit-logs` | GET | 查询操作审计日志（管理员） |
 | `/api/wiki-md-history` | GET | 查询文章历史备份（作者/管理员） |
+| `/api/wiki-user-article-rank` | GET | 用户文章贡献统计 |
 | `/api/wiki-notewiki-prefs` | GET/POST | Wiki 页面偏好设置（排序、布局等，需登录） |
 
-### WebData API（日志与统计）
+### CodeChecker 报告接口
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/webdata-login-stats?user_sort=last&ip_sort=last` | GET | 登录统计（按用户 / IP 聚合，支持 last / count 排序） |
-| `/api/webdata-app-logs?limit=N` | GET | 从 SQLite 查询最近 N 条应用日志 |
+| `/api/codechecker-list` | GET | 扫描 `html/codechecker_html/`（CI 只读软链接目录），返回 `files[]`（名称/大小/修改时间，按时间倒序），`index.html` 单独放 `index` 字段 |
 
-默认账号：`Admin / 123456`（首次初始化 SQLite 库时自动创建）。
+前端 **`codechecker.html`**：置顶 index 入口卡片、文件名实时搜索、时间/名称排序、每页 100 条分页、右侧 iframe 内嵌预览（打开自动加载最新报告）。
+
+### 管理接口（`SQLITE3=1` 启用时，需管理员会话）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/admin-log-files` | GET | 列出日志目录内 `server_N.log`（名称/大小/修改时间，旧→新） |
+| `/api/admin-log-read?file=&offset=&limit=` | GET | 按字节偏移读取日志块（自动对齐行首），`file` 严格校验 `server_N.log` |
+| `/api/admin-ip-stats?file=&from=&to=&path=&ip=&top=` | GET | IP 访问聚合统计：`from`/`to` 为 `YYYY-MM-DD[ HH:MM[:SS]]` 前缀匹配，`path`/`ip` 为大小写不敏感关键字过滤，`top` 上限 500 |
+| `/api/admin-ip-host?ip=` | GET | 单个 IP 反向解析主机名（`getnameinfo` 走 /etc/hosts + DNS），内存缓存：成功 24h、失败 10min |
+| `/api/admin-ip-logs?ip=&file=&limit=` | GET | 检索包含指定 IP 的日志行（`file` 省略=全部文件，按时间顺序返回最后 `limit` 条，默认 500、上限 2000，`truncated` 标记是否有截断） |
+
+前端 **`admin.html`**：复用 Wiki 账号登录（仅 `admin` 角色可进）；「IP 统计」标签页支持文件/日期时间范围/路径/IP 过滤与 TOP N，结果表点击表头按访问次数/最近访问/IP 数值序排序（再点切换升降序），主机名列自动解析前 20 行（并发 6、结果缓存，排序不丢失），可点「解析全部主机名」解析所有行；点击 IP 行在右侧面板就地预览该 IP 的日志（跟随统计的文件选择，可关闭）；「日志浏览」标签页支持加载更多、跳到尾部、关键字过滤。
+
+默认账号：`Admin / 123456`（首次初始化 SQLite 库时自动创建，配置见 `html/wiki/sqlite_db/db.config`）。
 
 ## 平台
 
 - **Linux**（RHEL / CentOS / Ubuntu 等）：主要目标；编译需 `_GNU_SOURCE`。
-- **Windows**：可用 **MinGW-w64（WinLibs）** 编译并运行 HTTP/Wiki/报告等。
+- **Windows**：可用 **MinGW-w64（WinLibs）** 编译并运行 HTTP/Wiki 等；SVN 接口返回"本构建不支持"。
 
 ## 许可证
 

@@ -545,6 +545,22 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         goto done;
     }
 
+    if (strncmp(path, "/api/admin-ip-host", 18) == 0 &&
+        (path[18] == '\0' || path[18] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_admin_ip_host(client_fd, path_qs);
+        goto done;
+    }
+
+    if (strncmp(path, "/api/admin-ip-logs", 18) == 0 &&
+        (path[18] == '\0' || path[18] == '?')) {
+        auth_user_t u;
+        if (auth_require_admin(req_buf, client_fd, &u) != 0) goto done;
+        handle_api_admin_ip_logs(client_fd, path_qs);
+        goto done;
+    }
+
     /* 浏览器默认请求 /favicon.ico；无 .ico 时回退到 html/favicon.svg，避免 404 */
     if (strcmp(path, "/favicon.ico") == 0) {
         char fpath[512];

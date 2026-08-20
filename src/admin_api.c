@@ -10,6 +10,14 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <time.h>
+#include <pthread.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
+#include <arpa/inet.h>
+#endif
 
 /* ── 工具 ────────────────────────────────────────────────────── */
 
@@ -385,4 +393,214 @@ void handle_api_admin_ip_stats(http_sock_t client_fd, const char *path_qs)
         while (nd) { ip_node_t *nx = nd->next; free(nd); nd = nx; }
     }
     free(buckets);
+}
+
+/* ── GET /api/admin-ip-host ────────────────────────────────── */
+
+#define HOST_CACHE_SIZE 512
+
+typedef struct {
+    unsigned int ip;
+    char host[256];   /* 空串 = 无 PTR 记录 */
+    time_t expire;
+} host_cache_t;
+
+static host_cache_t g_host_cache[HOST_CACHE_SIZE];
+static size_t g_host_cache_n = 0;
+static pthread_mutex_t g_host_mu = PTHREAD_MUTEX_INITIALIZER;
+
+/* 严格 IPv4 校验：整个字符串必须是合法点分十进制 */
+static int ipv4_parse(const char *s, unsigned int *out)
+{
+    if (!s || !*s) return -1;
+    unsigned int a, b, c, d;
+    char tail;
+    int r = sscanf(s, "%u.%u.%u.%u%c", &a, &b, &c, &d, &tail);
+    if (r != 4) return -1;   /* r==5 表示后面还有多余字符 */
+    if (a > 255 || b > 255 || c > 255 || d > 255) return -1;
+    *out = (a << 24) | (b << 16) | (c << 8) | d;
+    return 0;
+}
+
+static void ipv4_str(unsigned int ip, char *out, size_t cap)
+{
+    snprintf(out, cap, "%u.%u.%u.%u",
+             ip >> 24, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255);
+}
+
+/* 反解主机名（带缓存；未命中时 getaddrinfo 可能阻塞数秒） */
+static void hostname_lookup(unsigned int ip, char *out, size_t cap)
+{
+    out[0] = '\0';
+    char ipstr[16];
+    ipv4_str(ip, ipstr, sizeof(ipstr));
+
+    time_t now = time(NULL);
+    pthread_mutex_lock(&g_host_mu);
+    for (size_t i = 0; i < g_host_cache_n; i++) {
+        if (g_host_cache[i].ip == ip) {
+            if (g_host_cache[i].expire > now) {
+                snprintf(out, cap, "%s", g_host_cache[i].host);
+                pthread_mutex_unlock(&g_host_mu);
+                return;
+            }
+            memmove(&g_host_cache[i], &g_host_cache[i + 1],
+                    (g_host_cache_n - i - 1) * sizeof(host_cache_t));
+            g_host_cache_n--;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_host_mu);
+
+    /* getnameinfo 走 NSS（/etc/hosts + DNS），可解析局域网 hosts 条目 */
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = htonl(ip);
+    char hostbuf[NI_MAXHOST];
+    if (getnameinfo((struct sockaddr *)&sa, sizeof(sa),
+                    hostbuf, sizeof(hostbuf), NULL, 0, NI_NAMEREQD) == 0) {
+        if (strcmp(hostbuf, ipstr) != 0)
+            snprintf(out, cap, "%s", hostbuf);
+    }
+
+    /* 成功缓存 24h，失败缓存 10min（避免无 PTR 的 IP 反复阻塞） */
+    time_t ttl = out[0] ? 86400 : 600;
+    pthread_mutex_lock(&g_host_mu);
+    size_t i;
+    if (g_host_cache_n >= HOST_CACHE_SIZE) {
+        memmove(&g_host_cache[0], &g_host_cache[1],
+                (HOST_CACHE_SIZE - 1) * sizeof(host_cache_t));
+        i = HOST_CACHE_SIZE - 1;
+    } else {
+        i = g_host_cache_n++;
+    }
+    g_host_cache[i].ip = ip;
+    snprintf(g_host_cache[i].host, sizeof(g_host_cache[i].host), "%s", out);
+    g_host_cache[i].expire = now + ttl;
+    pthread_mutex_unlock(&g_host_mu);
+}
+
+void handle_api_admin_ip_host(http_sock_t client_fd, const char *path_qs)
+{
+    char ipstr[64] = {0};
+    if (query_param_get(path_qs, "ip", ipstr, sizeof(ipstr)) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"ip required\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+    unsigned int ip;
+    if (ipv4_parse(ipstr, &ip) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid ip\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+
+    char host[256];
+    hostname_lookup(ip, host, sizeof(host));
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"ip\":");
+    sb_json_str(&sb, ipstr);
+    SB_LIT(&sb, ",\"host\":");
+    if (host[0]) sb_json_str(&sb, host);
+    else SB_LIT(&sb, "null");
+    SB_LIT(&sb, "}");
+    if (sb.data) send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false}", 11);
+    free(sb.data);
+}
+
+/* ── GET /api/admin-ip-logs ─────────────────────────────────── */
+
+void handle_api_admin_ip_logs(http_sock_t client_fd, const char *path_qs)
+{
+    char ipstr[64] = {0};
+    if (query_param_get(path_qs, "ip", ipstr, sizeof(ipstr)) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"ip required\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+    unsigned int ipnum;
+    if (ipv4_parse(ipstr, &ipnum) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid ip\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+
+    char file[256] = {0}, lim_s[16] = {0};
+    query_param_get(path_qs, "file", file, sizeof(file));
+    int limit = 500;
+    if (query_param_get(path_qs, "limit", lim_s, sizeof(lim_s)) == 0) {
+        limit = atoi(lim_s);
+        if (limit < 1) limit = 1;
+        if (limit > 2000) limit = 2000;
+    }
+
+    char names[LOG_MAX_FILES][256];
+    int nfiles;
+    if (file[0]) {
+        if (!log_filename_safe(file)) {
+            static const char err[] = "{\"ok\":false,\"error\":\"invalid file\"}";
+            send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+            return;
+        }
+        snprintf(names[0], 256, "%s", file);
+        nfiles = 1;
+    } else {
+        nfiles = list_log_files(names, LOG_MAX_FILES);
+    }
+
+    /* 环形缓冲只保留最后 limit 条匹配行 */
+    char **ring = calloc((size_t)limit, sizeof(char *));
+    if (!ring) {
+        send_json(client_fd, 500, "Internal Server Error", "{\"ok\":false}", 11);
+        return;
+    }
+    int ring_pos = 0, ring_n = 0;
+    long long scanned = 0, matched = 0;
+    char line[8192];
+    for (int fi = 0; fi < nfiles; fi++) {
+        char fpath[1024];
+        log_build_path(fpath, sizeof(fpath), log_get_dir(), names[fi]);
+        FILE *f = fopen(fpath, "rb");
+        if (!f) continue;
+        while (read_log_line(f, line, sizeof(line)) == 0) {
+            scanned++;
+            if (!str_contains_nocase(line, ipstr)) continue;
+            matched++;
+            size_t len = strlen(line);
+            if (len > 2048) len = 2048;
+            char *copy = malloc(len + 2);
+            if (!copy) continue;
+            memcpy(copy, line, len);
+            copy[len] = '\n';
+            copy[len + 1] = '\0';
+            if (ring[ring_pos]) free(ring[ring_pos]);
+            ring[ring_pos] = copy;
+            ring_pos = (ring_pos + 1) % limit;
+            if (ring_n < limit) ring_n++;
+        }
+        fclose(f);
+    }
+
+    strbuf_t dsb = {0};
+    int start = (ring_n < limit) ? 0 : ring_pos;
+    for (int i = 0; i < ring_n; i++) {
+        int idx = (start + i) % limit;
+        sb_append(&dsb, ring[idx], strlen(ring[idx]));
+    }
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,\"ip\":");
+    sb_json_str(&sb, ipstr);
+    sb_appendf(&sb, ",\"scanned\":%lld,\"matched\":%lld,\"returned\":%d,\"truncated\":%d,\"data\":",
+               scanned, matched, ring_n, matched > ring_n ? 1 : 0);
+    sb_json_str(&sb, dsb.data ? dsb.data : "");
+    SB_LIT(&sb, "}");
+    send_json(client_fd, 200, "OK", sb.data, sb.len);
+    free(sb.data);
+    free(dsb.data);
+    for (int i = 0; i < limit; i++) free(ring[i]);
+    free(ring);
 }

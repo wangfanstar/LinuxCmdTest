@@ -3,6 +3,7 @@
 #include "http_handler.h"
 #include "http_utils.h"
 #include "log.h"
+#include "wiki.h"
 
 #ifdef ENABLE_SQLITE3
 #define AUTH_SQLITE_AVAILABLE 1

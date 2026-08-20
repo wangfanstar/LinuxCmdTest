@@ -19,6 +19,7 @@
 #include <signal.h>
 #endif
 #include <dirent.h>
+#include <sys/stat.h>
 #include <ctype.h>
 
 #define MAX_BODY_SIZE        (64 * 1024)
@@ -39,6 +40,104 @@ static int is_wiki_write_api(const char *path)
            strcmp(path, "/api/wiki-trash-restore") == 0 ||
            strcmp(path, "/api/wiki-trash-empty") == 0 ||
            strcmp(path, "/api/wiki-restore-version") == 0;
+}
+
+/* ── GET /api/codechecker-list ───────────────────────────────── */
+
+typedef struct {
+    char name[512];
+    time_t mtime;
+    long long size;
+} codechecker_entry_t;
+
+static void handle_api_codechecker_list(http_sock_t client_fd)
+{
+    char dir_path[512];
+    snprintf(dir_path, sizeof(dir_path), "%s/codechecker_html", WEB_ROOT);
+    DIR *d = opendir(dir_path);
+    if (!d) {
+        static const char err[] =
+            "{\"ok\":false,\"error\":\"codechecker_html directory not found\"}";
+        send_json(client_fd, 404, "Not Found", err, sizeof(err) - 1);
+        return;
+    }
+
+    codechecker_entry_t *entries = NULL;
+    size_t n = 0, cap = 0;
+    codechecker_entry_t idx;
+    int has_index = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        const char *nm = de->d_name;
+        if (nm[0] == '.') continue;
+        size_t nl = strlen(nm);
+        if (nl < 5 || strcasecmp(nm + nl - 5, ".html") != 0) continue;
+        char full[1024];
+        snprintf(full, sizeof(full), "%s/%s", dir_path, nm);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        if (strcmp(nm, "index.html") == 0) {
+            memset(&idx, 0, sizeof(idx));
+            snprintf(idx.name, sizeof(idx.name), "%s", nm);
+            idx.mtime = st.st_mtime;
+            idx.size = (long long)st.st_size;
+            has_index = 1;
+            continue;
+        }
+        if (n == cap) {
+            size_t ncap = cap ? cap * 2 : 64;
+            codechecker_entry_t *ne = realloc(entries, ncap * sizeof(*ne));
+            if (!ne) break;
+            entries = ne;
+            cap = ncap;
+        }
+        snprintf(entries[n].name, sizeof(entries[n].name), "%s", nm);
+        entries[n].mtime = st.st_mtime;
+        entries[n].size = (long long)st.st_size;
+        n++;
+    }
+    closedir(d);
+
+    /* 按修改时间倒序，新的在前 */
+    for (size_t i = 1; i < n; i++) {
+        codechecker_entry_t tmp = entries[i];
+        size_t j = i;
+        while (j > 0 && entries[j - 1].mtime < tmp.mtime) {
+            entries[j] = entries[j - 1];
+            j--;
+        }
+        entries[j] = tmp;
+    }
+
+    strbuf_t sb = {0};
+    SB_LIT(&sb, "{\"ok\":true,");
+    if (has_index) {
+        SB_LIT(&sb, "\"index\":{\"name\":\"index.html\",\"mtime\":");
+        sb_appendf(&sb, "%lld", (long long)idx.mtime);
+        SB_LIT(&sb, ",\"size\":");
+        sb_appendf(&sb, "%lld", idx.size);
+        SB_LIT(&sb, "},");
+    } else {
+        SB_LIT(&sb, "\"index\":null,");
+    }
+    sb_appendf(&sb, "\"count\":%zu,", n);
+    SB_LIT(&sb, "\"files\":[");
+    for (size_t i = 0; i < n; i++) {
+        if (i) SB_LIT(&sb, ",");
+        SB_LIT(&sb, "{\"name\":");
+        sb_json_str(&sb, entries[i].name);
+        sb_appendf(&sb, ",\"mtime\":%lld,\"size\":%lld}",
+                   (long long)entries[i].mtime, entries[i].size);
+    }
+    SB_LIT(&sb, "]}");
+    if (sb.data)
+        send_json(client_fd, 200, "OK", sb.data, sb.len);
+    else {
+        static const char empty[] = "{\"ok\":true,\"index\":null,\"count\":0,\"files\":[]}";
+        send_json(client_fd, 200, "OK", empty, sizeof(empty) - 1);
+    }
+    free(sb.data);
+    free(entries);
 }
 
 /* ── 主处理入口 ──────────────────────────────────────────────── */
@@ -413,6 +512,11 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     if (strcmp(path, "/api/list-register-dirs") == 0) {
         handle_api_list_register_dirs(client_fd);
+        goto done;
+    }
+
+    if (strcmp(path, "/api/codechecker-list") == 0) {
+        handle_api_codechecker_list(client_fd);
         goto done;
     }
 

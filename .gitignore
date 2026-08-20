@@ -10,6 +10,9 @@ nohup.out
 # 日志软链接（运行时创建）
 html/logs
 
+# CodeChecker CI 报告（外部软链接目录，只读）
+html/codechecker_html/
+
 # 本地私有配置（可能含凭据）
 .claude/settings.local.json
 .claude/credentials*

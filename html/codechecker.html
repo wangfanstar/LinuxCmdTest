@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>CodeChecker 每日网页</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #c9d1d9;
+    --dim:     #8b949e;
+    --accent:  #58a6ff;
+    --green:   #3fb950;
+    --red:     #f85149;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .hidden { display: none !important; }
+
+  /* ── 顶部 ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  header h1 { font-size: 1.05rem; font-weight: 700; color: #f0f6fc; }
+  .header-actions { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  #clock { font-size: 12px; color: var(--dim); }
+
+  button {
+    background: #21262d;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button:disabled:hover { border-color: var(--border); color: var(--text); }
+
+  /* ── 横幅 ── */
+  #banner {
+    padding: 10px 20px;
+    font-size: 13px;
+    flex-shrink: 0;
+    cursor: default;
+  }
+
+  /* ── 主体两栏 ── */
+  main { flex: 1; display: flex; min-height: 0; }
+
+  /* 左栏：列表 */
+  aside {
+    width: 30%;
+    min-width: 360px;
+    max-width: 480px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  /* index.html 置顶卡片 */
+  .index-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    background: linear-gradient(90deg, #2d1f6e 0%, var(--surface) 70%);
+  }
+  .index-card:hover { background: linear-gradient(90deg, #35256f 0%, #1c2129 70%); }
+  .index-card.active { border-left-color: var(--accent); }
+  .index-star {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: #3a2e0a;
+    color: #d29922;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .index-star svg { width: 16px; height: 16px; }
+  .index-info { min-width: 0; }
+  .index-name { font-size: 13px; font-weight: 600; color: #f0f6fc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .index-meta { font-size: 11px; color: var(--dim); margin-top: 3px; }
+
+  /* 工具栏：搜索 + 排序 */
+  .toolbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  #search {
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 12px;
+  }
+  #search:focus { outline: none; border-color: var(--accent); }
+  .sort-group { display: flex; gap: 8px; }
+  .sort-group button { flex: 1; }
+  .sort-group button.active { border-color: var(--accent); color: var(--accent); }
+
+  /* 文件列表 */
+  #file-list { flex: 1; overflow-y: auto; list-style: none; }
+  #file-list li {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+  #file-list li:hover { background: #1c2129; }
+  #file-list li.active { background: #1f3a6e; border-left-color: var(--accent); }
+  .fname { font-size: 13px; color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fmeta { font-size: 11px; color: var(--dim); margin-top: 3px; }
+
+  /* 分页 */
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #page-info { font-size: 12px; color: var(--dim); }
+
+  /* 右栏：预览 */
+  #right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .preview-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  #preview-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f0f6fc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  #open-new { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  #open-new:hover { text-decoration: underline; }
+
+  #preview-wrap { flex: 1; position: relative; min-height: 0; background: var(--bg); }
+  #preview { width: 100%; height: 100%; border: none; position: absolute; left: 0; top: 0; background: #fff; }
+  #placeholder {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--dim);
+    font-size: 14px;
+  }
+  #placeholder svg { width: 48px; height: 48px; color: var(--border); }
+  #placeholder .sub { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="dot"></div>
+  <h1>CodeChecker 每日网页</h1>
+  <div class="header-actions">
+    <button id="btn-refresh">刷新列表</button>
+    <p id="clock"></p>
+  </div>
+</header>
+
+<div id="banner" class="hidden"></div>
+
+<main>
+  <aside>
+    <div id="index-card" class="index-card hidden">
+      <div class="index-star">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      </div>
+      <div class="index-info">
+        <div class="index-name">index.html</div>
+        <div class="index-meta">总览入口 · <span id="index-date"></span> · <span id="index-size"></span></div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="搜索文件名…">
+      <div class="sort-group">
+        <button id="sort-mtime" class="active">按时间</button>
+        <button id="sort-name">按名称</button>
+      </div>
+    </div>
+
+    <ul id="file-list"></ul>
+
+    <div class="pager">
+      <button id="prev">上一页</button>
+      <span id="page-info"></span>
+      <button id="next">下一页</button>
+    </div>
+  </aside>
+
+  <section id="right">
+    <div class="preview-toolbar">
+      <span id="preview-name">未选择文件</span>
+      <a id="open-new" href="#" target="_blank" class="hidden">在新标签打开</a>
+    </div>
+    <div id="preview-wrap">
+      <iframe id="preview" class="hidden"></iframe>
+      <div id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M9 15h6M9 11h2"/>
+        </svg>
+        <p>点击左侧文件开始预览</p>
+        <p class="sub">报告目录为空或加载失败时会显示此提示</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+(function () {
+  var PER_PAGE = 100;
+
+  var state = { files: [], filtered: [], page: 1, sort: 'mtime', index: null, current: null };
+
+  var listEl = document.getElementById('file-list');
+  var searchEl = document.getElementById('search');
+  var iframe = document.getElementById('preview');
+  var placeholder = document.getElementById('placeholder');
+  var previewName = document.getElementById('preview-name');
+  var openNew = document.getElementById('open-new');
+  var banner = document.getElementById('banner');
+  var pageInfo = document.getElementById('page-info');
+  var indexCard = document.getElementById('index-card');
+
+  function esc(s) {
+    return String(s).split('&').join('&amp;').split('<').join('&lt;')
+                   .split('>').join('&gt;').split('"').join('&quot;');
+  }
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function fmtTime(t) {
+    var d = new Date(t * 1000);
+    function p(x) { return x < 10 ? '0' + x : String(x); }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function showBanner(msg, isErr) {
+    banner.textContent = msg;
+    banner.style.background = isErr ? '#3a1a1a' : '#1a3a24';
+    banner.style.color = isErr ? '#f85149' : '#3fb950';
+    banner.classList.remove('hidden');
+  }
+  function hideBanner() { banner.classList.add('hidden'); }
+
+  function sortFiltered() {
+    state.filtered.sort(function (a, b) {
+      if (state.sort === 'name') return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+      return b.mtime - a.mtime;
+    });
+  }
+  function applyFilter() {
+    var q = searchEl.value.trim().toLowerCase();
+    state.filtered = q
+      ? state.files.filter(function (f) { return f.name.toLowerCase().indexOf(q) !== -1; })
+      : state.files.slice();
+    sortFiltered();
+    state.page = 1;
+    renderList();
+  }
+  function renderList() {
+    var total = state.filtered.length;
+    var pages = Math.max(1, Math.ceil(total / PER_PAGE));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var start = (state.page - 1) * PER_PAGE;
+    var items = state.filtered.slice(start, start + PER_PAGE);
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+      var f = items[i];
+      html += '<li data-name="' + esc(f.name) + '"' +
+              (state.current === f.name ? ' class="active"' : '') + '>' +
+              '<div class="fname">' + esc(f.name) + '</div>' +
+              '<div class="fmeta">' + fmtTime(f.mtime) + ' · ' + fmtSize(f.size) + '</div></li>';
+    }
+    listEl.innerHTML = html;
+    document.getElementById('prev').disabled = state.page <= 1;
+    document.getElementById('next').disabled = state.page >= pages;
+    pageInfo.textContent = total === 0
+      ? '无匹配文件'
+      : '共 ' + total + ' 个 · 第 ' + state.page + '/' + pages + ' 页 · 每页 ' + PER_PAGE;
+  }
+
+  function openFile(name) {
+    state.current = name;
+    iframe.src = '/codechecker_html/' + encodeURIComponent(name);
+    previewName.textContent = name;
+    openNew.href = '/codechecker_html/' + encodeURIComponent(name);
+    openNew.classList.remove('hidden');
+    renderList();
+    indexCard.classList.toggle('active', name === 'index.html');
+  }
+
+  function renderIndex() {
+    if (!state.index) { indexCard.classList.add('hidden'); return; }
+    indexCard.classList.remove('hidden');
+    document.getElementById('index-date').textContent = fmtTime(state.index.mtime);
+    document.getElementById('index-size').textContent = fmtSize(state.index.size);
+  }
+
+  async function loadList(initial) {
+    hideBanner();
+    document.getElementById('btn-refresh').disabled = true;
+    try {
+      var res = await fetch('/api/codechecker-list');
+      var data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'API 返回错误');
+      state.files = data.files || [];
+      state.index = data.index || null;
+      renderIndex();
+      applyFilter();
+      var cur = state.current;
+      var exists = state.files.some(function (f) { return f.name === cur; });
+      if (initial || !exists) {
+        if (state.index && !state.files.length) openFile('index.html');
+        else if (state.files.length) openFile(state.files[0].name);
+      }
+      if (!state.files.length && !state.index) {
+        showBanner('codechecker_html 目录为空，等待 CI 生成报告', false);
+      }
+    } catch (e) {
+      showBanner('加载列表失败：' + e.message + '，点击此处重试', true);
+      banner.onclick = function () { loadList(true); };
+    }
+    document.getElementById('btn-refresh').disabled = false;
+  }
+
+  listEl.addEventListener('click', function (ev) {
+    var li = ev.target;
+    while (li && li !== listEl && li.tagName !== 'LI') li = li.parentNode;
+    if (li && li.tagName === 'LI') openFile(li.getAttribute('data-name'));
+  });
+  indexCard.addEventListener('click', function () { if (state.index) openFile('index.html'); });
+  searchEl.addEventListener('input', applyFilter);
+  document.getElementById('sort-mtime').addEventListener('click', function () {
+    state.sort = 'mtime';
+    document.getElementById('sort-mtime').classList.add('active');
+    document.getElementById('sort-name').classList.remove('active');
+    applyFilter();
+  });
+  document.getElementById('sort-name').addEventListener('click', function () {
+    state.sort = 'name';
+    document.getElementById('sort-name').classList.add('active');
+    document.getElementById('sort-mtime').classList.remove('active');
+    applyFilter();
+  });
+  document.getElementById('prev').addEventListener('click', function () { state.page--; renderList(); });
+  document.getElementById('next').addEventListener('click', function () { state.page++; renderList(); });
+  document.getElementById('btn-refresh').addEventListener('click', function () { loadList(false); });
+  iframe.addEventListener('load', function () {
+    iframe.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+  });
+
+  var cl = document.getElementById('clock');
+  function tick() { cl.textContent = new Date().toLocaleString('zh-CN', { hour12: false }); }
+  tick();
+  setInterval(tick, 1000);
+
+  loadList(true);
+})();
+</script>
+</body>
+</html>

@@ -85,4 +85,72 @@ assert.strictEqual(core.moveItem(moved, 0, 1), true);
 assert.deepStrictEqual(moved, ['b', 'a', 'c']);
 assert.strictEqual(core.moveItem(moved, 0, -1), false);
 
+const dangerous = core.createSampleDocument();
+dangerous.meta.title = '</script><img src=x onerror=alert(1)>';
+dangerous.groups[0].items[0].content = '<b>only text</b>\u2028line';
+const safeJson = core.safeJsonForHtml(dangerous);
+assert.ok(!safeJson.includes('</script>'));
+assert.ok(!safeJson.includes('\u2028'));
+const restoredDangerous = JSON.parse(safeJson);
+assert.strictEqual(restoredDangerous.meta.title, dangerous.meta.title);
+assert.strictEqual(restoredDangerous.groups[0].items[0].content, dangerous.groups[0].items[0].content);
+
+const searchDoc = core.createSampleDocument();
+const byContent = core.filterDocument(searchDoc, 'NGINX', false);
+assert.strictEqual(byContent.groups.length, 1);
+assert.strictEqual(byContent.groups[0].items.length, 1);
+assert.strictEqual(byContent.groups[0].items[0].title, '查看进程');
+const byNote = core.filterDocument(searchDoc, '回复模板', false);
+assert.strictEqual(byNote.groups.length, 1);
+assert.strictEqual(byNote.groups[0].items[0].title, '问题已处理');
+const byGroup = core.filterDocument(searchDoc, '常用命令', false);
+assert.strictEqual(byGroup.groups[0].items.length, 2);
+const favorites = core.filterDocument(searchDoc, '', true);
+assert.ok(favorites.groups.flatMap(group => group.items).every(item => item.favorite));
+
+assert.strictEqual(core.matchesShortcut('Ctrl+Shift+A', {
+  ctrlKey: true,
+  altKey: false,
+  shiftKey: true,
+  metaKey: false,
+  key: 'a'
+}), true);
+assert.strictEqual(core.matchesShortcut('Alt+1', {
+  ctrlKey: false,
+  altKey: false,
+  shiftKey: false,
+  metaKey: false,
+  key: '1'
+}), false);
+
+const generated = core.buildGeneratedHtml(searchDoc);
+assert.match(generated, /^<!DOCTYPE html>/i);
+for (const id of [
+  'paste-data',
+  'generated-app-logic',
+  'generated-title',
+  'generated-search',
+  'generated-groups',
+  'generated-items',
+  'edit-mode-toggle',
+  'generated-editor',
+  'reexport-button',
+  'restore-original-button'
+]) {
+  assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
+}
+assert.match(generated, /导出最新版 HTML/);
+assert.match(generated, /恢复文件原始内容/);
+assert.doesNotMatch(generated, /<(?:script|link)[^>]+(?:src|href)=["']https?:/i);
+assert.strictEqual(JSON.parse(core.extractEmbeddedDocument(generated)).documentId, searchDoc.documentId);
+const generatedRuntime = generated.match(/<script id="generated-app-logic">([\s\S]*?)<\/script>/);
+assert.ok(generatedRuntime, 'generated app script must exist');
+assert.doesNotThrow(() => new vm.Script(generatedRuntime[1], { filename: 'generated-quick-copy.html' }));
+
+const updated = core.cloneDocument(searchDoc);
+updated.meta.title = '已更新标题';
+const regenerated = core.replaceEmbeddedDocument(generated, updated);
+assert.strictEqual(JSON.parse(core.extractEmbeddedDocument(regenerated)).meta.title, '已更新标题');
+assert.strictEqual((regenerated.match(/id="paste-data"/g) || []).length, 1);
+
 console.log('HtmlPasteGen core model tests passed');

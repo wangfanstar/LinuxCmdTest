@@ -287,6 +287,677 @@
       return true;
     }
 
+    function safeJsonForHtml(value) {
+      return JSON.stringify(value)
+        .replace(/&/g, '\\u0026')
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+    }
+
+    function filterDocument(value, query, favoritesOnly) {
+      const needle = String(query || '').trim().toLocaleLowerCase();
+      const result = cloneDocument(value);
+      result.groups = result.groups
+        .map(group => {
+          const groupMatches = String(group.title || '').toLocaleLowerCase().includes(needle);
+          group.items = group.items.filter(item => {
+            if (favoritesOnly && !item.favorite) return false;
+            if (!needle || groupMatches) return true;
+            return [item.title, item.content, item.note]
+              .join('\n')
+              .toLocaleLowerCase()
+              .includes(needle);
+          });
+          return group;
+        })
+        .filter(group => group.items.length || (!needle && !favoritesOnly));
+      return result;
+    }
+
+    function matchesShortcut(shortcut, event) {
+      const check = validateShortcut(shortcut);
+      if (!check.valid || !check.normalized) return false;
+      return check.normalized === shortcutFromEvent(event);
+    }
+
+    function extractEmbeddedDocument(html) {
+      const match = String(html).match(/<script id="paste-data" type="application\/json">([\s\S]*?)<\/script>/);
+      if (!match) throw new Error('未找到内嵌数据。');
+      return match[1];
+    }
+
+    function replaceEmbeddedDocument(html, value) {
+      const pattern = /(<script id="paste-data" type="application\/json">)[\s\S]*?(<\/script>)/;
+      if (!pattern.test(String(html))) throw new Error('未找到内嵌数据。');
+      return String(html).replace(pattern, `$1${safeJsonForHtml(value)}$2`);
+    }
+
+    function generatedShell(data) {
+      return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>快捷复制中心</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafd;
+      --surface-strong: #eef3f9;
+      --line: #dce4ef;
+      --line-strong: #c9d5e4;
+      --text: #172033;
+      --muted: #67758a;
+      --primary: #4f46e5;
+      --primary-strong: #3730a3;
+      --primary-soft: #eef2ff;
+      --success: #0f8a63;
+      --success-soft: #e9f8f2;
+      --warning: #9a6700;
+      --danger: #bd342b;
+      --danger-soft: #fff0ef;
+      --shadow: 0 18px 50px rgba(35, 49, 76, .09);
+      --radius: 18px;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #101522;
+      --surface: #171e2e;
+      --surface-soft: #1b2436;
+      --surface-strong: #232e43;
+      --line: #2e3a50;
+      --line-strong: #40506a;
+      --text: #eef3fb;
+      --muted: #a3afc2;
+      --primary: #8b83ff;
+      --primary-strong: #a9a4ff;
+      --primary-soft: #292750;
+      --success: #52d6a6;
+      --success-soft: #173a31;
+      --warning: #f3c86a;
+      --danger: #ff8d85;
+      --danger-soft: #432624;
+      --shadow: 0 20px 55px rgba(0, 0, 0, .28);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: #101522; --surface: #171e2e; --surface-soft: #1b2436; --surface-strong: #232e43;
+        --line: #2e3a50; --line-strong: #40506a; --text: #eef3fb; --muted: #a3afc2;
+        --primary: #8b83ff; --primary-strong: #a9a4ff; --primary-soft: #292750;
+        --success: #52d6a6; --success-soft: #173a31; --warning: #f3c86a;
+        --danger: #ff8d85; --danger-soft: #432624; --shadow: 0 20px 55px rgba(0,0,0,.28);
+      }
+    }
+    html { min-height: 100%; background: var(--bg); scroll-behavior: smooth; }
+    body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 12% 0, color-mix(in srgb, var(--primary) 9%, transparent), transparent 31rem), var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.55; }
+    button, input, textarea, select { font: inherit; }
+    button { color: inherit; }
+    [hidden] { display: none !important; }
+    .app-shell { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 52px; }
+    .hero { position: relative; overflow: hidden; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 9px; color: var(--primary); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .eyebrow::before { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); content: ""; }
+    h1 { max-width: 780px; margin: 0; font-size: clamp(28px, 4.5vw, 48px); line-height: 1.06; letter-spacing: -.04em; }
+    .hero-copy { max-width: 720px; margin: 11px 0 0; color: var(--muted); }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .search-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto auto; gap: 9px; margin-top: 20px; }
+    .search-wrap { position: relative; }
+    .search-wrap::before { position: absolute; top: 50%; left: 14px; color: var(--muted); content: "⌕"; transform: translateY(-52%); }
+    .search-input, .field, .edit-input, .edit-textarea, .edit-select { width: 100%; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface); color: var(--text); outline: none; }
+    .search-input { min-height: 44px; padding: 9px 40px; }
+    .search-hint { position: absolute; top: 50%; right: 11px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 11px; transform: translateY(-50%); }
+    .search-input:focus, .field:focus, .edit-input:focus, .edit-textarea:focus, .edit-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 17%, transparent); }
+    .button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; font-weight: 730; text-decoration: none; transition: transform .14s ease, border-color .14s ease, background .14s ease; }
+    .button:hover { border-color: var(--primary); transform: translateY(-1px); }
+    .button:focus-visible, .copy-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 34%, transparent); outline-offset: 2px; }
+    .button-primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+    .button-primary:hover { border-color: var(--primary-strong); background: var(--primary-strong); }
+    .button-danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); color: var(--danger); }
+    .button[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-strong); }
+    .status-line { min-height: 25px; margin: 13px 0 0; color: var(--muted); font-size: 13px; }
+    .status-line[data-type="success"] { color: var(--success); }
+    .status-line[data-type="error"] { color: var(--danger); }
+    .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
+    .sidebar, .content-panel, .editor-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 34px rgba(35, 49, 76, .06); }
+    .sidebar { position: sticky; top: 16px; padding: 14px; }
+    .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 3px 10px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .group-link { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 8px 10px; border-radius: 9px; color: var(--muted); text-decoration: none; }
+    .group-link:hover { background: var(--surface-soft); color: var(--primary); }
+    .group-count { min-width: 26px; padding: 2px 7px; border-radius: 999px; background: var(--surface-strong); font-size: 11px; text-align: center; }
+    .content-panel { min-height: 380px; padding: 20px; }
+    .empty-state { display: grid; min-height: 300px; place-items: center; color: var(--muted); text-align: center; }
+    .group-section + .group-section { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
+    .group-header { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+    .group-title { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+    .group-meta { color: var(--muted); font-size: 12px; }
+    .item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    .copy-card { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 9px; padding: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); cursor: pointer; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
+    .copy-card:hover { border-color: var(--primary); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent); transform: translateY(-2px); }
+    .copy-card[data-copied="true"] { border-color: var(--success); background: var(--success-soft); }
+    .card-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+    .item-title { margin: 0; font-size: 15px; line-height: 1.35; }
+    .favorite-mark { color: #e6a700; font-size: 17px; }
+    .item-content { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text); font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+    .item-note { margin: auto 0 0; color: var(--muted); font-size: 12px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line); }
+    .shortcut { padding: 3px 8px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--surface); color: var(--muted); font: 11px "SFMono-Regular", Consolas, monospace; }
+    .copy-label { color: var(--primary); font-size: 12px; font-weight: 800; }
+    .mobile-groups { display: none; margin-top: 14px; }
+    .editor-panel { margin-top: 18px; padding: 20px; }
+    .editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .editor-head h2 { margin: 0; font-size: 20px; }
+    .editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .edit-group { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+    .edit-group + .edit-group { margin-top: 12px; }
+    .edit-group-head { display: grid; grid-template-columns: minmax(160px, 1fr) auto; gap: 10px; align-items: center; }
+    .edit-items { margin-top: 11px; }
+    .edit-item { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(230px, 1.4fr) minmax(120px, .6fr); gap: 9px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .edit-input, .edit-textarea, .edit-select { min-height: 40px; padding: 8px 10px; }
+    .edit-textarea { min-height: 86px; resize: vertical; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+    .edit-item-actions { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px; }
+    .mini-button { min-height: 34px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 12px; }
+    .storage-warning { margin: 10px 0 0; padding: 9px 11px; border-radius: 9px; background: var(--danger-soft); color: var(--danger); font-size: 12px; }
+    @media (max-width: 860px) {
+      .search-row { grid-template-columns: 1fr 1fr; }
+      .search-wrap { grid-column: 1 / -1; }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; position: static; }
+      .sidebar.is-open { display: block; }
+      .mobile-groups { display: inline-flex; }
+      .item-grid { grid-template-columns: 1fr; }
+      .edit-item { grid-template-columns: 1fr 1fr; }
+      .edit-textarea { grid-column: 1 / -1; }
+    }
+    @media (max-width: 560px) {
+      .app-shell { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero { padding: 20px 16px; border-radius: 18px; }
+      .search-row { grid-template-columns: 1fr; }
+      .search-wrap { grid-column: auto; }
+      .button { min-height: 44px; }
+      .content-panel, .editor-panel { padding: 14px; }
+      .edit-group-head, .edit-item { grid-template-columns: 1fr; }
+      .edit-textarea { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero">
+      <p class="eyebrow">Quick Copy Library</p>
+      <h1 id="generated-title">快捷复制中心</h1>
+      <p class="hero-copy">搜索需要的内容，点击卡片即可复制；也可以使用卡片上显示的快捷键。</p>
+      <div class="hero-actions">
+        <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
+        <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
+        <button id="collapse-toggle" class="button" type="button" aria-pressed="false">收起正文</button>
+        <button id="theme-toggle" class="button" type="button">切换主题</button>
+        <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
+      </div>
+      <div class="search-row">
+        <label class="search-wrap">
+          <span class="search-hint">/</span>
+          <input id="generated-search" class="search-input" type="search" placeholder="搜索标题、正文、备注或分组…" autocomplete="off">
+        </label>
+        <button id="clear-search-button" class="button" type="button">清空搜索</button>
+      </div>
+      <p id="copy-status" class="status-line" aria-live="polite">准备就绪</p>
+    </header>
+
+    <div class="layout">
+      <nav id="generated-groups" class="sidebar" aria-label="内容分组"></nav>
+      <section id="generated-items" class="content-panel" aria-label="复制内容"></section>
+    </div>
+
+    <section id="generated-editor" class="editor-panel" aria-label="编辑内容" hidden></section>
+    <div id="generated-export-actions" class="editor-actions" hidden>
+      <button id="reexport-button" class="button button-primary" type="button">导出最新版 HTML</button>
+      <button id="restore-original-button" class="button button-danger" type="button">恢复文件原始内容</button>
+    </div>
+  </main>
+
+  <script id="paste-data" type="application/json">${data}<\/script>
+  <script id="generated-app-logic">
+  (function () {
+    'use strict';
+
+    const dataElement = document.getElementById('paste-data');
+    const originalDocument = JSON.parse(dataElement.textContent);
+    const storageKey = 'html-paste-page:' + originalDocument.documentId + ':v1';
+    const themeKey = storageKey + ':theme';
+    let model = loadOverride() || clone(originalDocument);
+    let query = '';
+    let favoritesOnly = false;
+    let collapseContent = false;
+    let editMode = false;
+    let storageAvailable = true;
+    let copyTimer = 0;
+
+    function byId(id) { return document.getElementById(id); }
+    function clone(value) { return JSON.parse(JSON.stringify(value)); }
+    function safeJson(value) {
+      const slash = String.fromCharCode(92);
+      return JSON.stringify(value)
+        .split('&').join(slash + 'u0026')
+        .split('<').join(slash + 'u003c')
+        .split('>').join(slash + 'u003e')
+        .split(String.fromCharCode(0x2028)).join(slash + 'u2028')
+        .split(String.fromCharCode(0x2029)).join(slash + 'u2029');
+    }
+    function safeFilename(value) {
+      let name = String(value || '').trim().replace(/[\\/:*?"<>|]/g, '-').replace(/[. ]+$/g, '').slice(0, 120);
+      if (!name) return 'quick-copy.html';
+      if (/\.htm$/i.test(name)) return name.replace(/\.htm$/i, '.html');
+      return /\.html$/i.test(name) ? name : name + '.html';
+    }
+    function createElement(tag, className, text) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined) element.textContent = text;
+      return element;
+    }
+    function button(label, action, className) {
+      const element = createElement('button', className || 'mini-button', label);
+      element.type = 'button';
+      element.dataset.action = action;
+      return element;
+    }
+    function announce(message, type) {
+      const status = byId('copy-status');
+      status.textContent = message;
+      status.dataset.type = type || 'info';
+    }
+    function loadOverride() {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        return saved ? JSON.parse(saved) : null;
+      } catch (error) {
+        storageAvailable = false;
+        return null;
+      }
+    }
+    function saveOverride() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(model));
+        storageAvailable = true;
+        return true;
+      } catch (error) {
+        storageAvailable = false;
+        announce('当前浏览器无法自动保存，请及时导出最新版 HTML。', 'error');
+        return false;
+      }
+    }
+    function setTheme(theme) {
+      const selected = theme === 'dark' ? 'dark' : theme === 'light' ? 'light' : '';
+      if (selected) document.documentElement.dataset.theme = selected;
+      else delete document.documentElement.dataset.theme;
+      try { localStorage.setItem(themeKey, selected || 'system'); } catch (error) { storageAvailable = false; }
+      byId('theme-toggle').textContent = selected === 'dark' ? '切换浅色' : '切换深色';
+    }
+    function loadTheme() {
+      let saved = 'system';
+      try { saved = localStorage.getItem(themeKey) || model.meta.themePreference || 'system'; } catch (error) { storageAvailable = false; }
+      setTheme(saved);
+    }
+    function itemMatches(group, item) {
+      if (favoritesOnly && !item.favorite) return false;
+      const needle = query.trim().toLocaleLowerCase();
+      if (!needle) return true;
+      return [group.title, item.title, item.content, item.note].join(String.fromCharCode(10)).toLocaleLowerCase().includes(needle);
+    }
+    function visibleGroups() {
+      return model.groups.map(group => ({ group: group, items: group.items.filter(item => itemMatches(group, item)) }))
+        .filter(entry => entry.items.length || (!query && !favoritesOnly));
+    }
+    function renderNavigation(groups) {
+      const navigation = byId('generated-groups');
+      navigation.replaceChildren();
+      const heading = createElement('div', 'sidebar-heading');
+      heading.append(createElement('span', '', '分组导航'), createElement('span', '', groups.length + ' 组'));
+      navigation.appendChild(heading);
+      groups.forEach(entry => {
+        const link = createElement('a', 'group-link');
+        link.href = '#group-' + entry.group.id;
+        link.append(createElement('span', '', entry.group.title), createElement('span', 'group-count', String(entry.items.length)));
+        navigation.appendChild(link);
+      });
+    }
+    function renderItems(groups) {
+      const container = byId('generated-items');
+      container.replaceChildren();
+      if (!groups.length || !groups.some(entry => entry.items.length)) {
+        const empty = createElement('div', 'empty-state');
+        const copy = createElement('div');
+        copy.append(createElement('h2', '', '没有匹配内容'), createElement('p', '', '换个关键词，或关闭“仅看收藏”后再试。'));
+        empty.appendChild(copy);
+        container.appendChild(empty);
+        return;
+      }
+      groups.forEach(entry => {
+        if (!entry.items.length) return;
+        const section = createElement('section', 'group-section');
+        section.id = 'group-' + entry.group.id;
+        const header = createElement('div', 'group-header');
+        header.append(createElement('h2', 'group-title', entry.group.title), createElement('span', 'group-meta', entry.items.length + ' 条内容'));
+        const grid = createElement('div', 'item-grid');
+        entry.items.forEach(item => grid.appendChild(createCopyCard(item)));
+        section.append(header, grid);
+        container.appendChild(section);
+      });
+    }
+    function createCopyCard(item) {
+      const card = createElement('article', 'copy-card');
+      card.tabIndex = 0;
+      card.dataset.itemId = item.id;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', '复制：' + item.title);
+      const top = createElement('div', 'card-top');
+      top.append(createElement('h3', 'item-title', item.title));
+      if (item.favorite) top.append(createElement('span', 'favorite-mark', '★'));
+      const content = createElement('pre', 'item-content', collapseContent ? contentSummary(item.content) : item.content);
+      const footer = createElement('div', 'card-footer');
+      footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
+      footer.append(createElement('span', 'copy-label', '点击复制'));
+      card.append(top, content);
+      if (item.note) card.append(createElement('p', 'item-note', item.note));
+      card.appendChild(footer);
+      card.addEventListener('click', () => copyItem(item, card));
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          copyItem(item, card);
+        }
+      });
+      return card;
+    }
+    function contentSummary(content) {
+      const value = String(content || '').replace(/\s+/g, ' ').trim();
+      return value.length > 72 ? value.slice(0, 72) + '…' : value;
+    }
+    async function copyItem(item, card) {
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(item.content);
+      } catch (error) {
+        const area = createElement('textarea');
+        area.value = item.content;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        let copied = false;
+        try { copied = document.execCommand('copy'); } catch (fallbackError) { copied = false; }
+        area.remove();
+        if (!copied) {
+          announce('自动复制失败，请打开编辑模式手动选择原文。', 'error');
+          return;
+        }
+      }
+      if (card && card.dataset) {
+        document.querySelectorAll('.copy-card[data-copied="true"]').forEach(node => delete node.dataset.copied);
+        card.dataset.copied = 'true';
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => { if (card && card.dataset) delete card.dataset.copied; }, 1400);
+      }
+      announce('已复制：' + item.title, 'success');
+    }
+    function renderEditor() {
+      const editor = byId('generated-editor');
+      editor.hidden = !editMode;
+      byId('generated-export-actions').hidden = !editMode;
+      if (!editMode) return;
+      editor.replaceChildren();
+      const head = createElement('div', 'editor-head');
+      const titleBox = createElement('div');
+      titleBox.append(createElement('h2', '', '编辑当前复制库'), createElement('p', 'group-meta', storageAvailable ? '修改会自动保存在当前浏览器。' : '本地保存不可用，请导出最新版。'));
+      const actions = createElement('div', 'editor-actions');
+      const addGroup = button('＋ 新建分组', 'add-group', 'button');
+      actions.append(addGroup);
+      head.append(titleBox, actions);
+      editor.appendChild(head);
+      model.groups.forEach((group, groupIndex) => editor.appendChild(createGroupEditor(group, groupIndex)));
+      if (!storageAvailable) editor.append(createElement('p', 'storage-warning', '浏览器阻止了本地保存。请使用“导出最新版 HTML”保存本次修改。'));
+    }
+    function createGroupEditor(group, groupIndex) {
+      const box = createElement('section', 'edit-group');
+      box.dataset.groupId = group.id;
+      const head = createElement('div', 'edit-group-head');
+      const title = createElement('input', 'edit-input');
+      title.value = group.title;
+      title.setAttribute('aria-label', '分组名称');
+      title.dataset.field = 'group-title';
+      const actions = createElement('div', 'editor-actions');
+      const up = button('上移', 'move-group-up');
+      const down = button('下移', 'move-group-down');
+      up.disabled = groupIndex === 0;
+      down.disabled = groupIndex === model.groups.length - 1;
+      actions.append(up, down, button('复制分组', 'duplicate-group'), button('删除分组', 'delete-group', 'mini-button button-danger'));
+      head.append(title, actions);
+      const items = createElement('div', 'edit-items');
+      group.items.forEach((item, itemIndex) => items.appendChild(createItemEditor(group, item, itemIndex)));
+      const add = button('＋ 添加条目', 'add-item', 'button');
+      box.append(head, items, add);
+      return box;
+    }
+    function createItemEditor(group, item, itemIndex) {
+      const row = createElement('div', 'edit-item');
+      row.dataset.itemId = item.id;
+      row.dataset.groupId = group.id;
+      const title = createElement('input', 'edit-input');
+      title.value = item.title;
+      title.placeholder = '标题';
+      title.setAttribute('aria-label', '条目标题');
+      title.dataset.field = 'item-title';
+      const shortcut = createElement('input', 'edit-input');
+      shortcut.value = item.shortcut;
+      shortcut.placeholder = '例如 Alt+1';
+      shortcut.setAttribute('aria-label', '复制快捷键');
+      shortcut.dataset.field = 'item-shortcut';
+      const note = createElement('input', 'edit-input');
+      note.value = item.note;
+      note.placeholder = '备注（可选）';
+      note.setAttribute('aria-label', '条目备注');
+      note.dataset.field = 'item-note';
+      const content = createElement('textarea', 'edit-textarea');
+      content.value = item.content;
+      content.placeholder = '要复制的完整内容';
+      content.setAttribute('aria-label', '复制内容');
+      content.dataset.field = 'item-content';
+      const controls = createElement('div', 'edit-item-actions');
+      const favorite = button(item.favorite ? '★ 已收藏' : '☆ 收藏', 'toggle-favorite');
+      const up = button('上移', 'move-item-up');
+      const down = button('下移', 'move-item-down');
+      up.disabled = itemIndex === 0;
+      down.disabled = itemIndex === group.items.length - 1;
+      controls.append(favorite, up, down, button('复制条目', 'duplicate-item'), button('删除条目', 'delete-item', 'mini-button button-danger'));
+      row.append(title, shortcut, note, content, controls);
+      return row;
+    }
+    function findGroup(groupId) { return model.groups.find(group => group.id === groupId); }
+    function findItem(group, itemId) { return group && group.items.find(item => item.id === itemId); }
+    function makeId(prefix) { return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
+    function newItem() { return { id: makeId('item'), title: '新条目', content: '', shortcut: '', note: '', favorite: false, collapsed: false }; }
+    function newGroup() { return { id: makeId('group'), title: '新分组', collapsed: false, items: [newItem()] }; }
+    function normalizeShortcut(value) {
+      const modifiers = ['Ctrl', 'Alt', 'Shift', 'Meta'];
+      const aliases = { ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', option: 'Alt', shift: 'Shift', meta: 'Meta', cmd: 'Meta', command: 'Meta' };
+      const parts = String(value || '').split('+').map(part => part.trim()).filter(Boolean).map(part => aliases[part.toLowerCase()] || (part.length === 1 ? part.toUpperCase() : part));
+      const key = parts.find(part => !modifiers.includes(part));
+      return modifiers.filter(modifier => parts.includes(modifier)).concat(key ? [key] : []).join('+');
+    }
+    function eventShortcut(event) {
+      const parts = [];
+      if (event.ctrlKey) parts.push('Ctrl');
+      if (event.altKey) parts.push('Alt');
+      if (event.shiftKey) parts.push('Shift');
+      if (event.metaKey) parts.push('Meta');
+      if (!['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) parts.push(event.key.length === 1 ? event.key.toUpperCase() : event.key);
+      return parts.join('+');
+    }
+    function move(list, index, direction) {
+      const target = index + direction;
+      if (target < 0 || target >= list.length) return;
+      list.splice(target, 0, list.splice(index, 1)[0]);
+    }
+    function updateAndRender(message) {
+      saveOverride();
+      render();
+      if (message) announce(message, 'success');
+    }
+    function handleEditorInput(event) {
+      const field = event.target.dataset.field;
+      if (!field) return;
+      const row = event.target.closest('[data-item-id]');
+      const groupBox = event.target.closest('[data-group-id]');
+      const group = findGroup(groupBox && groupBox.dataset.groupId);
+      if (!group) return;
+      if (field === 'group-title') group.title = event.target.value;
+      if (row) {
+        const item = findItem(group, row.dataset.itemId);
+        if (!item) return;
+        if (field === 'item-title') item.title = event.target.value;
+        if (field === 'item-content') item.content = event.target.value;
+        if (field === 'item-note') item.note = event.target.value;
+        if (field === 'item-shortcut') item.shortcut = normalizeShortcut(event.target.value);
+      }
+      saveOverride();
+      renderMainOnly();
+    }
+    function handleEditorAction(event) {
+      const actionButton = event.target.closest('[data-action]');
+      if (!actionButton) return;
+      const action = actionButton.dataset.action;
+      if (action === 'reexport') return exportCurrentHtml();
+      if (action === 'restore-original') return restoreOriginal();
+      if (action === 'add-group') { model.groups.push(newGroup()); return updateAndRender('已新增分组。'); }
+      const groupBox = actionButton.closest('[data-group-id]');
+      const group = findGroup(groupBox && groupBox.dataset.groupId);
+      if (!group) return;
+      const groupIndex = model.groups.indexOf(group);
+      const row = actionButton.closest('[data-item-id]');
+      const item = findItem(group, row && row.dataset.itemId);
+      const itemIndex = item ? group.items.indexOf(item) : -1;
+      if (action === 'add-item') group.items.push(newItem());
+      if (action === 'move-group-up') move(model.groups, groupIndex, -1);
+      if (action === 'move-group-down') move(model.groups, groupIndex, 1);
+      if (action === 'duplicate-group') {
+        const copy = clone(group);
+        copy.id = makeId('group');
+        copy.title += '（副本）';
+        copy.items.forEach(entry => { entry.id = makeId('item'); entry.shortcut = ''; });
+        model.groups.splice(groupIndex + 1, 0, copy);
+      }
+      if (action === 'delete-group' && confirm('删除分组“' + group.title + '”及其中全部条目？')) model.groups.splice(groupIndex, 1);
+      if (item) {
+        if (action === 'toggle-favorite') item.favorite = !item.favorite;
+        if (action === 'move-item-up') move(group.items, itemIndex, -1);
+        if (action === 'move-item-down') move(group.items, itemIndex, 1);
+        if (action === 'duplicate-item') {
+          const copy = clone(item);
+          copy.id = makeId('item');
+          copy.title += '（副本）';
+          copy.shortcut = '';
+          group.items.splice(itemIndex + 1, 0, copy);
+        }
+        if (action === 'delete-item' && confirm('删除条目“' + item.title + '”？')) group.items.splice(itemIndex, 1);
+      }
+      updateAndRender();
+    }
+    function renderMainOnly() {
+      document.title = model.meta.title + ' · 快捷复制';
+      byId('generated-title').textContent = model.meta.title;
+      const groups = visibleGroups();
+      renderNavigation(groups);
+      renderItems(groups);
+    }
+    function render() {
+      renderMainOnly();
+      byId('favorites-filter').setAttribute('aria-pressed', String(favoritesOnly));
+      byId('favorites-filter').textContent = favoritesOnly ? '★ 显示全部' : '☆ 仅看收藏';
+      byId('collapse-toggle').setAttribute('aria-pressed', String(collapseContent));
+      byId('collapse-toggle').textContent = collapseContent ? '展开正文' : '收起正文';
+      byId('edit-mode-toggle').setAttribute('aria-pressed', String(editMode));
+      byId('edit-mode-toggle').textContent = editMode ? '退出编辑' : '编辑模式';
+      renderEditor();
+    }
+    function downloadHtml(html, filename) {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = createElement('a');
+      link.href = url;
+      link.download = safeFilename(filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+    function exportCurrentHtml() {
+      dataElement.textContent = safeJson(model);
+      const html = '<!DOCTYPE html>' + String.fromCharCode(10) + document.documentElement.outerHTML;
+      downloadHtml(html, model.meta.filename);
+      announce('已导出包含最新修改的 HTML。', 'success');
+    }
+    function restoreOriginal() {
+      if (!confirm('恢复文件内嵌的原始内容？当前浏览器中的修改将被清除。')) return;
+      model = clone(originalDocument);
+      try { localStorage.removeItem(storageKey); } catch (error) { storageAvailable = false; }
+      render();
+      announce('已恢复文件原始内容。', 'success');
+    }
+
+    byId('generated-search').addEventListener('input', event => { query = event.target.value; renderMainOnly(); });
+    byId('clear-search-button').addEventListener('click', () => { query = ''; byId('generated-search').value = ''; renderMainOnly(); byId('generated-search').focus(); });
+    byId('favorites-filter').addEventListener('click', () => { favoritesOnly = !favoritesOnly; render(); });
+    byId('collapse-toggle').addEventListener('click', () => { collapseContent = !collapseContent; render(); });
+    byId('theme-toggle').addEventListener('click', () => { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); });
+    byId('edit-mode-toggle').addEventListener('click', () => { editMode = !editMode; render(); if (editMode) byId('generated-editor').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    byId('mobile-groups-button').addEventListener('click', event => { const open = byId('generated-groups').classList.toggle('is-open'); event.currentTarget.setAttribute('aria-expanded', String(open)); });
+    byId('generated-editor').addEventListener('input', handleEditorInput);
+    byId('generated-editor').addEventListener('click', handleEditorAction);
+    byId('reexport-button').addEventListener('click', exportCurrentHtml);
+    byId('restore-original-button').addEventListener('click', restoreOriginal);
+    document.addEventListener('keydown', event => {
+      if (event.target.matches('input, textarea, select, [contenteditable="true"]')) {
+        if (event.key === 'Escape' && event.target === byId('generated-search')) {
+          query = '';
+          event.target.value = '';
+          renderMainOnly();
+        }
+        return;
+      }
+      if (event.key === '/' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        byId('generated-search').focus();
+        return;
+      }
+      const shortcut = eventShortcut(event);
+      const item = model.groups.flatMap(group => group.items).find(entry => normalizeShortcut(entry.shortcut) === shortcut);
+      if (item) {
+        event.preventDefault();
+        copyItem(item, document.querySelector('[data-item-id="' + item.id + '"]'));
+      }
+    });
+
+    loadTheme();
+    render();
+  }());
+  <\/script>
+</body>
+</html>`;
+    }
+
+    function buildGeneratedHtml(value) {
+      const validation = validateDocument(value);
+      if (!validation.valid) throw new Error(validation.errors.join('\n'));
+      return generatedShell(safeJsonForHtml(normalizeDocument(value)));
+    }
+
     window.HtmlPasteGenCore = {
       SCHEMA_VERSION,
       cloneDocument,
@@ -300,7 +971,13 @@
       createSampleDocument,
       normalizeDocument,
       validateDocument,
-      moveItem
+      moveItem,
+      safeJsonForHtml,
+      filterDocument,
+      matchesShortcut,
+      extractEmbeddedDocument,
+      replaceEmbeddedDocument,
+      buildGeneratedHtml
     };
   }());
   </script>

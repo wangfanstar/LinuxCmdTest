@@ -1110,12 +1110,12 @@
     const originalDocument = JSON.parse(dataElement.textContent);
     const storageKey = 'html-paste-page:' + originalDocument.documentId + ':v1';
     const themeKey = storageKey + ':theme';
+    let storageAvailable = true;
     let model = loadOverride() || clone(originalDocument);
     let query = '';
     let favoritesOnly = false;
     let collapseContent = false;
     let editMode = false;
-    let storageAvailable = true;
     let copyTimer = 0;
 
     function byId(id) { return document.getElementById(id); }

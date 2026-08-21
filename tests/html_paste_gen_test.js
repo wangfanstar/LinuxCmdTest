@@ -146,6 +146,12 @@ assert.strictEqual(JSON.parse(core.extractEmbeddedDocument(generated)).documentI
 const generatedRuntime = generated.match(/<script id="generated-app-logic">([\s\S]*?)<\/script>/);
 assert.ok(generatedRuntime, 'generated app script must exist');
 assert.doesNotThrow(() => new vm.Script(generatedRuntime[1], { filename: 'generated-quick-copy.html' }));
+const storageFlagDeclaration = generatedRuntime[1].indexOf('let storageAvailable = true;');
+const storageReadDuringInit = generatedRuntime[1].indexOf('let model = loadOverride()');
+assert.ok(
+  storageFlagDeclaration >= 0 && storageFlagDeclaration < storageReadDuringInit,
+  'storage fallback flag must be initialized before loadOverride can assign it'
+);
 
 const updated = core.cloneDocument(searchDoc);
 updated.meta.title = '已更新标题';

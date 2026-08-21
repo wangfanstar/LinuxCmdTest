@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HtmlPasteGen 快捷复制页面生成器</title>
+</head>
+<body>
+  <main>
+    <h1>HtmlPasteGen</h1>
+  </main>
+
+  <script id="core-logic">
+  (function () {
+    'use strict';
+
+    const SCHEMA_VERSION = 1;
+    const MODIFIERS = ['Ctrl', 'Alt', 'Shift', 'Meta'];
+    const RESERVED_SHORTCUTS = new Set([
+      'Ctrl+F', 'Ctrl+L', 'Ctrl+N', 'Ctrl+P', 'Ctrl+R', 'Ctrl+S',
+      'Ctrl+T', 'Ctrl+W', 'Alt+Left', 'Alt+Right'
+    ]);
+    const KEY_ALIASES = {
+      control: 'Ctrl',
+      ctrl: 'Ctrl',
+      alt: 'Alt',
+      option: 'Alt',
+      shift: 'Shift',
+      meta: 'Meta',
+      cmd: 'Meta',
+      command: 'Meta',
+      esc: 'Escape',
+      escape: 'Escape',
+      space: 'Space',
+      spacebar: 'Space',
+      return: 'Enter',
+      enter: 'Enter',
+      tab: 'Tab',
+      left: 'ArrowLeft',
+      right: 'ArrowRight',
+      up: 'ArrowUp',
+      down: 'ArrowDown',
+      arrowleft: 'ArrowLeft',
+      arrowright: 'ArrowRight',
+      arrowup: 'ArrowUp',
+      arrowdown: 'ArrowDown'
+    };
+
+    function cloneDocument(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function newId(prefix) {
+      let value;
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        value = crypto.randomUUID();
+      } else {
+        value = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      }
+      return `${prefix}-${value}`;
+    }
+
+    function safeHtmlFilename(value) {
+      let name = String(value || '')
+        .trim()
+        .replace(/[\\/:*?"<>|\x00-\x1f]+/g, '-')
+        .replace(/\s+/g, ' ')
+        .replace(/[. ]+$/g, '')
+        .slice(0, 120);
+      if (!name || /^\.+$/.test(name)) return 'quick-copy.html';
+      if (/\.htm$/i.test(name)) return name.replace(/\.htm$/i, '.html');
+      return /\.html$/i.test(name) ? name : `${name}.html`;
+    }
+
+    function canonicalKey(value) {
+      const raw = String(value || '').trim();
+      const lower = raw.toLowerCase();
+      if (KEY_ALIASES[lower]) return KEY_ALIASES[lower];
+      if (/^f(?:[1-9]|1[0-2])$/i.test(raw)) return raw.toUpperCase();
+      if (raw.length === 1) return raw.toUpperCase();
+      return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '';
+    }
+
+    function normalizeShortcut(value) {
+      const parts = String(value || '')
+        .split('+')
+        .map(canonicalKey)
+        .filter(Boolean);
+      const unique = Array.from(new Set(parts));
+      const key = unique.find(part => !MODIFIERS.includes(part));
+      const modifiers = MODIFIERS.filter(modifier => unique.includes(modifier));
+      return modifiers.concat(key ? [key] : []).join('+');
+    }
+
+    function validateShortcut(value) {
+      if (!String(value || '').trim()) {
+        return { valid: true, normalized: '', message: '' };
+      }
+      const rawParts = String(value).split('+').map(canonicalKey).filter(Boolean);
+      const ordinaryKeys = rawParts.filter(part => !MODIFIERS.includes(part));
+      const normalized = normalizeShortcut(value);
+      if (ordinaryKeys.length !== 1) {
+        return {
+          valid: false,
+          normalized,
+          message: '快捷键需要且只能包含一个普通按键。'
+        };
+      }
+      const key = ordinaryKeys[0];
+      const supported = key.length === 1
+        || /^F(?:[1-9]|1[0-2])$/.test(key)
+        || ['Enter', 'Escape', 'Space', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key);
+      if (!supported) {
+        return { valid: false, normalized, message: '快捷键包含无法识别的按键。' };
+      }
+      if (!MODIFIERS.some(modifier => normalized.split('+').includes(modifier)) && !/^F/.test(key)) {
+        return { valid: false, normalized, message: '普通按键需要搭配 Ctrl、Alt、Shift 或 Meta。' };
+      }
+      if (RESERVED_SHORTCUTS.has(normalized)) {
+        return { valid: false, normalized, message: '该组合键被浏览器或页面功能占用。' };
+      }
+      return { valid: true, normalized, message: '' };
+    }
+
+    function shortcutFromEvent(event) {
+      const parts = [];
+      if (event.ctrlKey) parts.push('Ctrl');
+      if (event.altKey) parts.push('Alt');
+      if (event.shiftKey) parts.push('Shift');
+      if (event.metaKey) parts.push('Meta');
+      const key = canonicalKey(event.key);
+      if (key && !MODIFIERS.includes(key)) parts.push(key);
+      return normalizeShortcut(parts.join('+'));
+    }
+
+    function createItem(overrides) {
+      return Object.assign({
+        id: newId('item'),
+        title: '新条目',
+        content: '',
+        shortcut: '',
+        note: '',
+        favorite: false,
+        collapsed: false
+      }, overrides || {});
+    }
+
+    function createGroup(overrides) {
+      return Object.assign({
+        id: newId('group'),
+        title: '新分组',
+        collapsed: false,
+        items: []
+      }, overrides || {});
+    }
+
+    function createSampleDocument() {
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        documentId: newId('doc'),
+        meta: {
+          title: '我的快捷复制中心',
+          filename: 'quick-copy.html',
+          themePreference: 'system'
+        },
+        groups: [
+          createGroup({
+            title: '常用命令',
+            items: [
+              createItem({
+                title: '查看监听端口',
+                content: 'ss -lntp',
+                shortcut: 'Alt+1',
+                note: 'Linux',
+                favorite: true
+              }),
+              createItem({
+                title: '查看进程',
+                content: 'ps aux | grep nginx',
+                shortcut: 'Alt+2'
+              })
+            ]
+          }),
+          createGroup({
+            title: '常用文本',
+            items: [
+              createItem({
+                title: '问题已处理',
+                content: '问题已处理，请验证后反馈，谢谢。',
+                shortcut: 'Alt+3',
+                note: '回复模板'
+              })
+            ]
+          })
+        ]
+      };
+    }
+
+    function normalizeDocument(value) {
+      if (!value || Number(value.schemaVersion) !== SCHEMA_VERSION) {
+        throw new Error('不支持的数据版本。');
+      }
+      const normalized = {
+        schemaVersion: SCHEMA_VERSION,
+        documentId: String(value.documentId || newId('doc')),
+        meta: {
+          title: String(value.meta && value.meta.title || '').trim(),
+          filename: safeHtmlFilename(value.meta && value.meta.filename),
+          themePreference: ['system', 'light', 'dark'].includes(value.meta && value.meta.themePreference)
+            ? value.meta.themePreference
+            : 'system'
+        },
+        groups: []
+      };
+      if (!Array.isArray(value.groups)) throw new Error('分组列表格式无效。');
+      normalized.groups = value.groups.map(group => ({
+        id: String(group && group.id || newId('group')),
+        title: String(group && group.title || '').trim(),
+        collapsed: Boolean(group && group.collapsed),
+        items: Array.isArray(group && group.items)
+          ? group.items.map(item => ({
+            id: String(item && item.id || newId('item')),
+            title: String(item && item.title || '').trim(),
+            content: String(item && item.content || ''),
+            shortcut: normalizeShortcut(item && item.shortcut),
+            note: String(item && item.note || ''),
+            favorite: Boolean(item && item.favorite),
+            collapsed: Boolean(item && item.collapsed)
+          }))
+          : []
+      }));
+      return normalized;
+    }
+
+    function validateDocument(value) {
+      const errors = [];
+      const warnings = [];
+      if (!value || Number(value.schemaVersion) !== SCHEMA_VERSION) {
+        return { valid: false, errors: ['不支持的数据版本。'], warnings };
+      }
+      if (!value.meta || !String(value.meta.title || '').trim()) {
+        errors.push('页面名称不能为空。');
+      }
+      if (!Array.isArray(value.groups)) {
+        errors.push('分组列表格式无效。');
+        return { valid: false, errors, warnings };
+      }
+      if (!value.groups.length) warnings.push('页面还没有任何分组。');
+
+      const shortcuts = new Map();
+      value.groups.forEach((group, groupIndex) => {
+        const groupLabel = String(group && group.title || '').trim();
+        if (!groupLabel) errors.push(`第 ${groupIndex + 1} 个分组名称不能为空。`);
+        if (!Array.isArray(group && group.items)) {
+          errors.push(`分组“${groupLabel || groupIndex + 1}”的条目格式无效。`);
+          return;
+        }
+        group.items.forEach((item, itemIndex) => {
+          const itemLabel = String(item && item.title || '').trim();
+          if (!itemLabel) {
+            errors.push(`第 ${groupIndex + 1} 组第 ${itemIndex + 1} 条标题不能为空。`);
+          }
+          if (!String(item && item.content || '')) {
+            warnings.push(`“${itemLabel || '未命名条目'}”的复制内容为空。`);
+          }
+          const shortcutCheck = validateShortcut(item && item.shortcut);
+          if (!shortcutCheck.valid) {
+            errors.push(`“${itemLabel || '未命名条目'}”：${shortcutCheck.message}`);
+          } else if (shortcutCheck.normalized) {
+            if (shortcuts.has(shortcutCheck.normalized)) {
+              errors.push(`快捷键 ${shortcutCheck.normalized} 与“${shortcuts.get(shortcutCheck.normalized)}”重复。`);
+            } else {
+              shortcuts.set(shortcutCheck.normalized, itemLabel || '未命名条目');
+            }
+          }
+        });
+      });
+      return { valid: errors.length === 0, errors, warnings };
+    }
+
+    function moveItem(list, index, direction) {
+      if (!Array.isArray(list)) return false;
+      const target = index + direction;
+      if (index < 0 || index >= list.length || target < 0 || target >= list.length) return false;
+      const moved = list.splice(index, 1)[0];
+      list.splice(target, 0, moved);
+      return true;
+    }
+
+    window.HtmlPasteGenCore = {
+      SCHEMA_VERSION,
+      cloneDocument,
+      newId,
+      safeHtmlFilename,
+      normalizeShortcut,
+      validateShortcut,
+      shortcutFromEvent,
+      createItem,
+      createGroup,
+      createSampleDocument,
+      normalizeDocument,
+      validateDocument,
+      moveItem
+    };
+  }());
+  </script>
+</body>
+</html>

@@ -866,6 +866,73 @@
       return true;
     }
 
+    function resolveBatchSeparator(mode, customSeparator) {
+      if (mode === 'blankLine') return '\n\n';
+      if (mode === 'space') return ' ';
+      if (mode === 'custom') return String(customSeparator || '');
+      return '\n';
+    }
+
+    function uniqueIds(ids) {
+      const result = [];
+      const seen = new Set();
+      (Array.isArray(ids) ? ids : []).forEach(id => {
+        const value = String(id || '');
+        if (!value || seen.has(value)) return;
+        seen.add(value);
+        result.push(value);
+      });
+      return result;
+    }
+
+    function composeBatchText(value, copyOrder, separatorMode, customSeparator) {
+      const itemsById = new Map();
+      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
+        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
+          if (item && item.id) itemsById.set(String(item.id), item);
+        });
+      });
+      const values = [];
+      let skippedCount = 0;
+      let missingCount = 0;
+      uniqueIds(copyOrder).forEach(id => {
+        const item = itemsById.get(id);
+        if (!item) {
+          missingCount += 1;
+          return;
+        }
+        const content = String(item.content || '');
+        if (!content) {
+          skippedCount += 1;
+          return;
+        }
+        values.push(content);
+      });
+      return {
+        text: values.join(resolveBatchSeparator(separatorMode, customSeparator)),
+        includedCount: values.length,
+        skippedCount,
+        missingCount
+      };
+    }
+
+    function toggleCopyOrder(copyOrder, itemId, selected) {
+      const id = String(itemId || '');
+      const result = uniqueIds(copyOrder).filter(existingId => existingId !== id);
+      if (selected && id) result.push(id);
+      return result;
+    }
+
+    function moveId(copyOrder, itemId, direction) {
+      const result = uniqueIds(copyOrder);
+      const index = result.indexOf(String(itemId || ''));
+      const target = index + Number(direction || 0);
+      if (index < 0 || target < 0 || target >= result.length) return result;
+      const moved = result.splice(index, 1)[0];
+      result.splice(target, 0, moved);
+      return result;
+    }
+
     function safeJsonForHtml(value) {
       return JSON.stringify(value)
         .replace(/&/g, '\\u0026')
@@ -1551,6 +1618,10 @@
       normalizeDocument,
       validateDocument,
       moveItem,
+      resolveBatchSeparator,
+      composeBatchText,
+      toggleCopyOrder,
+      moveId,
       safeJsonForHtml,
       filterDocument,
       matchesShortcut,

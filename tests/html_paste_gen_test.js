@@ -85,6 +85,32 @@ assert.strictEqual(core.moveItem(moved, 0, 1), true);
 assert.deepStrictEqual(moved, ['b', 'a', 'c']);
 assert.strictEqual(core.moveItem(moved, 0, -1), false);
 
+const batchDoc = core.createSampleDocument();
+const batchItems = batchDoc.groups.flatMap(group => group.items);
+batchItems[1].content = '';
+const batchOrder = [batchItems[2].id, batchItems[0].id, batchItems[1].id, 'missing-id'];
+assert.strictEqual(core.resolveBatchSeparator('newline', 'ignored'), '\n');
+assert.strictEqual(core.resolveBatchSeparator('blankLine', 'ignored'), '\n\n');
+assert.strictEqual(core.resolveBatchSeparator('space', 'ignored'), ' ');
+assert.strictEqual(core.resolveBatchSeparator('custom', ' / '), ' / ');
+const batchResult = core.composeBatchText(batchDoc, batchOrder, 'newline', '');
+assert.strictEqual(batchResult.text, `${batchItems[2].content}\n${batchItems[0].content}`);
+assert.strictEqual(batchResult.includedCount, 2);
+assert.strictEqual(batchResult.skippedCount, 1);
+assert.strictEqual(batchResult.missingCount, 1);
+assert.deepStrictEqual(
+  Array.from(core.toggleCopyOrder([batchItems[0].id], batchItems[1].id, true)),
+  [batchItems[0].id, batchItems[1].id]
+);
+assert.deepStrictEqual(
+  Array.from(core.toggleCopyOrder([batchItems[0].id, batchItems[1].id], batchItems[0].id, false)),
+  [batchItems[1].id]
+);
+assert.deepStrictEqual(
+  Array.from(core.moveId([batchItems[0].id, batchItems[1].id, batchItems[2].id], batchItems[2].id, -1)),
+  [batchItems[0].id, batchItems[2].id, batchItems[1].id]
+);
+
 const dangerous = core.createSampleDocument();
 dangerous.meta.title = '</script><img src=x onerror=alert(1)>';
 dangerous.groups[0].items[0].content = '<b>only text</b>\u2028line';

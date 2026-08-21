@@ -1108,14 +1108,14 @@
     .group-title { margin: 0; font-size: 21px; letter-spacing: -.02em; }
     .group-meta { color: var(--muted); font-size: 12px; }
     .item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-    .copy-card { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 9px; padding: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); cursor: pointer; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
+    .copy-card { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 9px; padding: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
     .copy-card:hover { border-color: var(--primary); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent); transform: translateY(-2px); }
     .copy-card[data-copied="true"] { border-color: var(--success); background: var(--success-soft); }
     .copy-card[data-selected="true"] { border-color: var(--primary); background: color-mix(in srgb, var(--primary-soft) 72%, var(--surface)); box-shadow: inset 0 0 0 1px var(--primary); }
     .copy-card[data-navigation-focus="true"] { animation: navigation-pulse 1.15s ease; }
     @keyframes navigation-pulse { 0%, 100% { box-shadow: none; } 35% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 24%, transparent); } }
     .card-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
-    .card-heading { display: flex; min-width: 0; align-items: start; gap: 9px; }
+    .card-title-row { display: flex; min-width: 0; align-items: start; justify-content: space-between; gap: 9px; }
     .select-control { display: inline-grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); cursor: pointer; }
     .item-select { width: 17px; height: 17px; margin: 0; accent-color: var(--primary); cursor: pointer; }
     .item-tools { display: flex; align-items: center; gap: 7px; }
@@ -1128,8 +1128,9 @@
     .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line); }
     .shortcut { padding: 3px 8px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--surface); color: var(--muted); font: 11px "SFMono-Regular", Consolas, monospace; }
     .copy-label { color: var(--primary); font-size: 12px; font-weight: 800; }
-    .card-copy-action { padding: 4px 2px; border: 0; background: transparent; cursor: pointer; }
-    .card-copy-action:hover, .card-copy-action:focus-visible { color: var(--primary-strong); text-decoration: underline; outline: none; }
+    .card-copy-action { display: flex; width: 100%; min-height: 96px; flex: 1; flex-direction: column; gap: 9px; padding: 3px; border: 0; border-radius: 9px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+    .card-copy-action:hover .copy-label { color: var(--primary-strong); text-decoration: underline; }
+    .card-copy-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 34%, transparent); outline-offset: 2px; }
     .mobile-groups { display: none; margin-top: 14px; }
     .editor-panel { margin-top: 18px; padding: 20px; }
     .editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -1289,6 +1290,7 @@
     let customSeparator = '';
     let batchExpanded = true;
     let draggedItemId = '';
+    let focusRestoreFrame = 0;
 
     function byId(id) { return document.getElementById(id); }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -1382,6 +1384,40 @@
       syncSelection(copyOrder.filter(id => validIds.has(id)));
       revealedIds.forEach(id => { if (!validIds.has(id)) revealedIds.delete(id); });
       hiddenIds.forEach(id => { if (!validIds.has(id)) hiddenIds.delete(id); });
+    }
+    function captureTransientFocus() {
+      const active = document.activeElement;
+      if (!active || !active.classList) return null;
+      const card = active.closest && active.closest('.copy-card');
+      if (card) {
+        if (active.classList.contains('item-select')) return { kind: 'select', itemId: card.dataset.itemId };
+        if (active.classList.contains('item-visibility-toggle')) return { kind: 'visibility', itemId: card.dataset.itemId };
+        if (active.classList.contains('card-copy-action')) return { kind: 'copy', itemId: card.dataset.itemId };
+      }
+      const row = active.closest && active.closest('.batch-order-item');
+      if (row && active.dataset.focusRole) return { kind: 'batch', itemId: row.dataset.itemId, role: active.dataset.focusRole };
+      return null;
+    }
+    function restoreTransientFocus(snapshot) {
+      if (!snapshot) return;
+      cancelAnimationFrame(focusRestoreFrame);
+      focusRestoreFrame = requestAnimationFrame(() => {
+        let target = null;
+        const card = byId('item-' + snapshot.itemId);
+        if (snapshot.kind === 'select' && card) target = card.querySelector('.item-select');
+        if (snapshot.kind === 'visibility' && card) target = card.querySelector('.item-visibility-toggle');
+        if (snapshot.kind === 'copy' && card) target = card.querySelector('.card-copy-action');
+        if (snapshot.kind === 'batch') {
+          const row = Array.from(byId('batch-order-list').children).find(node => node.dataset.itemId === snapshot.itemId);
+          if (row) {
+            target = row.querySelector('[data-focus-role="' + snapshot.role + '"]');
+            if (target && target.disabled) target = row.querySelector('[data-focus-role]:not(:disabled)');
+          }
+          if (!target && card) target = card.querySelector('.item-select');
+          if (!target) target = byId('batch-tray').hidden ? byId('select-visible-button') : byId('batch-clear-button');
+        }
+        if (target && !target.disabled && !target.hidden) target.focus({ preventScroll: true });
+      });
     }
     function isItemVisible(itemId) {
       if (revealedIds.has(itemId)) return true;
@@ -1527,7 +1563,6 @@
       if (selectedIds.has(item.id)) card.dataset.selected = 'true';
       card.setAttribute('aria-label', item.title);
       const top = createElement('div', 'card-top');
-      const heading = createElement('div', 'card-heading');
       const controls = byId('copy-card-controls-template').content.cloneNode(true);
       const selection = controls.querySelector('.item-select');
       const visibility = controls.querySelector('.item-visibility-toggle');
@@ -1536,24 +1571,26 @@
       visibility.textContent = isItemVisible(item.id) ? '隐藏内容' : '显示内容';
       visibility.setAttribute('aria-pressed', String(isItemVisible(item.id)));
       const selectControl = controls.querySelector('.select-control');
-      heading.append(selectControl, createElement('h3', 'item-title', item.title));
-      const order = copyOrder.indexOf(item.id);
-      if (order >= 0) heading.append(createElement('span', 'card-order-badge', String(order + 1)));
       const tools = createElement('div', 'item-tools');
       if (item.favorite) tools.append(createElement('span', 'favorite-mark', '★'));
       tools.appendChild(visibility);
-      top.append(heading, tools);
+      top.append(selectControl, tools);
+      const copyAction = createElement('button', 'card-copy-action');
+      copyAction.type = 'button';
+      copyAction.setAttribute('aria-label', '复制“' + item.title + '”正文');
+      const titleRow = createElement('div', 'card-title-row');
+      titleRow.append(createElement('span', 'item-title', item.title));
+      const order = copyOrder.indexOf(item.id);
+      if (order >= 0) titleRow.append(createElement('span', 'card-order-badge', String(order + 1)));
       const content = createElement('pre', 'item-content', item.content);
       content.hidden = !isItemVisible(item.id);
       const footer = createElement('div', 'card-footer');
       footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
-      const copyAction = createElement('button', 'copy-label card-copy-action', '点击复制');
-      copyAction.type = 'button';
-      copyAction.setAttribute('aria-label', '复制“' + item.title + '”正文');
-      footer.append(copyAction);
-      card.append(top, content);
-      if (item.note) card.append(createElement('p', 'item-note', item.note));
-      card.appendChild(footer);
+      footer.append(createElement('span', 'copy-label', '点击复制'));
+      copyAction.append(titleRow, content);
+      if (item.note) copyAction.append(createElement('p', 'item-note', item.note));
+      copyAction.appendChild(footer);
+      card.append(top, copyAction);
       selectControl.addEventListener('click', event => event.stopPropagation());
       selection.addEventListener('change', event => {
         event.stopPropagation();
@@ -1567,7 +1604,13 @@
         event.stopPropagation();
         copyItem(item, card);
       });
-      card.addEventListener('click', () => copyItem(item, card));
+      card.addEventListener('keydown', event => {
+        if (event.target !== card) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          copyItem(item, card);
+        }
+      });
       return card;
     }
     async function writeClipboard(text) {
@@ -1803,6 +1846,9 @@
         const down = createElement('button', 'batch-icon-button', '↓');
         const remove = createElement('button', 'batch-icon-button', '×');
         up.type = down.type = remove.type = 'button';
+        up.dataset.focusRole = 'up';
+        down.dataset.focusRole = 'down';
+        remove.dataset.focusRole = 'remove';
         up.disabled = index === 0;
         down.disabled = index === copyOrder.length - 1;
         up.setAttribute('aria-label', '上移“' + item.title + '”');
@@ -1841,6 +1887,7 @@
       });
     }
     function renderMainOnly() {
+      const focusSnapshot = captureTransientFocus();
       cleanTransientState();
       document.title = model.meta.title + ' · 快捷复制';
       byId('generated-title').textContent = model.meta.title;
@@ -1853,6 +1900,7 @@
       byId('batch-select-visible-button').disabled = visibleCount === 0;
       byId('content-visibility-toggle').setAttribute('aria-pressed', String(revealAll));
       byId('content-visibility-toggle').textContent = revealAll ? '隐藏全部内容' : '显示全部内容';
+      restoreTransientFocus(focusSnapshot);
     }
     function render() {
       renderMainOnly();

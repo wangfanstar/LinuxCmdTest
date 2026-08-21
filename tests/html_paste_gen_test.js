@@ -214,6 +214,8 @@ assert.match(generated, /class=["']item-visibility-toggle["']/);
 assert.match(generated, /class=["']nav-item-link["']/);
 assert.match(generated, /card-order-badge/);
 assert.match(generated, /card-copy-action/);
+assert.match(generated, /card\.addEventListener\(['"]keydown['"]/);
+assert.match(generated, /function\s+restoreTransientFocus\s*\(/);
 assert.match(generated, /内容将直接连接/);
 assert.match(generated, /function\s+renderBatchTray\s*\(/);
 assert.match(generated, /function\s+toggleSelection\s*\(/);

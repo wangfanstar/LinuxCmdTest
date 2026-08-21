@@ -827,18 +827,26 @@
       if (!value.groups.length) warnings.push('页面还没有任何分组。');
 
       const shortcuts = new Map();
+      const groupIds = new Set();
+      const itemIds = new Set();
       value.groups.forEach((group, groupIndex) => {
         const groupLabel = String(group && group.title || '').trim();
+        const groupId = String(group && group.id || '');
         if (!groupLabel) errors.push(`第 ${groupIndex + 1} 个分组名称不能为空。`);
+        if (groupId && groupIds.has(groupId)) errors.push(`分组 ID “${groupId}”重复，请重新导入或新建该分组。`);
+        if (groupId) groupIds.add(groupId);
         if (!Array.isArray(group && group.items)) {
           errors.push(`分组“${groupLabel || groupIndex + 1}”的条目格式无效。`);
           return;
         }
         group.items.forEach((item, itemIndex) => {
           const itemLabel = String(item && item.title || '').trim();
+          const itemId = String(item && item.id || '');
           if (!itemLabel) {
             errors.push(`第 ${groupIndex + 1} 组第 ${itemIndex + 1} 条标题不能为空。`);
           }
+          if (itemId && itemIds.has(itemId)) errors.push(`条目 ID “${itemId}”重复，请重新导入或复制该条目。`);
+          if (itemId) itemIds.add(itemId);
           if (!String(item && item.content || '')) {
             warnings.push(`“${itemLabel || '未命名条目'}”的复制内容为空。`);
           }
@@ -930,6 +938,17 @@
       if (index < 0 || target < 0 || target >= result.length) return result;
       const moved = result.splice(index, 1)[0];
       result.splice(target, 0, moved);
+      return result;
+    }
+
+    function reorderIdAtTarget(copyOrder, draggedId, targetId) {
+      const result = uniqueIds(copyOrder);
+      const source = result.indexOf(String(draggedId || ''));
+      const target = result.indexOf(String(targetId || ''));
+      if (source < 0 || target < 0 || source === target) return result;
+      const moved = result.splice(source, 1)[0];
+      const adjustedTarget = result.indexOf(String(targetId));
+      result.splice(source < target ? adjustedTarget + 1 : adjustedTarget, 0, moved);
       return result;
     }
 
@@ -1092,7 +1111,7 @@
     .copy-card { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 9px; padding: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); cursor: pointer; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
     .copy-card:hover { border-color: var(--primary); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent); transform: translateY(-2px); }
     .copy-card[data-copied="true"] { border-color: var(--success); background: var(--success-soft); }
-    .copy-card[data-selected="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+    .copy-card[data-selected="true"] { border-color: var(--primary); background: color-mix(in srgb, var(--primary-soft) 72%, var(--surface)); box-shadow: inset 0 0 0 1px var(--primary); }
     .copy-card[data-navigation-focus="true"] { animation: navigation-pulse 1.15s ease; }
     @keyframes navigation-pulse { 0%, 100% { box-shadow: none; } 35% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 24%, transparent); } }
     .card-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
@@ -1102,12 +1121,15 @@
     .item-tools { display: flex; align-items: center; gap: 7px; }
     .item-visibility-toggle { min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; color: var(--muted); font-size: 11px; }
     .item-title { margin: 0; font-size: 15px; line-height: 1.35; }
+    .card-order-badge { display: inline-grid; min-width: 23px; height: 23px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 850; }
     .favorite-mark { color: #e6a700; font-size: 17px; }
     .item-content { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text); font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
     .item-note { margin: auto 0 0; color: var(--muted); font-size: 12px; }
     .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line); }
     .shortcut { padding: 3px 8px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--surface); color: var(--muted); font: 11px "SFMono-Regular", Consolas, monospace; }
     .copy-label { color: var(--primary); font-size: 12px; font-weight: 800; }
+    .card-copy-action { padding: 4px 2px; border: 0; background: transparent; cursor: pointer; }
+    .card-copy-action:hover, .card-copy-action:focus-visible { color: var(--primary-strong); text-decoration: underline; outline: none; }
     .mobile-groups { display: none; margin-top: 14px; }
     .editor-panel { margin-top: 18px; padding: 20px; }
     .editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -1136,6 +1158,7 @@
     .batch-icon-button { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; }
     .batch-controls { display: grid; grid-template-columns: auto auto minmax(150px, 1fr) auto auto; align-items: center; gap: 8px; }
     .batch-controls .field { min-height: 40px; padding: 7px 9px; }
+    .custom-separator-wrap { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
     .batch-expand { display: none; }
     @media (max-width: 860px) {
       .search-row { grid-template-columns: 1fr 1fr; }
@@ -1160,8 +1183,10 @@
       .content-panel, .editor-panel { padding: 14px; }
       .edit-group-head, .edit-item { grid-template-columns: 1fr; }
       .edit-textarea { grid-column: auto; }
-      body.has-batch-tray { padding-bottom: 300px; }
+      body.has-batch-tray { padding-bottom: 420px; }
+      body.has-batch-tray.batch-tray-collapsed { padding-bottom: 100px; }
       .batch-tray { right: 10px; bottom: 10px; left: 10px; width: calc(100% - 20px); padding: 11px; border-radius: 14px; }
+      .batch-icon-button { width: 44px; height: 44px; }
       .batch-expand { display: inline-flex; }
       .batch-order-list { max-height: 128px; flex-direction: column; overflow-y: auto; }
       .batch-order-item { min-width: 0; }
@@ -1226,7 +1251,10 @@
           <option value="custom">自定义</option>
         </select>
       </label>
-      <input id="custom-separator" class="field" type="text" aria-label="自定义分隔符" placeholder="自定义分隔符（可为空）" hidden>
+      <label id="custom-separator-wrap" class="custom-separator-wrap" hidden>
+        <input id="custom-separator" class="field" type="text" aria-label="自定义分隔符" placeholder="自定义分隔符">
+        <span>留空时，内容将直接连接</span>
+      </label>
       <button id="batch-copy-button" class="button button-primary" type="button">一键复制</button>
     </div>
   </aside>
@@ -1361,10 +1389,12 @@
       return revealAll;
     }
     function toggleSelection(itemId, selected) {
+      const item = itemById(itemId);
       const next = copyOrder.filter(id => id !== itemId);
       if (selected) next.push(itemId);
       syncSelection(next);
       renderMainOnly();
+      if (item) announce(selected ? '已将“' + item.title + '”加入复制篮，第 ' + (copyOrder.indexOf(itemId) + 1) + ' 项。' : '已将“' + item.title + '”移出复制篮。', 'success');
     }
     function selectVisibleItems() {
       const next = copyOrder.slice();
@@ -1383,6 +1413,8 @@
       next.splice(target, 0, next.splice(index, 1)[0]);
       syncSelection(next);
       renderMainOnly();
+      const item = itemById(itemId);
+      if (item) announce('已将“' + item.title + '”调整为第 ' + (copyOrder.indexOf(itemId) + 1) + ' 项。', 'success');
     }
     function toggleItemVisibility(itemId) {
       if (isItemVisible(itemId)) {
@@ -1418,6 +1450,16 @@
         values.push(content);
       });
       return { text: values.join(resolveBatchSeparator()), includedCount: values.length, skippedCount: skippedCount, missingCount: missingCount };
+    }
+    function reorderIdAtTarget(order, draggedId, targetId) {
+      const result = uniqueIds(order.slice());
+      const source = result.indexOf(draggedId);
+      const target = result.indexOf(targetId);
+      if (source < 0 || target < 0 || source === target) return result;
+      const moved = result.splice(source, 1)[0];
+      const adjustedTarget = result.indexOf(targetId);
+      result.splice(source < target ? adjustedTarget + 1 : adjustedTarget, 0, moved);
+      return result;
     }
     function renderNavigation(groups) {
       const navigation = byId('generated-groups');
@@ -1480,11 +1522,10 @@
     function createCopyCard(item) {
       const card = createElement('article', 'copy-card');
       card.id = 'item-' + item.id;
-      card.tabIndex = 0;
+      card.tabIndex = -1;
       card.dataset.itemId = item.id;
       if (selectedIds.has(item.id)) card.dataset.selected = 'true';
-      card.setAttribute('role', 'button');
-      card.setAttribute('aria-label', '复制：' + item.title);
+      card.setAttribute('aria-label', item.title);
       const top = createElement('div', 'card-top');
       const heading = createElement('div', 'card-heading');
       const controls = byId('copy-card-controls-template').content.cloneNode(true);
@@ -1496,6 +1537,8 @@
       visibility.setAttribute('aria-pressed', String(isItemVisible(item.id)));
       const selectControl = controls.querySelector('.select-control');
       heading.append(selectControl, createElement('h3', 'item-title', item.title));
+      const order = copyOrder.indexOf(item.id);
+      if (order >= 0) heading.append(createElement('span', 'card-order-badge', String(order + 1)));
       const tools = createElement('div', 'item-tools');
       if (item.favorite) tools.append(createElement('span', 'favorite-mark', '★'));
       tools.appendChild(visibility);
@@ -1504,7 +1547,10 @@
       content.hidden = !isItemVisible(item.id);
       const footer = createElement('div', 'card-footer');
       footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
-      footer.append(createElement('span', 'copy-label', '点击复制'));
+      const copyAction = createElement('button', 'copy-label card-copy-action', '点击复制');
+      copyAction.type = 'button';
+      copyAction.setAttribute('aria-label', '复制“' + item.title + '”正文');
+      footer.append(copyAction);
       card.append(top, content);
       if (item.note) card.append(createElement('p', 'item-note', item.note));
       card.appendChild(footer);
@@ -1517,14 +1563,11 @@
         event.stopPropagation();
         toggleItemVisibility(item.id);
       });
-      card.addEventListener('click', () => copyItem(item, card));
-      card.addEventListener('keydown', event => {
-        if (event.target !== card) return;
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          copyItem(item, card);
-        }
+      copyAction.addEventListener('click', event => {
+        event.stopPropagation();
+        copyItem(item, card);
       });
+      card.addEventListener('click', () => copyItem(item, card));
       return card;
     }
     async function writeClipboard(text) {
@@ -1737,12 +1780,13 @@
       tray.hidden = !hasSelection;
       tray.dataset.expanded = String(batchExpanded);
       document.body.classList.toggle('has-batch-tray', hasSelection);
+      document.body.classList.toggle('batch-tray-collapsed', hasSelection && !batchExpanded);
       byId('batch-expand-button').setAttribute('aria-expanded', String(batchExpanded));
       byId('batch-expand-button').textContent = batchExpanded ? '收起' : '展开';
       byId('batch-count').textContent = copyOrder.length + ' 项';
       byId('batch-separator').value = separatorMode;
       byId('custom-separator').value = customSeparator;
-      byId('custom-separator').hidden = separatorMode !== 'custom';
+      byId('custom-separator-wrap').hidden = separatorMode !== 'custom';
       orderList.replaceChildren();
       copyOrder.forEach((itemId, index) => {
         const item = itemById(itemId);
@@ -1785,12 +1829,13 @@
         row.addEventListener('drop', event => {
           event.preventDefault();
           if (!draggedItemId || draggedItemId === itemId) return;
-          const next = copyOrder.filter(id => id !== draggedItemId);
-          const target = next.indexOf(itemId);
-          next.splice(target < 0 ? next.length : target, 0, draggedItemId);
+          const movedId = draggedItemId;
+          const next = reorderIdAtTarget(copyOrder, movedId, itemId);
           draggedItemId = '';
           syncSelection(next);
           renderMainOnly();
+          const movedItem = itemById(movedId);
+          if (movedItem) announce('已将“' + movedItem.title + '”拖动为第 ' + (copyOrder.indexOf(movedId) + 1) + ' 项。', 'success');
         });
         orderList.appendChild(row);
       });
@@ -1922,6 +1967,7 @@
       composeBatchText,
       toggleCopyOrder,
       moveId,
+      reorderIdAtTarget,
       safeJsonForHtml,
       filterDocument,
       matchesShortcut,

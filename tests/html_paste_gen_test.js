@@ -62,6 +62,18 @@ const duplicateValidation = core.validateDocument(duplicateShortcut);
 assert.strictEqual(duplicateValidation.valid, false);
 assert.match(Array.from(duplicateValidation.errors).join('\n'), /Alt\+1.*重复/);
 
+const duplicateItemId = core.cloneDocument(sample);
+duplicateItemId.groups[1].items[0].id = duplicateItemId.groups[0].items[0].id;
+const duplicateItemIdValidation = core.validateDocument(duplicateItemId);
+assert.strictEqual(duplicateItemIdValidation.valid, false);
+assert.match(Array.from(duplicateItemIdValidation.errors).join('\n'), /条目 ID.*重复/);
+
+const duplicateGroupId = core.cloneDocument(sample);
+duplicateGroupId.groups[1].id = duplicateGroupId.groups[0].id;
+const duplicateGroupIdValidation = core.validateDocument(duplicateGroupId);
+assert.strictEqual(duplicateGroupIdValidation.valid, false);
+assert.match(Array.from(duplicateGroupIdValidation.errors).join('\n'), /分组 ID.*重复/);
+
 const missingContent = core.cloneDocument(sample);
 missingContent.groups[0].items[0].content = '';
 const warningValidation = core.validateDocument(missingContent);
@@ -93,11 +105,18 @@ assert.strictEqual(core.resolveBatchSeparator('newline', 'ignored'), '\n');
 assert.strictEqual(core.resolveBatchSeparator('blankLine', 'ignored'), '\n\n');
 assert.strictEqual(core.resolveBatchSeparator('space', 'ignored'), ' ');
 assert.strictEqual(core.resolveBatchSeparator('custom', ' / '), ' / ');
+assert.strictEqual(core.resolveBatchSeparator('custom', ''), '');
 const batchResult = core.composeBatchText(batchDoc, batchOrder, 'newline', '');
 assert.strictEqual(batchResult.text, `${batchItems[2].content}\n${batchItems[0].content}`);
 assert.strictEqual(batchResult.includedCount, 2);
 assert.strictEqual(batchResult.skippedCount, 1);
 assert.strictEqual(batchResult.missingCount, 1);
+const emptyBatchDoc = core.cloneDocument(batchDoc);
+emptyBatchDoc.groups.forEach(group => group.items.forEach(item => { item.content = ''; }));
+const emptyBatch = core.composeBatchText(emptyBatchDoc, batchItems.map(item => item.id), 'custom', '');
+assert.strictEqual(emptyBatch.text, '');
+assert.strictEqual(emptyBatch.includedCount, 0);
+assert.strictEqual(emptyBatch.skippedCount, batchItems.length);
 assert.deepStrictEqual(
   Array.from(core.toggleCopyOrder([batchItems[0].id], batchItems[1].id, true)),
   [batchItems[0].id, batchItems[1].id]
@@ -107,9 +126,21 @@ assert.deepStrictEqual(
   [batchItems[1].id]
 );
 assert.deepStrictEqual(
+  Array.from(core.toggleCopyOrder([batchItems[0].id, batchItems[0].id], batchItems[0].id, true)),
+  [batchItems[0].id]
+);
+assert.deepStrictEqual(Array.from(core.toggleCopyOrder([], batchItems[0].id, false)), []);
+assert.deepStrictEqual(
   Array.from(core.moveId([batchItems[0].id, batchItems[1].id, batchItems[2].id], batchItems[2].id, -1)),
   [batchItems[0].id, batchItems[2].id, batchItems[1].id]
 );
+assert.deepStrictEqual(Array.from(core.moveId(['a', 'b', 'c'], 'b', 1)), ['a', 'c', 'b']);
+assert.deepStrictEqual(Array.from(core.moveId(['a', 'b'], 'a', -1)), ['a', 'b']);
+assert.deepStrictEqual(Array.from(core.moveId(['a', 'b'], 'missing', 1)), ['a', 'b']);
+assert.deepStrictEqual(Array.from(core.reorderIdAtTarget(['a', 'b', 'c'], 'a', 'b')), ['b', 'a', 'c']);
+assert.deepStrictEqual(Array.from(core.reorderIdAtTarget(['a', 'b', 'c'], 'a', 'c')), ['b', 'c', 'a']);
+assert.deepStrictEqual(Array.from(core.reorderIdAtTarget(['a', 'b', 'c'], 'c', 'a')), ['c', 'a', 'b']);
+assert.deepStrictEqual(Array.from(core.reorderIdAtTarget(['a', 'b'], 'missing', 'b')), ['a', 'b']);
 
 const dangerous = core.createSampleDocument();
 dangerous.meta.title = '</script><img src=x onerror=alert(1)>';
@@ -181,10 +212,14 @@ assert.match(generated, /一键复制/);
 assert.match(generated, /class=["']item-select["']/);
 assert.match(generated, /class=["']item-visibility-toggle["']/);
 assert.match(generated, /class=["']nav-item-link["']/);
+assert.match(generated, /card-order-badge/);
+assert.match(generated, /card-copy-action/);
+assert.match(generated, /内容将直接连接/);
 assert.match(generated, /function\s+renderBatchTray\s*\(/);
 assert.match(generated, /function\s+toggleSelection\s*\(/);
 assert.match(generated, /function\s+toggleItemVisibility\s*\(/);
 assert.match(generated, /function\s+copyBatch\s*\(/);
+assert.match(generated, /function\s+reorderIdAtTarget\s*\(/);
 assert.match(generated, /\.draggable\s*=\s*true/);
 assert.match(generated, /['"]dragstart['"]/);
 assert.match(generated, /['"]drop['"]/);

@@ -1043,6 +1043,7 @@
     }
     html { min-height: 100%; background: var(--bg); scroll-behavior: smooth; }
     body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 12% 0, color-mix(in srgb, var(--primary) 9%, transparent), transparent 31rem), var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.55; }
+    body.has-batch-tray { padding-bottom: 220px; }
     button, input, textarea, select { font: inherit; }
     button { color: inherit; }
     [hidden] { display: none !important; }
@@ -1077,6 +1078,10 @@
     .group-link { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 8px 10px; border-radius: 9px; color: var(--muted); text-decoration: none; }
     .group-link:hover { background: var(--surface-soft); color: var(--primary); }
     .group-count { min-width: 26px; padding: 2px 7px; border-radius: 999px; background: var(--surface-strong); font-size: 11px; text-align: center; }
+    .nav-item-list { display: grid; gap: 2px; margin: 2px 0 9px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+    .nav-item-link { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 7px; color: var(--muted); font-size: 12px; text-decoration: none; }
+    .nav-item-link:hover, .nav-item-link:focus-visible { background: var(--primary-soft); color: var(--primary-strong); outline: none; }
+    .nav-order-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; text-align: center; }
     .content-panel { min-height: 380px; padding: 20px; }
     .empty-state { display: grid; min-height: 300px; place-items: center; color: var(--muted); text-align: center; }
     .group-section + .group-section { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
@@ -1087,7 +1092,15 @@
     .copy-card { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 9px; padding: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); cursor: pointer; transition: border-color .14s ease, transform .14s ease, box-shadow .14s ease; }
     .copy-card:hover { border-color: var(--primary); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent); transform: translateY(-2px); }
     .copy-card[data-copied="true"] { border-color: var(--success); background: var(--success-soft); }
+    .copy-card[data-selected="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+    .copy-card[data-navigation-focus="true"] { animation: navigation-pulse 1.15s ease; }
+    @keyframes navigation-pulse { 0%, 100% { box-shadow: none; } 35% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 24%, transparent); } }
     .card-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+    .card-heading { display: flex; min-width: 0; align-items: start; gap: 9px; }
+    .select-control { display: inline-grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); cursor: pointer; }
+    .item-select { width: 17px; height: 17px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+    .item-tools { display: flex; align-items: center; gap: 7px; }
+    .item-visibility-toggle { min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; color: var(--muted); font-size: 11px; }
     .item-title { margin: 0; font-size: 15px; line-height: 1.35; }
     .favorite-mark { color: #e6a700; font-size: 17px; }
     .item-content { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text); font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
@@ -1110,6 +1123,20 @@
     .edit-item-actions { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px; }
     .mini-button { min-height: 34px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 12px; }
     .storage-warning { margin: 10px 0 0; padding: 9px 11px; border-radius: 9px; background: var(--danger-soft); color: var(--danger); font-size: 12px; }
+    .batch-tray { position: fixed; z-index: 50; right: 16px; bottom: 16px; left: 16px; width: min(1100px, calc(100% - 32px)); margin: auto; padding: 14px; border: 1px solid var(--line-strong); border-radius: 18px; background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: 0 22px 65px rgba(22, 31, 53, .22); backdrop-filter: blur(14px); }
+    .batch-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .batch-title { margin: 0; font-size: 16px; }
+    .batch-summary { color: var(--muted); font-size: 12px; }
+    .batch-order-list { display: flex; gap: 7px; margin: 11px 0; padding: 0 0 5px; overflow-x: auto; list-style: none; }
+    .batch-order-item { display: grid; min-width: 210px; grid-template-columns: auto minmax(70px, 1fr) auto; align-items: center; gap: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .batch-order-item[aria-grabbed="true"] { opacity: .58; }
+    .drag-handle { padding: 2px 4px; color: var(--muted); cursor: grab; user-select: none; }
+    .batch-item-title { overflow: hidden; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .batch-item-actions { display: flex; gap: 3px; }
+    .batch-icon-button { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; }
+    .batch-controls { display: grid; grid-template-columns: auto auto minmax(150px, 1fr) auto auto; align-items: center; gap: 8px; }
+    .batch-controls .field { min-height: 40px; padding: 7px 9px; }
+    .batch-expand { display: none; }
     @media (max-width: 860px) {
       .search-row { grid-template-columns: 1fr 1fr; }
       .search-wrap { grid-column: 1 / -1; }
@@ -1120,6 +1147,9 @@
       .item-grid { grid-template-columns: 1fr; }
       .edit-item { grid-template-columns: 1fr 1fr; }
       .edit-textarea { grid-column: 1 / -1; }
+      body.has-batch-tray { padding-bottom: 270px; }
+      .batch-controls { grid-template-columns: 1fr 1fr; }
+      .batch-controls .batch-separator-wrap { grid-column: 1 / -1; }
     }
     @media (max-width: 560px) {
       .app-shell { width: min(100% - 20px, 1240px); padding-top: 10px; }
@@ -1130,6 +1160,12 @@
       .content-panel, .editor-panel { padding: 14px; }
       .edit-group-head, .edit-item { grid-template-columns: 1fr; }
       .edit-textarea { grid-column: auto; }
+      body.has-batch-tray { padding-bottom: 300px; }
+      .batch-tray { right: 10px; bottom: 10px; left: 10px; width: calc(100% - 20px); padding: 11px; border-radius: 14px; }
+      .batch-expand { display: inline-flex; }
+      .batch-order-list { max-height: 128px; flex-direction: column; overflow-y: auto; }
+      .batch-order-item { min-width: 0; }
+      .batch-tray[data-expanded="false"] .batch-order-list, .batch-tray[data-expanded="false"] .batch-controls { display: none; }
     }
   </style>
 </head>
@@ -1142,7 +1178,8 @@
       <div class="hero-actions">
         <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
         <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
-        <button id="collapse-toggle" class="button" type="button" aria-pressed="false">收起正文</button>
+        <button id="select-visible-button" class="button" type="button">选择当前结果</button>
+        <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
         <button id="theme-toggle" class="button" type="button">切换主题</button>
         <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
       </div>
@@ -1168,6 +1205,38 @@
     </div>
   </main>
 
+  <aside id="batch-tray" class="batch-tray" aria-label="复制篮" data-expanded="true" hidden>
+    <div class="batch-head">
+      <div>
+        <h2 class="batch-title">复制篮 · <span id="batch-count">0 项</span></h2>
+        <span class="batch-summary">拖动或使用箭头调整本次复制顺序</span>
+      </div>
+      <button id="batch-expand-button" class="button batch-expand" type="button" aria-expanded="true">收起</button>
+    </div>
+    <ol id="batch-order-list" class="batch-order-list"></ol>
+    <div class="batch-controls">
+      <button id="batch-select-visible-button" class="button" type="button">选择当前结果</button>
+      <button id="batch-clear-button" class="button" type="button">清空</button>
+      <label class="batch-separator-wrap">
+        <span class="batch-summary">内容分隔符</span>
+        <select id="batch-separator" class="field">
+          <option value="newline">换行</option>
+          <option value="blankLine">空一行</option>
+          <option value="space">空格</option>
+          <option value="custom">自定义</option>
+        </select>
+      </label>
+      <input id="custom-separator" class="field" type="text" aria-label="自定义分隔符" placeholder="自定义分隔符（可为空）" hidden>
+      <button id="batch-copy-button" class="button button-primary" type="button">一键复制</button>
+    </div>
+  </aside>
+
+  <template id="copy-card-controls-template">
+    <label class="select-control" title="加入复制篮"><input class="item-select" type="checkbox" aria-label="加入复制篮"></label>
+    <button class="item-visibility-toggle" type="button">显示内容</button>
+  </template>
+  <template id="nav-item-template"><a class="nav-item-link"><span></span></a></template>
+
   <script id="paste-data" type="application/json">${data}<\/script>
   <script id="generated-app-logic">
   (function () {
@@ -1181,9 +1250,17 @@
     let model = loadOverride() || clone(originalDocument);
     let query = '';
     let favoritesOnly = false;
-    let collapseContent = false;
     let editMode = false;
     let copyTimer = 0;
+    const selectedIds = new Set();
+    let copyOrder = [];
+    const revealedIds = new Set();
+    const hiddenIds = new Set();
+    let revealAll = false;
+    let separatorMode = 'newline';
+    let customSeparator = '';
+    let batchExpanded = true;
+    let draggedItemId = '';
 
     function byId(id) { return document.getElementById(id); }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -1261,6 +1338,87 @@
       return model.groups.map(group => ({ group: group, items: group.items.filter(item => itemMatches(group, item)) }))
         .filter(entry => entry.items.length || (!query && !favoritesOnly));
     }
+    function allItems() { return model.groups.flatMap(group => group.items); }
+    function itemById(itemId) { return allItems().find(item => item.id === itemId); }
+    function uniqueIds(ids) {
+      const seen = new Set();
+      return ids.filter(id => id && !seen.has(id) && seen.add(id));
+    }
+    function syncSelection(nextOrder) {
+      copyOrder = uniqueIds(nextOrder);
+      selectedIds.clear();
+      copyOrder.forEach(id => selectedIds.add(id));
+    }
+    function cleanTransientState() {
+      const validIds = new Set(allItems().map(item => item.id));
+      syncSelection(copyOrder.filter(id => validIds.has(id)));
+      revealedIds.forEach(id => { if (!validIds.has(id)) revealedIds.delete(id); });
+      hiddenIds.forEach(id => { if (!validIds.has(id)) hiddenIds.delete(id); });
+    }
+    function isItemVisible(itemId) {
+      if (revealedIds.has(itemId)) return true;
+      if (hiddenIds.has(itemId)) return false;
+      return revealAll;
+    }
+    function toggleSelection(itemId, selected) {
+      const next = copyOrder.filter(id => id !== itemId);
+      if (selected) next.push(itemId);
+      syncSelection(next);
+      renderMainOnly();
+    }
+    function selectVisibleItems() {
+      const next = copyOrder.slice();
+      visibleGroups().forEach(entry => entry.items.forEach(item => {
+        if (!selectedIds.has(item.id)) next.push(item.id);
+      }));
+      syncSelection(next);
+      renderMainOnly();
+      announce(copyOrder.length ? '当前结果已加入复制篮。' : '当前没有可选择的结果。', copyOrder.length ? 'success' : 'info');
+    }
+    function moveSelection(itemId, direction) {
+      const index = copyOrder.indexOf(itemId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= copyOrder.length) return;
+      const next = copyOrder.slice();
+      next.splice(target, 0, next.splice(index, 1)[0]);
+      syncSelection(next);
+      renderMainOnly();
+    }
+    function toggleItemVisibility(itemId) {
+      if (isItemVisible(itemId)) {
+        revealedIds.delete(itemId);
+        hiddenIds.add(itemId);
+      } else {
+        hiddenIds.delete(itemId);
+        revealedIds.add(itemId);
+      }
+      renderMainOnly();
+    }
+    function setAllContentVisible(visible) {
+      revealAll = visible;
+      revealedIds.clear();
+      hiddenIds.clear();
+      render();
+    }
+    function resolveBatchSeparator() {
+      if (separatorMode === 'blankLine') return String.fromCharCode(10, 10);
+      if (separatorMode === 'space') return ' ';
+      if (separatorMode === 'custom') return customSeparator;
+      return String.fromCharCode(10);
+    }
+    function composeBatch() {
+      const values = [];
+      let skippedCount = 0;
+      let missingCount = 0;
+      uniqueIds(copyOrder).forEach(id => {
+        const item = itemById(id);
+        if (!item) { missingCount += 1; return; }
+        const content = String(item.content || '');
+        if (!content) { skippedCount += 1; return; }
+        values.push(content);
+      });
+      return { text: values.join(resolveBatchSeparator()), includedCount: values.length, skippedCount: skippedCount, missingCount: missingCount };
+    }
     function renderNavigation(groups) {
       const navigation = byId('generated-groups');
       navigation.replaceChildren();
@@ -1272,7 +1430,29 @@
         link.href = '#group-' + entry.group.id;
         link.append(createElement('span', '', entry.group.title), createElement('span', 'group-count', String(entry.items.length)));
         navigation.appendChild(link);
+        const itemList = createElement('div', 'nav-item-list');
+        entry.items.forEach(item => {
+          const itemLink = byId('nav-item-template').content.firstElementChild.cloneNode(true);
+          itemLink.href = '#item-' + item.id;
+          itemLink.querySelector('span').textContent = item.title;
+          const order = copyOrder.indexOf(item.id);
+          if (order >= 0) itemLink.append(createElement('span', 'nav-order-badge', String(order + 1)));
+          itemLink.addEventListener('click', event => focusItemFromNavigation(event, item.id));
+          itemList.appendChild(itemLink);
+        });
+        navigation.appendChild(itemList);
       });
+    }
+    function focusItemFromNavigation(event, itemId) {
+      event.preventDefault();
+      const card = byId('item-' + itemId);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.focus({ preventScroll: true });
+      card.dataset.navigationFocus = 'true';
+      setTimeout(() => { if (card && card.dataset) delete card.dataset.navigationFocus; }, 1200);
+      byId('generated-groups').classList.remove('is-open');
+      byId('mobile-groups-button').setAttribute('aria-expanded', 'false');
     }
     function renderItems(groups) {
       const container = byId('generated-items');
@@ -1299,22 +1479,47 @@
     }
     function createCopyCard(item) {
       const card = createElement('article', 'copy-card');
+      card.id = 'item-' + item.id;
       card.tabIndex = 0;
       card.dataset.itemId = item.id;
+      if (selectedIds.has(item.id)) card.dataset.selected = 'true';
       card.setAttribute('role', 'button');
       card.setAttribute('aria-label', '复制：' + item.title);
       const top = createElement('div', 'card-top');
-      top.append(createElement('h3', 'item-title', item.title));
-      if (item.favorite) top.append(createElement('span', 'favorite-mark', '★'));
-      const content = createElement('pre', 'item-content', collapseContent ? contentSummary(item.content) : item.content);
+      const heading = createElement('div', 'card-heading');
+      const controls = byId('copy-card-controls-template').content.cloneNode(true);
+      const selection = controls.querySelector('.item-select');
+      const visibility = controls.querySelector('.item-visibility-toggle');
+      selection.checked = selectedIds.has(item.id);
+      selection.setAttribute('aria-label', '将“' + item.title + '”加入复制篮');
+      visibility.textContent = isItemVisible(item.id) ? '隐藏内容' : '显示内容';
+      visibility.setAttribute('aria-pressed', String(isItemVisible(item.id)));
+      const selectControl = controls.querySelector('.select-control');
+      heading.append(selectControl, createElement('h3', 'item-title', item.title));
+      const tools = createElement('div', 'item-tools');
+      if (item.favorite) tools.append(createElement('span', 'favorite-mark', '★'));
+      tools.appendChild(visibility);
+      top.append(heading, tools);
+      const content = createElement('pre', 'item-content', item.content);
+      content.hidden = !isItemVisible(item.id);
       const footer = createElement('div', 'card-footer');
       footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
       footer.append(createElement('span', 'copy-label', '点击复制'));
       card.append(top, content);
       if (item.note) card.append(createElement('p', 'item-note', item.note));
       card.appendChild(footer);
+      selectControl.addEventListener('click', event => event.stopPropagation());
+      selection.addEventListener('change', event => {
+        event.stopPropagation();
+        toggleSelection(item.id, event.target.checked);
+      });
+      visibility.addEventListener('click', event => {
+        event.stopPropagation();
+        toggleItemVisibility(item.id);
+      });
       card.addEventListener('click', () => copyItem(item, card));
       card.addEventListener('keydown', event => {
+        if (event.target !== card) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           copyItem(item, card);
@@ -1322,17 +1527,13 @@
       });
       return card;
     }
-    function contentSummary(content) {
-      const value = String(content || '').replace(/\s+/g, ' ').trim();
-      return value.length > 72 ? value.slice(0, 72) + '…' : value;
-    }
-    async function copyItem(item, card) {
+    async function writeClipboard(text) {
       try {
         if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard unavailable');
-        await navigator.clipboard.writeText(item.content);
+        await navigator.clipboard.writeText(text);
       } catch (error) {
         const area = createElement('textarea');
-        area.value = item.content;
+        area.value = text;
         area.style.position = 'fixed';
         area.style.left = '-9999px';
         document.body.appendChild(area);
@@ -1342,9 +1543,13 @@
         area.remove();
         if (!copied) {
           announce('自动复制失败，请打开编辑模式手动选择原文。', 'error');
-          return;
+          return false;
         }
       }
+      return true;
+    }
+    async function copyItem(item, card) {
+      if (!await writeClipboard(item.content)) return;
       if (card && card.dataset) {
         document.querySelectorAll('.copy-card[data-copied="true"]').forEach(node => delete node.dataset.copied);
         card.dataset.copied = 'true';
@@ -1352,6 +1557,16 @@
         copyTimer = setTimeout(() => { if (card && card.dataset) delete card.dataset.copied; }, 1400);
       }
       announce('已复制：' + item.title, 'success');
+    }
+    async function copyBatch() {
+      const result = composeBatch();
+      if (!result.includedCount) {
+        announce('所选条目的复制内容均为空，未写入剪贴板。', 'error');
+        return;
+      }
+      if (!await writeClipboard(result.text)) return;
+      const skipped = result.skippedCount ? '，已跳过 ' + result.skippedCount + ' 条空内容' : '';
+      announce('已按顺序复制 ' + result.includedCount + ' 条内容' + skipped + '。', 'success');
     }
     function renderEditor() {
       const editor = byId('generated-editor');
@@ -1515,19 +1730,89 @@
       }
       updateAndRender();
     }
+    function renderBatchTray() {
+      const tray = byId('batch-tray');
+      const orderList = byId('batch-order-list');
+      const hasSelection = copyOrder.length > 0;
+      tray.hidden = !hasSelection;
+      tray.dataset.expanded = String(batchExpanded);
+      document.body.classList.toggle('has-batch-tray', hasSelection);
+      byId('batch-expand-button').setAttribute('aria-expanded', String(batchExpanded));
+      byId('batch-expand-button').textContent = batchExpanded ? '收起' : '展开';
+      byId('batch-count').textContent = copyOrder.length + ' 项';
+      byId('batch-separator').value = separatorMode;
+      byId('custom-separator').value = customSeparator;
+      byId('custom-separator').hidden = separatorMode !== 'custom';
+      orderList.replaceChildren();
+      copyOrder.forEach((itemId, index) => {
+        const item = itemById(itemId);
+        if (!item) return;
+        const row = createElement('li', 'batch-order-item');
+        row.dataset.itemId = itemId;
+        row.draggable = true;
+        row.setAttribute('aria-grabbed', 'false');
+        const handle = createElement('span', 'drag-handle', '⠿ ' + (index + 1));
+        handle.title = '拖动调整顺序';
+        const title = createElement('span', 'batch-item-title', item.title);
+        const actions = createElement('span', 'batch-item-actions');
+        const up = createElement('button', 'batch-icon-button', '↑');
+        const down = createElement('button', 'batch-icon-button', '↓');
+        const remove = createElement('button', 'batch-icon-button', '×');
+        up.type = down.type = remove.type = 'button';
+        up.disabled = index === 0;
+        down.disabled = index === copyOrder.length - 1;
+        up.setAttribute('aria-label', '上移“' + item.title + '”');
+        down.setAttribute('aria-label', '下移“' + item.title + '”');
+        remove.setAttribute('aria-label', '从复制篮移除“' + item.title + '”');
+        up.addEventListener('click', () => moveSelection(itemId, -1));
+        down.addEventListener('click', () => moveSelection(itemId, 1));
+        remove.addEventListener('click', () => toggleSelection(itemId, false));
+        actions.append(up, down, remove);
+        row.append(handle, title, actions);
+        row.addEventListener('dragstart', event => {
+          draggedItemId = itemId;
+          row.setAttribute('aria-grabbed', 'true');
+          if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => {
+          draggedItemId = '';
+          row.setAttribute('aria-grabbed', 'false');
+        });
+        row.addEventListener('dragover', event => {
+          event.preventDefault();
+          if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        });
+        row.addEventListener('drop', event => {
+          event.preventDefault();
+          if (!draggedItemId || draggedItemId === itemId) return;
+          const next = copyOrder.filter(id => id !== draggedItemId);
+          const target = next.indexOf(itemId);
+          next.splice(target < 0 ? next.length : target, 0, draggedItemId);
+          draggedItemId = '';
+          syncSelection(next);
+          renderMainOnly();
+        });
+        orderList.appendChild(row);
+      });
+    }
     function renderMainOnly() {
+      cleanTransientState();
       document.title = model.meta.title + ' · 快捷复制';
       byId('generated-title').textContent = model.meta.title;
       const groups = visibleGroups();
       renderNavigation(groups);
       renderItems(groups);
+      renderBatchTray();
+      const visibleCount = groups.reduce((count, entry) => count + entry.items.length, 0);
+      byId('select-visible-button').disabled = visibleCount === 0;
+      byId('batch-select-visible-button').disabled = visibleCount === 0;
+      byId('content-visibility-toggle').setAttribute('aria-pressed', String(revealAll));
+      byId('content-visibility-toggle').textContent = revealAll ? '隐藏全部内容' : '显示全部内容';
     }
     function render() {
       renderMainOnly();
       byId('favorites-filter').setAttribute('aria-pressed', String(favoritesOnly));
       byId('favorites-filter').textContent = favoritesOnly ? '★ 显示全部' : '☆ 仅看收藏';
-      byId('collapse-toggle').setAttribute('aria-pressed', String(collapseContent));
-      byId('collapse-toggle').textContent = collapseContent ? '展开正文' : '收起正文';
       byId('edit-mode-toggle').setAttribute('aria-pressed', String(editMode));
       byId('edit-mode-toggle').textContent = editMode ? '退出编辑' : '编辑模式';
       renderEditor();
@@ -1552,6 +1837,10 @@
     function restoreOriginal() {
       if (!confirm('恢复文件内嵌的原始内容？当前浏览器中的修改将被清除。')) return;
       model = clone(originalDocument);
+      syncSelection([]);
+      revealedIds.clear();
+      hiddenIds.clear();
+      revealAll = false;
       try { localStorage.removeItem(storageKey); } catch (error) { storageAvailable = false; }
       render();
       announce('已恢复文件原始内容。', 'success');
@@ -1560,7 +1849,8 @@
     byId('generated-search').addEventListener('input', event => { query = event.target.value; renderMainOnly(); });
     byId('clear-search-button').addEventListener('click', () => { query = ''; byId('generated-search').value = ''; renderMainOnly(); byId('generated-search').focus(); });
     byId('favorites-filter').addEventListener('click', () => { favoritesOnly = !favoritesOnly; render(); });
-    byId('collapse-toggle').addEventListener('click', () => { collapseContent = !collapseContent; render(); });
+    byId('select-visible-button').addEventListener('click', selectVisibleItems);
+    byId('content-visibility-toggle').addEventListener('click', () => setAllContentVisible(!revealAll));
     byId('theme-toggle').addEventListener('click', () => { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); });
     byId('edit-mode-toggle').addEventListener('click', () => { editMode = !editMode; render(); if (editMode) byId('generated-editor').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     byId('mobile-groups-button').addEventListener('click', event => { const open = byId('generated-groups').classList.toggle('is-open'); event.currentTarget.setAttribute('aria-expanded', String(open)); });
@@ -1568,6 +1858,16 @@
     byId('generated-editor').addEventListener('click', handleEditorAction);
     byId('reexport-button').addEventListener('click', exportCurrentHtml);
     byId('restore-original-button').addEventListener('click', restoreOriginal);
+    byId('batch-select-visible-button').addEventListener('click', selectVisibleItems);
+    byId('batch-clear-button').addEventListener('click', () => { syncSelection([]); renderMainOnly(); announce('复制篮已清空。', 'success'); });
+    byId('batch-copy-button').addEventListener('click', copyBatch);
+    byId('batch-separator').addEventListener('change', event => {
+      separatorMode = event.target.value;
+      renderBatchTray();
+      if (separatorMode === 'custom') byId('custom-separator').focus();
+    });
+    byId('custom-separator').addEventListener('input', event => { customSeparator = event.target.value; });
+    byId('batch-expand-button').addEventListener('click', () => { batchExpanded = !batchExpanded; renderBatchTray(); });
     document.addEventListener('keydown', event => {
       if (event.target.matches('input, textarea, select, [contenteditable="true"]')) {
         if (event.key === 'Escape' && event.target === byId('generated-search')) {

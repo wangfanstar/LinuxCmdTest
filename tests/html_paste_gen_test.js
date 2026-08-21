@@ -161,12 +161,33 @@ for (const id of [
   'edit-mode-toggle',
   'generated-editor',
   'reexport-button',
-  'restore-original-button'
+  'restore-original-button',
+  'select-visible-button',
+  'content-visibility-toggle',
+  'batch-tray',
+  'batch-order-list',
+  'batch-count',
+  'batch-separator',
+  'custom-separator',
+  'batch-copy-button',
+  'batch-clear-button'
 ]) {
   assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
 }
 assert.match(generated, /导出最新版 HTML/);
 assert.match(generated, /恢复文件原始内容/);
+assert.match(generated, /选择当前结果/);
+assert.match(generated, /一键复制/);
+assert.match(generated, /class=["']item-select["']/);
+assert.match(generated, /class=["']item-visibility-toggle["']/);
+assert.match(generated, /class=["']nav-item-link["']/);
+assert.match(generated, /function\s+renderBatchTray\s*\(/);
+assert.match(generated, /function\s+toggleSelection\s*\(/);
+assert.match(generated, /function\s+toggleItemVisibility\s*\(/);
+assert.match(generated, /function\s+copyBatch\s*\(/);
+assert.match(generated, /\.draggable\s*=\s*true/);
+assert.match(generated, /['"]dragstart['"]/);
+assert.match(generated, /['"]drop['"]/);
 assert.doesNotMatch(generated, /<(?:script|link)[^>]+(?:src|href)=["']https?:/i);
 assert.strictEqual(JSON.parse(core.extractEmbeddedDocument(generated)).documentId, searchDoc.documentId);
 const generatedRuntime = generated.match(/<script id="generated-app-logic">([\s\S]*?)<\/script>/);

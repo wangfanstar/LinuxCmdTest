@@ -336,6 +336,47 @@
     .panel-kicker { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
     .panel-body { padding: 13px; }
 
+    .network-panel {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      box-shadow: 0 12px 35px rgba(31, 51, 80, .055);
+    }
+
+    .network-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, #fbfcfe);
+    }
+
+    .network-panel-tools, .network-filters, .network-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .network-panel-tools { justify-content: flex-end; }
+    .network-filters { padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+    .network-search { min-width: min(280px, 100%); flex: 1 1 260px; }
+    .network-type-filter { width: 124px; }
+    .network-overwrite { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .network-overwrite input { accent-color: var(--primary); }
+    .network-status { min-height: 20px; margin: 0; padding: 0 16px 10px; color: var(--muted); font-size: 12px; }
+    .network-status[data-type="error"] { color: var(--red); }
+    .network-status[data-type="success"] { color: var(--teal); }
+    .network-content { display: grid; grid-template-columns: minmax(300px, 1.05fr) minmax(300px, .95fr); gap: 12px; padding: 12px 16px 16px; }
+    .network-file-list { display: grid; max-height: 320px; gap: 7px; overflow: auto; }
+    .network-file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .network-file-row[data-selected="true"] { border-color: var(--primary); background: var(--primary-soft); }
+    .network-file-name { min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .network-file-meta { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .network-file-actions .button { min-height: 30px; padding: 5px 8px; font-size: 11px; }
+    .network-preview-box { min-height: 300px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-soft); }
+    .network-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    .network-preview-title { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    #network-preview { display: block; width: 100%; min-height: 255px; border: 0; background: #fff; }
+    .network-empty { margin: 0; padding: 30px 12px; border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); font-size: 13px; text-align: center; }
+
     .structure-panel, .preview-panel { position: sticky; top: 12px; max-height: calc(100vh - 24px); }
     .structure-panel .panel-body, .preview-panel .panel-body { max-height: calc(100vh - 86px); overflow: auto; }
 
@@ -478,6 +519,7 @@
       .structure-panel, .preview-panel { position: static; max-height: none; }
       .structure-panel .panel-body, .preview-panel .panel-body { max-height: none; }
       .project-toolbar { border-radius: 0 0 14px 14px; }
+      .network-content { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 620px) {
@@ -494,6 +536,9 @@
       .form-grid .wide { grid-column: auto; }
       .item-editor-head { grid-template-columns: 28px minmax(0, 1fr); }
       .item-editor-head .inline-actions { grid-column: 1 / -1; }
+      .network-panel-head { align-items: flex-start; flex-direction: column; }
+      .network-panel-tools { justify-content: flex-start; }
+      .network-content { padding-inline: 11px; }
     }
   </style>
 </head>
@@ -538,6 +583,40 @@
     </nav>
 
     <section id="validation-summary" class="validation-summary" aria-live="polite" hidden></section>
+
+    <section id="network-library-panel" class="network-panel" aria-labelledby="network-library-title">
+      <header class="network-panel-head">
+        <div>
+          <h2 id="network-library-title" class="panel-title">网络库 · html_paste</h2>
+          <p class="panel-kicker">直接管理服务器同目录下的 JSON 与 HTML 文件</p>
+        </div>
+        <div class="network-panel-tools">
+          <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
+          <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
+          <button id="network-export-json-button" class="button button-small button-primary" type="button">导出到网络库</button>
+          <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox"> 覆盖保存（需确认）</label>
+        </div>
+      </header>
+      <div class="network-filters">
+        <input id="network-search" class="field network-search" type="search" placeholder="搜索网络库文件名…" aria-label="搜索网络库文件名">
+        <select id="network-type-filter" class="select network-type-filter" aria-label="筛选网络库文件类型">
+          <option value="all">全部类型</option>
+          <option value="json">仅 JSON</option>
+          <option value="html">仅 HTML</option>
+        </select>
+      </div>
+      <p id="network-status" class="network-status" aria-live="polite">正在读取网络库…</p>
+      <div class="network-content">
+        <div id="network-file-list" class="network-file-list" aria-live="polite"></div>
+        <div class="network-preview-box">
+          <div class="network-preview-head">
+            <span id="network-preview-title" class="network-preview-title">选择 HTML 文件后预览</span>
+            <button id="network-preview-open-button" class="button button-small" type="button" disabled>新窗口打开</button>
+          </div>
+          <iframe id="network-preview" title="网络库 HTML 预览" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+        </div>
+      </div>
+    </section>
 
     <div class="mobile-tabs" role="tablist" aria-label="工作区域">
       <button class="mobile-tab" type="button" role="tab" aria-selected="true" data-mobile-target="structure">结构</button>
@@ -2243,7 +2322,12 @@
       previewQuery: '',
       previewFavoritesOnly: false,
       mobilePanel: 'structure',
-      allCollapsed: false
+      allCollapsed: false,
+      networkFiles: [],
+      networkQuery: '',
+      networkType: 'all',
+      networkSelectedName: '',
+      networkPreviewName: ''
     };
     const expandedPreviewIds = new Set();
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
@@ -2342,6 +2426,192 @@
       region.appendChild(toast);
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => region.replaceChildren(), 3200);
+    }
+
+    function setNetworkStatus(message, type) {
+      const status = byId('network-status');
+      status.textContent = message;
+      status.dataset.type = type || 'info';
+    }
+
+    function formatNetworkFileMeta(file) {
+      const bytes = Number(file && file.size || 0);
+      const size = bytes < 1024
+        ? bytes + ' B'
+        : bytes < 1024 * 1024
+          ? (bytes / 1024).toFixed(1) + ' KB'
+          : (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      const date = Number(file && file.mtime) ? new Date(Number(file.mtime) * 1000).toLocaleString() : '未知时间';
+      return (file.type === 'json' ? 'JSON' : 'HTML') + ' · ' + size + ' · ' + date;
+    }
+
+    function networkFileMatches(file) {
+      const query = state.networkQuery.trim().toLocaleLowerCase();
+      if (state.networkType !== 'all' && file.type !== state.networkType) return false;
+      return !query || String(file.name || '').toLocaleLowerCase().includes(query);
+    }
+
+    function networkFileUrl(name) {
+      return '/html_paste/' + encodeURIComponent(String(name || ''));
+    }
+
+    function networkSelectedFile() {
+      return state.networkFiles.find(file => file.name === state.networkSelectedName) || null;
+    }
+
+    function selectNetworkFile(name) {
+      const file = state.networkFiles.find(entry => entry.name === name);
+      if (!file) return;
+      state.networkSelectedName = file.name;
+      if (file.type === 'html') previewNetworkHtml(file.name);
+      renderNetworkLibrary();
+    }
+
+    function previewNetworkHtml(name) {
+      const file = state.networkFiles.find(entry => entry.name === name);
+      if (!file || file.type !== 'html') return;
+      state.networkSelectedName = file.name;
+      state.networkPreviewName = file.name;
+      byId('network-preview').src = networkFileUrl(file.name);
+      byId('network-preview-title').textContent = file.name;
+      byId('network-preview-open-button').disabled = false;
+      setNetworkStatus('正在预览 ' + file.name, 'info');
+      renderNetworkLibrary();
+    }
+
+    function openNetworkHtml(name) {
+      const file = state.networkFiles.find(entry => entry.name === name);
+      if (!file || file.type !== 'html') return;
+      window.open(networkFileUrl(file.name), '_blank', 'noopener,noreferrer');
+    }
+
+    function renderNetworkLibrary() {
+      const list = byId('network-file-list');
+      const visible = state.networkFiles.filter(networkFileMatches);
+      list.replaceChildren();
+      const selected = networkSelectedFile();
+      byId('network-import-json-button').disabled = !selected || selected.type !== 'json';
+      byId('network-preview-open-button').disabled = !state.networkPreviewName;
+      if (!visible.length) {
+        list.appendChild(createElement('p', 'network-empty', state.networkFiles.length ? '没有匹配的网络库文件。' : 'html_paste 文件夹暂无 JSON 或 HTML 文件。'));
+        return;
+      }
+      visible.forEach(file => {
+        const row = createElement('article', 'network-file-row');
+        row.dataset.networkName = file.name;
+        row.dataset.selected = String(file.name === state.networkSelectedName);
+        const info = createElement('div');
+        info.append(createElement('div', 'network-file-name', file.name), createElement('div', 'network-file-meta', formatNetworkFileMeta(file)));
+        const actions = createElement('div', 'network-file-actions');
+        const select = createElement('button', 'button button-small', file.name === state.networkSelectedName ? '已选择' : '选择');
+        select.type = 'button';
+        select.addEventListener('click', () => selectNetworkFile(file.name));
+        actions.appendChild(select);
+        if (file.type === 'json') {
+          const importButton = createElement('button', 'button button-small button-primary', '导入');
+          importButton.type = 'button';
+          importButton.addEventListener('click', () => importNetworkJson(file.name));
+          actions.appendChild(importButton);
+        } else {
+          const preview = createElement('button', 'button button-small button-primary', '预览');
+          preview.type = 'button';
+          preview.addEventListener('click', () => previewNetworkHtml(file.name));
+          const open = createElement('button', 'button button-small', '打开');
+          open.type = 'button';
+          open.addEventListener('click', () => openNetworkHtml(file.name));
+          actions.append(preview, open);
+        }
+        row.append(info, actions);
+        list.appendChild(row);
+      });
+    }
+
+    async function loadNetworkLibrary() {
+      if (location.protocol === 'file:') {
+        setNetworkStatus('本地文件模式无法访问服务器网络库，请通过 HTTP 服务打开本页。', 'error');
+        renderNetworkLibrary();
+        return;
+      }
+      try {
+        const response = await fetch('/api/html-paste/list', { cache: 'no-store' });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok || !Array.isArray(payload.files)) {
+          throw new Error(payload.error || '网络库请求失败（' + response.status + '）');
+        }
+        state.networkFiles = payload.files.filter(file => file && (file.type === 'json' || file.type === 'html') && file.name);
+        if (!state.networkFiles.some(file => file.name === state.networkSelectedName)) state.networkSelectedName = '';
+        if (!state.networkFiles.some(file => file.name === state.networkPreviewName)) {
+          state.networkPreviewName = '';
+          byId('network-preview').removeAttribute('src');
+          byId('network-preview-title').textContent = '选择 HTML 文件后预览';
+        }
+        renderNetworkLibrary();
+        setNetworkStatus('已加载 ' + state.networkFiles.length + ' 个网络库文件。', 'success');
+      } catch (error) {
+        renderNetworkLibrary();
+        setNetworkStatus('网络库刷新失败：' + error.message, 'error');
+      }
+    }
+
+    function summarizeNetworkDocument(value) {
+      const groups = Array.isArray(value && value.groups) ? value.groups : [];
+      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + (Array.isArray(group.items) ? group.items.length : 0), 0) + ' 条内容';
+    }
+
+    async function importNetworkJson(name) {
+      const file = state.networkFiles.find(entry => entry.name === name) || networkSelectedFile();
+      if (!file || file.type !== 'json') {
+        announce('请先选择一个 JSON 文件。', 'warning');
+        return;
+      }
+      try {
+        const response = await fetch('/api/html-paste/read?name=' + encodeURIComponent(file.name), { cache: 'no-store' });
+        const raw = await response.text();
+        let payload = null;
+        try { payload = JSON.parse(raw); } catch (error) { payload = null; }
+        if (!response.ok) throw new Error(payload && payload.error ? payload.error : '网络库读取失败（' + response.status + '）');
+        if (!payload) throw new Error('JSON 文件格式无效。');
+        const validation = core.validateDocument(payload);
+        if (!validation.valid) throw new Error(validation.errors.join('；'));
+        const normalized = core.normalizeDocument(payload);
+        if (!confirm('导入“' + file.name + '”将替换当前编辑内容（' + summarizeNetworkDocument(normalized) + '），是否继续？')) return;
+        state.document = normalized;
+        state.selectedGroupId = normalized.groups[0]?.id || '';
+        state.previewQuery = '';
+        state.previewFavoritesOnly = false;
+        byId('preview-search').value = '';
+        renderAll();
+        scheduleDraftSave();
+        setNetworkStatus('已导入 ' + file.name + '。', 'success');
+        announce('网络 JSON 已导入：' + file.name, 'success');
+      } catch (error) {
+        setNetworkStatus('网络 JSON 导入失败：' + error.message, 'error');
+        announce('导入失败，当前编辑内容未改变：' + error.message, 'error');
+      }
+    }
+
+    async function saveNetworkJson() {
+      const overwrite = byId('network-overwrite-checkbox').checked;
+      const filename = core.safeHtmlFilename(state.document.meta.filename || state.document.meta.title || 'quick-copy')
+        .replace(/\.html$/i, '.json');
+      if (overwrite && !confirm('确认覆盖网络库中的“' + filename + '”？')) return;
+      const content = JSON.stringify(state.document, null, 2);
+      try {
+        const response = await fetch('/api/html-paste/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: filename, content, overwrite })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) throw new Error('同名文件已存在，请勾选“覆盖保存”后重试。');
+        if (!response.ok || !payload.ok) throw new Error(payload.error || '网络库保存失败（' + response.status + '）');
+        await loadNetworkLibrary();
+        setNetworkStatus('已保存 ' + filename + ' 到网络库。', 'success');
+        announce('网络 JSON 已保存：' + filename, 'success');
+      } catch (error) {
+        setNetworkStatus('网络 JSON 导出失败：' + error.message, 'error');
+        announce('导出失败：' + error.message, 'error');
+      }
     }
 
     function downloadText(text, filename, type) {
@@ -2629,6 +2899,7 @@
       renderEditor();
       renderPreview();
       renderValidation();
+      renderNetworkLibrary();
       renderMobilePanel();
     }
 
@@ -2917,6 +3188,18 @@
     byId('export-json-button').addEventListener('click', exportJson);
     byId('import-json-button').addEventListener('click', () => byId('import-json-input').click());
     byId('import-json-input').addEventListener('change', handleJsonImport);
+    byId('network-refresh-button').addEventListener('click', loadNetworkLibrary);
+    byId('network-search').addEventListener('input', event => {
+      state.networkQuery = event.target.value;
+      renderNetworkLibrary();
+    });
+    byId('network-type-filter').addEventListener('change', event => {
+      state.networkType = event.target.value;
+      renderNetworkLibrary();
+    });
+    byId('network-import-json-button').addEventListener('click', () => importNetworkJson(state.networkSelectedName));
+    byId('network-export-json-button').addEventListener('click', saveNetworkJson);
+    byId('network-preview-open-button').addEventListener('click', () => openNetworkHtml(state.networkPreviewName));
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;
       state.document = createBlankDocument();
@@ -2944,6 +3227,7 @@
     if (location.protocol === 'file:') byId('back-link').hidden = true;
     setDraftStatus('草稿已载入');
     renderAll();
+    loadNetworkLibrary();
   }());
   </script>
 </body>

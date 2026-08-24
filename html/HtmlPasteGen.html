@@ -2482,7 +2482,20 @@
     function openNetworkHtml(name) {
       const file = state.networkFiles.find(entry => entry.name === name);
       if (!file || file.type !== 'html') return;
-      window.open(networkFileUrl(file.name), '_blank', 'noopener,noreferrer');
+      const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+      if (!popup) {
+        announce('浏览器阻止了新窗口，请允许弹窗后重试。', 'warning');
+        return;
+      }
+      const doc = popup.document;
+      doc.title = file.name + ' · HTML 预览';
+      doc.body.replaceChildren();
+      const frame = doc.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
+      frame.style.cssText = 'display:block;width:100vw;height:100vh;border:0;background:#fff;';
+      frame.src = networkFileUrl(file.name);
+      doc.body.style.cssText = 'margin:0;overflow:hidden;background:#fff;';
+      doc.body.appendChild(frame);
     }
 
     function renderNetworkLibrary() {

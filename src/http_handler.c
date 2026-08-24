@@ -18,6 +18,7 @@
 #include <errno.h>
 #ifndef _WIN32
 #include <signal.h>
+#include <pthread.h>
 #endif
 #include <dirent.h>
 #include <sys/stat.h>
@@ -27,6 +28,15 @@
 #define SAVE_REPORT_MAX_BODY (50 * 1024 * 1024)
 #define MAX_HTML_PASTE_SIZE  (1024 * 1024)
 #define MAX_HTML_PASTE_BODY  (MAX_HTML_PASTE_SIZE + 4096)
+
+#ifndef _WIN32
+static pthread_mutex_t g_html_paste_mu = PTHREAD_MUTEX_INITIALIZER;
+#define HTML_PASTE_LOCK()   pthread_mutex_lock(&g_html_paste_mu)
+#define HTML_PASTE_UNLOCK() pthread_mutex_unlock(&g_html_paste_mu)
+#else
+#define HTML_PASTE_LOCK()   ((void)0)
+#define HTML_PASTE_UNLOCK() ((void)0)
+#endif
 
 static int is_wiki_write_api(const char *path)
 {
@@ -184,17 +194,68 @@ static int html_paste_file_path(char *out, size_t cap, const char *name,
     return 0;
 }
 
+/* Return the value pointer for a top-level JSON object field.  The existing
+ * request parser is intentionally small; this scanner still skips strings and
+ * composite values so text such as "overwrite":true inside content cannot be
+ * mistaken for the request's top-level overwrite flag. */
+static const char *html_paste_json_field(const char *body, const char *key)
+{
+    if (!body || !key) return NULL;
+    const char *p = body;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p++ != '{') return NULL;
+    for (;;) {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '}') return NULL;
+        if (*p++ != '"') return NULL;
+        const char *k0 = p;
+        while (*p && *p != '"') {
+            if (*p == '\\' && p[1]) p += 2;
+            else p++;
+        }
+        if (*p != '"') return NULL;
+        size_t klen = (size_t)(p - k0);
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p++ != ':') return NULL;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (strlen(key) == klen && strncmp(k0, key, klen) == 0) return p;
+        p = json_skip_value_full(p);
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ',') { p++; continue; }
+        if (*p == '}') return NULL;
+        return NULL;
+    }
+}
+
+static int html_paste_json_string(const char *body, const char *key,
+                                  char *out, size_t cap)
+{
+    const char *p = html_paste_json_field(body, key);
+    if (!p || *p != '"' || !out || cap == 0) return -1;
+    json_read_pass_value_at(p, out, cap);
+    return 0;
+}
+
 static int html_paste_json_bool(const char *body, const char *key)
 {
-    char search[128];
-    snprintf(search, sizeof(search), "\"%s\"", key);
-    const char *p = strstr(body ? body : "", search);
+    const char *p = html_paste_json_field(body, key);
     if (!p) return 0;
-    p += strlen(search);
-    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '\n' || *p == '\r') p++;
-    if (strncmp(p, "true", 4) == 0) return 1;
-    if (*p >= '0' && *p <= '9') return atoi(p) != 0;
+    if (strncmp(p, "true", 4) == 0 &&
+        !isalnum((unsigned char)p[4])) return 1;
     return 0;
+}
+
+static int html_paste_request_allowed(const char *client_ip,
+                                     const char *req_headers,
+                                     http_sock_t client_fd)
+{
+    /* HtmlPasteGen is commonly served from the same machine.  Keep that
+     * zero-configuration workflow, while requiring an existing author/admin
+     * session before exposing the library API to other hosts. */
+    if (client_ip && strcmp(client_ip, "127.0.0.1") == 0) return 0;
+    auth_user_t user;
+    return auth_require_author(req_headers, client_fd, &user);
 }
 
 static void handle_api_html_paste_list(http_sock_t client_fd)
@@ -315,14 +376,14 @@ static void handle_api_html_paste_read(http_sock_t client_fd, const char *path_q
 static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
 {
     char name[256];
-    if (!body || json_get_str(body, "name", name, sizeof(name)) != 0 ||
+    if (!body || html_paste_json_string(body, "name", name, sizeof(name)) != 0 ||
         !html_paste_name_safe(name, 1)) {
         static const char err[] = "{\"ok\":false,\"error\":\"invalid JSON file name\"}";
         send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
         return;
     }
     char *content = calloc(MAX_HTML_PASTE_SIZE + 1, 1);
-    if (!content || json_get_str(body, "content", content, MAX_HTML_PASTE_SIZE + 1) != 0) {
+    if (!content || html_paste_json_string(body, "content", content, MAX_HTML_PASTE_SIZE + 1) != 0) {
         free(content);
         static const char err[] = "{\"ok\":false,\"error\":\"missing JSON content\"}";
         send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
@@ -344,8 +405,10 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
         return;
     }
     int overwrite = html_paste_json_bool(body, "overwrite");
+    HTML_PASTE_LOCK();
     struct stat existing;
     if (!overwrite && stat(filepath, &existing) == 0) {
+        HTML_PASTE_UNLOCK();
         free(content);
         static const char err[] = "{\"ok\":false,\"error\":\"JSON file already exists\"}";
         send_json(client_fd, 409, "Conflict", err, sizeof(err) - 1);
@@ -354,6 +417,7 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
 
     char dir[512];
     if (html_paste_dir(dir, sizeof(dir)) != 0) {
+        HTML_PASTE_UNLOCK();
         free(content);
         static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
@@ -369,18 +433,40 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
     }
     if (!write_ok) {
         remove(temp);
+        HTML_PASTE_UNLOCK();
         free(content);
         static const char err[] = "{\"ok\":false,\"error\":\"cannot save JSON file\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
         return;
     }
-    if (rename(temp, filepath) != 0) {
+    int finalize_ok;
+#ifndef _WIN32
+    /* link() is an atomic create-if-absent operation, so a concurrent request
+     * cannot turn the default non-overwrite mode into an accidental replace. */
+    if (!overwrite) {
+        finalize_ok = link(temp, filepath);
+        if (finalize_ok == 0) remove(temp);
+    } else {
+        finalize_ok = rename(temp, filepath);
+    }
+#else
+    finalize_ok = rename(temp, filepath);
+#endif
+    if (finalize_ok != 0) {
+        int conflict = !overwrite && errno == EEXIST;
         remove(temp);
+        HTML_PASTE_UNLOCK();
         free(content);
+        if (conflict) {
+            static const char err[] = "{\"ok\":false,\"error\":\"JSON file already exists\"}";
+            send_json(client_fd, 409, "Conflict", err, sizeof(err) - 1);
+            return;
+        }
         static const char err[] = "{\"ok\":false,\"error\":\"cannot finalize JSON file\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
         return;
     }
+    HTML_PASTE_UNLOCK();
     free(content);
     static const char ok[] = "{\"ok\":true}";
     send_json(client_fd, 200, "OK", ok, sizeof(ok) - 1);
@@ -484,6 +570,12 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
                 free(body);
                 goto done;
             }
+        }
+        if (strcmp(path, "/api/html-paste/save") == 0 &&
+            html_paste_request_allowed(client_ip, req_buf, client_fd) != 0) {
+            auth_audit(client_ip, "", "denied", path, "remote html_paste write blocked");
+            free(body);
+            goto done;
         }
 
         if (strcmp(path, "/api/html-paste/save") == 0) {
@@ -637,10 +729,12 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
     }
 
     if (strcmp(path, "/api/html-paste/list") == 0) {
+        if (html_paste_request_allowed(client_ip, req_buf, client_fd) != 0) goto done;
         handle_api_html_paste_list(client_fd);
         goto done;
     }
     if (strcmp(path, "/api/html-paste/read") == 0) {
+        if (html_paste_request_allowed(client_ip, req_buf, client_fd) != 0) goto done;
         handle_api_html_paste_read(client_fd, path_qs);
         goto done;
     }

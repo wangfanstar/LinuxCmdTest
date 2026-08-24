@@ -258,6 +258,26 @@ static int html_paste_request_allowed(const char *client_ip,
     return auth_require_author(req_headers, client_fd, &user);
 }
 
+static int static_path_safe(const char *path)
+{
+    if (!path || path[0] != '/' || strstr(path, "..") || strchr(path, '\\')) return 0;
+    for (const unsigned char *p = (const unsigned char *)path; *p; p++) {
+        if (*p < 0x20) return 0;
+    }
+    return 1;
+}
+
+static int html_paste_static_allowed(const char *path)
+{
+    static const char prefix[] = "/html_paste/";
+    if (!path || strncmp(path, prefix, sizeof(prefix) - 1) != 0) return 0;
+    const char *name = path + sizeof(prefix) - 1;
+    size_t len = strlen(name);
+    return len >= 5 && !strchr(name, '/') &&
+           html_paste_name_safe(name, 0) &&
+           strcasecmp(name + len - 5, ".html") == 0;
+}
+
 static void handle_api_html_paste_list(http_sock_t client_fd)
 {
     char dir[512];
@@ -942,6 +962,17 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         strncpy(decoded_path, path, sizeof(decoded_path) - 1);
         decoded_path[sizeof(decoded_path) - 1] = '\0';
         url_decode_report_fn(decoded_path);
+        if (!static_path_safe(decoded_path)) {
+            send_response(client_fd, 403, "Forbidden", "<h1>403 Forbidden</h1>");
+            goto done;
+        }
+        if (strncmp(decoded_path, "/html_paste/", 12) == 0) {
+            if (!html_paste_static_allowed(decoded_path)) {
+                send_response(client_fd, 403, "Forbidden", "<h1>403 Forbidden</h1>");
+                goto done;
+            }
+            if (html_paste_request_allowed(client_ip, req_buf, client_fd) != 0) goto done;
+        }
         if (strcmp(path, "/") == 0)
             snprintf(filepath, sizeof(filepath), "%s/index.html", WEB_ROOT);
         else

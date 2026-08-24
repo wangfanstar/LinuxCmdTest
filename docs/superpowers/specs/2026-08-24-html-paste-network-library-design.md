@@ -22,7 +22,7 @@
 - `GET /api/html-paste/read?name=...`：仅允许 `.json`，返回 JSON 文件原文及 `application/json` 类型，页面端继续做 schema 和字段校验。
 - `POST /api/html-paste/save`：JSON 请求体 `{ name, content, overwrite }`；仅允许 `.json`，默认同名返回 `409`，`overwrite:true` 才覆盖；写入采用临时文件再原子落盘，非覆盖模式使用原子创建避免并发请求绕过冲突保护。
 
-静态文件服务继续提供 `/html_paste/<name>.html`，并由现有 `..` 路径检查和新增文件名校验共同保证安全。网络库 API 在本机回环请求中免登录；来自其他主机的列表、读取和保存请求需要现有 author/admin 会话。接口不开放删除、任意目录写入或 HTML 写入，降低本地服务暴露在局域网时的风险。
+静态文件服务只提供经过校验的 `/html_paste/<name>.html`，拒绝 JSON 直链；路径检查在 URL 解码后执行，避免编码形式的目录穿越。网络库 API 在本机回环请求中免登录；来自其他主机的列表、读取和保存请求需要现有 author/admin 会话。接口不开放删除、任意目录写入或 HTML 写入，降低本地服务暴露在局域网时的风险。
 
 ## 数据流与边界
 

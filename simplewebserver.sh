@@ -8,7 +8,7 @@
 #    build              仅编译，生成 bin/simplewebserver
 #    start  [选项]      后台启动（二进制不存在时自动编译）
 #    stop               停止服务器
-#    restart [选项]     重新编译并重启服务器
+#    restart [选项]     编译成功后重启服务器（编译失败保留现有服务）
 #    status             查看运行状态与最近日志
 #    help               显示此帮助
 #
@@ -20,7 +20,7 @@
 #
 #  典型流程:
 #    首次部署:  ./simplewebserver.sh start          # 自动编译后启动
-#    更新代码:  ./simplewebserver.sh restart         # 重编译并重启
+#    更新代码:  ./simplewebserver.sh restart         # 编译成功后重启，失败不影响现有服务
 #    查看状态:  ./simplewebserver.sh status
 #    停止服务:  ./simplewebserver.sh stop
 # =============================================================================
@@ -90,7 +90,8 @@ cmd_build() {
 
     # 全量编译
     if ! make SQLITE3="${SQLITE3_FLAG}" 2>&1 | sed 's/^/  /'; then
-        die "编译失败，请检查上方错误信息"
+        error "编译失败，请检查上方错误信息"
+        return 1
     fi
 
     # 验证目标二进制是否在预期位置
@@ -98,7 +99,8 @@ cmd_build() {
         error "编译完成，但未在预期路径找到可执行文件: ${BIN}"
         error "Makefile 实际输出："
         ls -lh "${SCRIPT_DIR}/bin/" 2>/dev/null | sed 's/^/  /' || true
-        die "请确认 Makefile 中 TARGET 变量指向 bin/simplewebserver"
+        error "请确认 Makefile 中 TARGET 变量指向 bin/simplewebserver"
+        return 1
     fi
 
     ok "编译完成: ${BIN}"
@@ -225,8 +227,12 @@ cmd_stop() {
 
 cmd_restart() {
     info "重启服务器..."
+    info "先验证编译，成功后才会停止当前服务..."
+    if ! cmd_build; then
+        error "编译失败，保留当前运行服务，未执行重启"
+        return 1
+    fi
     cmd_stop
-    cmd_build        # 重启时始终重新编译
     cmd_start "$@"
 }
 
@@ -269,7 +275,7 @@ ${BOLD}用法: ./simplewebserver.sh <命令> [选项]${RESET}
   build              仅编译，生成 bin/simplewebserver
   start  [选项]      后台启动（二进制不存在时自动编译）
   stop               停止服务器
-  restart [选项]     重新编译并重启服务器
+  restart [选项]     编译成功后重启服务器（失败则保留现有服务）
   status             查看运行状态与最近日志
   help               显示此帮助
 
@@ -282,7 +288,7 @@ start / restart 选项:
 典型流程:
   首次部署   ./simplewebserver.sh start            # 自动编译后启动
   指定端口   ./simplewebserver.sh start -p 9000
-  更新代码   ./simplewebserver.sh restart          # 重编译并重启
+  更新代码   ./simplewebserver.sh restart          # 编译成功后重启，失败不影响现有服务
   查看状态   ./simplewebserver.sh status
   停止服务   ./simplewebserver.sh stop
 

@@ -1388,6 +1388,9 @@
     .empty-state { display: grid; min-height: 300px; place-items: center; color: var(--muted); text-align: center; }
     .group-section + .group-section { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
     .group-header { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+    .group-header-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+    .group-select-button { min-height: 32px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 750; }
+    .group-select-button:hover, .group-select-button[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-strong); }
     .group-title { margin: 0; font-size: 21px; letter-spacing: -.02em; }
     .group-meta { color: var(--muted); font-size: 12px; }
     .item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
@@ -1581,9 +1584,9 @@
     let query = '';
     let favoritesOnly = false;
     let editMode = false;
-    let copyTimer = 0;
     const selectedIds = new Set();
     let copyOrder = [];
+    const copiedIds = new Set();
     const revealedIds = new Set();
     const hiddenIds = new Set();
     const expandedIds = new Set(model.groups.flatMap(group => group.items.map(item => item.id)));
@@ -1743,6 +1746,7 @@
       revealedIds.forEach(id => { if (!validIds.has(id)) revealedIds.delete(id); });
       hiddenIds.forEach(id => { if (!validIds.has(id)) hiddenIds.delete(id); });
       expandedIds.forEach(id => { if (!validIds.has(id)) expandedIds.delete(id); });
+      copiedIds.forEach(id => { if (!validIds.has(id)) copiedIds.delete(id); });
     }
     function captureTransientFocus() {
       const active = document.activeElement;
@@ -1802,6 +1806,18 @@
       renderMainOnly();
       announce(copyOrder.length ? '当前结果已加入复制篮。' : '当前没有可选择的结果。', copyOrder.length ? 'success' : 'info');
     }
+    function toggleGroupSelection(items, groupTitle) {
+      const ids = uniqueIds(items.map(item => item.id));
+      if (!ids.length) return;
+      const groupIds = new Set(ids);
+      const allSelected = ids.every(id => selectedIds.has(id));
+      const next = allSelected
+        ? copyOrder.filter(id => !groupIds.has(id))
+        : copyOrder.concat(ids.filter(id => !selectedIds.has(id)));
+      syncSelection(next);
+      renderMainOnly();
+      announce(allSelected ? '已取消“' + groupTitle + '”本组全选。' : '已选择“' + groupTitle + '”本组 ' + ids.length + ' 条内容。', 'success');
+    }
     function moveSelection(itemId, direction) {
       const index = copyOrder.indexOf(itemId);
       const target = index + direction;
@@ -1854,6 +1870,7 @@
     }
     function composeBatch() {
       const values = [];
+      const includedIds = [];
       let skippedCount = 0;
       let missingCount = 0;
       uniqueIds(copyOrder).forEach(id => {
@@ -1862,8 +1879,9 @@
         const content = String(item.content || '');
         if (!content) { skippedCount += 1; return; }
         values.push(content);
+        includedIds.push(id);
       });
-      return { text: values.join(resolveBatchSeparator()), includedCount: values.length, skippedCount: skippedCount, missingCount: missingCount };
+      return { text: values.join(resolveBatchSeparator()), includedIds: includedIds, includedCount: values.length, skippedCount: skippedCount, missingCount: missingCount };
     }
     function reorderIdAtTarget(order, draggedId, targetId) {
       const result = uniqueIds(order.slice());
@@ -1926,7 +1944,20 @@
         const section = createElement('section', 'group-section');
         section.id = 'group-' + entry.group.id;
         const header = createElement('div', 'group-header');
-        header.append(createElement('h2', 'group-title', entry.group.title), createElement('span', 'group-meta', entry.items.length + ' 条内容'));
+        const headerTools = createElement('div', 'group-header-tools');
+        const groupIds = uniqueIds(entry.items.map(item => item.id));
+        const groupAllSelected = groupIds.length > 0 && groupIds.every(id => selectedIds.has(id));
+        const groupSelect = createElement('button', 'group-select-button', groupAllSelected ? '取消本组全选' : '本组全选');
+        groupSelect.type = 'button';
+        groupSelect.disabled = groupIds.length === 0;
+        groupSelect.setAttribute('aria-pressed', String(groupAllSelected));
+        groupSelect.setAttribute('aria-label', (groupAllSelected ? '取消' : '选择') + '“' + entry.group.title + '”本组全部内容');
+        groupSelect.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleGroupSelection(entry.items, entry.group.title);
+        });
+        headerTools.append(groupSelect, createElement('span', 'group-meta', entry.items.length + ' 条内容'));
+        header.append(createElement('h2', 'group-title', entry.group.title), headerTools);
         const grid = createElement('div', 'item-grid');
         entry.items.forEach(item => grid.appendChild(createCopyCard(item)));
         section.append(header, grid);
@@ -1939,6 +1970,7 @@
       card.tabIndex = -1;
       card.dataset.itemId = item.id;
       if (selectedIds.has(item.id)) card.dataset.selected = 'true';
+      if (copiedIds.has(item.id)) card.dataset.copied = 'true';
       card.setAttribute('aria-label', item.title);
       const top = createElement('div', 'card-top');
       const controls = byId('copy-card-controls-template').content.cloneNode(true);
@@ -1971,7 +2003,7 @@
       content.dataset.expanded = String(expanded);
       const footer = createElement('div', 'card-footer');
       footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
-      footer.append(createElement('span', 'copy-label', '点击复制'));
+      footer.append(createElement('span', 'copy-label', copiedIds.has(item.id) ? '已复制' : '点击复制'));
       copyAction.append(titleRow, content);
       if (item.note) copyAction.append(createElement('p', 'item-note', item.note));
       copyAction.appendChild(footer);
@@ -2033,14 +2065,14 @@
       }
       return true;
     }
+    function markCopiedCards(ids) {
+      copiedIds.clear();
+      uniqueIds(ids).forEach(id => copiedIds.add(id));
+      renderMainOnly();
+    }
     async function copyItem(item, card) {
       if (!await writeClipboard(item.content)) return;
-      if (card && card.dataset) {
-        document.querySelectorAll('.copy-card[data-copied="true"]').forEach(node => delete node.dataset.copied);
-        card.dataset.copied = 'true';
-        clearTimeout(copyTimer);
-        copyTimer = setTimeout(() => { if (card && card.dataset) delete card.dataset.copied; }, 1400);
-      }
+      markCopiedCards([item.id]);
       announce('已复制：' + item.title, 'success');
     }
     async function copyBatch() {
@@ -2050,6 +2082,7 @@
         return;
       }
       if (!await writeClipboard(result.text)) return;
+      markCopiedCards(result.includedIds);
       const skipped = result.skippedCount ? '，已跳过 ' + result.skippedCount + ' 条空内容' : '';
       announce('已按顺序复制 ' + result.includedCount + ' 条内容' + skipped + '。', 'success');
     }
@@ -2471,6 +2504,7 @@
         copyOrder = [];
         revealedIds.clear();
         hiddenIds.clear();
+        copiedIds.clear();
         expandedIds.clear();
         model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
         saveOverride();
@@ -2492,6 +2526,7 @@
       syncSelection([]);
       revealedIds.clear();
       hiddenIds.clear();
+      copiedIds.clear();
       expandedIds.clear();
       model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
       revealAll = true;

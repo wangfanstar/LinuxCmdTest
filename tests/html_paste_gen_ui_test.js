@@ -100,6 +100,8 @@ assert.match(html, /class=["']generated-toolbar["']/);
 assert.match(html, /class=["']generated-toolbar-slot["']/);
 assert.match(html, /generated-toolbar[\s\S]*position:\s*fixed/);
 assert.match(html, /generated-toolbar[\s\S]*top:\s*0/);
+assert.match(html, /group-select-button/);
+assert.match(html, /function\s+markCopiedCards\s*\(/);
 assert.match(html, /function\s+renderAll\s*\(/);
 assert.match(html, /event\.ctrlKey\s*&&\s*event\.key\s*===\s*'Enter'/);
 assert.match(html, /data-action="add-group"/);

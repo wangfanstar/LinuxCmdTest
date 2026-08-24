@@ -1791,6 +1791,20 @@
       const key = parts.find(part => !modifiers.includes(part));
       return modifiers.filter(modifier => parts.includes(modifier)).concat(key ? [key] : []).join('+');
     }
+    function validateImportedShortcut(value) {
+      if (!String(value || '').trim()) return { valid: true, normalized: '', message: '' };
+      const normalized = normalizeShortcut(value);
+      const parts = normalized.split('+').filter(Boolean);
+      const ordinary = parts.filter(part => !['Ctrl', 'Alt', 'Shift', 'Meta'].includes(part));
+      if (ordinary.length !== 1) return { valid: false, normalized, message: '快捷键需要且只能包含一个普通按键。' };
+      const key = ordinary[0];
+      const supported = key.length === 1 || /^F(?:[1-9]|1[0-2])$/.test(key) || ['Enter', 'Escape', 'Space', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key);
+      if (!supported) return { valid: false, normalized, message: '快捷键包含无法识别的按键。' };
+      if (!parts.some(part => ['Ctrl', 'Alt', 'Shift', 'Meta'].includes(part)) && !/^F/.test(key)) {
+        return { valid: false, normalized, message: '普通按键需要搭配 Ctrl、Alt、Shift 或 Meta。' };
+      }
+      return { valid: true, normalized, message: '' };
+    }
     function eventShortcut(event) {
       const parts = [];
       if (event.ctrlKey) parts.push('Ctrl');
@@ -2038,7 +2052,7 @@
           if (!itemLabel) errors.push('第 ' + (groupIndex + 1) + ' 组第 ' + (itemIndex + 1) + ' 条标题不能为空。');
           if (!itemId || itemIds.has(itemId)) errors.push('条目 ID 重复或为空。');
           itemIds.add(itemId);
-          const shortcutCheck = validateShortcut(item && item.shortcut);
+          const shortcutCheck = validateImportedShortcut(item && item.shortcut);
           if (!shortcutCheck.valid) {
             errors.push('“' + (itemLabel || '未命名条目') + '”：' + shortcutCheck.message);
           } else if (shortcutCheck.normalized) {

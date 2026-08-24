@@ -576,6 +576,7 @@
       <button id="export-json-button" class="button button-small" type="button">导出 JSON</button>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <button id="new-project-button" class="button button-small" type="button">新建空白项目</button>
+      <button id="clear-content-button" class="button button-small button-danger" type="button" title="清空全部分组和命令，保留页面名称与文件名">一键清空内容</button>
       <button id="restore-sample-button" class="button button-small" type="button">恢复示例</button>
       <button id="collapse-all-button" class="button button-small" type="button">折叠全部条目</button>
       <span class="toolbar-spacer"></span>
@@ -2972,6 +2973,30 @@
       });
     }
 
+    function clearCurrentContent() {
+      if (!state.document.groups.length) {
+        announce('当前已经没有可清空的分组和命令。', 'info');
+        return;
+      }
+      if (!confirm('确认一键清空当前项目中的全部分组和命令？页面名称和输出文件名会保留。')) return;
+      const meta = core.cloneDocument(state.document.meta);
+      state.document = {
+        schemaVersion: core.SCHEMA_VERSION,
+        documentId: core.newId('doc'),
+        meta,
+        groups: []
+      };
+      state.selectedGroupId = '';
+      state.previewQuery = '';
+      state.previewFavoritesOnly = false;
+      state.allCollapsed = false;
+      expandedPreviewIds.clear();
+      byId('preview-search').value = '';
+      renderAll();
+      scheduleDraftSave();
+      announce('已清空全部分组和命令，页面名称与文件名已保留。', 'success');
+    }
+
     function updateAfterAction(message) {
       renderAll();
       scheduleDraftSave();
@@ -3221,6 +3246,7 @@
       scheduleDraftSave();
       announce('已创建空白项目。', 'success');
     });
+    byId('clear-content-button').addEventListener('click', clearCurrentContent);
     byId('restore-sample-button').addEventListener('click', () => {
       if (!confirm('恢复内置示例？当前草稿会被替换。')) return;
       state.document = core.createSampleDocument();

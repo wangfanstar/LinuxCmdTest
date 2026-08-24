@@ -31,7 +31,8 @@ for (const id of [
   'network-preview',
   'network-import-json-button',
   'network-export-json-button',
-  'network-overwrite-checkbox'
+  'network-overwrite-checkbox',
+  'clear-content-button'
 ]) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
 }
@@ -55,6 +56,8 @@ assert.match(html, /function\s+handleJsonImport\s*\(/);
 assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
 assert.match(html, /function\s+importNetworkJson\s*\(/);
 assert.match(html, /function\s+saveNetworkJson\s*\(/);
+assert.match(html, /function\s+clearCurrentContent\s*\(/);
+assert.match(html, /页面名称和输出文件名会保留/);
 assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
 assert.match(html, /function\s+previewNetworkHtml\s*\(/);
 assert.match(html, /function\s+renderAll\s*\(/);

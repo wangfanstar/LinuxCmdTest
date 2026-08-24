@@ -1335,15 +1335,24 @@
     h1 { max-width: 780px; margin: 0; font-size: clamp(28px, 4.5vw, 48px); line-height: 1.06; letter-spacing: -.04em; }
     .hero-copy { max-width: 720px; margin: 11px 0 0; color: var(--muted); }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .generated-toolbar-slot {
+      min-height: 160px;
+      margin-top: 12px;
+    }
     .generated-toolbar {
-      position: sticky;
+      position: fixed;
       z-index: 40;
       top: 0;
-      margin-top: 12px;
+      inset-block-start: 0;
+      left: 50%;
+      width: min(1240px, calc(100% - 32px));
+      margin: 0;
       padding: 12px 0;
       border-bottom: 1px solid var(--line);
       background: color-mix(in srgb, var(--bg) 94%, transparent);
       backdrop-filter: blur(14px);
+      isolation: isolate;
+      transform: translateX(-50%);
     }
     .generated-toolbar .hero-actions { margin-top: 0; }
     .generated-toolbar .search-row { margin-top: 10px; }
@@ -1453,10 +1462,13 @@
       body.has-batch-tray { padding-bottom: 270px; }
       .batch-controls { grid-template-columns: 1fr 1fr; }
       .batch-controls .batch-separator-wrap { grid-column: 1 / -1; }
+      .generated-toolbar-slot { min-height: 220px; }
     }
     @media (max-width: 560px) {
       .app-shell { width: min(100% - 20px, 1240px); padding-top: 10px; }
       .hero { padding: 20px 16px; border-radius: 18px; }
+      .generated-toolbar-slot { min-height: 300px; }
+      .generated-toolbar { width: calc(100% - 20px); }
       .generated-toolbar { padding-block: 10px; }
       .search-row { grid-template-columns: 1fr; }
       .search-wrap { grid-column: auto; }
@@ -1483,26 +1495,28 @@
       <p class="hero-copy">搜索需要的内容，点击卡片即可复制；也可以使用卡片上显示的快捷键。</p>
     </header>
 
-    <div class="generated-toolbar" aria-label="页面工具栏">
-      <div class="hero-actions">
-        <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
-        <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
-        <button id="select-visible-button" class="button" type="button">选择当前结果</button>
-        <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
-        <button id="theme-toggle" class="button" type="button">切换主题</button>
-        <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
-        <button id="generated-import-json-button" class="button" type="button">导入 JSON</button>
-        <button id="generated-export-json-button" class="button" type="button">导出 JSON</button>
-        <input id="generated-import-json-input" type="file" accept="application/json,.json" hidden>
+    <div class="generated-toolbar-slot">
+      <div id="generated-toolbar" class="generated-toolbar" aria-label="页面工具栏">
+        <div class="hero-actions">
+          <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
+          <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
+          <button id="select-visible-button" class="button" type="button">选择当前结果</button>
+          <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
+          <button id="theme-toggle" class="button" type="button">切换主题</button>
+          <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
+          <button id="generated-import-json-button" class="button" type="button">导入 JSON</button>
+          <button id="generated-export-json-button" class="button" type="button">导出 JSON</button>
+          <input id="generated-import-json-input" type="file" accept="application/json,.json" hidden>
+        </div>
+        <div class="search-row">
+          <label class="search-wrap">
+            <span class="search-hint">/</span>
+            <input id="generated-search" class="search-input" type="search" placeholder="搜索标题、正文、备注或分组…" autocomplete="off">
+          </label>
+          <button id="clear-search-button" class="button" type="button">清空搜索</button>
+        </div>
+        <p id="copy-status" class="status-line" aria-live="polite">准备就绪</p>
       </div>
-      <div class="search-row">
-        <label class="search-wrap">
-          <span class="search-hint">/</span>
-          <input id="generated-search" class="search-input" type="search" placeholder="搜索标题、正文、备注或分组…" autocomplete="off">
-        </label>
-        <button id="clear-search-button" class="button" type="button">清空搜索</button>
-      </div>
-      <p id="copy-status" class="status-line" aria-live="polite">准备就绪</p>
     </div>
 
     <div class="layout">
@@ -1573,7 +1587,7 @@
     const revealedIds = new Set();
     const hiddenIds = new Set();
     const expandedIds = new Set(model.groups.flatMap(group => group.items.map(item => item.id)));
-    let revealAll = false;
+    let revealAll = true;
     let separatorMode = 'newline';
     let customSeparator = '';
     let batchExpanded = true;
@@ -1581,6 +1595,12 @@
     let focusRestoreFrame = 0;
 
     function byId(id) { return document.getElementById(id); }
+    function syncGeneratedToolbarSpace() {
+      const toolbar = byId('generated-toolbar');
+      const slot = byId('generated-toolbar-slot');
+      if (!toolbar || !slot) return;
+      slot.style.height = Math.ceil(toolbar.getBoundingClientRect().height) + 'px';
+    }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
     function safeJson(value) {
       const slash = String.fromCharCode(92);
@@ -2321,6 +2341,7 @@
       byId('edit-mode-toggle').setAttribute('aria-pressed', String(editMode));
       byId('edit-mode-toggle').textContent = editMode ? '退出编辑' : '编辑模式';
       renderEditor();
+      syncGeneratedToolbarSpace();
     }
     function downloadFile(text, filename, type) {
       const blob = new Blob([text], { type: type || 'application/octet-stream' });
@@ -2473,7 +2494,7 @@
       hiddenIds.clear();
       expandedIds.clear();
       model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
-      revealAll = false;
+      revealAll = true;
       try { localStorage.removeItem(storageKey); } catch (error) { storageAvailable = false; }
       render();
       announce('已恢复文件原始内容。', 'success');
@@ -2526,6 +2547,11 @@
       }
     });
 
+    window.addEventListener('resize', syncGeneratedToolbarSpace);
+    if (typeof ResizeObserver === 'function') {
+      const generatedToolbarObserver = new ResizeObserver(syncGeneratedToolbarSpace);
+      generatedToolbarObserver.observe(byId('generated-toolbar'));
+    }
     loadTheme();
     render();
   }());

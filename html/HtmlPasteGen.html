@@ -364,6 +364,16 @@
     .network-status { min-height: 20px; margin: 0; padding: 0 16px 10px; color: var(--muted); font-size: 12px; }
     .network-status[data-type="error"] { color: var(--red); }
     .network-status[data-type="success"] { color: var(--teal); }
+    .network-network-editor { display: grid; gap: 10px; margin: 0 16px 12px; padding: 12px; border: 1px solid var(--primary); border-radius: 12px; background: var(--primary-soft); }
+    .network-network-editor[hidden] { display: none; }
+    .network-network-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .network-network-editor-title { margin: 0; color: var(--primary-dark); font-size: 13px; }
+    .network-draft-grid { display: grid; grid-template-columns: minmax(180px, .42fr) minmax(0, 1fr); gap: 10px; }
+    .network-draft-field { display: grid; gap: 5px; min-width: 0; }
+    .network-draft-field label { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .network-draft-content { min-height: 220px; resize: vertical; font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    .network-draft-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .network-network-editor[data-busy="true"] { opacity: .72; pointer-events: none; }
     .network-content { display: grid; grid-template-columns: minmax(300px, 1.05fr) minmax(300px, .95fr); gap: 12px; padding: 12px 16px 16px; }
     .network-file-list { display: grid; max-height: 320px; gap: 7px; overflow: auto; }
     .network-file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
@@ -540,6 +550,7 @@
       .item-editor-head .inline-actions { grid-column: 1 / -1; }
       .network-panel-head { align-items: flex-start; flex-direction: column; }
       .network-panel-tools { justify-content: flex-start; }
+      .network-draft-grid { grid-template-columns: 1fr; }
       .network-content { padding-inline: 11px; }
     }
   </style>
@@ -595,6 +606,7 @@
         </div>
         <div class="network-panel-tools">
           <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
+          <button id="network-new-json-button" class="button button-small" type="button">新建 JSON</button>
           <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
           <button id="network-export-json-button" class="button button-small button-primary" type="button">导出到网络库</button>
           <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox"> 覆盖保存（需确认）</label>
@@ -609,6 +621,26 @@
         </select>
       </div>
       <p id="network-status" class="network-status" aria-live="polite">正在读取网络库…</p>
+      <section id="network-network-editor" class="network-network-editor" aria-labelledby="network-editor-title" hidden>
+        <div class="network-network-editor-head">
+          <h3 id="network-editor-title" class="network-network-editor-title">编辑网络库 JSON</h3>
+          <span class="panel-kicker">仅保存 JSON；HTML 文件保持只读</span>
+        </div>
+        <div class="network-draft-grid">
+          <div class="network-draft-field">
+            <label for="network-draft-name">文件名</label>
+            <input id="network-draft-name" class="field" type="text" maxlength="240" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="network-draft-field">
+            <label for="network-draft-content">JSON 内容</label>
+            <textarea id="network-draft-content" class="textarea network-draft-content" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="network-draft-actions">
+          <button id="network-draft-cancel" class="button button-small" type="button">取消编辑</button>
+          <button id="network-draft-save" class="button button-small button-primary" type="button">校验并保存</button>
+        </div>
+      </section>
       <div class="network-content">
         <div id="network-file-list" class="network-file-list" aria-live="polite"></div>
         <div class="network-preview-box">
@@ -2462,7 +2494,10 @@
       networkQuery: '',
       networkType: 'all',
       networkSelectedName: '',
-      networkPreviewName: ''
+      networkPreviewName: '',
+      networkEditingName: '',
+      networkDraft: null,
+      networkBusy: false
     };
     const expandedPreviewIds = new Set();
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
@@ -2594,6 +2629,75 @@
       return state.networkFiles.find(file => file.name === state.networkSelectedName) || null;
     }
 
+    function networkJsonFilename(value) {
+      const name = String(value || '').trim();
+      if (!name || name[0] === '.' || name.includes('/') || name.includes('\\') || name.includes('..')) return '';
+      if (Array.from(name).some(character => character.charCodeAt(0) < 32 || ':<>|" ?*'.includes(character))) return '';
+      return /\.json$/i.test(name) ? name : name + '.json';
+    }
+
+    function createNetworkDraft(name, content) {
+      return {
+        name: name || 'quick-copy.json',
+        content: content || JSON.stringify(createBlankDocument(), null, 2)
+      };
+    }
+
+    function clearNetworkDraft() {
+      state.networkEditingName = '';
+      state.networkDraft = null;
+      state.networkBusy = false;
+      renderNetworkLibrary();
+    }
+
+    function renderNetworkEditor() {
+      const editor = byId('network-network-editor');
+      const draft = state.networkDraft;
+      editor.hidden = !draft;
+      editor.dataset.busy = String(state.networkBusy);
+      if (!draft) return;
+      const name = byId('network-draft-name');
+      const content = byId('network-draft-content');
+      if (document.activeElement !== name) name.value = draft.name;
+      if (document.activeElement !== content) content.value = draft.content;
+      byId('network-draft-save').disabled = state.networkBusy;
+      byId('network-draft-cancel').disabled = state.networkBusy;
+    }
+
+    function startNetworkJsonCreate() {
+      if (state.networkDraft && !confirm('当前网络库草稿尚未保存，确认放弃并新建 JSON？')) return;
+      state.networkEditingName = '';
+      state.networkDraft = createNetworkDraft('quick-copy.json');
+      renderNetworkLibrary();
+      requestAnimationFrame(() => byId('network-draft-name').focus());
+    }
+
+    async function editNetworkJson(name) {
+      const file = state.networkFiles.find(entry => entry.name === name && entry.type === 'json');
+      if (!file) {
+        setNetworkStatus('找不到要编辑的 JSON 文件。', 'error');
+        return;
+      }
+      if (state.networkDraft && !confirm('当前网络库草稿尚未保存，确认放弃并打开“' + file.name + '”？')) return;
+      try {
+        const response = await fetch('/api/html-paste/read?name=' + encodeURIComponent(file.name), { cache: 'no-store' });
+        const raw = await response.text();
+        if (!response.ok) {
+          let payload = null;
+          try { payload = JSON.parse(raw); } catch (error) { payload = null; }
+          throw new Error(payload && payload.error ? payload.error : '网络库读取失败（' + response.status + '）');
+        }
+        const parsed = JSON.parse(raw);
+        state.networkEditingName = file.name;
+        state.networkDraft = createNetworkDraft(file.name, JSON.stringify(parsed, null, 2));
+        renderNetworkLibrary();
+        setNetworkStatus('正在编辑 ' + file.name + '。', 'info');
+      } catch (error) {
+        setNetworkStatus('网络 JSON 编辑失败：' + error.message, 'error');
+        announce('打开编辑失败，当前网络库草稿未改变：' + error.message, 'error');
+      }
+    }
+
     function selectNetworkFile(name) {
       const file = state.networkFiles.find(entry => entry.name === name);
       if (!file) return;
@@ -2637,6 +2741,7 @@
       const list = byId('network-file-list');
       const visible = state.networkFiles.filter(networkFileMatches);
       list.replaceChildren();
+      renderNetworkEditor();
       const selected = networkSelectedFile();
       byId('network-import-json-button').disabled = !selected || selected.type !== 'json';
       byId('network-preview-open-button').disabled = !state.networkPreviewName;
@@ -2659,7 +2764,13 @@
           const importButton = createElement('button', 'button button-small button-primary', '导入');
           importButton.type = 'button';
           importButton.addEventListener('click', () => importNetworkJson(file.name));
-          actions.appendChild(importButton);
+          const editButton = createElement('button', 'button button-small', '编辑');
+          editButton.type = 'button';
+          editButton.addEventListener('click', () => editNetworkJson(file.name));
+          const deleteButton = createElement('button', 'button button-small button-danger', '删除');
+          deleteButton.type = 'button';
+          deleteButton.addEventListener('click', () => deleteNetworkJson(file.name));
+          actions.append(importButton, editButton, deleteButton);
         } else {
           const preview = createElement('button', 'button button-small button-primary', '预览');
           preview.type = 'button';
@@ -2712,6 +2823,7 @@
         announce('请先选择一个 JSON 文件。', 'warning');
         return;
       }
+      if (state.networkDraft && !confirm('当前网络库 JSON 草稿尚未保存，导入将放弃草稿，是否继续？')) return;
       try {
         const response = await fetch('/api/html-paste/read?name=' + encodeURIComponent(file.name), { cache: 'no-store' });
         const raw = await response.text();
@@ -2723,6 +2835,8 @@
         if (!validation.valid) throw new Error(validation.errors.join('；'));
         const normalized = core.normalizeDocument(payload);
         if (!confirm('导入“' + file.name + '”将替换当前编辑内容（' + summarizeNetworkDocument(normalized) + '），是否继续？')) return;
+        state.networkEditingName = '';
+        state.networkDraft = null;
         state.document = normalized;
         state.selectedGroupId = normalized.groups[0]?.id || '';
         state.previewQuery = '';
@@ -2759,6 +2873,93 @@
       } catch (error) {
         setNetworkStatus('网络 JSON 导出失败：' + error.message, 'error');
         announce('导出失败：' + error.message, 'error');
+      }
+    }
+
+    async function saveNetworkDraft() {
+      if (!state.networkDraft || state.networkBusy) return;
+      const nameInput = byId('network-draft-name');
+      const contentInput = byId('network-draft-content');
+      const filename = networkJsonFilename(nameInput.value);
+      const rawContent = String(contentInput.value || '');
+      if (!filename) {
+        setNetworkStatus('请输入单层 JSON 文件名，例如 commands.json。', 'error');
+        announce('保存失败：JSON 文件名无效。', 'error');
+        nameInput.focus();
+        return;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(rawContent);
+      } catch (error) {
+        setNetworkStatus('JSON 格式错误：' + error.message, 'error');
+        announce('保存失败：JSON 格式错误。', 'error');
+        contentInput.focus();
+        return;
+      }
+      const validation = core.validateDocument(parsed);
+      if (!validation.valid) {
+        const details = validation.errors.slice(0, 4).join('；');
+        setNetworkStatus('JSON 文档校验失败：' + details, 'error');
+        announce('保存失败：请修正 JSON 文档校验错误。', 'error');
+        contentInput.focus();
+        return;
+      }
+      const editingExisting = Boolean(state.networkEditingName);
+      if (editingExisting && !confirm('确认覆盖网络库中的“' + filename + '”？')) return;
+      state.networkDraft = { name: filename, content: rawContent };
+      state.networkBusy = true;
+      renderNetworkEditor();
+      try {
+        const response = await fetch('/api/html-paste/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: filename, content: rawContent, overwrite: editingExisting })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) throw new Error('同名文件已存在，请修改文件名后重试。');
+        if (!response.ok || !payload.ok) throw new Error(payload.error || '网络库保存失败（' + response.status + '）');
+        state.networkEditingName = filename;
+        state.networkDraft = null;
+        await loadNetworkLibrary();
+        setNetworkStatus('已保存网络库 JSON：' + filename + '。', 'success');
+        announce('网络库 JSON 已保存：' + filename, 'success');
+      } catch (error) {
+        setNetworkStatus('网络 JSON 保存失败：' + error.message, 'error');
+        announce('保存失败，当前编辑草稿未改变：' + error.message, 'error');
+      } finally {
+        state.networkBusy = false;
+        renderNetworkEditor();
+      }
+    }
+
+    async function deleteNetworkJson(name) {
+      const file = state.networkFiles.find(entry => entry.name === name && entry.type === 'json');
+      if (!file || state.networkBusy) return;
+      if (!confirm('确认删除网络库文件“' + file.name + '”？此操作不可恢复。')) return;
+      state.networkBusy = true;
+      renderNetworkEditor();
+      try {
+        const response = await fetch('/api/html-paste/delete?name=' + encodeURIComponent(file.name), {
+          method: 'DELETE',
+          cache: 'no-store'
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload.error || '网络库删除失败（' + response.status + '）');
+        if (state.networkSelectedName === file.name) state.networkSelectedName = '';
+        if (state.networkEditingName === file.name) {
+          state.networkEditingName = '';
+          state.networkDraft = null;
+        }
+        await loadNetworkLibrary();
+        setNetworkStatus('已删除网络库 JSON：' + file.name + '。', 'success');
+        announce('网络库 JSON 已删除：' + file.name, 'success');
+      } catch (error) {
+        setNetworkStatus('网络 JSON 删除失败：' + error.message, 'error');
+        announce('删除失败，当前编辑草稿未改变：' + error.message, 'error');
+      } finally {
+        state.networkBusy = false;
+        renderNetworkEditor();
       }
     }
 
@@ -3385,6 +3586,7 @@
     byId('import-json-button').addEventListener('click', () => byId('import-json-input').click());
     byId('import-json-input').addEventListener('change', handleJsonImport);
     byId('network-refresh-button').addEventListener('click', loadNetworkLibrary);
+    byId('network-new-json-button').addEventListener('click', startNetworkJsonCreate);
     byId('network-search').addEventListener('input', event => {
       state.networkQuery = event.target.value;
       renderNetworkLibrary();
@@ -3395,6 +3597,14 @@
     });
     byId('network-import-json-button').addEventListener('click', () => importNetworkJson(state.networkSelectedName));
     byId('network-export-json-button').addEventListener('click', saveNetworkJson);
+    byId('network-draft-name').addEventListener('input', event => {
+      if (state.networkDraft) state.networkDraft.name = event.target.value;
+    });
+    byId('network-draft-content').addEventListener('input', event => {
+      if (state.networkDraft) state.networkDraft.content = event.target.value;
+    });
+    byId('network-draft-save').addEventListener('click', saveNetworkDraft);
+    byId('network-draft-cancel').addEventListener('click', clearNetworkDraft);
     byId('network-preview-open-button').addEventListener('click', () => openNetworkHtml(state.networkPreviewName));
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;

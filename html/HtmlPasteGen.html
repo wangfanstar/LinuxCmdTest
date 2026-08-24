@@ -306,7 +306,7 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(190px, 0.72fr) minmax(360px, 1.55fr) minmax(280px, 1fr);
+      grid-template-columns: minmax(170px, .64fr) minmax(480px, 1.75fr) minmax(300px, 1.05fr);
       gap: 14px;
       align-items: start;
       margin-top: 14px;
@@ -399,6 +399,9 @@
     .item-editor-body { padding: 11px; }
     .form-grid { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(110px, .52fr); gap: 9px; }
     .form-grid .wide { grid-column: 1 / -1; }
+    .edit-meta-fields { display: grid; gap: 8px; }
+    .edit-meta-fields .helper { margin-top: 4px; }
+    .content-field { min-height: 150px; resize: vertical; }
     .helper { margin: 5px 0 0; color: var(--muted); font-size: 10.5px; }
     .helper-error { color: var(--red); }
     .favorite-check { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -432,7 +435,12 @@
     .preview-card-top { display: flex; align-items: start; justify-content: space-between; gap: 7px; }
     .preview-card-title { overflow: hidden; font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
     .preview-shortcut { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); color: var(--muted); font: 9px Consolas, monospace; white-space: nowrap; }
-    .preview-card-content { display: -webkit-box; margin: 6px 0 0; overflow: hidden; color: var(--muted); font: 10.5px/1.45 Consolas, monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .preview-card-content { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--muted); font: 10.5px/1.45 Consolas, monospace; white-space: pre-wrap; }
+    .preview-card-copy { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+    .preview-card-copy:focus-visible { outline: 3px solid rgba(31, 104, 255, .25); outline-offset: 3px; border-radius: 8px; }
+    .preview-command-clamped { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .preview-command-toggle { display: inline-flex; margin-top: 8px; padding: 3px 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font-size: 11px; font-weight: 850; }
+    .preview-command-toggle:hover, .preview-command-toggle:focus-visible { color: var(--primary-dark); text-decoration: underline; outline: none; }
     .preview-empty { padding: 40px 12px; color: var(--muted); font-size: 12px; text-align: center; }
 
     .toast-region {
@@ -454,7 +462,7 @@
     @media (max-width: 1180px) {
       .hero-main { grid-template-columns: 1fr; }
       .project-fields { grid-template-columns: 1fr 1fr auto; }
-      .workspace { grid-template-columns: minmax(180px, .64fr) minmax(360px, 1.5fr) minmax(260px, .9fr); }
+      .workspace { grid-template-columns: minmax(165px, .6fr) minmax(430px, 1.55fr) minmax(280px, .95fr); }
     }
 
     @media (max-width: 900px) {
@@ -2045,6 +2053,7 @@
       mobilePanel: 'structure',
       allCollapsed: false
     };
+    const expandedPreviewIds = new Set();
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
 
     function byId(id) {
@@ -2090,6 +2099,17 @@
         state.selectedGroupId = group.id;
       }
       return group || null;
+    }
+
+    function cleanExpandedPreviewIds() {
+      const validIds = new Set(state.document.groups.flatMap(group => group.items.map(item => item.id)));
+      expandedPreviewIds.forEach(id => { if (!validIds.has(id)) expandedPreviewIds.delete(id); });
+    }
+
+    function togglePreviewCommand(itemId) {
+      if (expandedPreviewIds.has(itemId)) expandedPreviewIds.delete(itemId);
+      else expandedPreviewIds.add(itemId);
+      renderPreview();
     }
 
     function findGroup(groupId) {
@@ -2262,7 +2282,10 @@
       note.autocomplete = 'off';
       note.dataset.field = 'note';
       note.setAttribute('aria-label', '备注');
-      const noteLabel = labeledControl('备注（可选）', note, 'wide');
+      const noteLabel = labeledControl('备注（可选）', note);
+
+      const meta = createElement('div', 'edit-meta-fields wide');
+      meta.append(shortcutLabel, noteLabel);
 
       const favoriteLabel = createElement('label', 'favorite-check wide');
       const favorite = createElement('input');
@@ -2271,7 +2294,7 @@
       favorite.dataset.field = 'favorite';
       favoriteLabel.append(favorite, document.createTextNode('在成品页中标记为收藏'));
 
-      grid.append(titleLabel, shortcutLabel, contentLabel, noteLabel, favoriteLabel);
+      grid.append(titleLabel, meta, contentLabel, favoriteLabel);
       body.appendChild(grid);
       card.append(head, body);
       return card;
@@ -2310,6 +2333,7 @@
     }
 
     function renderPreview() {
+      cleanExpandedPreviewIds();
       const filtered = core.filterDocument(state.document, state.previewQuery, state.previewFavoritesOnly);
       const container = byId('preview-content');
       container.replaceChildren();
@@ -2330,14 +2354,47 @@
         title.append(createElement('span', '', group.title || '未命名分组'), createElement('span', 'count-badge', String(group.items.length)));
         const cards = createElement('div', 'preview-cards');
         group.items.forEach(item => {
-          const card = createElement('button', 'preview-card');
-          card.type = 'button';
+          const card = createElement('article', 'preview-card');
           card.dataset.previewItemId = item.id;
+          card.tabIndex = 0;
+          card.setAttribute('role', 'group');
           const top = createElement('span', 'preview-card-top');
           top.append(createElement('span', 'preview-card-title', `${item.favorite ? '★ ' : ''}${item.title || '未命名条目'}`));
           if (item.shortcut) top.append(createElement('kbd', 'preview-shortcut', item.shortcut));
-          card.append(top, createElement('span', 'preview-card-content', item.content || '（空内容）'));
-          card.addEventListener('click', () => copyPreviewItem(item, card));
+          const fullContent = String(item.content || '（空内容）');
+          const needsExpansion = fullContent.length > 160 || fullContent.split('\n').length > 4;
+          const expanded = expandedPreviewIds.has(item.id);
+          const copySurface = createElement('button', 'preview-card-copy');
+          copySurface.type = 'button';
+          copySurface.setAttribute('aria-label', `复制：${item.title || '未命名条目'}`);
+          const content = createElement('span', 'preview-card-content', fullContent);
+          if (!expanded) content.classList.add('preview-command-clamped');
+          copySurface.append(top, content);
+          card.appendChild(copySurface);
+          if (needsExpansion) {
+            const toggle = createElement('button', 'preview-command-toggle', expanded ? '收起命令' : '显示全部命令');
+            toggle.type = 'button';
+            toggle.setAttribute('aria-expanded', String(expanded));
+            toggle.setAttribute('aria-label', `${expanded ? '收起' : '显示全部'}“${item.title || '未命名条目'}”`);
+            toggle.addEventListener('click', event => {
+              event.stopPropagation();
+              togglePreviewCommand(item.id);
+            });
+            card.appendChild(toggle);
+          }
+          copySurface.addEventListener('click', event => {
+            event.stopPropagation();
+            copyPreviewItem(item, card);
+          });
+          card.addEventListener('click', event => {
+            if (event.target.closest('.preview-command-toggle') || event.target.closest('.preview-card-copy')) return;
+            copyPreviewItem(item, card);
+          });
+          card.addEventListener('keydown', event => {
+            if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault();
+            copyPreviewItem(item, card);
+          });
           cards.appendChild(card);
         });
         section.append(title, cards);

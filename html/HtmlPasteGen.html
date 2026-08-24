@@ -1394,7 +1394,7 @@
     .status-line[data-type="error"] { color: var(--danger); }
     .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
     .sidebar, .content-panel, .editor-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 34px rgba(35, 49, 76, .06); }
-    .sidebar { position: sticky; top: 16px; padding: 14px; }
+    .sidebar { position: sticky; top: calc(var(--generated-toolbar-height, 160px) + 16px); max-height: calc(100vh - var(--generated-toolbar-height, 160px) - 32px); overflow-y: auto; scrollbar-gutter: stable; padding: 14px; }
     .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 3px 10px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
     .group-link { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 8px 10px; border-radius: 9px; color: var(--muted); text-decoration: none; }
     .group-link:hover { background: var(--surface-soft); color: var(--primary); }
@@ -1621,7 +1621,9 @@
       const toolbar = byId('generated-toolbar');
       const slot = byId('generated-toolbar-slot');
       if (!toolbar || !slot) return;
-      slot.style.height = Math.ceil(toolbar.getBoundingClientRect().height) + 'px';
+      const height = Math.ceil(toolbar.getBoundingClientRect().height);
+      slot.style.height = height + 'px';
+      document.documentElement.style.setProperty('--generated-toolbar-height', height + 'px');
     }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
     function safeJson(value) {

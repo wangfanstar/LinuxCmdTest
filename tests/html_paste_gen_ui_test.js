@@ -25,9 +25,15 @@ for (const id of [
   'toast-region',
   'network-library-panel',
   'network-refresh-button',
+  'network-new-json-button',
   'network-search',
   'network-type-filter',
   'network-file-list',
+  'network-network-editor',
+  'network-draft-name',
+  'network-draft-content',
+  'network-draft-save',
+  'network-draft-cancel',
   'network-preview',
   'network-import-json-button',
   'network-export-json-button',
@@ -56,6 +62,14 @@ assert.match(html, /function\s+handleJsonImport\s*\(/);
 assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
 assert.match(html, /function\s+importNetworkJson\s*\(/);
 assert.match(html, /function\s+saveNetworkJson\s*\(/);
+assert.match(html, /function\s+startNetworkJsonCreate\s*\(/);
+assert.match(html, /function\s+editNetworkJson\s*\(/);
+assert.match(html, /function\s+saveNetworkDraft\s*\(/);
+assert.match(html, /function\s+deleteNetworkJson\s*\(/);
+assert.match(html, /\/api\/html-paste\/delete\?name=/);
+assert.match(html, /校验并保存/);
+assert.match(html, /删除网络库文件/);
+assert.match(html, /当前编辑草稿未改变/);
 assert.match(html, /快速链接/);
 assert.match(html, /dataset\.field\s*=\s*["']link["']/);
 assert.match(html, /function\s+validateQuickLink\s*\(/);

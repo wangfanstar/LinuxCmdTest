@@ -259,6 +259,13 @@ assert.match(generated, /item-link/);
 assert.match(generated, /link\.target\s*=\s*["']_blank["']/);
 assert.match(generated, /link\.rel\s*=\s*["']noopener noreferrer["']/);
 assert.doesNotMatch(generated, /network-library-panel/);
+assert.doesNotMatch(generated, /\/api\/html-paste\/delete/);
+assert.doesNotMatch(generated, /network-draft-content/);
+
+const invalidDraft = core.cloneDocument(searchDoc);
+invalidDraft.groups[0].items[0].shortcut = 'Ctrl+';
+assert.strictEqual(core.validateDocument(invalidDraft).valid, false);
+assert.strictEqual(JSON.parse(JSON.stringify(searchDoc)).meta.title, searchDoc.meta.title);
 
 for (const networkId of [
   'network-library-panel',

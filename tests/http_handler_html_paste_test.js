@@ -17,8 +17,8 @@ assert.match(source, /409/);
 assert.match(source, /overwrite/);
 assert.match(source, /rename\s*\(/);
 assert.match(source, /MAX_HTML_PASTE_SIZE/);
-assert.match(source, /html-paste-list/);
-assert.match(source, /html-paste-read/);
-assert.match(source, /html-paste-save/);
+assert.match(source, /handle_api_html_paste_list\s*\(/);
+assert.match(source, /handle_api_html_paste_read\s*\(/);
+assert.match(source, /handle_api_html_paste_save\s*\(/);
 
 console.log('html paste network API contracts passed');

@@ -25,6 +25,8 @@
 
 #define MAX_BODY_SIZE        (64 * 1024)
 #define SAVE_REPORT_MAX_BODY (50 * 1024 * 1024)
+#define MAX_HTML_PASTE_SIZE  (1024 * 1024)
+#define MAX_HTML_PASTE_BODY  (MAX_HTML_PASTE_SIZE + 4096)
 
 static int is_wiki_write_api(const char *path)
 {
@@ -141,6 +143,236 @@ static void handle_api_codechecker_list(http_sock_t client_fd)
     free(entries);
 }
 
+/* ── html_paste network library ─────────────────────────────── */
+
+typedef struct {
+    char name[256];
+    time_t mtime;
+    long long size;
+    int is_json;
+} html_paste_entry_t;
+
+static int html_paste_name_safe(const char *name, int json_only)
+{
+    if (!name || !*name || strlen(name) >= 240 || name[0] == '.') return 0;
+    if (strstr(name, "..") || strchr(name, '/') || strchr(name, '\\')) return 0;
+    for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+        if (*p < 0x20 || strchr(":<>\"|?*", *p)) return 0;
+    }
+    size_t len = strlen(name);
+    if (len < 5) return 0;
+    if (json_only)
+        return strcasecmp(name + len - 5, ".json") == 0;
+    return strcasecmp(name + len - 5, ".json") == 0 ||
+           (len >= 5 && strcasecmp(name + len - 5, ".html") == 0);
+}
+
+static int html_paste_dir(char *out, size_t cap)
+{
+    if (snprintf(out, cap, "%s/html_paste", WEB_ROOT) >= (int)cap) return -1;
+    if (mkdir_p(out) != 0 && errno != EEXIST) return -1;
+    return 0;
+}
+
+static int html_paste_file_path(char *out, size_t cap, const char *name,
+                                int json_only)
+{
+    char dir[512];
+    if (!html_paste_name_safe(name, json_only) || html_paste_dir(dir, sizeof(dir)) != 0)
+        return -1;
+    if (snprintf(out, cap, "%s/%s", dir, name) >= (int)cap) return -1;
+    return 0;
+}
+
+static void handle_api_html_paste_list(http_sock_t client_fd)
+{
+    char dir[512];
+    if (html_paste_dir(dir, sizeof(dir)) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    DIR *d = opendir(dir);
+    if (!d) {
+        static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+
+    html_paste_entry_t *entries = NULL;
+    size_t count = 0, capacity = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        const char *name = de->d_name;
+        if (!html_paste_name_safe(name, 0)) continue;
+        char full[1024];
+        snprintf(full, sizeof(full), "%s/%s", dir, name);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISREG(st.st_mode) ||
+            st.st_size > MAX_HTML_PASTE_SIZE) continue;
+        if (count == capacity) {
+            size_t next = capacity ? capacity * 2 : 32;
+            html_paste_entry_t *grown = realloc(entries, next * sizeof(*grown));
+            if (!grown) break;
+            entries = grown;
+            capacity = next;
+        }
+        snprintf(entries[count].name, sizeof(entries[count].name), "%s", name);
+        entries[count].mtime = st.st_mtime;
+        entries[count].size = (long long)st.st_size;
+        size_t len = strlen(name);
+        entries[count].is_json = len >= 5 && strcasecmp(name + len - 5, ".json") == 0;
+        count++;
+    }
+    closedir(d);
+
+    for (size_t i = 1; i < count; i++) {
+        html_paste_entry_t current = entries[i];
+        size_t j = i;
+        while (j > 0 && entries[j - 1].mtime < current.mtime) {
+            entries[j] = entries[j - 1];
+            j--;
+        }
+        entries[j] = current;
+    }
+
+    strbuf_t result = {0};
+    SB_LIT(&result, "{\"ok\":true,\"files\":[");
+    for (size_t i = 0; i < count; i++) {
+        if (i) SB_LIT(&result, ",");
+        SB_LIT(&result, "{\"name\":");
+        sb_json_str(&result, entries[i].name);
+        SB_LIT(&result, ",\"type\":");
+        sb_json_str(&result, entries[i].is_json ? "json" : "html");
+        sb_appendf(&result, ",\"size\":%lld,\"mtime\":%lld}",
+                   entries[i].size, (long long)entries[i].mtime);
+    }
+    SB_LIT(&result, "]}");
+    if (result.data)
+        send_json(client_fd, 200, "OK", result.data, result.len);
+    else {
+        static const char empty[] = "{\"ok\":true,\"files\":[]}";
+        send_json(client_fd, 200, "OK", empty, sizeof(empty) - 1);
+    }
+    free(result.data);
+    free(entries);
+}
+
+static void handle_api_html_paste_read(http_sock_t client_fd, const char *path_qs)
+{
+    char name[256];
+    char filepath[1024];
+    if (query_param_get(path_qs, "name", name, sizeof(name)) != 0 ||
+        html_paste_file_path(filepath, sizeof(filepath), name, 1) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid JSON file name\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+    struct stat st;
+    if (stat(filepath, &st) != 0 || !S_ISREG(st.st_mode)) {
+        static const char err[] = "{\"ok\":false,\"error\":\"JSON file not found\"}";
+        send_json(client_fd, 404, "Not Found", err, sizeof(err) - 1);
+        return;
+    }
+    if (st.st_size < 0 || st.st_size > MAX_HTML_PASTE_SIZE) {
+        static const char err[] = "{\"ok\":false,\"error\":\"JSON file is too large\"}";
+        send_json(client_fd, 413, "Payload Too Large", err, sizeof(err) - 1);
+        return;
+    }
+    FILE *fp = fopen(filepath, "rb");
+    if (!fp) {
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot read JSON file\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    size_t size = (size_t)st.st_size;
+    char *content = calloc(size + 1, 1);
+    if (!content || fread(content, 1, size, fp) != size) {
+        fclose(fp);
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot read JSON file\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    fclose(fp);
+    send_json(client_fd, 200, "OK", content, size);
+    free(content);
+}
+
+static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
+{
+    char name[256];
+    if (!body || json_get_str(body, "name", name, sizeof(name)) != 0 ||
+        !html_paste_name_safe(name, 1)) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid JSON file name\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+    char *content = calloc(MAX_HTML_PASTE_SIZE + 1, 1);
+    if (!content || json_get_str(body, "content", content, MAX_HTML_PASTE_SIZE + 1) != 0) {
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"missing JSON content\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+    size_t content_len = strlen(content);
+    if (content_len > MAX_HTML_PASTE_SIZE) {
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"JSON content is too large\"}";
+        send_json(client_fd, 413, "Payload Too Large", err, sizeof(err) - 1);
+        return;
+    }
+
+    char filepath[1024];
+    if (html_paste_file_path(filepath, sizeof(filepath), name, 1) != 0) {
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    int overwrite = json_get_int(body, "overwrite", 0) != 0;
+    struct stat existing;
+    if (!overwrite && stat(filepath, &existing) == 0) {
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"JSON file already exists\"}";
+        send_json(client_fd, 409, "Conflict", err, sizeof(err) - 1);
+        return;
+    }
+
+    char dir[512];
+    if (html_paste_dir(dir, sizeof(dir)) != 0) {
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    char temp[1100];
+    snprintf(temp, sizeof(temp), "%s/.%s.%p.tmp", dir, name, (void *)body);
+    FILE *fp = fopen(temp, "wb");
+    int write_ok = fp != NULL;
+    if (fp) {
+        if (fwrite(content, 1, content_len, fp) != content_len) write_ok = 0;
+        if (fclose(fp) != 0) write_ok = 0;
+    }
+    if (!write_ok) {
+        remove(temp);
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot save JSON file\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    if (rename(temp, filepath) != 0) {
+        remove(temp);
+        free(content);
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot finalize JSON file\"}";
+        send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        return;
+    }
+    free(content);
+    static const char ok[] = "{\"ok\":true}";
+    send_json(client_fd, 200, "OK", ok, sizeof(ok) - 1);
+}
+
 /* ── 主处理入口 ──────────────────────────────────────────────── */
 
 void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
@@ -197,6 +429,8 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             strcmp(path, "/api/wiki-upload") == 0 ||
             strcmp(path, "/api/wiki-export-pdf") == 0)
             max_body_allowed = SAVE_REPORT_MAX_BODY;
+        else if (strcmp(path, "/api/html-paste/save") == 0)
+            max_body_allowed = MAX_HTML_PASTE_BODY;
 
         char *body = NULL;
         if (content_length > 0 && content_length <= max_body_allowed) {
@@ -239,7 +473,11 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
             }
         }
 
-        if (strcmp(path, "/api/wiki-login") == 0) {
+        if (strcmp(path, "/api/html-paste/save") == 0) {
+            if (body) handle_api_html_paste_save(client_fd, body);
+            else send_json(client_fd, 413, "Payload Too Large",
+                           "{\"ok\":false,\"error\":\"request body is too large or empty\"}", 61);
+        } else if (strcmp(path, "/api/wiki-login") == 0) {
             if (body) handle_api_wiki_login(client_fd, req_buf, body, client_ip);
             else send_json(client_fd, 400, "Bad Request",
                            "{\"ok\":false,\"error\":\"empty body\"}", 35);
@@ -382,6 +620,15 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
 
     if (strstr(path, "..")) {
         send_response(client_fd, 403, "Forbidden", "<h1>403 Forbidden</h1>");
+        goto done;
+    }
+
+    if (strcmp(path, "/api/html-paste/list") == 0) {
+        handle_api_html_paste_list(client_fd);
+        goto done;
+    }
+    if (strcmp(path, "/api/html-paste/read") == 0) {
+        handle_api_html_paste_read(client_fd, path_qs);
         goto done;
     }
 

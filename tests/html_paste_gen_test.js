@@ -182,6 +182,8 @@ assert.strictEqual(core.matchesShortcut('Alt+1', {
 
 const generated = core.buildGeneratedHtml(searchDoc);
 assert.match(generated, /^<!DOCTYPE html>/i);
+assert.doesNotMatch(generated, /preview-command-toggle/);
+assert.doesNotMatch(generated, /expandedPreviewIds/);
 for (const id of [
   'paste-data',
   'generated-app-logic',

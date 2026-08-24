@@ -28,7 +28,13 @@ for (const id of [
 }
 
 assert.match(html, /class="workspace"/);
-assert.match(html, /grid-template-columns:\s*minmax\(190px,\s*0\.72fr\)\s+minmax\(360px,\s*1\.55fr\)\s+minmax\(280px,\s*1fr\)/);
+assert.match(html, /grid-template-columns:\s*minmax\(170px,\s*\.64fr\)\s+minmax\(480px,\s*1\.75fr\)\s+minmax\(300px,\s*1\.05fr\)/);
+assert.match(html, /class="edit-meta-fields"/);
+assert.match(html, /class="preview-command-toggle"/);
+assert.match(html, /显示全部命令/);
+assert.match(html, /function\s+togglePreviewCommand\s*\(/);
+assert.match(html, /expandedPreviewIds/);
+assert.match(html, /min-height:\s*150px/);
 assert.match(html, /@media\s*\(max-width:\s*900px\)/);
 assert.match(html, /class="mobile-tabs"[^>]*role="tablist"/);
 assert.match(html, /aria-live="polite"/);
@@ -44,6 +50,10 @@ assert.match(html, /data-action="add-item"/);
 assert.match(html, /location\.protocol\s*===\s*'file:'/);
 assert.doesNotMatch(html, /<(?:script|link)[^>]+(?:src|href)=["']https?:/i);
 assert.doesNotMatch(html, /\.innerHTML\s*=/);
+assert.match(html, /class="preview-command-clamped"/);
+assert.match(html, /preview-command-toggle/);
+assert.match(html, /event\.stopPropagation\(\)/);
+assert.match(html, /fullContent\.length\s*>\s*160/);
 
 const appMatch = html.match(/<script id="app-logic">([\s\S]*?)<\/script>/);
 assert.ok(appMatch, 'app-logic script must exist');

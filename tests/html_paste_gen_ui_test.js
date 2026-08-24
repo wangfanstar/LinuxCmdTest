@@ -22,7 +22,16 @@ for (const id of [
   'restore-sample-button',
   'draft-status',
   'validation-summary',
-  'toast-region'
+  'toast-region',
+  'network-library-panel',
+  'network-refresh-button',
+  'network-search',
+  'network-type-filter',
+  'network-file-list',
+  'network-preview',
+  'network-import-json-button',
+  'network-export-json-button',
+  'network-overwrite-checkbox'
 ]) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
 }
@@ -43,6 +52,11 @@ assert.match(html, /localStorage\.setItem\(DRAFT_KEY/);
 assert.match(html, /function\s+scheduleDraftSave\s*\(/);
 assert.match(html, /function\s+generateFile\s*\(/);
 assert.match(html, /function\s+handleJsonImport\s*\(/);
+assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
+assert.match(html, /function\s+importNetworkJson\s*\(/);
+assert.match(html, /function\s+saveNetworkJson\s*\(/);
+assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
+assert.match(html, /function\s+previewNetworkHtml\s*\(/);
 assert.match(html, /function\s+renderAll\s*\(/);
 assert.match(html, /event\.ctrlKey\s*&&\s*event\.key\s*===\s*'Enter'/);
 assert.match(html, /data-action="add-group"/);

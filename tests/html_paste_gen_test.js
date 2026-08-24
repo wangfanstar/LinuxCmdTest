@@ -242,6 +242,32 @@ assert.match(generated, /card-copy-action/);
 assert.match(generated, /card\.addEventListener\(['"]keydown['"]/);
 assert.match(generated, /function\s+restoreTransientFocus\s*\(/);
 assert.match(generated, /内容将直接连接/);
+assert.doesNotMatch(generated, /network-library-panel/);
+
+for (const networkId of [
+  'network-library-panel',
+  'network-refresh-button',
+  'network-search',
+  'network-type-filter',
+  'network-file-list',
+  'network-preview',
+  'network-import-json-button',
+  'network-export-json-button',
+  'network-overwrite-checkbox'
+]) {
+  assert.match(html, new RegExp(`id=["']${networkId}["']`), `editor missing #${networkId}`);
+}
+assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
+assert.match(html, /function\s+importNetworkJson\s*\(/);
+assert.match(html, /function\s+saveNetworkJson\s*\(/);
+assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
+assert.match(html, /function\s+previewNetworkHtml\s*\(/);
+assert.match(html, /\/api\/html-paste\/list/);
+assert.match(html, /\/api\/html-paste\/read\?name=/);
+assert.match(html, /\/api\/html-paste\/save/);
+assert.match(html, /覆盖保存/);
+assert.match(html, /新窗口打开/);
+assert.match(html, /sandbox=["']allow-scripts allow-forms allow-modals["']/);
 assert.match(generated, /function\s+renderBatchTray\s*\(/);
 assert.match(generated, /function\s+toggleSelection\s*\(/);
 assert.match(generated, /function\s+toggleItemVisibility\s*\(/);

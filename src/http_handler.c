@@ -184,6 +184,19 @@ static int html_paste_file_path(char *out, size_t cap, const char *name,
     return 0;
 }
 
+static int html_paste_json_bool(const char *body, const char *key)
+{
+    char search[128];
+    snprintf(search, sizeof(search), "\"%s\"", key);
+    const char *p = strstr(body ? body : "", search);
+    if (!p) return 0;
+    p += strlen(search);
+    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '\n' || *p == '\r') p++;
+    if (strncmp(p, "true", 4) == 0) return 1;
+    if (*p >= '0' && *p <= '9') return atoi(p) != 0;
+    return 0;
+}
+
 static void handle_api_html_paste_list(http_sock_t client_fd)
 {
     char dir[512];
@@ -330,7 +343,7 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
         return;
     }
-    int overwrite = json_get_int(body, "overwrite", 0) != 0;
+    int overwrite = html_paste_json_bool(body, "overwrite");
     struct stat existing;
     if (!overwrite && stat(filepath, &existing) == 0) {
         free(content);

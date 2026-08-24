@@ -10,6 +10,8 @@ assert.match(source, /\/api\/html-paste\/read/);
 assert.match(source, /\/api\/html-paste\/save/);
 assert.match(source, /html_paste/);
 assert.match(source, /html_paste_name_safe\s*\(/);
+assert.match(source, /html_paste_json_bool\s*\(/);
+assert.match(source, /strncmp\([^\n]+true/);
 assert.match(source, /strcasecmp\([^\n]+\.json/);
 assert.match(source, /strcasecmp\([^\n]+\.html/);
 assert.match(source, /strstr\([^\n]+\.\./);

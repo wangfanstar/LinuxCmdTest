@@ -492,6 +492,52 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
     send_json(client_fd, 200, "OK", ok, sizeof(ok) - 1);
 }
 
+static void handle_api_html_paste_delete(http_sock_t client_fd, const char *path_qs)
+{
+    char name[256];
+    char filepath[1024];
+    if (query_param_get(path_qs, "name", name, sizeof(name)) != 0 ||
+        html_paste_file_path(filepath, sizeof(filepath), name, 1) != 0) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid JSON file name\"}";
+        send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
+        return;
+    }
+
+    HTML_PASTE_LOCK();
+    struct stat st;
+    if (stat(filepath, &st) != 0 || !S_ISREG(st.st_mode)) {
+        HTML_PASTE_UNLOCK();
+        static const char err[] = "{\"ok\":false,\"error\":\"JSON file not found\"}";
+        send_json(client_fd, 404, "Not Found", err, sizeof(err) - 1);
+        return;
+    }
+    int deleted = unlink(filepath);
+    int delete_errno = errno;
+    HTML_PASTE_UNLOCK();
+    if (deleted != 0) {
+        if (delete_errno == EACCES || delete_errno == EPERM) {
+            static const char err[] = "{\"ok\":false,\"error\":\"permission denied\"}";
+            send_json(client_fd, 403, "Forbidden", err, sizeof(err) - 1);
+        } else {
+            static const char err[] = "{\"ok\":false,\"error\":\"cannot delete JSON file\"}";
+            send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
+        }
+        return;
+    }
+
+    strbuf_t result = {0};
+    SB_LIT(&result, "{\"ok\":true,\"name\":");
+    sb_json_str(&result, name);
+    SB_LIT(&result, "}");
+    if (result.data)
+        send_json(client_fd, 200, "OK", result.data, result.len);
+    else {
+        static const char ok[] = "{\"ok\":true}";
+        send_json(client_fd, 200, "OK", ok, sizeof(ok) - 1);
+    }
+    free(result.data);
+}
+
 /* ── 主处理入口 ──────────────────────────────────────────────── */
 
 void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
@@ -733,6 +779,17 @@ void handle_client(http_sock_t client_fd, struct sockaddr_in *addr)
         }
 
         free(body);
+        goto done;
+    }
+
+    if (strcasecmp(method, "DELETE") == 0) {
+        if (strcmp(path, "/api/html-paste/delete") != 0) {
+            send_response(client_fd, 404, "Not Found",
+                          "<h1>404 Not Found</h1>");
+            goto done;
+        }
+        if (html_paste_request_allowed(client_ip, req_buf, client_fd) != 0) goto done;
+        handle_api_html_paste_delete(client_fd, path_qs);
         goto done;
     }
 

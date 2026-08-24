@@ -30,5 +30,11 @@ assert.match(source, /MAX_HTML_PASTE_SIZE/);
 assert.match(source, /handle_api_html_paste_list\s*\(/);
 assert.match(source, /handle_api_html_paste_read\s*\(/);
 assert.match(source, /handle_api_html_paste_save\s*\(/);
+assert.match(source, /handle_api_html_paste_delete\s*\(/);
+assert.match(source, /\/api\/html-paste\/delete/);
+assert.match(source, /html_paste_file_path\s*\([^\n]+1\)/);
+assert.match(source, /unlink\s*\(/);
+assert.match(source, /DELETE/);
+assert.match(source, /JSON file not found/);
 
 console.log('html paste network API contracts passed');

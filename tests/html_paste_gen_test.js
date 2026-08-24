@@ -268,6 +268,7 @@ assert.strictEqual(core.validateDocument(invalidDraft).valid, false);
 assert.strictEqual(JSON.parse(JSON.stringify(searchDoc)).meta.title, searchDoc.meta.title);
 
 for (const networkId of [
+  'network-library-toolbar',
   'network-library-panel',
   'network-refresh-button',
   'network-search',
@@ -294,7 +295,6 @@ assert.match(html, /sandbox=["']allow-scripts allow-forms allow-modals["']/);
 assert.match(html, /window\.open\(\s*networkFileUrl\(/);
 assert.doesNotMatch(html, /window\.open\(\s*['"]about:blank['"]/);
 assert.match(html, /noopener,noreferrer/);
-assert.match(html, /frame\.setAttribute\(['"]sandbox['"],\s*['"]allow-scripts allow-forms allow-modals['"]\)/);
 assert.match(generated, /const expandedIds = new Set\(model\.groups\.flatMap/);
 assert.match(generated, /class=["']generated-toolbar["']/);
 assert.match(generated, /generated-toolbar[\s\S]*position:\s*sticky/);

@@ -354,6 +354,18 @@
       background: linear-gradient(180deg, #fff, #fbfcfe);
     }
 
+    .network-library-toolbar {
+      position: sticky;
+      z-index: 38;
+      top: 0;
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 10px 28px rgba(31, 51, 80, .12);
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      backdrop-filter: blur(14px);
+    }
+
     .network-panel-tools, .network-filters, .network-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .network-panel-tools { justify-content: flex-end; }
     .network-filters { padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
@@ -607,6 +619,7 @@
       .network-panel-tools { justify-content: flex-start; }
       .network-draft-grid { grid-template-columns: 1fr; }
       .network-content { padding-inline: 11px; }
+      .network-library-toolbar { margin-top: 10px; }
       .quick-actions { gap: 5px; }
       .quick-actions .button { padding-inline: 8px; font-size: 11px; }
     }
@@ -663,20 +676,21 @@
       <button id="floating-editor-button" class="button button-small" type="button">定位编辑区</button>
     </aside>
 
+    <section id="network-library-toolbar" class="network-panel-head network-library-toolbar" aria-labelledby="network-library-title">
+      <div>
+        <h2 id="network-library-title" class="panel-title">网络库 · html_paste</h2>
+        <p class="panel-kicker">直接管理服务器同目录下的 JSON 与 HTML 文件</p>
+      </div>
+      <div class="network-panel-tools">
+        <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
+        <button id="network-new-json-button" class="button button-small" type="button">新建 JSON</button>
+        <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
+        <button id="network-export-json-button" class="button button-small button-primary" type="button">导出到网络库</button>
+        <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox" checked> 覆盖保存（需确认）</label>
+      </div>
+    </section>
+
     <section id="network-library-panel" class="network-panel" aria-labelledby="network-library-title">
-      <header class="network-panel-head">
-        <div>
-          <h2 id="network-library-title" class="panel-title">网络库 · html_paste</h2>
-          <p class="panel-kicker">直接管理服务器同目录下的 JSON 与 HTML 文件</p>
-        </div>
-        <div class="network-panel-tools">
-          <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
-          <button id="network-new-json-button" class="button button-small" type="button">新建 JSON</button>
-          <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
-          <button id="network-export-json-button" class="button button-small button-primary" type="button">导出到网络库</button>
-          <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox"> 覆盖保存（需确认）</label>
-        </div>
-      </header>
       <div class="network-filters">
         <input id="network-search" class="field network-search" type="search" placeholder="搜索网络库文件名…" aria-label="搜索网络库文件名">
         <select id="network-type-filter" class="select network-type-filter" aria-label="筛选网络库文件类型">
@@ -1321,6 +1335,18 @@
     h1 { max-width: 780px; margin: 0; font-size: clamp(28px, 4.5vw, 48px); line-height: 1.06; letter-spacing: -.04em; }
     .hero-copy { max-width: 720px; margin: 11px 0 0; color: var(--muted); }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+    .generated-toolbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      margin-top: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 94%, transparent);
+      backdrop-filter: blur(14px);
+    }
+    .generated-toolbar .hero-actions { margin-top: 0; }
+    .generated-toolbar .search-row { margin-top: 10px; }
     .search-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto auto; gap: 9px; margin-top: 20px; }
     .search-wrap { position: relative; }
     .search-wrap::before { position: absolute; top: 50%; left: 14px; color: var(--muted); content: "⌕"; transform: translateY(-52%); }
@@ -1431,6 +1457,7 @@
     @media (max-width: 560px) {
       .app-shell { width: min(100% - 20px, 1240px); padding-top: 10px; }
       .hero { padding: 20px 16px; border-radius: 18px; }
+      .generated-toolbar { padding-block: 10px; }
       .search-row { grid-template-columns: 1fr; }
       .search-wrap { grid-column: auto; }
       .button { min-height: 44px; }
@@ -1454,6 +1481,9 @@
       <p class="eyebrow">Quick Copy Library</p>
       <h1 id="generated-title">快捷复制中心</h1>
       <p class="hero-copy">搜索需要的内容，点击卡片即可复制；也可以使用卡片上显示的快捷键。</p>
+    </header>
+
+    <div class="generated-toolbar" aria-label="页面工具栏">
       <div class="hero-actions">
         <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
         <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
@@ -1473,7 +1503,7 @@
         <button id="clear-search-button" class="button" type="button">清空搜索</button>
       </div>
       <p id="copy-status" class="status-line" aria-live="polite">准备就绪</p>
-    </header>
+    </div>
 
     <div class="layout">
       <nav id="generated-groups" class="sidebar" aria-label="内容分组"></nav>
@@ -1542,7 +1572,7 @@
     let copyOrder = [];
     const revealedIds = new Set();
     const hiddenIds = new Set();
-    const expandedIds = new Set();
+    const expandedIds = new Set(model.groups.flatMap(group => group.items.map(item => item.id)));
     let revealAll = false;
     let separatorMode = 'newline';
     let customSeparator = '';
@@ -2421,6 +2451,7 @@
         revealedIds.clear();
         hiddenIds.clear();
         expandedIds.clear();
+        model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
         saveOverride();
         render();
         announce('JSON 已导入：' + summarizeDocument(model) + '。', 'success');
@@ -2440,6 +2471,8 @@
       syncSelection([]);
       revealedIds.clear();
       hiddenIds.clear();
+      expandedIds.clear();
+      model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
       revealAll = false;
       try { localStorage.removeItem(storageKey); } catch (error) { storageAvailable = false; }
       render();
@@ -2771,35 +2804,32 @@
       renderNetworkLibrary();
     }
 
-    function previewNetworkHtml(name) {
+    async function previewNetworkHtml(name) {
       const file = state.networkFiles.find(entry => entry.name === name);
       if (!file || file.type !== 'html') return;
       state.networkSelectedName = file.name;
       state.networkPreviewName = file.name;
-      byId('network-preview').src = networkFileUrl(file.name);
       byId('network-preview-title').textContent = file.name;
       byId('network-preview-open-button').disabled = false;
-      setNetworkStatus('正在预览 ' + file.name, 'info');
-      renderNetworkLibrary();
+      setNetworkStatus('正在加载 ' + file.name + '…', 'info');
+      try {
+        const response = await fetch(networkFileUrl(file.name), { cache: 'no-store' });
+        if (!response.ok) throw new Error('HTML 响应失败（' + response.status + '）');
+        byId('network-preview').src = networkFileUrl(file.name);
+        renderNetworkLibrary();
+      } catch (error) {
+        setNetworkStatus('HTML 预览失败：' + error.message, 'error');
+        announce('预览失败：' + error.message, 'error');
+      }
     }
 
     function openNetworkHtml(name) {
       const file = state.networkFiles.find(entry => entry.name === name);
       if (!file || file.type !== 'html') return;
-      const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+      const popup = window.open(networkFileUrl(file.name), '_blank', 'noopener,noreferrer');
       if (!popup) {
         announce('浏览器阻止了新窗口，请允许弹窗后重试。', 'warning');
-        return;
       }
-      const doc = popup.document;
-      doc.title = file.name + ' · HTML 预览';
-      doc.body.replaceChildren();
-      const frame = doc.createElement('iframe');
-      frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
-      frame.style.cssText = 'display:block;width:100vw;height:100vh;border:0;background:#fff;';
-      frame.src = networkFileUrl(file.name);
-      doc.body.style.cssText = 'margin:0;overflow:hidden;background:#fff;';
-      doc.body.appendChild(frame);
     }
 
     function renderNetworkLibrary() {
@@ -3693,6 +3723,12 @@
     byId('network-draft-save').addEventListener('click', saveNetworkDraft);
     byId('network-draft-cancel').addEventListener('click', clearNetworkDraft);
     byId('network-preview-open-button').addEventListener('click', () => openNetworkHtml(state.networkPreviewName));
+    byId('network-preview').addEventListener('load', () => {
+      if (state.networkPreviewName) setNetworkStatus('已加载预览：' + state.networkPreviewName, 'success');
+    });
+    byId('network-preview').addEventListener('error', () => {
+      if (state.networkPreviewName) setNetworkStatus('HTML 预览加载失败，请检查文件内容或服务器状态。', 'error');
+    });
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;
       state.document = createBlankDocument();

@@ -91,6 +91,18 @@ assert.strictEqual(normalized.meta.filename, 'imported.html');
 assert.strictEqual(normalized.groups[0].collapsed, false);
 assert.strictEqual(normalized.groups[0].items[0].favorite, false);
 assert.strictEqual(normalized.groups[0].items[0].shortcut, '');
+assert.strictEqual(normalized.groups[0].items[0].link, '');
+assert.strictEqual(core.validateQuickLink('https://example.com/docs').valid, true);
+assert.strictEqual(core.validateQuickLink('https://example.com:8443/docs').valid, true);
+assert.strictEqual(core.validateQuickLink('javascript:alert(1)').valid, false);
+assert.strictEqual(core.validateQuickLink('https://example.com:bad').valid, false);
+assert.strictEqual(core.validateQuickLink('https://example.com:99999').valid, false);
+const linkedDocument = core.cloneDocument(normalized);
+linkedDocument.groups[0].items[0].link = 'https://example.com/docs';
+assert.strictEqual(core.validateDocument(linkedDocument).valid, true);
+const invalidLinkDocument = core.cloneDocument(linkedDocument);
+invalidLinkDocument.groups[0].items[0].link = 'javascript:alert(1)';
+assert.strictEqual(core.validateDocument(invalidLinkDocument).valid, false);
 
 const moved = ['a', 'b', 'c'];
 assert.strictEqual(core.moveItem(moved, 0, 1), true);
@@ -153,6 +165,7 @@ assert.strictEqual(restoredDangerous.meta.title, dangerous.meta.title);
 assert.strictEqual(restoredDangerous.groups[0].items[0].content, dangerous.groups[0].items[0].content);
 
 const searchDoc = core.createSampleDocument();
+searchDoc.groups[0].items[0].link = 'https://example.com/docs';
 const byContent = core.filterDocument(searchDoc, 'NGINX', false);
 assert.strictEqual(byContent.groups.length, 1);
 assert.strictEqual(byContent.groups[0].items.length, 1);
@@ -242,6 +255,9 @@ assert.match(generated, /card-copy-action/);
 assert.match(generated, /card\.addEventListener\(['"]keydown['"]/);
 assert.match(generated, /function\s+restoreTransientFocus\s*\(/);
 assert.match(generated, /内容将直接连接/);
+assert.match(generated, /item-link/);
+assert.match(generated, /link\.target\s*=\s*["']_blank["']/);
+assert.match(generated, /link\.rel\s*=\s*["']noopener noreferrer["']/);
 assert.doesNotMatch(generated, /network-library-panel/);
 
 for (const networkId of [

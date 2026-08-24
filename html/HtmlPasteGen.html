@@ -477,6 +477,8 @@
     .preview-card-title { overflow: hidden; font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
     .preview-shortcut { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); color: var(--muted); font: 9px Consolas, monospace; white-space: nowrap; }
     .preview-card-content { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--muted); font: 10.5px/1.45 Consolas, monospace; white-space: pre-wrap; }
+    .preview-item-link { display: block; max-width: 100%; margin-top: 8px; overflow: hidden; color: var(--primary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .preview-item-link:hover, .preview-item-link:focus-visible { color: var(--primary-dark); text-decoration: underline; }
     .preview-card-copy { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
     .preview-card-copy:focus-visible { outline: 3px solid rgba(31, 104, 255, .25); outline-offset: 3px; border-radius: 8px; }
     .preview-command-clamped { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
@@ -793,6 +795,57 @@
       return { valid: true, normalized, message: '' };
     }
 
+    function validateQuickLink(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return { valid: true, normalized: '', message: '' };
+      const lower = raw.toLowerCase();
+      const protocol = lower.indexOf('https://') === 0 ? 'https://' : lower.indexOf('http://') === 0 ? 'http://' : '';
+      const hasWhitespace = raw.split('').some(character => character.trim() === '' || character.charCodeAt(0) < 32);
+      if (!protocol || hasWhitespace) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      const remainder = raw.slice(protocol.length);
+      const boundary = remainder.search(/[/?#]/);
+      const authority = boundary < 0 ? remainder : remainder.slice(0, boundary);
+      const atIndex = authority.lastIndexOf('@');
+      const hostPort = atIndex >= 0 ? authority.slice(atIndex + 1) : authority;
+      if (!authority || !hostPort) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      let host = hostPort;
+      let port = '';
+      let hasPort = false;
+      if (hostPort[0] === '[') {
+        const closing = hostPort.indexOf(']');
+        if (closing < 0 || closing === 1 || hostPort.slice(1, closing).indexOf(':') < 0) {
+          return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+        }
+        host = hostPort.slice(1, closing);
+        const suffix = hostPort.slice(closing + 1);
+        if (suffix) {
+          if (suffix[0] !== ':') {
+            return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+          }
+          hasPort = true;
+          port = suffix.slice(1);
+        }
+      } else {
+        const colon = hostPort.lastIndexOf(':');
+        if (colon >= 0) {
+          host = hostPort.slice(0, colon);
+          hasPort = true;
+          port = hostPort.slice(colon + 1);
+        }
+        if (host.includes(':')) {
+          return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+        }
+      }
+      if (!host || (hasPort && (!port || port.split('').some(character => character < '0' || character > '9') || Number(port) > 65535))) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      return { valid: true, normalized: raw, message: '' };
+    }
+
     function shortcutFromEvent(event) {
       const parts = [];
       if (event.ctrlKey) parts.push('Ctrl');
@@ -810,6 +863,7 @@
         title: '新条目',
         content: '',
         shortcut: '',
+        link: '',
         note: '',
         favorite: false,
         collapsed: false
@@ -894,6 +948,7 @@
             title: String(item && item.title || '').trim(),
             content: String(item && item.content || ''),
             shortcut: normalizeShortcut(item && item.shortcut),
+            link: String(item && item.link || '').trim(),
             note: String(item && item.note || ''),
             favorite: Boolean(item && item.favorite),
             collapsed: Boolean(item && item.collapsed)
@@ -941,6 +996,10 @@
           if (itemId) itemIds.add(itemId);
           if (!String(item && item.content || '')) {
             warnings.push(`“${itemLabel || '未命名条目'}”的复制内容为空。`);
+          }
+          const linkCheck = validateQuickLink(item && item.link);
+          if (!linkCheck.valid) {
+            errors.push(`“${itemLabel || '未命名条目'}”：${linkCheck.message}`);
           }
           const shortcutCheck = validateShortcut(item && item.shortcut);
           if (!shortcutCheck.valid) {
@@ -1062,7 +1121,7 @@
           group.items = group.items.filter(item => {
             if (favoritesOnly && !item.favorite) return false;
             if (!needle || groupMatches) return true;
-            return [item.title, item.content, item.note]
+            return [item.title, item.content, item.link, item.note]
               .join('\n')
               .toLocaleLowerCase()
               .includes(needle);
@@ -1219,6 +1278,8 @@
     .item-content { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text); font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
     .item-content[data-expanded="true"] { display: block; overflow: visible; -webkit-line-clamp: unset; }
     .item-note { margin: auto 0 0; color: var(--muted); font-size: 12px; }
+    .item-link { display: block; max-width: 100%; overflow: hidden; color: var(--primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .item-link:hover, .item-link:focus-visible { color: var(--primary-strong); text-decoration: underline; }
     .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line); }
     .shortcut { padding: 3px 8px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--surface); color: var(--muted); font: 11px "SFMono-Regular", Consolas, monospace; }
     .copy-label { color: var(--primary); font-size: 12px; font-weight: 800; }
@@ -1409,6 +1470,56 @@
       if (/\.htm$/i.test(name)) return name.replace(/\.htm$/i, '.html');
       return /\.html$/i.test(name) ? name : name + '.html';
     }
+    function validateQuickLink(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return { valid: true, normalized: '', message: '' };
+      const lower = raw.toLowerCase();
+      const protocol = lower.indexOf('https://') === 0 ? 'https://' : lower.indexOf('http://') === 0 ? 'http://' : '';
+      const hasWhitespace = raw.split('').some(character => character.trim() === '' || character.charCodeAt(0) < 32);
+      if (!protocol || hasWhitespace) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      const remainder = raw.slice(protocol.length);
+      const boundary = remainder.search(/[/?#]/);
+      const authority = boundary < 0 ? remainder : remainder.slice(0, boundary);
+      const atIndex = authority.lastIndexOf('@');
+      const hostPort = atIndex >= 0 ? authority.slice(atIndex + 1) : authority;
+      if (!authority || !hostPort) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      let host = hostPort;
+      let port = '';
+      let hasPort = false;
+      if (hostPort[0] === '[') {
+        const closing = hostPort.indexOf(']');
+        if (closing < 0 || closing === 1 || hostPort.slice(1, closing).indexOf(':') < 0) {
+          return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+        }
+        host = hostPort.slice(1, closing);
+        const suffix = hostPort.slice(closing + 1);
+        if (suffix) {
+          if (suffix[0] !== ':') {
+            return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+          }
+          hasPort = true;
+          port = suffix.slice(1);
+        }
+      } else {
+        const colon = hostPort.lastIndexOf(':');
+        if (colon >= 0) {
+          host = hostPort.slice(0, colon);
+          hasPort = true;
+          port = hostPort.slice(colon + 1);
+        }
+        if (host.includes(':')) {
+          return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+        }
+      }
+      if (!host || (hasPort && (!port || port.split('').some(character => character < '0' || character > '9') || Number(port) > 65535))) {
+        return { valid: false, normalized: raw, message: '快速链接必须是 http:// 或 https:// 地址。' };
+      }
+      return { valid: true, normalized: raw, message: '' };
+    }
     function createElement(tag, className, text) {
       const element = document.createElement(tag);
       if (className) element.className = className;
@@ -1462,7 +1573,7 @@
       if (favoritesOnly && !item.favorite) return false;
       const needle = query.trim().toLocaleLowerCase();
       if (!needle) return true;
-      return [group.title, item.title, item.content, item.note].join(String.fromCharCode(10)).toLocaleLowerCase().includes(needle);
+      return [group.title, item.title, item.content, item.link, item.note].join(String.fromCharCode(10)).toLocaleLowerCase().includes(needle);
     }
     function visibleGroups() {
       return model.groups.map(group => ({ group: group, items: group.items.filter(item => itemMatches(group, item)) }))
@@ -1718,6 +1829,16 @@
       if (item.note) copyAction.append(createElement('p', 'item-note', item.note));
       copyAction.appendChild(footer);
       card.append(top, copyAction);
+      const linkCheck = validateQuickLink(item.link);
+      if (linkCheck.valid && linkCheck.normalized) {
+        const link = createElement('a', 'item-link', linkCheck.normalized);
+        link.href = linkCheck.normalized;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = '打开快速链接';
+        link.addEventListener('click', event => event.stopPropagation());
+        card.appendChild(link);
+      }
       selectControl.addEventListener('click', event => event.stopPropagation());
       selection.addEventListener('change', event => {
         event.stopPropagation();
@@ -1837,13 +1958,19 @@
       shortcut.placeholder = '例如 Alt+1';
       shortcut.setAttribute('aria-label', '复制快捷键');
       shortcut.dataset.field = 'item-shortcut';
+      const link = createElement('input', 'edit-input');
+      link.type = 'url';
+      link.value = item.link || '';
+      link.placeholder = '快速链接（可选）';
+      link.setAttribute('aria-label', '快速链接');
+      link.dataset.field = 'item-link';
       const note = createElement('input', 'edit-input');
       note.value = item.note;
       note.placeholder = '备注（可选）';
       note.setAttribute('aria-label', '条目备注');
       note.dataset.field = 'item-note';
       const meta = createElement('div', 'edit-meta-fields');
-      meta.append(shortcut, note);
+      meta.append(shortcut, link, note);
       const content = createElement('textarea', 'edit-textarea');
       content.value = item.content;
       content.placeholder = '要复制的完整内容';
@@ -1862,7 +1989,7 @@
     function findGroup(groupId) { return model.groups.find(group => group.id === groupId); }
     function findItem(group, itemId) { return group && group.items.find(item => item.id === itemId); }
     function makeId(prefix) { return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
-    function newItem() { return { id: makeId('item'), title: '新条目', content: '', shortcut: '', note: '', favorite: false, collapsed: false }; }
+    function newItem() { return { id: makeId('item'), title: '新条目', content: '', shortcut: '', link: '', note: '', favorite: false, collapsed: false }; }
     function newGroup() { return { id: makeId('group'), title: '新分组', collapsed: false, items: [newItem()] }; }
     function normalizeShortcut(value) {
       const modifiers = ['Ctrl', 'Alt', 'Shift', 'Meta'];
@@ -1929,6 +2056,7 @@
         if (field === 'item-content') item.content = event.target.value;
         if (field === 'item-note') item.note = event.target.value;
         if (field === 'item-shortcut') item.shortcut = normalizeShortcut(event.target.value);
+        if (field === 'item-link') item.link = event.target.value.trim();
       }
       saveOverride();
       renderMainOnly();
@@ -2111,6 +2239,7 @@
           title: String(item && item.title || '').trim(),
           content: String(item && item.content || ''),
           shortcut: normalizeShortcut(item && item.shortcut),
+          link: String(item && item.link || '').trim(),
           note: String(item && item.note || ''),
           favorite: Boolean(item && item.favorite),
           collapsed: Boolean(item && item.collapsed)
@@ -2146,6 +2275,10 @@
           const sourceGroup = sourceGroups[groupIndex];
           const sourceItems = sourceGroup && Array.isArray(sourceGroup.items) ? sourceGroup.items : [];
           const sourceItem = sourceItems[itemIndex];
+          const linkCheck = validateQuickLink(item && item.link);
+          if (!linkCheck.valid) {
+            errors.push('“' + (itemLabel || '未命名条目') + '”：' + linkCheck.message);
+          }
           const shortcutCheck = validateImportedShortcut(sourceItem ? sourceItem.shortcut : item && item.shortcut);
           if (!shortcutCheck.valid) {
             errors.push('“' + (itemLabel || '未命名条目') + '”：' + shortcutCheck.message);
@@ -2284,6 +2417,7 @@
       safeHtmlFilename,
       normalizeShortcut,
       validateShortcut,
+      validateQuickLink,
       shortcutFromEvent,
       createItem,
       createGroup,
@@ -2741,6 +2875,20 @@
       const shortcutHelp = createElement('p', conflict ? 'helper helper-error' : 'helper', conflict || '建议使用 Alt+数字；输入时不会触发复制。');
       shortcutLabel.appendChild(shortcutHelp);
 
+      const link = createElement('input', 'field');
+      link.type = 'url';
+      link.value = item.link || '';
+      link.maxLength = 2048;
+      link.placeholder = 'https://example.com/文档';
+      link.autocomplete = 'off';
+      link.spellcheck = false;
+      link.dataset.field = 'link';
+      link.setAttribute('aria-label', '快速链接');
+      const linkCheck = core.validateQuickLink(item.link);
+      link.setAttribute('aria-invalid', String(!linkCheck.valid));
+      const linkLabel = labeledControl('快速链接（可选）', link);
+      linkLabel.appendChild(createElement('p', linkCheck.valid ? 'helper' : 'helper helper-error', linkCheck.valid ? '生成页面后点击即可打开，支持 http:// 和 https://。': linkCheck.message));
+
       const content = createElement('textarea', 'textarea content-field');
       content.value = item.content;
       content.placeholder = '粘贴需要完整复制的内容…';
@@ -2761,7 +2909,7 @@
       const noteLabel = labeledControl('备注（可选）', note);
 
       const meta = createElement('div', 'edit-meta-fields wide');
-      meta.append(shortcutLabel, noteLabel);
+      meta.append(shortcutLabel, linkLabel, noteLabel);
 
       const favoriteLabel = createElement('label', 'favorite-check wide');
       const favorite = createElement('input');
@@ -2848,6 +2996,16 @@
           if (!expanded) content.classList.add('preview-command-clamped');
           copySurface.append(top, content);
           card.appendChild(copySurface);
+          const linkCheck = core.validateQuickLink(item.link);
+          if (linkCheck.valid && linkCheck.normalized) {
+            const link = createElement('a', 'preview-item-link', linkCheck.normalized);
+            link.href = linkCheck.normalized;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.title = '打开快速链接';
+            link.addEventListener('click', event => event.stopPropagation());
+            card.appendChild(link);
+          }
           if (needsExpansion) {
             const toggle = createElement('button', 'preview-command-toggle', expanded ? '收起命令' : '显示全部命令');
             toggle.type = 'button';

@@ -203,12 +203,24 @@ for (const id of [
   'batch-separator',
   'custom-separator',
   'batch-copy-button',
-  'batch-clear-button'
+  'batch-clear-button',
+  'generated-import-json-button',
+  'generated-export-json-button',
+  'generated-import-json-input'
 ]) {
   assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
 }
 assert.match(generated, /导出最新版 HTML/);
 assert.match(generated, /恢复文件原始内容/);
+assert.match(generated, /导入 JSON/);
+assert.match(generated, /导出 JSON/);
+assert.match(generated, /accept=["']application\/json,\.json["']/);
+assert.match(generated, /function\s+exportCurrentJson\s*\(/);
+assert.match(generated, /function\s+handleJsonImport\s*\(/);
+assert.match(generated, /normalizeImportedDocument\(/);
+assert.match(generated, /validateImportedDocument\(/);
+assert.match(generated, /导入失败，当前内容未改变/);
+assert.match(generated, /generated-import-json-input[\s\S]*?value\s*=\s*''/);
 assert.match(generated, /选择当前结果/);
 assert.match(generated, /一键复制/);
 assert.match(generated, /class=["']item-select["']/);

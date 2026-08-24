@@ -23,6 +23,11 @@ for (const id of [
   'draft-status',
   'validation-summary',
   'toast-region',
+  'quick-actions-bar',
+  'floating-add-item-button',
+  'floating-add-group-button',
+  'floating-editor-button',
+  'floating-context',
   'network-library-panel',
   'network-refresh-button',
   'network-new-json-button',
@@ -79,6 +84,9 @@ assert.match(html, /快速链接/);
 assert.match(html, /dataset\.field\s*=\s*["']link["']/);
 assert.match(html, /function\s+validateQuickLink\s*\(/);
 assert.match(html, /function\s+clearCurrentContent\s*\(/);
+assert.match(html, /function\s+updateQuickActions\s*\(/);
+assert.match(html, /quick-actions/);
+assert.match(html, /position:\s*fixed/);
 assert.match(html, /页面名称和输出文件名会保留/);
 assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
 assert.match(html, /function\s+previewNetworkHtml\s*\(/);

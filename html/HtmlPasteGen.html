@@ -423,7 +423,48 @@
     }
 
     .inline-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+    .editor-panel { scroll-margin-top: 18px; }
     .editor-content { display: grid; gap: 10px; padding: 13px; }
+
+    .quick-actions {
+      position: fixed;
+      z-index: 45;
+      top: 50%;
+      right: max(16px, calc((100vw - 1540px) / 2 - 154px));
+      display: grid;
+      width: 142px;
+      gap: 7px;
+      padding: 9px;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      box-shadow: 0 16px 38px rgba(31, 51, 80, .16);
+      backdrop-filter: blur(14px);
+      transform: translateY(-50%);
+    }
+
+    .quick-actions-title {
+      margin: 0 2px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .quick-actions-context {
+      min-height: 17px;
+      margin: 0 2px;
+      overflow: hidden;
+      color: var(--primary-dark);
+      font-size: 11px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .quick-actions .button { width: 100%; }
+    .quick-actions .button:disabled { cursor: not-allowed; }
 
     .item-editor {
       border: 1px solid var(--line);
@@ -523,7 +564,7 @@
     }
 
     @media (max-width: 900px) {
-      .app-shell { width: min(100% - 24px, 760px); }
+      .app-shell { width: min(100% - 24px, 760px); padding-bottom: 98px; }
       .mobile-tabs { display: grid; }
       .workspace { display: block; margin-top: 0; }
       .panel { display: none; }
@@ -532,6 +573,20 @@
       .structure-panel .panel-body, .preview-panel .panel-body { max-height: none; }
       .project-toolbar { border-radius: 0 0 14px 14px; }
       .network-content { grid-template-columns: 1fr; }
+      .quick-actions {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        display: flex;
+        width: auto;
+        align-items: center;
+        padding: 8px;
+        transform: none;
+      }
+      .quick-actions-title { display: none; }
+      .quick-actions-context { flex: 1 1 120px; min-width: 0; }
+      .quick-actions .button { width: auto; flex: 0 1 auto; }
     }
 
     @media (max-width: 620px) {
@@ -552,6 +607,8 @@
       .network-panel-tools { justify-content: flex-start; }
       .network-draft-grid { grid-template-columns: 1fr; }
       .network-content { padding-inline: 11px; }
+      .quick-actions { gap: 5px; }
+      .quick-actions .button { padding-inline: 8px; font-size: 11px; }
     }
   </style>
 </head>
@@ -597,6 +654,14 @@
     </nav>
 
     <section id="validation-summary" class="validation-summary" aria-live="polite" hidden></section>
+
+    <aside id="quick-actions-bar" class="quick-actions" aria-label="录入助手">
+      <p class="quick-actions-title">录入助手</p>
+      <p id="floating-context" class="quick-actions-context" aria-live="polite">请选择分组</p>
+      <button id="floating-add-item-button" class="button button-small button-primary" type="button" data-action="add-item">＋ 添加条目</button>
+      <button id="floating-add-group-button" class="button button-small" type="button" data-action="add-group">＋ 添加分组</button>
+      <button id="floating-editor-button" class="button button-small" type="button">定位编辑区</button>
+    </aside>
 
     <section id="network-library-panel" class="network-panel" aria-labelledby="network-library-title">
       <header class="network-panel-head">
@@ -3266,10 +3331,30 @@
       });
     }
 
+    function updateQuickActions() {
+      const group = selectedGroup();
+      const itemButton = byId('floating-add-item-button');
+      const context = byId('floating-context');
+      if (!itemButton || !context) return;
+      itemButton.disabled = !group;
+      context.textContent = group
+        ? (group.title || '未命名分组') + ' · ' + group.items.length + ' 条'
+        : '请选择分组或新建分组';
+      context.title = context.textContent;
+    }
+
+    function focusEditorFromQuickActions() {
+      state.mobilePanel = 'editor';
+      renderMobilePanel();
+      const panel = byId('editor-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     function renderAll() {
       renderHeader();
       renderGroupList();
       renderEditor();
+      updateQuickActions();
       renderPreview();
       renderValidation();
       renderNetworkLibrary();
@@ -3553,6 +3638,7 @@
       if (!group) return;
       group.title = event.target.value;
       renderGroupList();
+      updateQuickActions();
       renderPreview();
       renderValidation();
       scheduleDraftSave();
@@ -3581,6 +3667,7 @@
         renderMobilePanel();
       });
     });
+    byId('floating-editor-button').addEventListener('click', focusEditorFromQuickActions);
     byId('generate-button').addEventListener('click', generateFile);
     byId('export-json-button').addEventListener('click', exportJson);
     byId('import-json-button').addEventListener('click', () => byId('import-json-input').click());

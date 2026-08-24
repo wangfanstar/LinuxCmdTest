@@ -28,6 +28,7 @@ for (const id of [
   'floating-add-group-button',
   'floating-editor-button',
   'floating-context',
+  'network-library-toolbar',
   'network-library-panel',
   'network-refresh-button',
   'network-new-json-button',
@@ -90,6 +91,13 @@ assert.match(html, /position:\s*fixed/);
 assert.match(html, /页面名称和输出文件名会保留/);
 assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
 assert.match(html, /function\s+previewNetworkHtml\s*\(/);
+assert.match(html, /id=["']network-overwrite-checkbox["'][^>]*checked/);
+assert.match(html, /class=["'][^"']*network-library-toolbar[^"']*["']/);
+assert.match(html, /window\.open\(\s*networkFileUrl\(/);
+assert.doesNotMatch(html, /window\.open\(\s*['"]about:blank['"]/);
+assert.match(html, /network-preview[\s\S]*addEventListener\(['"]error['"]/);
+assert.match(html, /class=["']generated-toolbar["']/);
+assert.match(html, /generated-toolbar[\s\S]*position:\s*sticky/);
 assert.match(html, /function\s+renderAll\s*\(/);
 assert.match(html, /event\.ctrlKey\s*&&\s*event\.key\s*===\s*'Enter'/);
 assert.match(html, /data-action="add-group"/);

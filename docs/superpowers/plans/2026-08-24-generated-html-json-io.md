@@ -91,7 +91,9 @@ Inside `generated-app-logic`, after `downloadHtml` or beside the existing export
 function exportCurrentJson() {
   const filename = safeFilename(model.meta.filename || model.meta.title || 'quick-copy')
     .replace(/\.html$/i, '.json');
-  const text = JSON.stringify(clone(model), null, 2);
+  const exported = clone(model);
+  if (exported.meta) delete exported.meta.themePreference;
+  const text = JSON.stringify(exported, null, 2);
   downloadFile(text, filename, 'application/json;charset=utf-8');
   announce('已导出当前 JSON。', 'success');
 }

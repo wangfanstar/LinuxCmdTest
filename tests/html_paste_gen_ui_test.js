@@ -50,6 +50,10 @@ for (const id of [
 }
 
 assert.match(html, /class="workspace"/);
+assert.match(html, /class=["'][^"']*generation-bar[^"']*["'][^>]*aria-label=["']生成设置["']/);
+assert.match(html, /generation-bar[\s\S]*position:\s*sticky/);
+assert.match(html, /generation-bar[\s\S]*top:\s*0/);
+assert.match(html, /generation-bar[\s\S]*generate-button/);
 assert.match(html, /grid-template-columns:\s*minmax\(170px,\s*\.64fr\)\s+minmax\(480px,\s*1\.75fr\)\s+minmax\(300px,\s*1\.05fr\)/);
 assert.match(html, /edit-meta-fields/);
 assert.match(html, /preview-command-toggle/);

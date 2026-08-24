@@ -1223,6 +1223,9 @@
         <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
         <button id="theme-toggle" class="button" type="button">切换主题</button>
         <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
+        <button id="generated-import-json-button" class="button" type="button">导入 JSON</button>
+        <button id="generated-export-json-button" class="button" type="button">导出 JSON</button>
+        <input id="generated-import-json-input" type="file" accept="application/json,.json" hidden>
       </div>
       <div class="search-row">
         <label class="search-wrap">
@@ -1960,16 +1963,132 @@
       byId('edit-mode-toggle').textContent = editMode ? '退出编辑' : '编辑模式';
       renderEditor();
     }
-    function downloadHtml(html, filename) {
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    function downloadFile(text, filename, type) {
+      const blob = new Blob([text], { type: type || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const link = createElement('a');
       link.href = url;
-      link.download = safeFilename(filename);
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+    function downloadHtml(html, filename) {
+      downloadFile(html, safeFilename(filename), 'text/html;charset=utf-8');
+    }
+    function exportCurrentJson() {
+      const htmlFilename = safeFilename(model.meta.filename || model.meta.title || 'quick-copy');
+      const filename = htmlFilename.replace(/\.html$/i, '.json');
+      const exported = clone(model);
+      if (exported.meta) delete exported.meta.themePreference;
+      downloadFile(JSON.stringify(exported, null, 2), filename, 'application/json;charset=utf-8');
+      announce('已导出当前 JSON。', 'success');
+    }
+    function normalizeImportedDocument(value) {
+      if (!value || Number(value.schemaVersion) !== originalDocument.schemaVersion) throw new Error('不支持的数据版本。');
+      const normalized = clone(value);
+      normalized.schemaVersion = originalDocument.schemaVersion;
+      normalized.documentId = String(normalized.documentId || makeId('doc'));
+      normalized.meta = {
+        title: String(normalized.meta && normalized.meta.title || '').trim(),
+        filename: safeFilename(normalized.meta && normalized.meta.filename),
+        themePreference: ['system', 'light', 'dark'].includes(normalized.meta && normalized.meta.themePreference)
+          ? normalized.meta.themePreference
+          : model.meta.themePreference
+      };
+      if (!Array.isArray(value.groups)) throw new Error('分组列表格式无效。');
+      normalized.groups = value.groups.map(group => ({
+        id: String(group && group.id || makeId('group')),
+        title: String(group && group.title || '').trim(),
+        collapsed: Boolean(group && group.collapsed),
+        items: Array.isArray(group && group.items) ? group.items.map(item => ({
+          id: String(item && item.id || makeId('item')),
+          title: String(item && item.title || '').trim(),
+          content: String(item && item.content || ''),
+          shortcut: normalizeShortcut(item && item.shortcut),
+          note: String(item && item.note || ''),
+          favorite: Boolean(item && item.favorite),
+          collapsed: Boolean(item && item.collapsed)
+        })) : []
+      }));
+      return normalized;
+    }
+    function validateImportedDocument(value) {
+      const errors = [];
+      if (!value || Number(value.schemaVersion) !== originalDocument.schemaVersion) errors.push('不支持的数据版本。');
+      if (!value || !value.meta || !String(value.meta.title || '').trim()) errors.push('页面名称不能为空。');
+      if (!value || !Array.isArray(value.groups)) errors.push('分组列表格式无效。');
+      const groupIds = new Set();
+      const itemIds = new Set();
+      const shortcuts = new Map();
+      (value && Array.isArray(value.groups) ? value.groups : []).forEach((group, groupIndex) => {
+        const groupId = String(group && group.id || '');
+        const groupLabel = String(group && group.title || '').trim();
+        if (!groupLabel) errors.push('第 ' + (groupIndex + 1) + ' 个分组名称不能为空。');
+        if (!groupId || groupIds.has(groupId)) errors.push('分组 ID 重复或为空。');
+        groupIds.add(groupId);
+        if (!Array.isArray(group && group.items)) {
+          errors.push('分组“' + (groupLabel || groupIndex + 1) + '”的条目格式无效。');
+          return;
+        }
+        group.items.forEach((item, itemIndex) => {
+          const itemId = String(item && item.id || '');
+          const itemLabel = String(item && item.title || '').trim();
+          if (!itemLabel) errors.push('第 ' + (groupIndex + 1) + ' 组第 ' + (itemIndex + 1) + ' 条标题不能为空。');
+          if (!itemId || itemIds.has(itemId)) errors.push('条目 ID 重复或为空。');
+          itemIds.add(itemId);
+          const shortcutCheck = validateShortcut(item && item.shortcut);
+          if (!shortcutCheck.valid) {
+            errors.push('“' + (itemLabel || '未命名条目') + '”：' + shortcutCheck.message);
+          } else if (shortcutCheck.normalized) {
+            if (shortcuts.has(shortcutCheck.normalized)) errors.push('快捷键 ' + shortcutCheck.normalized + ' 与“' + shortcuts.get(shortcutCheck.normalized) + '”重复。');
+            else shortcuts.set(shortcutCheck.normalized, itemLabel || '未命名条目');
+          }
+        });
+      });
+      return { valid: errors.length === 0, errors };
+    }
+    function summarizeDocument(value) {
+      const groups = Array.isArray(value.groups) ? value.groups : [];
+      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + group.items.length, 0) + ' 条内容';
+    }
+    function readFileText(file) {
+      if (typeof file.text === 'function') return file.text();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('无法读取文件。'));
+        reader.readAsText(file, 'UTF-8');
+      });
+    }
+    async function handleJsonImport(event) {
+      const input = event.currentTarget;
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      try {
+        const raw = await readFileText(file);
+        const parsed = JSON.parse(raw);
+        const normalized = normalizeImportedDocument(parsed);
+        const validation = validateImportedDocument(normalized);
+        if (!validation.valid) {
+          const details = validation.errors.slice(0, 3).join('；');
+          throw new Error(details || 'JSON 数据校验失败。');
+        }
+        if (!window.confirm('导入将替换当前内容（' + summarizeDocument(normalized) + '），是否继续？')) return;
+        model = clone(normalized);
+        selectedIds.clear();
+        copyOrder = [];
+        revealedIds.clear();
+        hiddenIds.clear();
+        expandedIds.clear();
+        saveOverride();
+        render();
+        announce('JSON 已导入：' + summarizeDocument(model) + '。', 'success');
+      } catch (error) {
+        announce('导入失败，当前内容未改变：' + error.message, 'error');
+      }
     }
     function exportCurrentHtml() {
       dataElement.textContent = safeJson(model);
@@ -1999,6 +2118,9 @@
     byId('mobile-groups-button').addEventListener('click', event => { const open = byId('generated-groups').classList.toggle('is-open'); event.currentTarget.setAttribute('aria-expanded', String(open)); });
     byId('generated-editor').addEventListener('input', handleEditorInput);
     byId('generated-editor').addEventListener('click', handleEditorAction);
+    byId('generated-import-json-button').addEventListener('click', () => byId('generated-import-json-input').click());
+    byId('generated-export-json-button').addEventListener('click', exportCurrentJson);
+    byId('generated-import-json-input').addEventListener('change', handleJsonImport);
     byId('reexport-button').addEventListener('click', exportCurrentHtml);
     byId('restore-original-button').addEventListener('click', restoreOriginal);
     byId('batch-select-visible-button').addEventListener('click', selectVisibleItems);

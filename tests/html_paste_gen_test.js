@@ -225,6 +225,9 @@ const generatedRuntimeMatch = generated.match(/<script id="generated-app-logic">
 assert.ok(generatedRuntimeMatch, 'generated-app-logic script must exist');
 assert.doesNotThrow(() => new vm.Script(generatedRuntimeMatch[1], { filename: 'generated-app-logic' }));
 assert.strictEqual((generatedRuntimeMatch[1].match(/\bstate\./g) || []).length, 0, 'generated runtime must not depend on editor state');
+const generatedIds = new Set(Array.from(generated.matchAll(/\bid=["']([^"']+)["']/g), match => match[1]));
+const listenerTargetIds = Array.from(generatedRuntimeMatch[1].matchAll(/byId\(["']([^"']+)["']\)\.addEventListener/g), match => match[1]);
+listenerTargetIds.forEach(id => assert.ok(generatedIds.has(id), `generated listener target #${id} must exist`));
 assert.doesNotMatch(generated, /preview-command-toggle/);
 assert.doesNotMatch(generated, /expandedPreviewIds/);
 for (const id of [

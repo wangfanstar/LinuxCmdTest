@@ -254,6 +254,9 @@
     .button-small { min-height: 32px; padding: 5px 8px; font-size: 12px; }
 
     .project-toolbar {
+      position: sticky;
+      z-index: 41;
+      top: var(--generation-bar-height, 76px);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -263,6 +266,7 @@
       border-top: 0;
       border-radius: 0 0 16px 16px;
       background: rgba(255, 255, 255, .88);
+      box-shadow: 0 10px 28px rgba(31, 51, 80, .12);
       backdrop-filter: blur(14px);
     }
 
@@ -371,9 +375,8 @@
     }
 
     .network-library-toolbar {
-      position: sticky;
-      z-index: 38;
-      top: 0;
+      position: relative;
+      z-index: 1;
       margin-top: 14px;
       border: 1px solid var(--line);
       border-radius: var(--radius-lg);
@@ -381,6 +384,16 @@
       background: color-mix(in srgb, var(--surface) 96%, transparent);
       backdrop-filter: blur(14px);
     }
+
+    .network-library-dialog { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 24px; }
+    .network-library-dialog[hidden] { display: none; }
+    .network-dialog-backdrop { position: absolute; inset: 0; border: 0; background: rgba(15, 23, 42, .42); cursor: default; }
+    .network-dialog-surface { position: relative; z-index: 1; display: grid; width: min(1220px, 100%); max-height: min(900px, calc(100vh - 48px)); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 18px; background: var(--surface); box-shadow: 0 28px 90px rgba(15, 23, 42, .28); }
+    .network-dialog-close { min-height: 32px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 800; }
+    .network-dialog-close:hover, .network-dialog-close:focus-visible { border-color: var(--primary); color: var(--primary); outline: none; }
+    .network-dialog-surface > #network-library-panel { min-height: 0; margin: 0; overflow: auto; border: 0; border-radius: 0; box-shadow: none; }
+    .network-dialog-surface .network-library-toolbar { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: var(--surface); }
+    body.network-dialog-open { overflow: hidden; }
 
     .network-panel-tools, .network-filters, .network-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .network-panel-tools { justify-content: flex-end; }
@@ -636,6 +649,8 @@
       .network-draft-grid { grid-template-columns: 1fr; }
       .network-content { padding-inline: 11px; }
       .network-library-toolbar { margin-top: 10px; }
+      .network-library-dialog { padding: 10px; }
+      .network-dialog-surface { max-height: calc(100vh - 20px); }
       .quick-actions { gap: 5px; }
       .quick-actions .button { padding-inline: 8px; font-size: 11px; }
     }
@@ -681,6 +696,7 @@
       <button id="clear-content-button" class="button button-small button-danger" type="button" title="清空全部分组和命令，保留页面名称与文件名">一键清空内容</button>
       <button id="restore-sample-button" class="button button-small" type="button">恢复示例</button>
       <button id="collapse-all-button" class="button button-small" type="button">折叠全部条目</button>
+      <button id="network-library-toggle" class="button button-small button-primary" type="button" aria-expanded="false" aria-controls="network-library-dialog">网络库</button>
       <span class="toolbar-spacer"></span>
       <span id="draft-status" class="draft-status" aria-live="polite">正在读取草稿…</span>
     </nav>
@@ -695,61 +711,67 @@
       <button id="floating-editor-button" class="button button-small" type="button">定位编辑区</button>
     </aside>
 
-    <section id="network-library-toolbar" class="network-panel-head network-library-toolbar" aria-labelledby="network-library-title">
-      <div>
-        <h2 id="network-library-title" class="panel-title">网络库 · html_paste</h2>
-        <p class="panel-kicker">直接管理服务器同目录下的 JSON 与 HTML 文件</p>
-      </div>
-      <div class="network-panel-tools">
-        <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
-        <button id="network-new-json-button" class="button button-small" type="button">新建 JSON</button>
-        <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
-        <button id="network-export-json-button" class="button button-small button-primary" type="button">导出到网络库</button>
-        <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox" checked> 覆盖保存（需确认）</label>
-      </div>
-    </section>
+    <div id="network-library-dialog" class="network-library-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="network-library-title" hidden>
+      <button class="network-dialog-backdrop" type="button" aria-label="关闭网络库"></button>
+      <div class="network-dialog-surface">
+        <section id="network-library-toolbar" class="network-panel-head network-library-toolbar" aria-labelledby="network-library-title">
+          <div>
+            <h2 id="network-library-title" class="panel-title">网络库 · html_paste</h2>
+            <p class="panel-kicker">直接管理服务器同目录下的 JSON 与 HTML 文件</p>
+          </div>
+          <div class="network-panel-tools">
+            <button id="network-refresh-button" class="button button-small" type="button">刷新网络库</button>
+            <button id="network-new-json-button" class="button button-small" type="button">新建 JSON</button>
+            <button id="network-import-json-button" class="button button-small" type="button" disabled>导入选中 JSON</button>
+            <button id="network-export-json-button" class="button button-small button-primary" type="button">导出 HTML + JSON</button>
+            <label class="network-overwrite"><input id="network-overwrite-checkbox" type="checkbox" checked> 覆盖保存（需确认）</label>
+            <button id="network-library-close" class="network-dialog-close" type="button">关闭</button>
+          </div>
+        </section>
 
-    <section id="network-library-panel" class="network-panel" aria-labelledby="network-library-title">
-      <div class="network-filters">
-        <input id="network-search" class="field network-search" type="search" placeholder="搜索网络库文件名…" aria-label="搜索网络库文件名">
-        <select id="network-type-filter" class="select network-type-filter" aria-label="筛选网络库文件类型">
-          <option value="all">全部类型</option>
-          <option value="json">仅 JSON</option>
-          <option value="html">仅 HTML</option>
-        </select>
+        <section id="network-library-panel" class="network-panel" aria-labelledby="network-library-title">
+          <div class="network-filters">
+            <input id="network-search" class="field network-search" type="search" placeholder="搜索网络库文件名…" aria-label="搜索网络库文件名">
+            <select id="network-type-filter" class="select network-type-filter" aria-label="筛选网络库文件类型">
+              <option value="all">全部类型</option>
+              <option value="json">仅 JSON</option>
+              <option value="html">仅 HTML</option>
+            </select>
+          </div>
+          <p id="network-status" class="network-status" aria-live="polite">正在读取网络库…</p>
+          <section id="network-network-editor" class="network-network-editor" aria-labelledby="network-editor-title" hidden>
+            <div class="network-network-editor-head">
+              <h3 id="network-editor-title" class="network-network-editor-title">编辑网络库 JSON</h3>
+              <span class="panel-kicker">仅保存 JSON；HTML 文件保持只读</span>
+            </div>
+            <div class="network-draft-grid">
+              <div class="network-draft-field">
+                <label for="network-draft-name">文件名</label>
+                <input id="network-draft-name" class="field" type="text" maxlength="240" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="network-draft-field">
+                <label for="network-draft-content">JSON 内容</label>
+                <textarea id="network-draft-content" class="textarea network-draft-content" spellcheck="false"></textarea>
+              </div>
+            </div>
+            <div class="network-draft-actions">
+              <button id="network-draft-cancel" class="button button-small" type="button">取消编辑</button>
+              <button id="network-draft-save" class="button button-small button-primary" type="button">校验并保存</button>
+            </div>
+          </section>
+          <div class="network-content">
+            <div id="network-file-list" class="network-file-list" aria-live="polite"></div>
+            <div class="network-preview-box">
+              <div class="network-preview-head">
+                <span id="network-preview-title" class="network-preview-title">选择 HTML 文件后预览</span>
+                <button id="network-preview-open-button" class="button button-small" type="button" disabled>新窗口打开</button>
+              </div>
+              <iframe id="network-preview" title="网络库 HTML 预览" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+            </div>
+          </div>
+        </section>
       </div>
-      <p id="network-status" class="network-status" aria-live="polite">正在读取网络库…</p>
-      <section id="network-network-editor" class="network-network-editor" aria-labelledby="network-editor-title" hidden>
-        <div class="network-network-editor-head">
-          <h3 id="network-editor-title" class="network-network-editor-title">编辑网络库 JSON</h3>
-          <span class="panel-kicker">仅保存 JSON；HTML 文件保持只读</span>
-        </div>
-        <div class="network-draft-grid">
-          <div class="network-draft-field">
-            <label for="network-draft-name">文件名</label>
-            <input id="network-draft-name" class="field" type="text" maxlength="240" autocomplete="off" spellcheck="false">
-          </div>
-          <div class="network-draft-field">
-            <label for="network-draft-content">JSON 内容</label>
-            <textarea id="network-draft-content" class="textarea network-draft-content" spellcheck="false"></textarea>
-          </div>
-        </div>
-        <div class="network-draft-actions">
-          <button id="network-draft-cancel" class="button button-small" type="button">取消编辑</button>
-          <button id="network-draft-save" class="button button-small button-primary" type="button">校验并保存</button>
-        </div>
-      </section>
-      <div class="network-content">
-        <div id="network-file-list" class="network-file-list" aria-live="polite"></div>
-        <div class="network-preview-box">
-          <div class="network-preview-head">
-            <span id="network-preview-title" class="network-preview-title">选择 HTML 文件后预览</span>
-            <button id="network-preview-open-button" class="button button-small" type="button" disabled>新窗口打开</button>
-          </div>
-          <iframe id="network-preview" title="网络库 HTML 预览" sandbox="allow-scripts allow-forms allow-modals"></iframe>
-        </div>
-      </div>
-    </section>
+    </div>
 
     <div class="mobile-tabs" role="tablist" aria-label="工作区域">
       <button class="mobile-tab" type="button" role="tab" aria-selected="true" data-mobile-target="structure">结构</button>
@@ -1431,6 +1453,8 @@
     .favorite-mark { color: #e6a700; font-size: 17px; }
     .item-content { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text); font: 12px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
     .item-content[data-expanded="true"] { display: block; overflow: visible; -webkit-line-clamp: unset; }
+    .command-line { display: block; min-height: 1.55em; border-radius: 4px; cursor: copy; }
+    .command-line:hover, .command-line:focus-visible { background: color-mix(in srgb, var(--primary-soft) 72%, transparent); outline: none; }
     .item-note { margin: auto 0 0; color: var(--muted); font-size: 12px; }
     .item-link { display: block; max-width: 100%; overflow: hidden; color: var(--primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
     .item-link:hover, .item-link:focus-visible { color: var(--primary-strong); text-decoration: underline; }
@@ -1440,6 +1464,9 @@
     .card-copy-action { display: flex; width: 100%; min-height: 96px; flex: 1; flex-direction: column; gap: 9px; padding: 3px; border: 0; border-radius: 9px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
     .card-copy-action:hover .copy-label { color: var(--primary-strong); text-decoration: underline; }
     .card-copy-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 34%, transparent); outline-offset: 2px; }
+    .copy-mode-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .copy-mode-button { min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 800; }
+    .copy-mode-button:hover, .copy-mode-button:focus-visible { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-strong); outline: none; }
     .mobile-groups { display: none; margin-top: 14px; }
     .editor-panel { margin-top: 18px; padding: 20px; }
     .editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -2012,23 +2039,61 @@
       if (item.favorite) tools.append(createElement('span', 'favorite-mark', '★'));
       tools.append(visibility, expansion);
       top.append(selectControl, tools);
-      const copyAction = createElement('button', 'card-copy-action');
-      copyAction.type = 'button';
+      const copyAction = createElement('div', 'card-copy-action');
+      copyAction.tabIndex = 0;
+      copyAction.setAttribute('role', 'button');
       copyAction.setAttribute('aria-label', '复制“' + item.title + '”正文');
       const titleRow = createElement('div', 'card-title-row');
       titleRow.append(createElement('span', 'item-title', item.title));
       const order = copyOrder.indexOf(item.id);
       if (order >= 0) titleRow.append(createElement('span', 'card-order-badge', String(order + 1)));
-      const content = createElement('pre', 'item-content', item.content);
+      const content = createElement('pre', 'item-content');
       content.hidden = !isItemVisible(item.id);
       content.dataset.expanded = String(expanded);
+      content.title = '点击任意命令行复制单行';
+      const lines = String(item.content || '').split(String.fromCharCode(10));
+      lines.forEach((line, lineIndex) => {
+        if (lineIndex) content.appendChild(document.createTextNode(String.fromCharCode(10)));
+        const lineNode = createElement('span', 'command-line', line || ' ');
+        lineNode.tabIndex = 0;
+        lineNode.setAttribute('role', 'button');
+        lineNode.setAttribute('aria-label', '复制“' + item.title + '”第 ' + (lineIndex + 1) + ' 行');
+        lineNode.addEventListener('click', event => {
+          event.stopPropagation();
+          copyLine(item, line);
+        });
+        lineNode.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          event.stopPropagation();
+          copyLine(item, line);
+        });
+        content.appendChild(lineNode);
+      });
       const footer = createElement('div', 'card-footer');
       footer.append(item.shortcut ? createElement('kbd', 'shortcut', item.shortcut) : createElement('span', '', ''));
       footer.append(createElement('span', 'copy-label', copiedIds.has(item.id) ? '已复制' : '点击复制'));
       copyAction.append(titleRow, content);
       if (item.note) copyAction.append(createElement('p', 'item-note', item.note));
       copyAction.appendChild(footer);
-      card.append(top, copyAction);
+      const copyModeActions = createElement('div', 'copy-mode-actions');
+      const copySelectionButton = createElement('button', 'copy-mode-button', '复制选中');
+      copySelectionButton.type = 'button';
+      copySelectionButton.title = '复制当前卡片命令中的选中内容';
+      copySelectionButton.addEventListener('mousedown', event => event.preventDefault());
+      copySelectionButton.addEventListener('click', event => {
+        event.stopPropagation();
+        copySelection(item, card);
+      });
+      const copyAllButton = createElement('button', 'copy-mode-button', '复制全部');
+      copyAllButton.type = 'button';
+      copyAllButton.title = '复制当前卡片的全部内容';
+      copyAllButton.addEventListener('click', event => {
+        event.stopPropagation();
+        copyItem(item, card);
+      });
+      copyModeActions.append(copySelectionButton, copyAllButton);
+      card.append(top, copyAction, copyModeActions);
       const linkCheck = validateQuickLink(item.link);
       if (linkCheck.valid && linkCheck.normalized) {
         const link = createElement('a', 'item-link', linkCheck.normalized);
@@ -2055,6 +2120,12 @@
       copyAction.addEventListener('click', event => {
         event.stopPropagation();
         copyItem(item, card);
+      });
+      copyAction.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          copyItem(item, card);
+        }
       });
       card.addEventListener('keydown', event => {
         if (event.target !== card) return;
@@ -2090,6 +2161,33 @@
       copiedIds.clear();
       uniqueIds(ids).forEach(id => copiedIds.add(id));
       renderMainOnly();
+    }
+    function selectionNodeInside(container, node) {
+      if (!container || !node) return false;
+      const target = node.nodeType === 3 ? node.parentNode : node;
+      return target === container || container.contains(target);
+    }
+    async function copyLine(item, line) {
+      const value = String(line || '');
+      if (!value) {
+        announce('当前行为空，未复制。', 'warning');
+        return;
+      }
+      if (!await writeClipboard(value)) return;
+      markCopiedCards([item.id]);
+      announce('已复制“' + item.title + '”的单行内容。', 'success');
+    }
+    async function copySelection(item, card) {
+      const selection = window.getSelection && window.getSelection();
+      const content = card && card.querySelector('.item-content');
+      const value = selection ? selection.toString() : '';
+      if (!content || !selection || !value.trim() || !selectionNodeInside(content, selection.anchorNode) || !selectionNodeInside(content, selection.focusNode)) {
+        announce('请先在当前卡片的命令正文中选中要复制的内容。', 'warning');
+        return;
+      }
+      if (!await writeClipboard(value)) return;
+      markCopiedCards([item.id]);
+      announce('已复制“' + item.title + '”的选中内容。', 'success');
     }
     async function copyItem(item, card) {
       if (!await writeClipboard(item.content)) return;
@@ -2686,6 +2784,29 @@
       return document.getElementById(id);
     }
 
+    function syncEditorStickyOffsets() {
+      const generationBar = document.querySelector('.generation-bar');
+      if (!generationBar) return;
+      document.documentElement.style.setProperty('--generation-bar-height', Math.ceil(generationBar.getBoundingClientRect().height) + 'px');
+    }
+
+    function setNetworkLibraryDialogOpen(open) {
+      const dialog = byId('network-library-dialog');
+      const toggle = byId('network-library-toggle');
+      if (!dialog || !toggle) return;
+      const nextOpen = Boolean(open);
+      dialog.hidden = !nextOpen;
+      dialog.setAttribute('aria-hidden', String(!nextOpen));
+      toggle.setAttribute('aria-expanded', String(nextOpen));
+      document.body.classList.toggle('network-dialog-open', nextOpen);
+      if (nextOpen) {
+        renderNetworkLibrary();
+        requestAnimationFrame(() => byId('network-search').focus());
+      } else {
+        toggle.focus({ preventScroll: true });
+      }
+    }
+
     function createElement(tag, className, text) {
       const element = document.createElement(tag);
       if (className) element.className = className;
@@ -3029,28 +3150,47 @@
       }
     }
 
-    async function saveNetworkJson() {
+    async function saveNetworkFile(filename, content, overwrite) {
+      const response = await fetch('/api/html-paste/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: filename, content, overwrite })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 409) throw new Error('同名文件已存在：' + filename + '。');
+      if (!response.ok || !payload.ok) throw new Error(payload.error || '网络库保存失败（' + response.status + '）');
+    }
+
+    async function saveNetworkBundle() {
       const overwrite = byId('network-overwrite-checkbox').checked;
-      const filename = core.safeHtmlFilename(state.document.meta.filename || state.document.meta.title || 'quick-copy')
-        .replace(/\.html$/i, '.json');
-      if (overwrite && !confirm('确认覆盖网络库中的“' + filename + '”？')) return;
-      const content = JSON.stringify(state.document, null, 2);
-      try {
-        const response = await fetch('/api/html-paste/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: filename, content, overwrite })
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (response.status === 409) throw new Error('同名文件已存在，请勾选“覆盖保存”后重试。');
-        if (!response.ok || !payload.ok) throw new Error(payload.error || '网络库保存失败（' + response.status + '）');
-        await loadNetworkLibrary();
-        setNetworkStatus('已保存 ' + filename + ' 到网络库。', 'success');
-        announce('网络 JSON 已保存：' + filename, 'success');
-      } catch (error) {
-        setNetworkStatus('网络 JSON 导出失败：' + error.message, 'error');
-        announce('导出失败：' + error.message, 'error');
+      const htmlFilename = core.safeHtmlFilename(state.document.meta.filename || state.document.meta.title || 'quick-copy');
+      const jsonFilename = htmlFilename.replace(/\.html$/i, '.json');
+      const conflicts = state.networkFiles.filter(file => file && (file.name === htmlFilename || file.name === jsonFilename)).map(file => file.name);
+      if (!overwrite && conflicts.length) {
+        const conflictNames = Array.from(new Set(conflicts)).join('、');
+        setNetworkStatus('导出已取消，同名文件已存在：' + conflictNames + '。', 'error');
+        announce('请勾选“覆盖保存”后再导出。', 'warning');
+        return;
       }
+      if (overwrite && !confirm('确认覆盖网络库中的“' + jsonFilename + '”和“' + htmlFilename + '”？')) return;
+      const saved = [];
+      try {
+        await saveNetworkFile(jsonFilename, JSON.stringify(state.document, null, 2), overwrite);
+        saved.push(jsonFilename);
+        await saveNetworkFile(htmlFilename, core.buildGeneratedHtml(state.document), overwrite);
+        saved.push(htmlFilename);
+        await loadNetworkLibrary();
+        setNetworkStatus('已导出 ' + jsonFilename + ' 与 ' + htmlFilename + ' 到网络库。', 'success');
+        announce('网络库已同时导出 HTML 和 JSON。', 'success');
+      } catch (error) {
+        const completed = saved.length ? '已完成：' + saved.join('、') + '；' : '';
+        setNetworkStatus('网络库成套导出失败：' + completed + error.message, 'error');
+        announce('导出失败：' + completed + error.message, 'error');
+      }
+    }
+
+    async function saveNetworkJson() {
+      return saveNetworkBundle();
     }
 
     async function saveNetworkDraft() {
@@ -3781,6 +3921,9 @@
     });
     byId('floating-editor-button').addEventListener('click', focusEditorFromQuickActions);
     byId('generate-button').addEventListener('click', generateFile);
+    byId('network-library-toggle').addEventListener('click', () => setNetworkLibraryDialogOpen(true));
+    byId('network-library-close').addEventListener('click', () => setNetworkLibraryDialogOpen(false));
+    document.querySelector('.network-dialog-backdrop').addEventListener('click', () => setNetworkLibraryDialogOpen(false));
     byId('export-json-button').addEventListener('click', exportJson);
     byId('import-json-button').addEventListener('click', () => byId('import-json-input').click());
     byId('import-json-input').addEventListener('change', handleJsonImport);
@@ -3811,6 +3954,13 @@
     byId('network-preview').addEventListener('error', () => {
       if (state.networkPreviewName) setNetworkStatus('HTML 预览加载失败，请检查文件内容或服务器状态。', 'error');
     });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !byId('network-library-dialog').hidden) {
+        event.preventDefault();
+        setNetworkLibraryDialogOpen(false);
+      }
+    });
+    window.addEventListener('resize', syncEditorStickyOffsets);
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;
       state.document = createBlankDocument();
@@ -3838,6 +3988,7 @@
 
     if (location.protocol === 'file:') byId('back-link').hidden = true;
     setDraftStatus('草稿已载入');
+    syncEditorStickyOffsets();
     renderAll();
     loadNetworkLibrary();
   }());

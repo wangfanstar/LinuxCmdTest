@@ -252,6 +252,13 @@ assert.match(generated, /grid-template-columns:\s*minmax\(180px,\s*\.72fr\)\s+mi
 assert.match(generated, /class=["']nav-item-link["']/);
 assert.match(generated, /card-order-badge/);
 assert.match(generated, /card-copy-action/);
+assert.match(generated, /function\s+copyLine\s*\(/);
+assert.match(generated, /function\s+copySelection\s*\(/);
+assert.match(generated, /复制选中/);
+assert.match(generated, /复制全部/);
+assert.match(generated, /command-line/);
+assert.match(generated, /window\.getSelection\(\)/);
+assert.match(generated, /copySelectionButton\.addEventListener\(['"]mousedown['"]/);
 assert.match(generated, /card\.addEventListener\(['"]keydown['"]/);
 assert.match(generated, /function\s+restoreTransientFocus\s*\(/);
 assert.match(generated, /内容将直接连接/);
@@ -284,6 +291,12 @@ for (const networkId of [
 assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
 assert.match(html, /function\s+importNetworkJson\s*\(/);
 assert.match(html, /function\s+saveNetworkJson\s*\(/);
+assert.match(html, /function\s+saveNetworkBundle\s*\(/);
+assert.match(html, /network-export-json-button[\s\S]*导出 HTML \+ JSON/);
+assert.match(html, /saveNetworkBundle[\s\S]*\.json[\s\S]*\.html/);
+assert.match(html, /saveNetworkBundle[\s\S]*networkFiles/);
+assert.match(html, /function\s+saveNetworkFile\s*\([\s\S]*\/api\/html-paste\/save/);
+assert.match(html, /saveNetworkBundle[\s\S]*saveNetworkFile\(jsonFilename[\s\S]*saveNetworkFile\(htmlFilename/);
 assert.match(html, /function\s+renderNetworkLibrary\s*\(/);
 assert.match(html, /function\s+previewNetworkHtml\s*\(/);
 assert.match(html, /\/api\/html-paste\/list/);

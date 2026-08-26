@@ -50,6 +50,13 @@ for (const id of [
 }
 
 assert.match(html, /class="workspace"/);
+assert.match(html, /\.project-toolbar\s*\{[\s\S]*position:\s*sticky/);
+assert.match(html, /id=["']network-library-toggle["'][^>]*aria-expanded=["']false["']/);
+assert.match(html, /id=["']network-library-dialog["'][^>]*hidden/);
+assert.match(html, /function\s+setNetworkLibraryDialogOpen\s*\(/);
+assert.match(html, /network-library-dialog[\s\S]*role=["']dialog["']/);
+assert.match(html, /network-library-toggle[\s\S]*aria-expanded/);
+assert.match(html, /event\.key\s*===\s*['"]Escape['"][\s\S]*setNetworkLibraryDialogOpen/);
 assert.match(html, /class=["'][^"']*generation-bar[^"']*["'][^>]*aria-label=["']生成设置["']/);
 assert.match(html, /generation-bar[\s\S]*position:\s*sticky/);
 assert.match(html, /generation-bar[\s\S]*top:\s*0/);

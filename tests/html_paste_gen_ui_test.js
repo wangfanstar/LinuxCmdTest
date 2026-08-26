@@ -49,6 +49,21 @@ for (const id of [
   assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
 }
 
+for (const id of [
+  'custom-content-button',
+  'custom-content-dialog',
+  'custom-content-title',
+  'custom-content-text',
+  'custom-content-position',
+  'custom-save-to-document',
+  'custom-document-group',
+  'custom-document-title',
+  'custom-submit-button',
+  'custom-submit-copy-button'
+]) {
+  assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
+}
+
 assert.match(html, /class="workspace"/);
 assert.match(html, /\.project-toolbar\s*\{[\s\S]*position:\s*sticky/);
 assert.match(html, /id=["']network-library-toggle["'][^>]*aria-expanded=["']false["']/);
@@ -116,6 +131,16 @@ assert.match(html, /\.sidebar\s*\{[\s\S]*overflow-y:\s*auto/);
 assert.match(html, /setProperty\(['"]--generated-toolbar-height['"]/);
 assert.match(html, /group-select-button/);
 assert.match(html, /function\s+markCopiedCards\s*\(/);
+assert.match(html, /batchEntries/);
+assert.match(html, /insertBatchEntry/);
+assert.match(html, /composeBatchEntries/);
+assert.match(html, /加入并复制/);
+assert.match(html, /保存到文档/);
+assert.match(html, /保存到文档时必须填写文档条目标题/);
+assert.match(html, /function\s+openCustomContentDialog\s*\(/);
+assert.match(html, /function\s+renderCustomBatchEntry\s*\(/);
+assert.match(html, /copiedCustomIds/);
+assert.match(html, /const saved = saveOverride\(\);[\s\S]*if \(!saved\)/);
 assert.match(html, /function\s+renderAll\s*\(/);
 assert.match(html, /event\.ctrlKey\s*&&\s*event\.key\s*===\s*'Enter'/);
 assert.match(html, /data-action="add-group"/);

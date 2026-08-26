@@ -123,6 +123,32 @@ assert.strictEqual(batchResult.text, `${batchItems[2].content}\n${batchItems[0].
 assert.strictEqual(batchResult.includedCount, 2);
 assert.strictEqual(batchResult.skippedCount, 1);
 assert.strictEqual(batchResult.missingCount, 1);
+const customBatchEntry = { kind: 'custom', id: 'custom-1', title: '前置说明', content: '请先确认环境' };
+const batchEntries = core.insertBatchEntry(
+  [{ kind: 'item', id: batchItems[0].id }, { kind: 'item', id: batchItems[2].id }],
+  customBatchEntry,
+  'after',
+  batchItems[0].id
+);
+assert.deepStrictEqual(Array.from(batchEntries, entry => entry.id), [batchItems[0].id, 'custom-1', batchItems[2].id]);
+assert.deepStrictEqual(Array.from(core.moveBatchEntry(batchEntries, 'custom-1', 1), entry => entry.id), [batchItems[0].id, batchItems[2].id, 'custom-1']);
+assert.deepStrictEqual(Array.from(core.reorderBatchEntryAtTarget(batchEntries, batchItems[2].id, 'custom-1'), entry => entry.id), [batchItems[0].id, batchItems[2].id, 'custom-1']);
+assert.deepStrictEqual(Array.from(core.removeBatchEntry(batchEntries, 'custom-1'), entry => entry.id), [batchItems[0].id, batchItems[2].id]);
+const secondCustomBatchEntry = { kind: 'custom', id: 'custom-2', title: '收尾说明', content: '请检查结果' };
+const customAfterCustom = core.insertBatchEntry(batchEntries, secondCustomBatchEntry, 'after', 'custom-1');
+assert.deepStrictEqual(Array.from(customAfterCustom, entry => entry.id), [batchItems[0].id, 'custom-1', 'custom-2', batchItems[2].id]);
+assert.strictEqual(core.validateCustomBatchContent('  ', '正文').valid, true);
+assert.strictEqual(core.validateCustomBatchContent('标题', '  \n ').valid, false);
+const customBatch = core.composeBatchEntries(batchDoc, batchEntries, 'newline', '');
+assert.strictEqual(customBatch.text, `${batchItems[0].content}\n请先确认环境\n${batchItems[2].content}`);
+assert.deepStrictEqual(Array.from(customBatch.includedIds), [batchItems[0].id, 'custom-1', batchItems[2].id]);
+assert.deepStrictEqual(Array.from(customBatch.includedItemIds), [batchItems[0].id, batchItems[2].id]);
+assert.deepStrictEqual(Array.from(customBatch.includedCustomIds), ['custom-1']);
+const appended = core.appendCustomDocumentItem(batchDoc, batchDoc.groups[0].id, '文档片段', '持久化正文');
+assert.strictEqual(appended.valid, true);
+assert.strictEqual(appended.document.groups[0].items.at(-1).content, '持久化正文');
+assert.strictEqual(core.appendCustomDocumentItem(batchDoc, batchDoc.groups[0].id, '  ', '正文').valid, false);
+assert.strictEqual(core.appendCustomDocumentItem(batchDoc, 'missing-group', '标题', '正文').valid, false);
 const emptyBatchDoc = core.cloneDocument(batchDoc);
 emptyBatchDoc.groups.forEach(group => group.items.forEach(item => { item.content = ''; }));
 const emptyBatch = core.composeBatchText(emptyBatchDoc, batchItems.map(item => item.id), 'custom', '');
@@ -195,6 +221,10 @@ assert.strictEqual(core.matchesShortcut('Alt+1', {
 
 const generated = core.buildGeneratedHtml(searchDoc);
 assert.match(generated, /^<!DOCTYPE html>/i);
+const generatedRuntimeMatch = generated.match(/<script id="generated-app-logic">([\s\S]*?)<\/script>/);
+assert.ok(generatedRuntimeMatch, 'generated-app-logic script must exist');
+assert.doesNotThrow(() => new vm.Script(generatedRuntimeMatch[1], { filename: 'generated-app-logic' }));
+assert.strictEqual((generatedRuntimeMatch[1].match(/\bstate\./g) || []).length, 0, 'generated runtime must not depend on editor state');
 assert.doesNotMatch(generated, /preview-command-toggle/);
 assert.doesNotMatch(generated, /expandedPreviewIds/);
 for (const id of [
@@ -217,6 +247,16 @@ for (const id of [
   'custom-separator',
   'batch-copy-button',
   'batch-clear-button',
+  'custom-content-button',
+  'custom-content-dialog',
+  'custom-content-title',
+  'custom-content-text',
+  'custom-content-position',
+  'custom-save-to-document',
+  'custom-document-group',
+  'custom-document-title',
+  'custom-submit-button',
+  'custom-submit-copy-button',
   'generated-import-json-button',
   'generated-export-json-button',
   'generated-import-json-input'
@@ -240,6 +280,8 @@ assert.match(generated, /导入失败，当前内容未改变/);
 assert.match(generated, /generated-import-json-input[\s\S]*?value\s*=\s*''/);
 assert.match(generated, /选择当前结果/);
 assert.match(generated, /一键复制/);
+assert.match(generated, /class=["']hero-actions["'][\s\S]*id=["']custom-content-button["']/);
+assert.match(generated, /const core = \{\s*newId,/);
 assert.match(generated, /class=["']item-select["']/);
 assert.match(generated, /class=["']item-visibility-toggle["']/);
 assert.match(generated, /class=["']item-expand-toggle["']/);
@@ -254,6 +296,11 @@ assert.match(generated, /card-order-badge/);
 assert.match(generated, /card-copy-action/);
 assert.match(generated, /function\s+copyLine\s*\(/);
 assert.match(generated, /function\s+copySelection\s*\(/);
+assert.match(generated, /function\s+openCustomContentDialog\s*\(/);
+assert.match(generated, /function\s+submitCustomContent\s*\(/);
+assert.match(generated, /renderCustomPositionOptions/);
+assert.match(generated, /custom-save-to-document/);
+assert.match(generated, /加入并复制/);
 assert.match(generated, /复制选中/);
 assert.match(generated, /复制全部/);
 assert.match(generated, /command-line/);

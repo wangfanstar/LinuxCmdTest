@@ -1196,6 +1196,124 @@
       return result;
     }
 
+    function normalizeBatchEntries(entries) {
+      const result = [];
+      const seen = new Set();
+      (Array.isArray(entries) ? entries : []).forEach(entry => {
+        if (!entry || typeof entry !== 'object') return;
+        const id = String(entry.id || '').trim();
+        if (!id || seen.has(id)) return;
+        const kind = entry.kind === 'custom' ? 'custom' : 'item';
+        if (kind === 'custom') {
+          const content = String(entry.content || '');
+          if (!content.trim()) return;
+          result.push({ kind, id, title: String(entry.title || '').trim() || '自定义片段', content });
+        } else {
+          result.push({ kind, id });
+        }
+        seen.add(id);
+      });
+      return result;
+    }
+
+    function insertBatchEntry(entries, entry, position, anchorId) {
+      const result = normalizeBatchEntries(entries).filter(existing => existing.id !== String(entry && entry.id || '').trim());
+      const normalized = normalizeBatchEntries([entry])[0];
+      if (!normalized) return result;
+      let index = result.length;
+      if (position === 'start') index = 0;
+      if (position === 'after') {
+        const anchor = result.findIndex(existing => existing.id === String(anchorId || '').trim());
+        index = anchor < 0 ? result.length : anchor + 1;
+      }
+      result.splice(Math.max(0, Math.min(index, result.length)), 0, normalized);
+      return result;
+    }
+
+    function moveBatchEntry(entries, entryId, direction) {
+      const result = normalizeBatchEntries(entries);
+      const index = result.findIndex(entry => entry.id === String(entryId || '').trim());
+      const target = index + Number(direction || 0);
+      if (index < 0 || target < 0 || target >= result.length) return result;
+      result.splice(target, 0, result.splice(index, 1)[0]);
+      return result;
+    }
+
+    function removeBatchEntry(entries, entryId) {
+      const id = String(entryId || '').trim();
+      return normalizeBatchEntries(entries).filter(entry => entry.id !== id);
+    }
+
+    function reorderBatchEntryAtTarget(entries, draggedId, targetId) {
+      const result = normalizeBatchEntries(entries);
+      const source = result.findIndex(entry => entry.id === String(draggedId || '').trim());
+      const target = result.findIndex(entry => entry.id === String(targetId || '').trim());
+      if (source < 0 || target < 0 || source === target) return result;
+      const moved = result.splice(source, 1)[0];
+      const adjustedTarget = result.findIndex(entry => entry.id === String(targetId || '').trim());
+      result.splice(source < target ? adjustedTarget + 1 : adjustedTarget, 0, moved);
+      return result;
+    }
+
+    function validateCustomBatchContent(title, content) {
+      const normalizedTitle = String(title || '').trim() || '自定义片段';
+      const normalizedContent = String(content || '');
+      if (!normalizedContent.trim()) return { valid: false, title: normalizedTitle, content: normalizedContent, error: '自定义内容不能为空。' };
+      return { valid: true, title: normalizedTitle, content: normalizedContent, error: '' };
+    }
+
+    function composeBatchEntries(value, entries, separatorMode, customSeparator) {
+      const itemsById = new Map();
+      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
+        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
+          if (item && item.id) itemsById.set(String(item.id), item);
+        });
+      });
+      const values = [];
+      const includedIds = [];
+      const includedItemIds = [];
+      const includedCustomIds = [];
+      let skippedCount = 0;
+      let missingCount = 0;
+      normalizeBatchEntries(entries).forEach(entry => {
+        const content = entry.kind === 'custom' ? entry.content : String((itemsById.get(entry.id) || {}).content || '');
+        if (entry.kind === 'item' && !itemsById.has(entry.id)) {
+          missingCount += 1;
+          return;
+        }
+        if (!content) {
+          skippedCount += 1;
+          return;
+        }
+        values.push(content);
+        includedIds.push(entry.id);
+        if (entry.kind === 'custom') includedCustomIds.push(entry.id);
+        else includedItemIds.push(entry.id);
+      });
+      return {
+        text: values.join(resolveBatchSeparator(separatorMode, customSeparator)),
+        includedIds,
+        includedItemIds,
+        includedCustomIds,
+        includedCount: values.length,
+        skippedCount,
+        missingCount
+      };
+    }
+
+    function appendCustomDocumentItem(value, groupId, title, content) {
+      const check = validateCustomBatchContent(title, content);
+      if (!check.valid) return { valid: false, document: value, item: null, error: check.error };
+      const documentTitle = String(title || '').trim();
+      if (!documentTitle) return { valid: false, document: value, item: null, error: '文档条目标题不能为空。' };
+      const document = cloneDocument(value);
+      const group = (Array.isArray(document.groups) ? document.groups : []).find(entry => entry.id === String(groupId || ''));
+      if (!group) return { valid: false, document: value, item: null, error: '目标分组不存在。' };
+      const item = createItem({ title: documentTitle, content: check.content, shortcut: '', link: '', note: '', favorite: false });
+      group.items.push(item);
+      return { valid: true, document, item, error: '' };
+    }
+
     function composeBatchText(value, copyOrder, separatorMode, customSeparator) {
       const itemsById = new Map();
       (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
@@ -1490,6 +1608,7 @@
     .batch-order-list { display: flex; gap: 7px; margin: 11px 0; padding: 0 0 5px; overflow-x: auto; list-style: none; }
     .batch-order-item { display: grid; min-width: 210px; grid-template-columns: auto minmax(70px, 1fr) auto; align-items: center; gap: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
     .batch-order-item[aria-grabbed="true"] { opacity: .58; }
+    .custom-batch-order-item.is-copied { border-color: var(--success); background: var(--success-soft); }
     .drag-handle { padding: 2px 4px; color: var(--muted); cursor: grab; user-select: none; }
     .batch-item-title { overflow: hidden; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
     .batch-item-actions { display: flex; gap: 3px; }
@@ -1498,6 +1617,28 @@
     .batch-controls .field { min-height: 40px; padding: 7px 9px; }
     .custom-separator-wrap { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
     .batch-expand { display: none; }
+    .custom-content-dialog { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 24px; }
+    .custom-content-dialog[hidden] { display: none; }
+    .custom-content-backdrop { position: absolute; inset: 0; border: 0; background: rgba(14, 23, 42, .42); cursor: pointer; }
+    .custom-content-surface { position: relative; z-index: 1; display: grid; width: min(620px, 100%); max-height: min(820px, calc(100vh - 48px)); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 18px; background: var(--surface); box-shadow: 0 24px 75px rgba(16, 24, 40, .28); }
+    .custom-content-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
+    .custom-content-head h2 { margin: 0; font-size: 18px; }
+    .custom-content-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .custom-content-close { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); cursor: pointer; font-size: 18px; }
+    .custom-content-body { display: grid; gap: 13px; overflow: auto; padding: 16px 20px; }
+    .custom-content-field { display: grid; gap: 6px; }
+    .custom-content-field > span, .custom-content-field > label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .custom-content-field input, .custom-content-field textarea, .custom-content-field select { width: 100%; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); outline: none; }
+    .custom-content-field input, .custom-content-field select { min-height: 40px; padding: 8px 10px; }
+    .custom-content-field textarea { min-height: 170px; padding: 9px 10px; resize: vertical; font: 12px/1.55 "SFMono-Regular", Consolas, monospace; }
+    .custom-content-field input:focus, .custom-content-field textarea:focus, .custom-content-field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 17%, transparent); }
+    .custom-document-fields { display: grid; gap: 11px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
+    .custom-document-fields[hidden] { display: none; }
+    .custom-save-label { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 12px; font-weight: 750; }
+    .custom-content-status { min-height: 20px; margin: 0; color: var(--muted); font-size: 12px; }
+    .custom-content-status[data-type="error"] { color: var(--danger); }
+    .custom-content-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+    body.custom-content-dialog-open { overflow: hidden; }
     @media (max-width: 860px) {
       .search-row { grid-template-columns: 1fr 1fr; }
       .search-wrap { grid-column: 1 / -1; }
@@ -1533,6 +1674,10 @@
       .batch-order-list { max-height: 128px; flex-direction: column; overflow-y: auto; }
       .batch-order-item { min-width: 0; }
       .batch-tray[data-expanded="false"] .batch-order-list, .batch-tray[data-expanded="false"] .batch-controls { display: none; }
+      .custom-content-dialog { padding: 10px; align-items: end; }
+      .custom-content-surface { max-height: calc(100vh - 20px); border-radius: 16px 16px 12px 12px; }
+      .custom-content-body { padding: 14px; }
+      .custom-content-actions { padding: 10px 14px 14px; }
     }
   </style>
 </head>
@@ -1550,6 +1695,7 @@
           <button id="mobile-groups-button" class="button mobile-groups" type="button" aria-expanded="false">浏览分组</button>
           <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
           <button id="select-visible-button" class="button" type="button">选择当前结果</button>
+          <button id="custom-content-button" class="button" type="button">＋ 自定义内容</button>
           <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
           <button id="theme-toggle" class="button" type="button">切换主题</button>
           <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
@@ -1609,6 +1755,50 @@
     </div>
   </aside>
 
+  <div id="custom-content-dialog" class="custom-content-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="custom-content-dialog-title" hidden>
+    <button class="custom-content-backdrop" type="button" aria-label="关闭自定义内容弹窗"></button>
+    <form id="custom-content-form" class="custom-content-surface">
+      <header class="custom-content-head">
+        <div>
+          <h2 id="custom-content-dialog-title">添加自定义内容</h2>
+          <p>把说明、变量或收尾命令插入当前复制篮。</p>
+        </div>
+        <button id="custom-content-close" class="custom-content-close" type="button" aria-label="关闭">×</button>
+      </header>
+      <div class="custom-content-body">
+        <label class="custom-content-field">
+          <span>片段标题（仅用于复制篮）</span>
+          <input id="custom-content-title" type="text" maxlength="120" placeholder="自定义片段" autocomplete="off">
+        </label>
+        <label class="custom-content-field">
+          <span>自定义内容（纯文本）</span>
+          <textarea id="custom-content-text" placeholder="输入要插入的一段或多行内容"></textarea>
+        </label>
+        <label class="custom-content-field">
+          <span>插入位置</span>
+          <select id="custom-content-position"></select>
+        </label>
+        <label class="custom-save-label"><input id="custom-save-to-document" type="checkbox"> 保存到文档（同时保存到当前 JSON）</label>
+        <div id="custom-document-fields" class="custom-document-fields" hidden>
+          <label class="custom-content-field">
+            <span>目标分组</span>
+            <select id="custom-document-group"></select>
+          </label>
+          <label class="custom-content-field">
+            <span>文档条目标题</span>
+            <input id="custom-document-title" type="text" maxlength="120" placeholder="请输入要保存的条目标题" autocomplete="off">
+          </label>
+        </div>
+        <p id="custom-content-status" class="custom-content-status" aria-live="polite"></p>
+      </div>
+      <footer class="custom-content-actions">
+        <button id="custom-content-cancel" class="button" type="button">取消</button>
+        <button id="custom-submit-button" class="button" type="submit">加入复制篮</button>
+        <button id="custom-submit-copy-button" class="button button-primary" type="button">加入并复制</button>
+      </footer>
+    </form>
+  </div>
+
   <template id="copy-card-controls-template">
     <label class="select-control" title="加入复制篮"><input class="item-select" type="checkbox" aria-label="加入复制篮"></label>
     <button class="item-visibility-toggle" type="button">显示内容</button>
@@ -1632,7 +1822,12 @@
     let editMode = false;
     const selectedIds = new Set();
     let copyOrder = [];
+    let batchEntries = [];
+    let customDialogEntryId = '';
+    let customDialogReturnFocus = null;
+    let customSubmitAndCopy = false;
     const copiedIds = new Set();
+    const copiedCustomIds = new Set();
     const revealedIds = new Set();
     const hiddenIds = new Set();
     const expandedIds = new Set(model.groups.flatMap(group => group.items.map(item => item.id)));
@@ -1642,6 +1837,116 @@
     let batchExpanded = true;
     let draggedItemId = '';
     let focusRestoreFrame = 0;
+
+    // Keep the generated page self-contained: the editor's core helpers are
+    // copied here instead of relying on HtmlPasteGen.html at runtime.
+    function newId(prefix) {
+      const base = String(prefix || 'id');
+      return base + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    }
+    function normalizeBatchEntries(entries) {
+      const result = [];
+      const seen = new Set();
+      (Array.isArray(entries) ? entries : []).forEach(entry => {
+        if (!entry || typeof entry !== 'object') return;
+        const id = String(entry.id || '').trim();
+        if (!id || seen.has(id)) return;
+        const kind = entry.kind === 'custom' ? 'custom' : 'item';
+        if (kind === 'custom') {
+          const content = String(entry.content || '');
+          if (!content.trim()) return;
+          result.push({ kind, id, title: String(entry.title || '').trim() || '自定义片段', content });
+        } else {
+          result.push({ kind, id });
+        }
+        seen.add(id);
+      });
+      return result;
+    }
+    function insertBatchEntry(entries, entry, position, anchorId) {
+      const result = normalizeBatchEntries(entries).filter(existing => existing.id !== String(entry && entry.id || '').trim());
+      const normalized = normalizeBatchEntries([entry])[0];
+      if (!normalized) return result;
+      let index = result.length;
+      if (position === 'start') index = 0;
+      if (position === 'after') {
+        const anchor = result.findIndex(existing => existing.id === String(anchorId || '').trim());
+        index = anchor < 0 ? result.length : anchor + 1;
+      }
+      result.splice(Math.max(0, Math.min(index, result.length)), 0, normalized);
+      return result;
+    }
+    function moveBatchEntry(entries, entryId, direction) {
+      const result = normalizeBatchEntries(entries);
+      const index = result.findIndex(entry => entry.id === String(entryId || '').trim());
+      const target = index + Number(direction || 0);
+      if (index < 0 || target < 0 || target >= result.length) return result;
+      result.splice(target, 0, result.splice(index, 1)[0]);
+      return result;
+    }
+    function removeBatchEntry(entries, entryId) {
+      const id = String(entryId || '').trim();
+      return normalizeBatchEntries(entries).filter(entry => entry.id !== id);
+    }
+    function reorderBatchEntryAtTarget(entries, draggedId, targetId) {
+      const result = normalizeBatchEntries(entries);
+      const source = result.findIndex(entry => entry.id === String(draggedId || '').trim());
+      const target = result.findIndex(entry => entry.id === String(targetId || '').trim());
+      if (source < 0 || target < 0 || source === target) return result;
+      const moved = result.splice(source, 1)[0];
+      const adjustedTarget = result.findIndex(entry => entry.id === String(targetId || '').trim());
+      result.splice(source < target ? adjustedTarget + 1 : adjustedTarget, 0, moved);
+      return result;
+    }
+    function validateCustomBatchContent(title, content) {
+      const normalizedTitle = String(title || '').trim() || '自定义片段';
+      const normalizedContent = String(content || '');
+      if (!normalizedContent.trim()) return { valid: false, title: normalizedTitle, content: normalizedContent, error: '自定义内容不能为空。' };
+      return { valid: true, title: normalizedTitle, content: normalizedContent, error: '' };
+    }
+    function composeBatchEntries(value, entries, separatorMode, customSeparator) {
+      const itemsById = new Map();
+      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
+        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
+          if (item && item.id) itemsById.set(String(item.id), item);
+        });
+      });
+      const values = [];
+      const includedIds = [];
+      const includedItemIds = [];
+      const includedCustomIds = [];
+      let skippedCount = 0;
+      let missingCount = 0;
+      normalizeBatchEntries(entries).forEach(entry => {
+        const content = entry.kind === 'custom' ? entry.content : String((itemsById.get(entry.id) || {}).content || '');
+        if (entry.kind === 'item' && !itemsById.has(entry.id)) {
+          missingCount += 1;
+          return;
+        }
+        if (!content) {
+          skippedCount += 1;
+          return;
+        }
+        values.push(content);
+        includedIds.push(entry.id);
+        if (entry.kind === 'custom') includedCustomIds.push(entry.id);
+        else includedItemIds.push(entry.id);
+      });
+      return { text: values.join(resolveBatchSeparator(separatorMode, customSeparator)), includedIds, includedItemIds, includedCustomIds, includedCount: values.length, skippedCount, missingCount };
+    }
+    function appendCustomDocumentItem(value, groupId, title, content) {
+      const check = validateCustomBatchContent(title, content);
+      if (!check.valid) return { valid: false, document: value, item: null, error: check.error };
+      const documentTitle = String(title || '').trim();
+      if (!documentTitle) return { valid: false, document: value, item: null, error: '文档条目标题不能为空。' };
+      const document = clone(value);
+      const group = (Array.isArray(document.groups) ? document.groups : []).find(entry => entry.id === String(groupId || ''));
+      if (!group) return { valid: false, document: value, item: null, error: '目标分组不存在。' };
+      const item = { id: newId('item'), title: documentTitle, content: check.content, shortcut: '', link: '', note: '', favorite: false, collapsed: false };
+      group.items.push(item);
+      return { valid: true, document, item, error: '' };
+    }
+    const core = { newId, normalizeBatchEntries, insertBatchEntry, moveBatchEntry, removeBatchEntry, reorderBatchEntryAtTarget, validateCustomBatchContent, composeBatchEntries, appendCustomDocumentItem };
 
     function byId(id) { return document.getElementById(id); }
     function syncGeneratedToolbarSpace() {
@@ -1783,10 +2088,27 @@
       const seen = new Set();
       return ids.filter(id => id && !seen.has(id) && seen.add(id));
     }
-    function syncSelection(nextOrder) {
-      copyOrder = uniqueIds(nextOrder);
+    function refreshBatchSelectionState() {
+      batchEntries = core.normalizeBatchEntries(batchEntries);
+      copyOrder = batchEntries.filter(entry => entry.kind === 'item').map(entry => entry.id);
       selectedIds.clear();
       copyOrder.forEach(id => selectedIds.add(id));
+    }
+    function setBatchEntries(entries) {
+      batchEntries = core.normalizeBatchEntries(entries);
+      refreshBatchSelectionState();
+    }
+    function syncSelection(nextOrder) {
+      const ids = uniqueIds(nextOrder);
+      const wanted = new Set(ids);
+      const next = batchEntries.filter(entry => entry.kind === 'custom' || wanted.has(entry.id));
+      const present = new Set(next.filter(entry => entry.kind === 'item').map(entry => entry.id));
+      ids.forEach(id => { if (!present.has(id)) next.push({ kind: 'item', id }); });
+      setBatchEntries(next);
+    }
+    function clearBatchEntries() {
+      setBatchEntries([]);
+      copiedCustomIds.clear();
     }
     function cleanTransientState() {
       const validIds = new Set(allItems().map(item => item.id));
@@ -1795,6 +2117,8 @@
       hiddenIds.forEach(id => { if (!validIds.has(id)) hiddenIds.delete(id); });
       expandedIds.forEach(id => { if (!validIds.has(id)) expandedIds.delete(id); });
       copiedIds.forEach(id => { if (!validIds.has(id)) copiedIds.delete(id); });
+      const validCustomIds = new Set(batchEntries.filter(entry => entry.kind === 'custom').map(entry => entry.id));
+      copiedCustomIds.forEach(id => { if (!validCustomIds.has(id)) copiedCustomIds.delete(id); });
     }
     function captureTransientFocus() {
       const active = document.activeElement;
@@ -1807,7 +2131,7 @@
         if (active.classList.contains('card-copy-action')) return { kind: 'copy', itemId: card.dataset.itemId };
       }
       const row = active.closest && active.closest('.batch-order-item');
-      if (row && active.dataset.focusRole) return { kind: 'batch', itemId: row.dataset.itemId, role: active.dataset.focusRole };
+      if (row && active.dataset.focusRole) return { kind: 'batch', entryId: row.dataset.entryId || row.dataset.itemId, role: active.dataset.focusRole };
       return null;
     }
     function restoreTransientFocus(snapshot) {
@@ -1821,7 +2145,7 @@
         if (snapshot.kind === 'expand' && card) target = card.querySelector('.item-expand-toggle');
         if (snapshot.kind === 'copy' && card) target = card.querySelector('.card-copy-action');
         if (snapshot.kind === 'batch') {
-          const row = Array.from(byId('batch-order-list').children).find(node => node.dataset.itemId === snapshot.itemId);
+          const row = Array.from(byId('batch-order-list').children).find(node => (node.dataset.entryId || node.dataset.itemId) === snapshot.entryId);
           if (row) {
             target = row.querySelector('[data-focus-role="' + snapshot.role + '"]');
             if (target && target.disabled) target = row.querySelector('[data-focus-role]:not(:disabled)');
@@ -1867,15 +2191,141 @@
       announce(allSelected ? '已取消“' + groupTitle + '”本组全选。' : '已选择“' + groupTitle + '”本组 ' + ids.length + ' 条内容。', 'success');
     }
     function moveSelection(itemId, direction) {
-      const index = copyOrder.indexOf(itemId);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= copyOrder.length) return;
-      const next = copyOrder.slice();
-      next.splice(target, 0, next.splice(index, 1)[0]);
-      syncSelection(next);
+      const next = core.moveBatchEntry(batchEntries, itemId, direction);
+      if (next.every((entry, index) => entry.id === batchEntries[index]?.id)) return;
+      setBatchEntries(next);
       renderMainOnly();
       const item = itemById(itemId);
       if (item) announce('已将“' + item.title + '”调整为第 ' + (copyOrder.indexOf(itemId) + 1) + ' 项。', 'success');
+    }
+    function moveCustomBatchEntry(entryId, direction) {
+      const next = core.moveBatchEntry(batchEntries, entryId, direction);
+      if (next.every((entry, index) => entry.id === batchEntries[index]?.id)) return;
+      setBatchEntries(next);
+      renderMainOnly();
+      const entry = batchEntries.find(item => item.id === entryId);
+      if (entry) announce('已将自定义片段“' + entry.title + '”调整顺序。', 'success');
+    }
+    function removeCustomBatchEntry(entryId) {
+      const entry = batchEntries.find(item => item.kind === 'custom' && item.id === entryId);
+      setBatchEntries(core.removeBatchEntry(batchEntries, entryId));
+      renderMainOnly();
+      if (entry) announce('已删除自定义片段“' + entry.title + '”。', 'success');
+    }
+    function setCustomDialogStatus(message, type) {
+      const status = byId('custom-content-status');
+      status.textContent = message || '';
+      status.dataset.type = type || '';
+    }
+    function renderCustomPositionOptions(selectedValue) {
+      const select = byId('custom-content-position');
+      select.replaceChildren();
+      select.appendChild(new Option('开头', 'start'));
+      batchEntries.forEach(entry => {
+        select.appendChild(new Option('在“' + batchEntryTitle(entry) + '”之后', 'after:' + entry.id));
+      });
+      select.appendChild(new Option('末尾', 'end'));
+      const value = selectedValue && Array.from(select.options).some(option => option.value === selectedValue)
+        ? selectedValue
+        : 'end';
+      select.value = value;
+    }
+    function updateCustomDocumentFields() {
+      const saveToDocument = byId('custom-save-to-document').checked;
+      const fields = byId('custom-document-fields');
+      fields.hidden = !saveToDocument;
+      const groupSelect = byId('custom-document-group');
+      const previous = groupSelect.value;
+      groupSelect.replaceChildren();
+      model.groups.forEach(group => groupSelect.appendChild(new Option(group.title || '未命名分组', group.id)));
+      if (model.groups.some(group => group.id === previous)) groupSelect.value = previous;
+      else if (model.groups[0]) groupSelect.value = model.groups[0].id;
+    }
+    function customEntryPosition(entryId) {
+      if (!entryId) return 'end';
+      const index = batchEntries.findIndex(entry => entry.id === entryId);
+      if (index <= 0) return 'start';
+      return 'after:' + batchEntries[index - 1].id;
+    }
+    function openCustomContentDialog(entry) {
+      customDialogEntryId = entry && entry.kind === 'custom' ? entry.id : '';
+      customDialogReturnFocus = document.activeElement;
+      customSubmitAndCopy = false;
+      byId('custom-content-dialog-title').textContent = customDialogEntryId ? '编辑自定义内容' : '添加自定义内容';
+      byId('custom-content-title').value = entry ? entry.title || '' : '';
+      byId('custom-content-text').value = entry ? entry.content || '' : '';
+      byId('custom-save-to-document').checked = false;
+      byId('custom-document-title').value = '';
+      setCustomDialogStatus('', '');
+      renderCustomPositionOptions(customEntryPosition(customDialogEntryId));
+      updateCustomDocumentFields();
+      const dialog = byId('custom-content-dialog');
+      dialog.hidden = false;
+      dialog.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('custom-content-dialog-open');
+      requestAnimationFrame(() => byId('custom-content-title').focus());
+    }
+    function closeCustomContentDialog() {
+      const dialog = byId('custom-content-dialog');
+      dialog.hidden = true;
+      dialog.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('custom-content-dialog-open');
+      customDialogEntryId = '';
+      customSubmitAndCopy = false;
+      const restore = customDialogReturnFocus;
+      customDialogReturnFocus = null;
+      if (restore && document.contains(restore)) restore.focus({ preventScroll: true });
+    }
+    function parseCustomPosition(value) {
+      const raw = String(value || 'end');
+      if (raw === 'start' || raw === 'end') return { position: raw, anchorId: '' };
+      if (raw.indexOf('after:') === 0) return { position: 'after', anchorId: raw.slice(6) };
+      return { position: 'end', anchorId: '' };
+    }
+    function submitCustomContent() {
+      const titleInput = byId('custom-content-title');
+      const contentInput = byId('custom-content-text');
+      const wasEditing = Boolean(customDialogEntryId);
+      const validation = core.validateCustomBatchContent(titleInput.value, contentInput.value);
+      if (!validation.valid) {
+        setCustomDialogStatus(validation.error, 'error');
+        contentInput.focus();
+        return false;
+      }
+      const position = parseCustomPosition(byId('custom-content-position').value);
+      const entryId = customDialogEntryId || core.newId('custom');
+      const entry = { kind: 'custom', id: entryId, title: validation.title, content: validation.content };
+      const withoutCurrent = customDialogEntryId ? core.removeBatchEntry(batchEntries, customDialogEntryId) : batchEntries;
+      setBatchEntries(core.insertBatchEntry(withoutCurrent, entry, position.position, position.anchorId));
+      renderMainOnly();
+
+      if (byId('custom-save-to-document').checked) {
+        const documentTitle = String(byId('custom-document-title').value || '').trim();
+        if (!documentTitle) {
+          setCustomDialogStatus('保存到文档时必须填写文档条目标题。', 'error');
+          byId('custom-document-title').focus();
+          return false;
+        }
+        const appended = core.appendCustomDocumentItem(model, byId('custom-document-group').value, documentTitle, validation.content);
+        if (!appended.valid) {
+          setCustomDialogStatus(appended.error || '写入文档失败。', 'error');
+          byId('custom-document-title').focus();
+          return false;
+        }
+        model = appended.document;
+        const saved = saveOverride();
+        render();
+        if (!saved) {
+          setCustomDialogStatus('已更新当前文档，但浏览器未能保存草稿，请导出 JSON 或 HTML。', 'error');
+          return false;
+        }
+        setCustomDialogStatus('已新增文档条目“' + appended.item.title + '”。', '');
+      }
+      const copyImmediately = customSubmitAndCopy;
+      closeCustomContentDialog();
+      announce(wasEditing ? '自定义片段已更新。' : '自定义片段已加入复制篮。', 'success');
+      if (copyImmediately) copyBatch();
+      return true;
     }
     function toggleItemVisibility(itemId) {
       if (isItemVisible(itemId)) {
@@ -1917,19 +2367,11 @@
       return String.fromCharCode(10);
     }
     function composeBatch() {
-      const values = [];
       const includedIds = [];
-      let skippedCount = 0;
-      let missingCount = 0;
-      uniqueIds(copyOrder).forEach(id => {
-        const item = itemById(id);
-        if (!item) { missingCount += 1; return; }
-        const content = String(item.content || '');
-        if (!content) { skippedCount += 1; return; }
-        values.push(content);
-        includedIds.push(id);
-      });
-      return { text: values.join(resolveBatchSeparator()), includedIds: includedIds, includedCount: values.length, skippedCount: skippedCount, missingCount: missingCount };
+      const result = core.composeBatchEntries(model, batchEntries, separatorMode, customSeparator);
+      result.includedIds.forEach(id => includedIds.push(id));
+      result.includedIds = includedIds;
+      return result;
     }
     function reorderIdAtTarget(order, draggedId, targetId) {
       const result = uniqueIds(order.slice());
@@ -2158,7 +2600,12 @@
     }
     function markCopiedCards(ids) {
       copiedIds.clear();
-      uniqueIds(ids).forEach(id => copiedIds.add(id));
+      copiedCustomIds.clear();
+      const customIds = new Set(batchEntries.filter(entry => entry.kind === 'custom').map(entry => entry.id));
+      uniqueIds(ids).forEach(id => {
+        if (customIds.has(id)) copiedCustomIds.add(id);
+        else copiedIds.add(id);
+      });
       renderMainOnly();
     }
     function selectionNodeInside(container, node) {
@@ -2399,74 +2846,125 @@
       }
       updateAndRender();
     }
+    function batchEntryTitle(entry) {
+      if (entry.kind === 'custom') return entry.title || '自定义片段';
+      const item = itemById(entry.id);
+      return item ? item.title : '已删除条目';
+    }
+    function attachBatchDragHandlers(row, entryId) {
+      row.addEventListener('dragstart', event => {
+        draggedItemId = entryId;
+        row.setAttribute('aria-grabbed', 'true');
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => {
+        draggedItemId = '';
+        row.setAttribute('aria-grabbed', 'false');
+      });
+      row.addEventListener('dragover', event => {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      });
+      row.addEventListener('drop', event => {
+        event.preventDefault();
+        if (!draggedItemId || draggedItemId === entryId) return;
+        const movedId = draggedItemId;
+        const next = core.reorderBatchEntryAtTarget(batchEntries, movedId, entryId);
+        draggedItemId = '';
+        setBatchEntries(next);
+        renderMainOnly();
+        announce('已将“' + batchEntryTitle(next.find(entry => entry.id === movedId) || { kind: 'item', id: movedId }) + '”调整顺序。', 'success');
+      });
+    }
+    function renderBatchItemEntry(entry, index, total) {
+      const item = itemById(entry.id);
+      if (!item) return null;
+      const row = createElement('li', 'batch-order-item');
+      row.dataset.itemId = entry.id;
+      row.dataset.entryId = entry.id;
+      row.draggable = true;
+      row.setAttribute('aria-grabbed', 'false');
+      const handle = createElement('span', 'drag-handle', '⠿ ' + (index + 1));
+      handle.title = '拖动调整顺序';
+      const title = createElement('span', 'batch-item-title', item.title);
+      const actions = createElement('span', 'batch-item-actions');
+      const up = createElement('button', 'batch-icon-button', '↑');
+      const down = createElement('button', 'batch-icon-button', '↓');
+      const remove = createElement('button', 'batch-icon-button', '×');
+      up.type = down.type = remove.type = 'button';
+      up.dataset.focusRole = 'up';
+      down.dataset.focusRole = 'down';
+      remove.dataset.focusRole = 'remove';
+      up.disabled = index === 0;
+      down.disabled = index === total - 1;
+      up.setAttribute('aria-label', '上移“' + item.title + '”');
+      down.setAttribute('aria-label', '下移“' + item.title + '”');
+      remove.setAttribute('aria-label', '从复制篮移除“' + item.title + '”');
+      up.addEventListener('click', () => moveSelection(entry.id, -1));
+      down.addEventListener('click', () => moveSelection(entry.id, 1));
+      remove.addEventListener('click', () => toggleSelection(entry.id, false));
+      actions.append(up, down, remove);
+      row.append(handle, title, actions);
+      attachBatchDragHandlers(row, entry.id);
+      return row;
+    }
+    function renderCustomBatchEntry(entry, index, total) {
+      const row = createElement('li', 'batch-order-item custom-batch-order-item');
+      row.classList.toggle('is-copied', copiedCustomIds.has(entry.id));
+      row.dataset.entryId = entry.id;
+      row.dataset.entryKind = 'custom';
+      row.draggable = true;
+      row.setAttribute('aria-grabbed', 'false');
+      const handle = createElement('span', 'drag-handle', '⠿ ' + (index + 1));
+      handle.title = '拖动调整顺序';
+      const titleWrap = createElement('span', 'batch-item-title');
+      titleWrap.append(createElement('span', 'custom-batch-badge', '自定义'), document.createTextNode(' ' + (entry.title || '自定义片段')));
+      const actions = createElement('span', 'batch-item-actions');
+      const edit = createElement('button', 'batch-icon-button', '✎');
+      const up = createElement('button', 'batch-icon-button', '↑');
+      const down = createElement('button', 'batch-icon-button', '↓');
+      const remove = createElement('button', 'batch-icon-button', '×');
+      edit.type = up.type = down.type = remove.type = 'button';
+      edit.dataset.focusRole = 'edit';
+      up.dataset.focusRole = 'up';
+      down.dataset.focusRole = 'down';
+      remove.dataset.focusRole = 'remove';
+      up.disabled = index === 0;
+      down.disabled = index === total - 1;
+      edit.setAttribute('aria-label', '编辑自定义片段“' + (entry.title || '自定义片段') + '”');
+      up.setAttribute('aria-label', '上移自定义片段“' + (entry.title || '自定义片段') + '”');
+      down.setAttribute('aria-label', '下移自定义片段“' + (entry.title || '自定义片段') + '”');
+      remove.setAttribute('aria-label', '删除自定义片段“' + (entry.title || '自定义片段') + '”');
+      edit.addEventListener('click', () => openCustomContentDialog(entry));
+      up.addEventListener('click', () => moveCustomBatchEntry(entry.id, -1));
+      down.addEventListener('click', () => moveCustomBatchEntry(entry.id, 1));
+      remove.addEventListener('click', () => removeCustomBatchEntry(entry.id));
+      actions.append(edit, up, down, remove);
+      row.append(handle, titleWrap, actions);
+      attachBatchDragHandlers(row, entry.id);
+      return row;
+    }
     function renderBatchTray() {
       const tray = byId('batch-tray');
       const orderList = byId('batch-order-list');
-      const hasSelection = copyOrder.length > 0;
+      const hasSelection = batchEntries.length > 0;
+      const customCount = batchEntries.filter(entry => entry.kind === 'custom').length;
       tray.hidden = !hasSelection;
       tray.dataset.expanded = String(batchExpanded);
       document.body.classList.toggle('has-batch-tray', hasSelection);
       document.body.classList.toggle('batch-tray-collapsed', hasSelection && !batchExpanded);
       byId('batch-expand-button').setAttribute('aria-expanded', String(batchExpanded));
       byId('batch-expand-button').textContent = batchExpanded ? '收起' : '展开';
-      byId('batch-count').textContent = copyOrder.length + ' 项';
+      byId('batch-count').textContent = copyOrder.length + ' 条命令' + (customCount ? ' · ' + customCount + ' 个片段' : '');
       byId('batch-separator').value = separatorMode;
       byId('custom-separator').value = customSeparator;
       byId('custom-separator-wrap').hidden = separatorMode !== 'custom';
       orderList.replaceChildren();
-      copyOrder.forEach((itemId, index) => {
-        const item = itemById(itemId);
-        if (!item) return;
-        const row = createElement('li', 'batch-order-item');
-        row.dataset.itemId = itemId;
-        row.draggable = true;
-        row.setAttribute('aria-grabbed', 'false');
-        const handle = createElement('span', 'drag-handle', '⠿ ' + (index + 1));
-        handle.title = '拖动调整顺序';
-        const title = createElement('span', 'batch-item-title', item.title);
-        const actions = createElement('span', 'batch-item-actions');
-        const up = createElement('button', 'batch-icon-button', '↑');
-        const down = createElement('button', 'batch-icon-button', '↓');
-        const remove = createElement('button', 'batch-icon-button', '×');
-        up.type = down.type = remove.type = 'button';
-        up.dataset.focusRole = 'up';
-        down.dataset.focusRole = 'down';
-        remove.dataset.focusRole = 'remove';
-        up.disabled = index === 0;
-        down.disabled = index === copyOrder.length - 1;
-        up.setAttribute('aria-label', '上移“' + item.title + '”');
-        down.setAttribute('aria-label', '下移“' + item.title + '”');
-        remove.setAttribute('aria-label', '从复制篮移除“' + item.title + '”');
-        up.addEventListener('click', () => moveSelection(itemId, -1));
-        down.addEventListener('click', () => moveSelection(itemId, 1));
-        remove.addEventListener('click', () => toggleSelection(itemId, false));
-        actions.append(up, down, remove);
-        row.append(handle, title, actions);
-        row.addEventListener('dragstart', event => {
-          draggedItemId = itemId;
-          row.setAttribute('aria-grabbed', 'true');
-          if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-        });
-        row.addEventListener('dragend', () => {
-          draggedItemId = '';
-          row.setAttribute('aria-grabbed', 'false');
-        });
-        row.addEventListener('dragover', event => {
-          event.preventDefault();
-          if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-        });
-        row.addEventListener('drop', event => {
-          event.preventDefault();
-          if (!draggedItemId || draggedItemId === itemId) return;
-          const movedId = draggedItemId;
-          const next = reorderIdAtTarget(copyOrder, movedId, itemId);
-          draggedItemId = '';
-          syncSelection(next);
-          renderMainOnly();
-          const movedItem = itemById(movedId);
-          if (movedItem) announce('已将“' + movedItem.title + '”拖动为第 ' + (copyOrder.indexOf(movedId) + 1) + ' 项。', 'success');
-        });
-        orderList.appendChild(row);
+      batchEntries.forEach((entry, index) => {
+        const row = entry.kind === 'custom'
+          ? renderCustomBatchEntry(entry, index, batchEntries.length)
+          : renderBatchItemEntry(entry, index, batchEntries.length);
+        if (row) orderList.appendChild(row);
       });
     }
     function renderMainOnly() {
@@ -2618,8 +3116,7 @@
         }
         if (!window.confirm('导入将替换当前内容（' + summarizeDocument(normalized) + '），是否继续？')) return;
         model = clone(normalized);
-        selectedIds.clear();
-        copyOrder = [];
+        clearBatchEntries();
         revealedIds.clear();
         hiddenIds.clear();
         copiedIds.clear();
@@ -2641,7 +3138,7 @@
     function restoreOriginal() {
       if (!confirm('恢复文件内嵌的原始内容？当前浏览器中的修改将被清除。')) return;
       model = clone(originalDocument);
-      syncSelection([]);
+      clearBatchEntries();
       revealedIds.clear();
       hiddenIds.clear();
       copiedIds.clear();
@@ -2669,8 +3166,22 @@
     byId('reexport-button').addEventListener('click', exportCurrentHtml);
     byId('restore-original-button').addEventListener('click', restoreOriginal);
     byId('batch-select-visible-button').addEventListener('click', selectVisibleItems);
-    byId('batch-clear-button').addEventListener('click', () => { syncSelection([]); renderMainOnly(); announce('复制篮已清空。', 'success'); });
+    byId('batch-clear-button').addEventListener('click', () => { clearBatchEntries(); renderMainOnly(); announce('复制篮已清空。', 'success'); });
     byId('batch-copy-button').addEventListener('click', copyBatch);
+    byId('custom-content-button').addEventListener('click', () => openCustomContentDialog());
+    byId('custom-content-close').addEventListener('click', closeCustomContentDialog);
+    byId('custom-content-cancel').addEventListener('click', closeCustomContentDialog);
+    byId('custom-content-backdrop').addEventListener('click', closeCustomContentDialog);
+    byId('custom-save-to-document').addEventListener('change', updateCustomDocumentFields);
+    byId('custom-content-form').addEventListener('submit', event => {
+      event.preventDefault();
+      customSubmitAndCopy = false;
+      submitCustomContent();
+    });
+    byId('custom-submit-copy-button').addEventListener('click', () => {
+      customSubmitAndCopy = true;
+      submitCustomContent();
+    });
     byId('batch-separator').addEventListener('change', event => {
       separatorMode = event.target.value;
       renderBatchTray();
@@ -2679,6 +3190,11 @@
     byId('custom-separator').addEventListener('input', event => { customSeparator = event.target.value; });
     byId('batch-expand-button').addEventListener('click', () => { batchExpanded = !batchExpanded; renderBatchTray(); });
     document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !byId('custom-content-dialog').hidden) {
+        event.preventDefault();
+        closeCustomContentDialog();
+        return;
+      }
       if (event.target.matches('input, textarea, select, [contenteditable="true"]')) {
         if (event.key === 'Escape' && event.target === byId('generated-search')) {
           query = '';
@@ -2735,6 +3251,14 @@
       validateDocument,
       moveItem,
       resolveBatchSeparator,
+      normalizeBatchEntries,
+      insertBatchEntry,
+      moveBatchEntry,
+      removeBatchEntry,
+      reorderBatchEntryAtTarget,
+      validateCustomBatchContent,
+      composeBatchEntries,
+      appendCustomDocumentItem,
       composeBatchText,
       toggleCopyOrder,
       moveId,

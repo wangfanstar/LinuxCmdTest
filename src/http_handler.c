@@ -397,28 +397,28 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
 {
     char name[256];
     if (!body || html_paste_json_string(body, "name", name, sizeof(name)) != 0 ||
-        !html_paste_name_safe(name, 1)) {
-        static const char err[] = "{\"ok\":false,\"error\":\"invalid JSON file name\"}";
+        !html_paste_name_safe(name, 0)) {
+        static const char err[] = "{\"ok\":false,\"error\":\"invalid HTML file or JSON file name\"}";
         send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
         return;
     }
     char *content = calloc(MAX_HTML_PASTE_SIZE + 1, 1);
     if (!content || html_paste_json_string(body, "content", content, MAX_HTML_PASTE_SIZE + 1) != 0) {
         free(content);
-        static const char err[] = "{\"ok\":false,\"error\":\"missing JSON content\"}";
+        static const char err[] = "{\"ok\":false,\"error\":\"missing HTML file or JSON file content\"}";
         send_json(client_fd, 400, "Bad Request", err, sizeof(err) - 1);
         return;
     }
     size_t content_len = strlen(content);
     if (content_len > MAX_HTML_PASTE_SIZE) {
         free(content);
-        static const char err[] = "{\"ok\":false,\"error\":\"JSON content is too large\"}";
+        static const char err[] = "{\"ok\":false,\"error\":\"HTML file or JSON file content is too large\"}";
         send_json(client_fd, 413, "Payload Too Large", err, sizeof(err) - 1);
         return;
     }
 
     char filepath[1024];
-    if (html_paste_file_path(filepath, sizeof(filepath), name, 1) != 0) {
+    if (html_paste_file_path(filepath, sizeof(filepath), name, 0) != 0) {
         free(content);
         static const char err[] = "{\"ok\":false,\"error\":\"html_paste directory unavailable\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
@@ -430,7 +430,7 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
     if (!overwrite && stat(filepath, &existing) == 0) {
         HTML_PASTE_UNLOCK();
         free(content);
-        static const char err[] = "{\"ok\":false,\"error\":\"JSON file already exists\"}";
+        static const char err[] = "{\"ok\":false,\"error\":\"HTML file or JSON file already exists\"}";
         send_json(client_fd, 409, "Conflict", err, sizeof(err) - 1);
         return;
     }
@@ -455,7 +455,7 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
         remove(temp);
         HTML_PASTE_UNLOCK();
         free(content);
-        static const char err[] = "{\"ok\":false,\"error\":\"cannot save JSON file\"}";
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot save HTML file or JSON file\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
         return;
     }
@@ -478,11 +478,11 @@ static void handle_api_html_paste_save(http_sock_t client_fd, const char *body)
         HTML_PASTE_UNLOCK();
         free(content);
         if (conflict) {
-            static const char err[] = "{\"ok\":false,\"error\":\"JSON file already exists\"}";
+            static const char err[] = "{\"ok\":false,\"error\":\"HTML file or JSON file already exists\"}";
             send_json(client_fd, 409, "Conflict", err, sizeof(err) - 1);
             return;
         }
-        static const char err[] = "{\"ok\":false,\"error\":\"cannot finalize JSON file\"}";
+        static const char err[] = "{\"ok\":false,\"error\":\"cannot finalize HTML file or JSON file\"}";
         send_json(client_fd, 500, "Internal Server Error", err, sizeof(err) - 1);
         return;
     }

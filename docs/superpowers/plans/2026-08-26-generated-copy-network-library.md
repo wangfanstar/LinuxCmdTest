@@ -108,7 +108,9 @@ Expected: sticky/dialog assertions pass and the embedded `app-logic` script stil
 
 **Files:**
 - Modify: `html/HtmlPasteGen.html` network export functions and event binding.
+- Modify: `src/http_handler.c` save endpoint extension allowlist and file-type-neutral errors.
 - Modify: `tests/html_paste_gen_test.js`
+- Modify: `tests/http_handler_html_paste_test.js`
 
 - [ ] **Step 1: Add deterministic bundle filename/content helpers**
 
@@ -118,15 +120,19 @@ Derive `jsonFilename` from the existing safe HTML filename and `htmlFilename` fr
 
 Before any POST, compare both filenames against `state.networkFiles`. If overwrite is false and either exists, announce the two-file conflict and return without writing. If overwrite is true, show one confirmation dialog.
 
-- [ ] **Step 3: Save both files sequentially with explicit partial-failure reporting**
+- [ ] **Step 3: Allow the shared save API to persist the HTML companion**
+
+Keep the existing path traversal protections, but call the server's JSON-or-HTML allowlist for `/api/html-paste/save`; retain JSON-only validation for import/edit/delete routes and use file-type-neutral error responses for bundle writes.
+
+- [ ] **Step 4: Save both files sequentially with explicit partial-failure reporting**
 
 Create a helper that POSTs `{ name, content, overwrite }` to `/api/html-paste/save`. Save JSON first, then HTML; track completed names and include them in any failure announcement. On success, call `loadNetworkLibrary()` and report both files.
 
-- [ ] **Step 4: Preserve compatibility for callers and labels**
+- [ ] **Step 5: Preserve compatibility for callers and labels**
 
 Keep `saveNetworkJson` as the event handler name or update all references atomically, change the visible button label to `导出 HTML + JSON`, and preserve the existing overwrite checkbox semantics.
 
-- [ ] **Step 5: Run the focused tests**
+- [ ] **Step 6: Run the focused tests**
 
 Run:
 
@@ -134,6 +140,7 @@ Run:
 node tests/html_paste_gen_test.js
 node tests/html_paste_gen_ui_test.js
 node tests/http_handler_html_paste_test.js
+node tests/html_paste_bundle_api_test.js
 ```
 
 Expected: all pass, including bundle filename, preflight, and two-save assertions.

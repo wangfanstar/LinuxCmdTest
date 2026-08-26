@@ -37,4 +37,15 @@ assert.match(source, /unlink\s*\(/);
 assert.match(source, /DELETE/);
 assert.match(source, /JSON file not found/);
 
+const saveStart = source.indexOf('static void handle_api_html_paste_save');
+const saveEnd = source.indexOf('static void handle_api_html_paste_delete', saveStart);
+assert.ok(saveStart >= 0 && saveEnd > saveStart, 'save handler body must be discoverable');
+const saveBody = source.slice(saveStart, saveEnd);
+assert.match(saveBody, /html_paste_name_safe\(name,\s*0\)/,
+  'network save must accept the supported HTML extension as well as JSON');
+assert.match(saveBody, /html_paste_file_path\(filepath,\s*sizeof\(filepath\),\s*name,\s*0\)/,
+  'network save path validation must use the JSON-or-HTML allowlist');
+assert.match(saveBody, /HTML file/,
+  'network save errors must describe the selected HTML or JSON file type');
+
 console.log('html paste network API contracts passed');

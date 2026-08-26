@@ -12,6 +12,7 @@ for (const id of [
   'page-title',
   'output-filename',
   'generate-button',
+  'download-current-html-button',
   'group-list',
   'editor-panel',
   'preview-panel',
@@ -90,6 +91,10 @@ assert.match(html, /id="app-logic"/);
 assert.match(html, /localStorage\.setItem\(DRAFT_KEY/);
 assert.match(html, /function\s+scheduleDraftSave\s*\(/);
 assert.match(html, /function\s+generateFile\s*\(/);
+assert.match(html, /download-current-html-button[\s\S]*exportCurrentHtml/);
+assert.match(html, /scroll-padding-top/);
+assert.match(html, /scroll-margin-top/);
+assert.match(html, /generated-toolbar-height[\s\S]*16px/);
 assert.match(html, /function\s+handleJsonImport\s*\(/);
 assert.match(html, /function\s+loadNetworkLibrary\s*\(/);
 assert.match(html, /function\s+importNetworkJson\s*\(/);

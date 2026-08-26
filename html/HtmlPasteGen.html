@@ -1481,7 +1481,7 @@
         --danger: #ff8d85; --danger-soft: #432624; --shadow: 0 20px 55px rgba(0,0,0,.28);
       }
     }
-    html { min-height: 100%; background: var(--bg); scroll-behavior: smooth; }
+    html { min-height: 100%; background: var(--bg); scroll-behavior: smooth; scroll-padding-top: calc(var(--generated-toolbar-height, 160px) + 16px); }
     body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 12% 0, color-mix(in srgb, var(--primary) 9%, transparent), transparent 31rem), var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.55; }
     body.has-batch-tray { padding-bottom: 220px; }
     button, input, textarea, select { font: inherit; }
@@ -1546,6 +1546,7 @@
     .content-panel { min-height: 380px; padding: 20px; }
     .empty-state { display: grid; min-height: 300px; place-items: center; color: var(--muted); text-align: center; }
     .group-section + .group-section { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
+    .group-section, .copy-card, .editor-panel { scroll-margin-top: calc(var(--generated-toolbar-height, 160px) + 16px); }
     .group-header { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
     .group-header-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
     .group-select-button { min-height: 32px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 750; }
@@ -1696,6 +1697,7 @@
           <button id="favorites-filter" class="button" type="button" aria-pressed="false">☆ 仅看收藏</button>
           <button id="select-visible-button" class="button" type="button">选择当前结果</button>
           <button id="custom-content-button" class="button" type="button">＋ 自定义内容</button>
+          <button id="download-current-html-button" class="button button-primary" type="button">下载 HTML</button>
           <button id="content-visibility-toggle" class="button" type="button" aria-pressed="false">显示全部内容</button>
           <button id="theme-toggle" class="button" type="button">切换主题</button>
           <button id="edit-mode-toggle" class="button" type="button" aria-pressed="false">编辑模式</button>
@@ -1954,7 +1956,8 @@
       const slot = byId('generated-toolbar-slot');
       if (!toolbar || !slot) return;
       const height = Math.ceil(toolbar.getBoundingClientRect().height);
-      slot.style.height = height + 'px';
+      const safeGap = 16;
+      slot.style.height = height + safeGap + 'px';
       document.documentElement.style.setProperty('--generated-toolbar-height', height + 'px');
     }
     function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -3169,6 +3172,7 @@
     byId('batch-clear-button').addEventListener('click', () => { clearBatchEntries(); renderMainOnly(); announce('复制篮已清空。', 'success'); });
     byId('batch-copy-button').addEventListener('click', copyBatch);
     byId('custom-content-button').addEventListener('click', () => openCustomContentDialog());
+    byId('download-current-html-button').addEventListener('click', exportCurrentHtml);
     byId('custom-content-close').addEventListener('click', closeCustomContentDialog);
     byId('custom-content-cancel').addEventListener('click', closeCustomContentDialog);
     byId('custom-content-backdrop').addEventListener('click', closeCustomContentDialog);

@@ -234,6 +234,7 @@ for (const id of [
   'paste-data',
   'generated-app-logic',
   'generated-title',
+  'download-current-html-button',
   'generated-search',
   'generated-groups',
   'generated-items',
@@ -267,6 +268,11 @@ for (const id of [
   assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
 }
 assert.match(generated, /导出最新版 HTML/);
+assert.match(generated, /下载 HTML/);
+assert.match(generated, /download-current-html-button[\s\S]*exportCurrentHtml/);
+assert.match(generated, /scroll-padding-top/);
+assert.match(generated, /scroll-margin-top/);
+assert.match(generated, /generated-toolbar-height[\s\S]*16px/);
 assert.match(generated, /恢复文件原始内容/);
 assert.match(generated, /导入 JSON/);
 assert.match(generated, /导出 JSON/);

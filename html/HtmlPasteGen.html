@@ -1690,6 +1690,23 @@
     .status-line { min-height: 25px; margin: 13px 0 0; color: var(--muted); font-size: 13px; }
     .status-line[data-type="success"] { color: var(--success); }
     .status-line[data-type="error"] { color: var(--danger); }
+    .generated-statistics { margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .statistics-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; cursor: pointer; list-style: none; font-weight: 800; }
+    .statistics-summary::-webkit-details-marker { display: none; }
+    .statistics-summary::before { content: '▸'; color: var(--primary); }
+    .generated-statistics[open] .statistics-summary::before { content: '▾'; }
+    .statistics-title { display: inline-flex; flex: 1; align-items: center; gap: 8px; }
+    .statistics-summary-count { color: var(--primary); font-size: 12px; white-space: nowrap; }
+    .statistics-content { display: grid; gap: 12px; padding: 0 16px 16px; }
+    .statistics-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .statistics-metric { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .statistics-metric strong { display: block; color: var(--text); font-size: 18px; line-height: 1.2; }
+    .statistics-metric span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .statistics-groups { display: grid; gap: 6px; }
+    .statistics-groups-title { margin: 0 0 2px; color: var(--text); font-size: 13px; }
+    .statistics-group-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .statistics-group-name { min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+    .statistics-group-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
     .sidebar, .content-panel, .editor-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 34px rgba(35, 49, 76, .06); }
     .sidebar { position: sticky; top: calc(var(--generated-toolbar-height, 160px) + 16px); max-height: calc(100vh - var(--generated-toolbar-height, 160px) - 32px); overflow-y: auto; scrollbar-gutter: stable; padding: 14px; }
@@ -1819,6 +1836,7 @@
       .batch-controls { grid-template-columns: 1fr 1fr; }
       .batch-controls .batch-separator-wrap { grid-column: 1 / -1; }
       .generated-toolbar-slot { min-height: 220px; }
+      .statistics-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
       .app-shell { width: min(100% - 20px, 1240px); padding-top: 10px; }
@@ -1828,6 +1846,8 @@
       .generated-toolbar { padding-block: 10px; }
       .search-row { grid-template-columns: 1fr; }
       .search-wrap { grid-column: auto; }
+      .statistics-summary { padding-inline: 12px; }
+      .statistics-content { padding-inline: 12px; }
       .button { min-height: 44px; }
       .content-panel, .editor-panel { padding: 14px; }
       .edit-group-head, .edit-item { grid-template-columns: 1fr; }
@@ -1880,6 +1900,16 @@
         <p id="copy-status" class="status-line" aria-live="polite">准备就绪</p>
       </div>
     </div>
+
+    <details id="generated-statistics" class="generated-statistics">
+      <summary class="statistics-summary">
+        <span class="statistics-title">命令统计</span>
+        <span id="statistics-summary-count" class="statistics-summary-count">0 条命令</span>
+      </summary>
+      <div id="statistics-content" class="statistics-content" aria-live="polite">
+        <div id="statistics-groups" class="statistics-groups"></div>
+      </div>
+    </details>
 
     <div class="layout">
       <nav id="generated-groups" class="sidebar" aria-label="内容分组"></nav>
@@ -3293,6 +3323,47 @@
         if (row) orderList.appendChild(row);
       });
     }
+    function renderStatistics(groups) {
+      const content = byId('statistics-content');
+      const summaryCount = byId('statistics-summary-count');
+      const groupSummary = byId('statistics-groups');
+      if (!content || !summaryCount || !groupSummary) return;
+      const totalItems = allItems();
+      const visibleItems = (groups || []).reduce((count, entry) => {
+        return count + flattenItems({ groups: [{ items: entry.items }] }).length;
+      }, 0);
+      summaryCount.textContent = totalItems.length + ' 条命令';
+      const metrics = createElement('div', 'statistics-metrics');
+      [
+        ['全部命令', totalItems.length],
+        ['当前搜索结果', visibleItems],
+        ['分组', model.groups.length],
+        ['收藏', totalItems.filter(item => item.favorite).length],
+        ['快捷键', totalItems.filter(item => String(item.shortcut || '').trim()).length],
+        ['快速链接', totalItems.filter(item => String(item.link || '').trim()).length]
+      ].forEach(([label, value]) => {
+        const metric = createElement('div', 'statistics-metric');
+        metric.append(createElement('strong', '', String(value)), createElement('span', '', label));
+        metrics.appendChild(metric);
+      });
+      groupSummary.replaceChildren();
+      groupSummary.appendChild(createElement('h3', 'statistics-groups-title', '分组汇总'));
+      if (!model.groups.length) {
+        groupSummary.appendChild(createElement('p', 'empty-state', '暂无分组'));
+      } else {
+        model.groups.forEach(group => {
+          const rootItems = Array.isArray(group.items) ? group.items : [];
+          const count = flattenItems({ groups: [{ items: rootItems }] }).length;
+          const row = createElement('div', 'statistics-group-row');
+          row.append(
+            createElement('span', 'statistics-group-name', group.title || '未命名分组'),
+            createElement('span', 'statistics-group-count', rootItems.length + ' 个根节点 · ' + count + ' 条命令')
+          );
+          groupSummary.appendChild(row);
+        });
+      }
+      content.replaceChildren(metrics, groupSummary);
+    }
     function renderMainOnly() {
       const focusSnapshot = captureTransientFocus();
       cleanTransientState();
@@ -3301,6 +3372,7 @@
       const groups = visibleGroups();
       renderNavigation(groups);
       renderItems(groups);
+      renderStatistics(groups);
       renderBatchTray();
       const visibleCount = groups.reduce((count, entry) => count + flattenItems({ groups: [{ items: entry.items }] }).length, 0);
       byId('select-visible-button').disabled = visibleCount === 0;

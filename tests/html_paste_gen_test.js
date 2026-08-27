@@ -335,6 +335,15 @@ for (const id of [
 ]) {
   assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
 }
+for (const id of ['generated-statistics', 'statistics-summary-count', 'statistics-content', 'statistics-groups']) {
+  assert.match(generated, new RegExp(`id=["']${id}["']`), `generated page missing #${id}`);
+}
+assert.match(generated, /<details id=["']generated-statistics["']/);
+assert.match(generated, /class=["']statistics-summary["']/);
+assert.match(generated, /function\s+renderStatistics\s*\(/);
+assert.match(generated, /全部命令/);
+assert.match(generated, /当前搜索结果/);
+assert.match(generated, /分组汇总/);
 assert.match(generated, /导出最新版 HTML/);
 assert.match(generated, /下载 HTML/);
 assert.match(generated, /download-current-html-button[\s\S]*exportCurrentHtml/);

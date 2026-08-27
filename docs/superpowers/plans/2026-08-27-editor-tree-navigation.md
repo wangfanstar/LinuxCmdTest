@@ -4,20 +4,20 @@
 
 **Goal:** 将 HtmlPasteGen 的分组条目升级为最多 4 级的真实递归树，并让编辑器、生成 HTML、复制、搜索和 JSON 网络库共享同一套树操作。
 
-**Architecture:** 在 `core-logic` 中把 schema 升级为 v2，所有条目统一包含 `children` 数组；新增纯树工具返回节点位置、路径和移动结果，避免编辑器与生成页各自实现层级算法。生成页保持自包含，在模板中使用同名递归工具处理导航、卡片、快捷键和批量复制；编辑器通过事件委托调用核心树操作，目录展开状态单独保存在瞬时 Set 中。
+**Architecture:** 在 `core-logic` 中把 schema 升级为 v2，所有条目统一包含 `children` 数组；新增纯树工具返回节点位置、路径和移动结果，避免编辑器与生成页各自实现层级算法。所有 JSON 导入入口先调用 `migrateDocument()`：v1 扁平条目在边界转换为 v2，内部处理与导出只使用 v2。生成页保持自包含，在模板中使用同名递归工具处理导航、卡片、快捷键和批量复制；编辑器通过事件委托调用核心树操作，目录展开状态单独保存在瞬时 Set 中。
 
 **Tech Stack:** Standalone HTML/CSS/JavaScript、Node `assert`/`vm` 契约测试、WSL `make`。
 
 ---
 
-### Task 1: 锁定 schema v2 和纯树 API 的失败测试
+### Task 1: 锁定 schema v2、v1 迁移和纯树 API 的失败测试
 
 **Files:**
 - Modify: `tests/html_paste_gen_test.js`
 
 - [ ] **Step 1: 更新 schema 预期并加入递归 fixture**
 
-将 sample schema 断言从 `1` 改为 `2`，新增一个包含四级节点的测试文档，并断言每个节点都有数组类型的 `children`：
+将 sample schema 断言从 `1` 改为 `2`，新增一个包含四级节点的测试文档，并断言每个节点都有数组类型的 `children`；同时保留一个旧版扁平 v1 fixture：
 
 ```js
 const treeDocument = {
@@ -42,6 +42,8 @@ const treeDocument = {
 };
 ```
 
+旧版 fixture 至少包含两个分组、每组两个扁平条目和一个快捷键，用于确认字段、顺序及 ID 在迁移后保持不变。
+
 - [ ] **Step 2: 写入纯树工具的行为断言**
 
 在 `tests/html_paste_gen_test.js` 中加入以下期望 API；这些断言先故意失败，驱动后续实现：
@@ -53,6 +55,11 @@ assert.strictEqual(core.itemDepth(treeDocument, 'root'), 1);
 assert.strictEqual(core.itemDepth(treeDocument, 'leaf'), 4);
 assert.strictEqual(core.descendantCount(treeDocument.groups[0].items[0]), 3);
 assert.strictEqual(core.validateDocument(treeDocument).valid, true);
+const migrated = core.migrateDocument(legacyDocument);
+assert.strictEqual(migrated.schemaVersion, 2);
+assert.deepStrictEqual(migrated.groups[0].items.map(entry => entry.id), ['legacy-a', 'legacy-b']);
+assert.deepStrictEqual(migrated.groups[0].items.map(entry => entry.children), [[], []]);
+assert.deepStrictEqual(core.migrateDocument(treeDocument), treeDocument);
 ```
 
 - [ ] **Step 3: 运行测试确认 RED**
@@ -67,7 +74,7 @@ assert.strictEqual(core.validateDocument(treeDocument).valid, true);
 
 - [ ] **Step 1: 升级规范对象和构造器**
 
-将 `SCHEMA_VERSION` 改为 `2`，`createItem()` 默认返回 `children: []`；`DRAFT_KEY` 使用 `html-paste-gen:draft:v2`。`normalizeDocument()` 和 `validateDocument()` 只接受 `children` 为数组的节点，不做旧 schema 迁移，并沿递归路径生成错误：
+将 `SCHEMA_VERSION` 改为 `2`，`MAX_ITEM_DEPTH` 为 `4`，`createItem()` 默认返回 `children: []`；`DRAFT_KEY` 使用 `html-paste-gen:draft:v2`。新增 `migrateDocument()` 作为所有 JSON 导入入口的唯一边界：v1 扁平条目递归补齐 `children: []` 并保留字段，v2 深拷贝后返回；未知版本或非法结构返回带节点路径的错误。`normalizeDocument()` 和 `validateDocument()` 只处理迁移后的 v2 文档，沿递归路径生成错误：
 
 ```js
 const SCHEMA_VERSION = 2;
@@ -136,7 +143,7 @@ git commit -m "feat: add recursive tree document model"
 
 - [ ] **Step 2: 注入生成页树工具并替换平面查找**
 
-在 generated runtime 中增加 `walkItems()`、`flattenItems()`、`findItemLocation()`、`descendantCount()`；让 `allItems()`、快捷键监听、批量选择、过滤、统计、JSON 校验全部使用递归结果。`normalizeImportedDocument()` 递归保留 `children`，缺失或非数组时报错并包含节点路径。
+在 generated runtime 中增加 `walkItems()`、`flattenItems()`、`findItemLocation()`、`descendantCount()`；让 `allItems()`、快捷键监听、批量选择、过滤、统计、JSON 校验全部使用递归结果。`normalizeImportedDocument()` 先执行与编辑器一致的 v1→v2 迁移，再递归校验；缺失或非数组时报错并包含节点路径。
 
 - [ ] **Step 3: 递归渲染生成页导航和命令卡片**
 
@@ -197,11 +204,11 @@ assert.match(html, /最多 4 级/);
 
 - [ ] **Step 1: 增加 schema v2 网络 JSON 失败用例**
 
-测试导入缺少 `children`、超过 4 级、重复嵌套 ID、重复快捷键的 JSON 时返回节点路径错误；测试合法四级 JSON 可被网络库读取、编辑、导出并保持树结构。
+测试 v1 导入会自动补齐 `children`，以及 v2 导入缺少 `children`、超过 4 级、重复嵌套 ID、重复快捷键的 JSON 时返回节点路径错误；测试合法四级 JSON 可被网络库读取、编辑、导出并保持树结构，且导出结果始终为 v2。
 
 - [ ] **Step 2: 统一编辑器网络库处理**
 
-让 `handleJsonImport()`、`importNetworkJson()`、`saveNetworkJson()`、`saveNetworkBundle()` 统一调用 `core.validateDocument()` 和 `core.normalizeDocument()`；导入成功后清除 `expandedNavNodeIds`，导出 JSON 保留完整 `children`。
+让 `handleJsonImport()`、`importNetworkJson()`、`saveNetworkJson()`、`saveNetworkBundle()` 统一调用 `core.migrateDocument()` → `core.validateDocument()` → `core.normalizeDocument()`；导入成功后清除 `expandedNavNodeIds`，导出 JSON 保留完整 `children` 和 `schemaVersion: 2`。
 
 - [ ] **Step 3: 运行专项回归测试**
 

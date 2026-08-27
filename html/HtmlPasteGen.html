@@ -432,6 +432,7 @@
     .structure-panel .panel-body, .preview-panel .panel-body { max-height: calc(100vh - 86px); overflow: auto; }
 
     .group-list { display: grid; gap: 7px; }
+    .structure-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 
     .group-row {
       display: grid;
@@ -454,6 +455,17 @@
     .icon-button:hover { background: var(--surface); color: var(--primary); }
     .group-item-list { display: grid; grid-column: 1 / -1; gap: 3px; margin: 1px 0 2px 29px; padding: 4px 0 3px 9px; border-left: 2px solid var(--line); }
     .group-item-list[hidden] { display: none; }
+    .tree-node { display: grid; gap: 2px; }
+    .tree-node-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 3px; align-items: center; padding-left: calc((var(--tree-depth, 1) - 1) * 15px); }
+    .tree-toggle, .tree-toggle-spacer { display: grid; width: 24px; height: 24px; place-items: center; }
+    .tree-toggle { padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+    .tree-toggle:hover, .tree-toggle:focus-visible { background: var(--surface); color: var(--primary); outline: 2px solid rgba(79, 70, 229, .18); }
+    .tree-node-children { display: grid; gap: 2px; margin-left: 15px; padding-left: 9px; border-left: 2px solid var(--line); }
+    .tree-node-toolbar { display: inline-flex; align-items: center; gap: 2px; }
+    .tree-descendant-count { min-width: 20px; padding: 1px 5px; border-radius: 999px; background: var(--surface-strong); color: var(--subtle); font-size: 10px; text-align: center; }
+    .tree-level-button { display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--subtle); cursor: pointer; font-size: 12px; font-weight: 900; }
+    .tree-level-button:hover:not(:disabled), .tree-level-button:focus-visible { background: var(--surface); color: var(--primary); outline: 2px solid rgba(79, 70, 229, .18); }
+    .tree-level-button:disabled { cursor: not-allowed; opacity: .34; }
     .group-item-link { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 5px; align-items: center; min-width: 0; padding: 6px 7px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
     .group-item-link:hover, .group-item-link:focus-visible { background: var(--surface); color: var(--primary-dark); outline: 2px solid rgba(79, 70, 229, .18); outline-offset: 1px; }
     .group-item-number { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 6px; background: var(--surface-strong); color: var(--subtle); font-size: 10px; font-weight: 850; }
@@ -795,7 +807,11 @@
             <h2 class="panel-title">内容结构</h2>
             <p id="group-count" class="panel-kicker">0 个分组</p>
           </div>
-          <button class="button button-small" type="button" data-action="add-group">＋ 分组</button>
+          <div class="structure-head-actions">
+            <button class="button button-small" type="button" data-action="expand-all-nav">展开全部</button>
+            <button class="button button-small" type="button" data-action="collapse-all-nav">折叠全部</button>
+            <button class="button button-small" type="button" data-action="add-group">＋ 分组</button>
+          </div>
         </header>
         <div class="panel-body">
           <div id="group-list" class="group-list"></div>
@@ -848,7 +864,8 @@
   (function () {
     'use strict';
 
-    const SCHEMA_VERSION = 1;
+    const SCHEMA_VERSION = 2;
+    const MAX_ITEM_DEPTH = 4;
     const MODIFIERS = ['Ctrl', 'Alt', 'Shift', 'Meta'];
     const RESERVED_SHORTCUTS = new Set([
       'Ctrl+F', 'Ctrl+L', 'Ctrl+N', 'Ctrl+P', 'Ctrl+R', 'Ctrl+S',
@@ -1027,7 +1044,8 @@
         link: '',
         note: '',
         favorite: false,
-        collapsed: false
+        collapsed: false,
+        children: []
       }, overrides || {});
     }
 
@@ -1082,6 +1100,58 @@
       };
     }
 
+    function normalizeItem(item, depth, path) {
+      const source = item && typeof item === 'object' ? item : {};
+      if (!Array.isArray(source.children)) {
+        throw new Error(`${path.join(' / ') || '条目'} 的 children 必须是数组。`);
+      }
+      if (depth > MAX_ITEM_DEPTH) {
+        throw new Error(`${path.join(' / ')} 超过最多 ${MAX_ITEM_DEPTH} 级。`);
+      }
+      return {
+        id: String(source.id || newId('item')),
+        title: String(source.title || '').trim(),
+        content: String(source.content || ''),
+        shortcut: normalizeShortcut(source.shortcut),
+        link: String(source.link || '').trim(),
+        note: String(source.note || ''),
+        favorite: Boolean(source.favorite),
+        collapsed: Boolean(source.collapsed),
+        children: source.children.map((child, index) => normalizeItem(child, depth + 1, path.concat(String(child && child.title || `第 ${index + 1} 条`))))
+      };
+    }
+
+    function migrateDocument(value) {
+      if (!value || typeof value !== 'object') throw new Error('JSON 文档格式无效。');
+      const version = Number(value.schemaVersion);
+      if (version === SCHEMA_VERSION) return cloneDocument(value);
+      if (version !== 1) throw new Error('不支持的数据版本。');
+      if (!Array.isArray(value.groups)) throw new Error('分组列表格式无效。');
+      const migrated = cloneDocument(value);
+      migrated.schemaVersion = SCHEMA_VERSION;
+      migrated.groups = value.groups.map(group => {
+        const source = group && typeof group === 'object' ? group : {};
+        const items = Array.isArray(source.items) ? source.items : [];
+        return Object.assign({}, source, {
+          items: items.map(item => {
+            const sourceItem = item && typeof item === 'object' ? item : {};
+            const children = Array.isArray(sourceItem.children) ? sourceItem.children : [];
+            return Object.assign({}, sourceItem, {
+              children: children.map(child => migrateLegacyItem(child))
+            });
+          })
+        });
+      });
+      return migrated;
+    }
+
+    function migrateLegacyItem(item) {
+      const source = item && typeof item === 'object' ? item : {};
+      return Object.assign({}, source, {
+        children: Array.isArray(source.children) ? source.children.map(migrateLegacyItem) : []
+      });
+    }
+
     function normalizeDocument(value) {
       if (!value || Number(value.schemaVersion) !== SCHEMA_VERSION) {
         throw new Error('不支持的数据版本。');
@@ -1104,16 +1174,7 @@
         title: String(group && group.title || '').trim(),
         collapsed: Boolean(group && group.collapsed),
         items: Array.isArray(group && group.items)
-          ? group.items.map(item => ({
-            id: String(item && item.id || newId('item')),
-            title: String(item && item.title || '').trim(),
-            content: String(item && item.content || ''),
-            shortcut: normalizeShortcut(item && item.shortcut),
-            link: String(item && item.link || '').trim(),
-            note: String(item && item.note || ''),
-            favorite: Boolean(item && item.favorite),
-            collapsed: Boolean(item && item.collapsed)
-          }))
+          ? group.items.map((item, index) => normalizeItem(item, 1, [String(group && group.title || `第 ${groupIndex + 1} 组`), String(item && item.title || `第 ${index + 1} 条`)]))
           : []
       }));
       return normalized;
@@ -1147,12 +1208,18 @@
           errors.push(`分组“${groupLabel || groupIndex + 1}”的条目格式无效。`);
           return;
         }
-        group.items.forEach((item, itemIndex) => {
+        walkItems(group.items, (item, location) => {
+          const itemIndex = location.index;
+          const path = [groupLabel || `第 ${groupIndex + 1} 组`].concat(location.path);
           const itemLabel = String(item && item.title || '').trim();
           const itemId = String(item && item.id || '');
           if (!itemLabel) {
-            errors.push(`第 ${groupIndex + 1} 组第 ${itemIndex + 1} 条标题不能为空。`);
+            errors.push(`${path.join(' / ')}：标题不能为空。`);
           }
+          if (!Array.isArray(item && item.children)) {
+            errors.push(`${path.join(' / ')}：children 必须是数组。`);
+          }
+          if (location.depth > MAX_ITEM_DEPTH) errors.push(`${path.join(' / ')}：超过最多 ${MAX_ITEM_DEPTH} 级。`);
           if (itemId && itemIds.has(itemId)) errors.push(`条目 ID “${itemId}”重复，请重新导入或复制该条目。`);
           if (itemId) itemIds.add(itemId);
           if (!String(item && item.content || '')) {
@@ -1160,16 +1227,16 @@
           }
           const linkCheck = validateQuickLink(item && item.link);
           if (!linkCheck.valid) {
-            errors.push(`“${itemLabel || '未命名条目'}”：${linkCheck.message}`);
+            errors.push(`“${path.join(' / ')}”：${linkCheck.message}`);
           }
           const shortcutCheck = validateShortcut(item && item.shortcut);
           if (!shortcutCheck.valid) {
-            errors.push(`“${itemLabel || '未命名条目'}”：${shortcutCheck.message}`);
+            errors.push(`“${path.join(' / ')}”：${shortcutCheck.message}`);
           } else if (shortcutCheck.normalized) {
             if (shortcuts.has(shortcutCheck.normalized)) {
               errors.push(`快捷键 ${shortcutCheck.normalized} 与“${shortcuts.get(shortcutCheck.normalized)}”重复。`);
             } else {
-              shortcuts.set(shortcutCheck.normalized, itemLabel || '未命名条目');
+              shortcuts.set(shortcutCheck.normalized, path.join(' / '));
             }
           }
         });
@@ -1184,6 +1251,91 @@
       const moved = list.splice(index, 1)[0];
       list.splice(target, 0, moved);
       return true;
+    }
+
+    function walkItems(items, visitor, parent, depth, path) {
+      const list = Array.isArray(items) ? items : [];
+      const currentDepth = Number(depth || 1);
+      const currentPath = Array.isArray(path) ? path : [];
+      list.forEach((item, index) => {
+        const nextPath = currentPath.concat(String(item && item.title || `第 ${index + 1} 条`));
+        const location = { item, parent: parent || null, siblings: list, index, depth: currentDepth, path: nextPath };
+        visitor(item, location);
+        if (item && Array.isArray(item.children) && item.children.length) {
+          walkItems(item.children, visitor, item, currentDepth + 1, nextPath);
+        }
+      });
+    }
+
+    function flattenItems(value) {
+      const result = [];
+      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
+        walkItems(group && group.items, (item, location) => result.push(Object.assign({ group }, location)));
+      });
+      return result;
+    }
+
+    function findItemLocation(value, itemId) {
+      const id = String(itemId || '');
+      return flattenItems(value).find(location => String(location.item && location.item.id || '') === id) || null;
+    }
+
+    function itemPath(value, itemId) {
+      const location = findItemLocation(value, itemId);
+      if (!location) return [];
+      const groupTitle = String(location.group && location.group.title || '').trim();
+      return (groupTitle ? [groupTitle] : []).concat(location.path);
+    }
+
+    function itemDepth(value, itemId) {
+      const location = findItemLocation(value, itemId);
+      return location ? location.depth : 0;
+    }
+
+    function descendantCount(item) {
+      if (!item || !Array.isArray(item.children)) return 0;
+      return item.children.reduce((total, child) => total + 1 + descendantCount(child), 0);
+    }
+
+    function subtreeHeight(item) {
+      if (!item || !Array.isArray(item.children) || !item.children.length) return 1;
+      return 1 + Math.max.apply(null, item.children.map(subtreeHeight));
+    }
+
+    function cloneItemTree(item, options) {
+      const settings = options || {};
+      const copy = cloneDocument(item || {});
+      function rewrite(node) {
+        node.id = newId('item');
+        node.shortcut = '';
+        node.children = Array.isArray(node.children) ? node.children.map(child => { rewrite(child); return child; }) : [];
+        return node;
+      }
+      const result = rewrite(copy);
+      if (settings.titleSuffix !== false) result.title = `${result.title || '未命名条目'}（副本）`;
+      return result;
+    }
+
+    function indentItem(value, itemId) {
+      const location = findItemLocation(value, itemId);
+      if (!location || location.index === 0 || location.depth >= MAX_ITEM_DEPTH || (location && location.depth + subtreeHeight(location.item) > MAX_ITEM_DEPTH)) {
+        return { ok: false, reason: location && (location.depth >= MAX_ITEM_DEPTH || location.depth + subtreeHeight(location.item) > MAX_ITEM_DEPTH) ? `该子树移动后会超过最多 ${MAX_ITEM_DEPTH} 级。` : '无法再降低层级。' };
+      }
+      const previous = location.siblings[location.index - 1];
+      if (!previous || !Array.isArray(previous.children)) return { ok: false, reason: '无法再降低层级。' };
+      location.siblings.splice(location.index, 1);
+      previous.children.push(location.item);
+      return { ok: true, depth: location.depth + 1 };
+    }
+
+    function outdentItem(value, itemId) {
+      const location = findItemLocation(value, itemId);
+      if (!location || !location.parent) return { ok: false, reason: '根节点不能提升层级。' };
+      const parentLocation = findItemLocation(value, location.parent.id);
+      if (!parentLocation) return { ok: false, reason: '无法找到父节点。' };
+      location.siblings.splice(location.index, 1);
+      parentLocation.siblings.splice(parentLocation.index + 1, 0, location.item);
+      return { ok: true, depth: location.depth - 1 };
     }
 
     function resolveBatchSeparator(mode, customSeparator) {
@@ -1273,10 +1425,8 @@
 
     function composeBatchEntries(value, entries, separatorMode, customSeparator) {
       const itemsById = new Map();
-      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
-        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
-          if (item && item.id) itemsById.set(String(item.id), item);
-        });
+      flattenItems(value).forEach(location => {
+        if (location.item && location.item.id) itemsById.set(String(location.item.id), location.item);
       });
       const values = [];
       const includedIds = [];
@@ -1325,10 +1475,8 @@
 
     function composeBatchText(value, copyOrder, separatorMode, customSeparator) {
       const itemsById = new Map();
-      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
-        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
-          if (item && item.id) itemsById.set(String(item.id), item);
-        });
+      flattenItems(value).forEach(location => {
+        if (location.item && location.item.id) itemsById.set(String(location.item.id), location.item);
       });
       const values = [];
       let skippedCount = 0;
@@ -1397,14 +1545,15 @@
       result.groups = result.groups
         .map(group => {
           const groupMatches = String(group.title || '').toLocaleLowerCase().includes(needle);
-          group.items = group.items.filter(item => {
-            if (favoritesOnly && !item.favorite) return false;
-            if (!needle || groupMatches) return true;
-            return [item.title, item.content, item.link, item.note]
-              .join('\n')
-              .toLocaleLowerCase()
-              .includes(needle);
-          });
+          function filterItems(items, ancestorMatches) {
+            return (Array.isArray(items) ? items : []).reduce((kept, item) => {
+              const childItems = filterItems(item.children, ancestorMatches || groupMatches || [item.title, item.content, item.link, item.note].join('\n').toLocaleLowerCase().includes(needle));
+              const selfMatches = (!favoritesOnly || item.favorite) && (!needle || groupMatches || [item.title, item.content, item.link, item.note].join('\n').toLocaleLowerCase().includes(needle));
+              if (selfMatches || childItems.length) kept.push(Object.assign({}, item, { children: childItems }));
+              return kept;
+            }, []);
+          }
+          group.items = filterItems(group.items, false);
           return group;
         })
         .filter(group => group.items.length || (!needle && !favoritesOnly));
@@ -1549,6 +1698,11 @@
     .group-link:hover { background: var(--surface-soft); color: var(--primary); }
     .group-count { min-width: 26px; padding: 2px 7px; border-radius: 999px; background: var(--surface-strong); font-size: 11px; text-align: center; }
     .nav-item-list { display: grid; gap: 2px; margin: 2px 0 9px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+    .nav-tree-row { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 2px; padding-left: calc((var(--tree-depth, 1) - 1) * 12px); }
+    .nav-tree-toggle { width: 22px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+    .nav-tree-toggle:hover, .nav-tree-toggle:focus-visible { background: var(--primary-soft); color: var(--primary); outline: none; }
+    .nav-tree-spacer { width: 22px; height: 24px; }
+    .nav-tree-children { display: grid; gap: 2px; }
     .nav-item-link { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 7px; color: var(--muted); font-size: 12px; text-decoration: none; }
     .nav-item-link:hover, .nav-item-link:focus-visible { background: var(--primary-soft); color: var(--primary-strong); outline: none; }
     .nav-order-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; text-align: center; }
@@ -1605,6 +1759,8 @@
     .edit-group-head { display: grid; grid-template-columns: minmax(160px, 1fr) auto; gap: 10px; align-items: center; }
     .edit-items { margin-top: 11px; }
     .edit-item { display: grid; grid-template-columns: minmax(180px, .72fr) minmax(280px, 1.28fr); gap: 9px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .edit-item { margin-left: calc((var(--tree-depth, 1) - 1) * 18px); padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--primary) 22%, var(--line)); }
+    .tree-editor-children { display: grid; gap: 0; }
     .edit-meta-fields { display: grid; gap: 8px; min-width: 0; }
     .edit-input, .edit-textarea, .edit-select { min-height: 40px; padding: 8px 10px; }
     .edit-textarea { min-height: 150px; resize: vertical; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; grid-column: 1 / -1; }
@@ -1823,8 +1979,8 @@
     'use strict';
 
     const dataElement = document.getElementById('paste-data');
-    const originalDocument = JSON.parse(dataElement.textContent);
-    const storageKey = 'html-paste-page:' + originalDocument.documentId + ':v1';
+    const originalDocument = migrateDocument(JSON.parse(dataElement.textContent));
+    const storageKey = 'html-paste-page:' + originalDocument.documentId + ':v2';
     const themeKey = storageKey + ':theme';
     let storageAvailable = true;
     let model = loadOverride() || clone(originalDocument);
@@ -1841,7 +1997,8 @@
     const copiedCustomIds = new Set();
     const revealedIds = new Set();
     const hiddenIds = new Set();
-    const expandedIds = new Set(model.groups.flatMap(group => group.items.map(item => item.id)));
+    const expandedIds = new Set(allItems().map(item => item.id));
+    const expandedNavIds = new Set();
     let revealAll = true;
     let separatorMode = 'newline';
     let customSeparator = '';
@@ -1917,10 +2074,8 @@
     }
     function composeBatchEntries(value, entries, separatorMode, customSeparator) {
       const itemsById = new Map();
-      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => {
-        (Array.isArray(group && group.items) ? group.items : []).forEach(item => {
-          if (item && item.id) itemsById.set(String(item.id), item);
-        });
+      flattenItems(value).forEach(location => {
+        if (location.item && location.item.id) itemsById.set(String(location.item.id), location.item);
       });
       const values = [];
       const includedIds = [];
@@ -1953,11 +2108,62 @@
       const document = clone(value);
       const group = (Array.isArray(document.groups) ? document.groups : []).find(entry => entry.id === String(groupId || ''));
       if (!group) return { valid: false, document: value, item: null, error: '目标分组不存在。' };
-      const item = { id: newId('item'), title: documentTitle, content: check.content, shortcut: '', link: '', note: '', favorite: false, collapsed: false };
+      const item = { id: newId('item'), title: documentTitle, content: check.content, shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] };
       group.items.push(item);
       return { valid: true, document, item, error: '' };
     }
-    const core = { newId, normalizeBatchEntries, insertBatchEntry, moveBatchEntry, removeBatchEntry, reorderBatchEntryAtTarget, validateCustomBatchContent, composeBatchEntries, appendCustomDocumentItem };
+    const MAX_ITEM_DEPTH = 4;
+    function walkItems(items, visitor, parent, depth, path) {
+      const list = Array.isArray(items) ? items : [];
+      const currentDepth = Number(depth || 1);
+      const currentPath = Array.isArray(path) ? path : [];
+      list.forEach((item, index) => {
+        const nextPath = currentPath.concat(String(item && item.title || '第 ' + (index + 1) + ' 条'));
+        const location = { item: item, parent: parent || null, siblings: list, index: index, depth: currentDepth, path: nextPath };
+        visitor(item, location);
+        if (item && Array.isArray(item.children) && item.children.length) walkItems(item.children, visitor, item, currentDepth + 1, nextPath);
+      });
+    }
+    function flattenItems(value) {
+      const result = [];
+      (Array.isArray(value && value.groups) ? value.groups : []).forEach(group => walkItems(group && group.items, (item, location) => result.push(Object.assign({ group: group }, location))));
+      return result;
+    }
+    function descendantCount(item) {
+      if (!item || !Array.isArray(item.children)) return 0;
+      return item.children.reduce((total, child) => total + 1 + descendantCount(child), 0);
+    }
+    function normalizeImportedItem(item, depth, path) {
+      const source = item && typeof item === 'object' ? item : {};
+      if (!Array.isArray(source.children)) throw new Error((path || '条目') + ' 的 children 必须是数组。');
+      if (depth > MAX_ITEM_DEPTH) throw new Error((path || '条目') + ' 超过最多 ' + MAX_ITEM_DEPTH + ' 级。');
+      return {
+        id: String(source.id || newId('item')),
+        title: String(source.title || '').trim(),
+        content: String(source.content || ''),
+        shortcut: normalizeShortcut(source.shortcut),
+        link: String(source.link || '').trim(),
+        note: String(source.note || ''),
+        favorite: Boolean(source.favorite),
+        collapsed: Boolean(source.collapsed),
+        children: source.children.map((child, index) => normalizeImportedItem(child, depth + 1, path + ' / ' + String(child && child.title || '第 ' + (index + 1) + ' 条')))
+      };
+    }
+    function migrateLegacyItem(item) {
+      const source = item && typeof item === 'object' ? item : {};
+      return Object.assign({}, source, { children: Array.isArray(source.children) ? source.children.map(migrateLegacyItem) : [] });
+    }
+    function migrateDocument(value) {
+      if (!value || typeof value !== 'object') throw new Error('JSON 文档格式无效。');
+      const version = Number(value.schemaVersion);
+      if (version !== 1 && version !== 2) throw new Error('不支持的数据版本。');
+      const migrated = clone(value);
+      migrated.schemaVersion = 2;
+      if (!Array.isArray(migrated.groups)) throw new Error('分组列表格式无效。');
+      if (version === 1) migrated.groups = migrated.groups.map(group => Object.assign({}, group, { items: (Array.isArray(group && group.items) ? group.items : []).map(migrateLegacyItem) }));
+      return migrated;
+    }
+    const core = { newId, normalizeBatchEntries, insertBatchEntry, moveBatchEntry, removeBatchEntry, reorderBatchEntryAtTarget, validateCustomBatchContent, composeBatchEntries, appendCustomDocumentItem, walkItems, flattenItems, descendantCount, migrateDocument };
 
     function byId(id) { return document.getElementById(id); }
     function syncGeneratedToolbarSpace() {
@@ -2084,17 +2290,26 @@
       try { saved = localStorage.getItem(themeKey) || model.meta.themePreference || 'system'; } catch (error) { storageAvailable = false; }
       setTheme(saved);
     }
-    function itemMatches(group, item) {
+    function itemMatches(group, item, groupMatches) {
       if (favoritesOnly && !item.favorite) return false;
       const needle = query.trim().toLocaleLowerCase();
-      if (!needle) return true;
-      return [group.title, item.title, item.content, item.link, item.note].join(String.fromCharCode(10)).toLocaleLowerCase().includes(needle);
+      if (!needle || groupMatches) return true;
+      return [item.title, item.content, item.link, item.note].join(String.fromCharCode(10)).toLocaleLowerCase().includes(needle);
+    }
+    function filterVisibleItems(group, items, groupMatches) {
+      return (Array.isArray(items) ? items : []).reduce((result, item) => {
+        const childItems = filterVisibleItems(group, item.children, groupMatches || itemMatches(group, item, groupMatches));
+        if (itemMatches(group, item, groupMatches) || childItems.length) result.push(Object.assign({}, item, { children: childItems }));
+        return result;
+      }, []);
     }
     function visibleGroups() {
-      return model.groups.map(group => ({ group: group, items: group.items.filter(item => itemMatches(group, item)) }))
-        .filter(entry => entry.items.length || (!query && !favoritesOnly));
+      return model.groups.map(group => {
+        const groupMatches = String(group.title || '').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+        return { group: group, items: filterVisibleItems(group, group.items, groupMatches) };
+      }).filter(entry => entry.items.length || (!query && !favoritesOnly));
     }
-    function allItems() { return model.groups.flatMap(group => group.items); }
+    function allItems() { return flattenItems(model).map(location => location.item); }
     function itemById(itemId) { return allItems().find(item => item.id === itemId); }
     function uniqueIds(ids) {
       const seen = new Set();
@@ -2183,8 +2398,8 @@
     }
     function selectVisibleItems() {
       const next = copyOrder.slice();
-      visibleGroups().forEach(entry => entry.items.forEach(item => {
-        if (!selectedIds.has(item.id)) next.push(item.id);
+      visibleGroups().forEach(entry => flattenItems({ groups: [{ items: entry.items }] }).forEach(location => {
+        if (!selectedIds.has(location.item.id)) next.push(location.item.id);
       }));
       syncSelection(next);
       renderMainOnly();
@@ -2395,32 +2610,69 @@
       result.splice(source < target ? adjustedTarget + 1 : adjustedTarget, 0, moved);
       return result;
     }
+    function expandNavAncestors(itemId) {
+      const location = flattenItems(model).find(entry => entry.item && entry.item.id === itemId);
+      let parent = location && location.parent;
+      while (parent) {
+        expandedNavIds.add(parent.id);
+        const parentLocation = flattenItems(model).find(entry => entry.item && entry.item.id === parent.id);
+        parent = parentLocation && parentLocation.parent;
+      }
+    }
+    function renderNavItems(items, group, depth, container) {
+      (Array.isArray(items) ? items : []).forEach((item, index) => {
+        const row = createElement('div', 'nav-tree-row');
+        row.style.setProperty('--tree-depth', String(depth));
+        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+        if (hasChildren) {
+          const toggle = createElement('button', 'nav-tree-toggle', expandedNavIds.has(item.id) ? '⌄' : '›');
+          toggle.type = 'button';
+          toggle.setAttribute('aria-expanded', String(expandedNavIds.has(item.id)));
+          toggle.setAttribute('aria-label', (expandedNavIds.has(item.id) ? '收起' : '展开') + '“' + item.title + '”子条目');
+          toggle.addEventListener('click', event => { event.stopPropagation(); if (expandedNavIds.has(item.id)) expandedNavIds.delete(item.id); else expandedNavIds.add(item.id); renderNavigation(groupsForCurrentRender); });
+          row.appendChild(toggle);
+        } else {
+          row.appendChild(createElement('span', 'nav-tree-spacer', ''));
+        }
+        const itemLink = byId('nav-item-template').content.firstElementChild.cloneNode(true);
+        itemLink.href = '#item-' + item.id;
+        itemLink.setAttribute('aria-level', String(depth));
+        itemLink.setAttribute('aria-posinset', String(index + 1));
+        itemLink.setAttribute('aria-setsize', String(items.length));
+        itemLink.querySelector('span').textContent = item.title;
+        const order = copyOrder.indexOf(item.id);
+        if (order >= 0) itemLink.append(createElement('span', 'nav-order-badge', String(order + 1)));
+        itemLink.addEventListener('click', event => focusItemFromNavigation(event, item.id));
+        row.appendChild(itemLink);
+        container.appendChild(row);
+        if (hasChildren && expandedNavIds.has(item.id)) {
+          const children = createElement('div', 'nav-tree-children');
+          renderNavItems(item.children, group, depth + 1, children);
+          container.appendChild(children);
+        }
+      });
+    }
+    let groupsForCurrentRender = [];
     function renderNavigation(groups) {
       const navigation = byId('generated-groups');
       navigation.replaceChildren();
+      groupsForCurrentRender = groups;
       const heading = createElement('div', 'sidebar-heading');
       heading.append(createElement('span', '', '分组导航'), createElement('span', '', groups.length + ' 组'));
       navigation.appendChild(heading);
       groups.forEach(entry => {
         const link = createElement('a', 'group-link');
         link.href = '#group-' + entry.group.id;
-        link.append(createElement('span', '', entry.group.title), createElement('span', 'group-count', String(entry.items.length)));
+        link.append(createElement('span', '', entry.group.title), createElement('span', 'group-count', String(entry.items.reduce((total, item) => total + 1 + descendantCount(item), 0))));
         navigation.appendChild(link);
         const itemList = createElement('div', 'nav-item-list');
-        entry.items.forEach(item => {
-          const itemLink = byId('nav-item-template').content.firstElementChild.cloneNode(true);
-          itemLink.href = '#item-' + item.id;
-          itemLink.querySelector('span').textContent = item.title;
-          const order = copyOrder.indexOf(item.id);
-          if (order >= 0) itemLink.append(createElement('span', 'nav-order-badge', String(order + 1)));
-          itemLink.addEventListener('click', event => focusItemFromNavigation(event, item.id));
-          itemList.appendChild(itemLink);
-        });
+        renderNavItems(entry.items, entry.group, 1, itemList);
         navigation.appendChild(itemList);
       });
     }
     function focusItemFromNavigation(event, itemId) {
       event.preventDefault();
+      expandNavAncestors(itemId);
       const card = byId('item-' + itemId);
       if (!card) return;
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2447,7 +2699,9 @@
         section.id = 'group-' + entry.group.id;
         const header = createElement('div', 'group-header');
         const headerTools = createElement('div', 'group-header-tools');
-        const groupIds = uniqueIds(entry.items.map(item => item.id));
+        const groupTree = { groups: [{ items: entry.items }] };
+        const groupItems = flattenItems(groupTree).map(location => location.item);
+        const groupIds = uniqueIds(groupItems.map(item => item.id));
         const groupAllSelected = groupIds.length > 0 && groupIds.every(id => selectedIds.has(id));
         const groupSelect = createElement('button', 'group-select-button', groupAllSelected ? '取消本组全选' : '本组全选');
         groupSelect.type = 'button';
@@ -2458,10 +2712,10 @@
           event.stopPropagation();
           toggleGroupSelection(entry.items, entry.group.title);
         });
-        headerTools.append(groupSelect, createElement('span', 'group-meta', entry.items.length + ' 条内容'));
+        headerTools.append(groupSelect, createElement('span', 'group-meta', groupItems.length + ' 条内容'));
         header.append(createElement('h2', 'group-title', entry.group.title), headerTools);
         const grid = createElement('div', 'item-grid');
-        entry.items.forEach(item => grid.appendChild(createCopyCard(item)));
+        groupItems.forEach(item => grid.appendChild(createCopyCard(item)));
         section.append(header, grid);
         container.appendChild(section);
       });
@@ -2696,15 +2950,26 @@
       actions.append(up, down, button('复制分组', 'duplicate-group'), button('删除分组', 'delete-group', 'mini-button button-danger'));
       head.append(title, actions);
       const items = createElement('div', 'edit-items');
-      group.items.forEach((item, itemIndex) => items.appendChild(createItemEditor(group, item, itemIndex)));
+      renderEditorItems(group, group.items, 1, items);
       const add = button('＋ 添加条目', 'add-item', 'button');
       box.append(head, items, add);
       return box;
     }
-    function createItemEditor(group, item, itemIndex) {
+    function renderEditorItems(group, itemList, depth, container) {
+      (Array.isArray(itemList) ? itemList : []).forEach((item, index) => {
+        const row = createItemEditor(group, item, index, depth, itemList);
+        container.appendChild(row);
+        if (Array.isArray(item.children) && item.children.length) renderEditorItems(group, item.children, depth + 1, container);
+      });
+    }
+    function createItemEditor(group, item, itemIndex, depth, siblings) {
+      itemIndex = Number(itemIndex || 0);
+      depth = Number(depth || 1);
       const row = createElement('div', 'edit-item');
       row.dataset.itemId = item.id;
       row.dataset.groupId = group.id;
+      row.dataset.depth = String(depth);
+      row.style.setProperty('--tree-depth', String(depth));
       const title = createElement('input', 'edit-input');
       title.value = item.title;
       title.placeholder = '标题';
@@ -2738,15 +3003,47 @@
       const up = button('上移', 'move-item-up');
       const down = button('下移', 'move-item-down');
       up.disabled = itemIndex === 0;
-      down.disabled = itemIndex === group.items.length - 1;
-      controls.append(favorite, up, down, button('复制条目', 'duplicate-item'), button('删除条目', 'delete-item', 'mini-button button-danger'));
+      const siblingItems = Array.isArray(siblings) ? siblings : group.items;
+      down.disabled = itemIndex === siblingItems.length - 1;
+      const indent = button('＋ 降级', 'indent-item', 'mini-button generated-indent-item');
+      const outdent = button('− 升级', 'outdent-item', 'mini-button generated-outdent-item');
+      indent.disabled = itemIndex === 0 || depth >= MAX_ITEM_DEPTH;
+      outdent.disabled = depth === 1;
+      controls.append(favorite, up, down, indent, outdent, button('添加子条目', 'add-child-item'), button('添加同级', 'add-sibling-item'), button('复制整棵子树', 'duplicate-item'), button('删除子树', 'delete-item', 'mini-button button-danger'));
       row.append(title, meta, content, controls);
       return row;
     }
     function findGroup(groupId) { return model.groups.find(group => group.id === groupId); }
-    function findItem(group, itemId) { return group && group.items.find(item => item.id === itemId); }
+    function findItem(group, itemId) {
+      let found = null;
+      walkItems(group && group.items, item => { if (!found && item.id === itemId) found = item; });
+      return found;
+    }
+    function findItemLocation(itemId) {
+      let found = null;
+      model.groups.forEach(group => walkItems(group.items, (item, location) => {
+        if (!found && item.id === itemId) found = Object.assign({ group: group }, location);
+      }));
+      return found;
+    }
+    function cloneItemTreeRuntime(item) {
+      const copy = clone(item);
+      function rewrite(node) {
+        node.id = makeId('item');
+        node.shortcut = '';
+        node.children = Array.isArray(node.children) ? node.children.map(child => { rewrite(child); return child; }) : [];
+        return node;
+      }
+      const result = rewrite(copy);
+      result.title = (result.title || '未命名条目') + '（副本）';
+      return result;
+    }
+    function subtreeHeightRuntime(item) {
+      if (!item || !Array.isArray(item.children) || !item.children.length) return 1;
+      return 1 + Math.max.apply(null, item.children.map(subtreeHeightRuntime));
+    }
     function makeId(prefix) { return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); }
-    function newItem() { return { id: makeId('item'), title: '新条目', content: '', shortcut: '', link: '', note: '', favorite: false, collapsed: false }; }
+    function newItem() { return { id: makeId('item'), title: '新条目', content: '', shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] }; }
     function newGroup() { return { id: makeId('group'), title: '新分组', collapsed: false, items: [newItem()] }; }
     function normalizeShortcut(value) {
       const modifiers = ['Ctrl', 'Alt', 'Shift', 'Meta'];
@@ -2831,7 +3128,6 @@
       const groupIndex = model.groups.indexOf(group);
       const row = actionButton.closest('[data-item-id]');
       const item = findItem(group, row && row.dataset.itemId);
-      const itemIndex = item ? group.items.indexOf(item) : -1;
       if (action === 'add-item') group.items.push(newItem());
       if (action === 'move-group-up') move(model.groups, groupIndex, -1);
       if (action === 'move-group-down') move(model.groups, groupIndex, 1);
@@ -2839,22 +3135,40 @@
         const copy = clone(group);
         copy.id = makeId('group');
         copy.title += '（副本）';
-        copy.items.forEach(entry => { entry.id = makeId('item'); entry.shortcut = ''; });
+        copy.items = copy.items.map(entry => cloneItemTreeRuntime(entry));
         model.groups.splice(groupIndex + 1, 0, copy);
       }
       if (action === 'delete-group' && confirm('删除分组“' + group.title + '”及其中全部条目？')) model.groups.splice(groupIndex, 1);
       if (item) {
+        const location = findItemLocation(item.id);
         if (action === 'toggle-favorite') item.favorite = !item.favorite;
-        if (action === 'move-item-up') move(group.items, itemIndex, -1);
-        if (action === 'move-item-down') move(group.items, itemIndex, 1);
-        if (action === 'duplicate-item') {
-          const copy = clone(item);
-          copy.id = makeId('item');
-          copy.title += '（副本）';
-          copy.shortcut = '';
-          group.items.splice(itemIndex + 1, 0, copy);
+        if (action === 'move-item-up' && location) move(location.siblings, location.index, -1);
+        if (action === 'move-item-down' && location) move(location.siblings, location.index, 1);
+        if (action === 'indent-item' && location) {
+          if (location.index === 0 || location.depth >= MAX_ITEM_DEPTH || location.depth + subtreeHeightRuntime(item) > MAX_ITEM_DEPTH) return announce(location.depth + subtreeHeightRuntime(item) > MAX_ITEM_DEPTH ? '该子树移动后会超过最多 ' + MAX_ITEM_DEPTH + ' 级。' : '无法再降低层级。', 'warning');
+          const previous = location.siblings[location.index - 1];
+          location.siblings.splice(location.index, 1);
+          if (!Array.isArray(previous.children)) previous.children = [];
+          previous.children.push(item);
         }
-        if (action === 'delete-item' && confirm('删除条目“' + item.title + '”？')) group.items.splice(itemIndex, 1);
+        if (action === 'outdent-item' && location && location.parent) {
+          const parentLocation = findItemLocation(location.parent.id);
+          location.siblings.splice(location.index, 1);
+          if (parentLocation) parentLocation.siblings.splice(parentLocation.index + 1, 0, item);
+        }
+        if (action === 'add-child-item') {
+          if (!Array.isArray(item.children)) item.children = [];
+          if (findItemLocation(item.id).depth >= MAX_ITEM_DEPTH) return announce('最多只能 ' + MAX_ITEM_DEPTH + ' 级，无法继续添加子条目。', 'warning');
+          item.children.push(newItem());
+        }
+        if (action === 'add-sibling-item' && location) location.siblings.splice(location.index + 1, 0, newItem());
+        if (action === 'duplicate-item') {
+          const copy = cloneItemTreeRuntime(item);
+          if (location) location.siblings.splice(location.index + 1, 0, copy);
+        }
+        if (action === 'delete-item' && confirm('删除条目“' + item.title + '”及其全部子条目？')) {
+          if (location) location.siblings.splice(location.index, 1);
+        }
       }
       updateAndRender();
     }
@@ -2988,7 +3302,7 @@
       renderNavigation(groups);
       renderItems(groups);
       renderBatchTray();
-      const visibleCount = groups.reduce((count, entry) => count + entry.items.length, 0);
+      const visibleCount = groups.reduce((count, entry) => count + flattenItems({ groups: [{ items: entry.items }] }).length, 0);
       byId('select-visible-button').disabled = visibleCount === 0;
       byId('batch-select-visible-button').disabled = visibleCount === 0;
       byId('content-visibility-toggle').setAttribute('aria-pressed', String(revealAll));
@@ -3027,9 +3341,9 @@
       announce('已导出当前 JSON。', 'success');
     }
     function normalizeImportedDocument(value) {
-      if (!value || Number(value.schemaVersion) !== originalDocument.schemaVersion) throw new Error('不支持的数据版本。');
-      const normalized = clone(value);
-      normalized.schemaVersion = originalDocument.schemaVersion;
+      const migrated = migrateDocument(value);
+      const normalized = clone(migrated);
+      normalized.schemaVersion = 2;
       normalized.documentId = String(normalized.documentId || makeId('doc'));
       normalized.meta = {
         title: String(normalized.meta && normalized.meta.title || '').trim(),
@@ -3038,21 +3352,12 @@
           ? normalized.meta.themePreference
           : model.meta.themePreference
       };
-      if (!Array.isArray(value.groups)) throw new Error('分组列表格式无效。');
-      normalized.groups = value.groups.map(group => ({
+      if (!Array.isArray(migrated.groups)) throw new Error('分组列表格式无效。');
+      normalized.groups = migrated.groups.map((group, groupIndex) => ({
         id: String(group && group.id || makeId('group')),
         title: String(group && group.title || '').trim(),
         collapsed: Boolean(group && group.collapsed),
-        items: Array.isArray(group && group.items) ? group.items.map(item => ({
-          id: String(item && item.id || makeId('item')),
-          title: String(item && item.title || '').trim(),
-          content: String(item && item.content || ''),
-          shortcut: normalizeShortcut(item && item.shortcut),
-          link: String(item && item.link || '').trim(),
-          note: String(item && item.note || ''),
-          favorite: Boolean(item && item.favorite),
-          collapsed: Boolean(item && item.collapsed)
-        })) : []
+        items: Array.isArray(group && group.items) ? group.items.map((item, itemIndex) => normalizeImportedItem(item, 1, String(group && group.title || '第 ' + (groupIndex + 1) + ' 组') + ' / ' + String(item && item.title || '第 ' + (itemIndex + 1) + ' 条'))) : []
       }));
       return normalized;
     }
@@ -3075,25 +3380,22 @@
           errors.push('分组“' + (groupLabel || groupIndex + 1) + '”的条目格式无效。');
           return;
         }
-        group.items.forEach((item, itemIndex) => {
+        walkItems(group.items, (item, location) => {
           const itemId = String(item && item.id || '');
           const itemLabel = String(item && item.title || '').trim();
-          if (!itemLabel) errors.push('第 ' + (groupIndex + 1) + ' 组第 ' + (itemIndex + 1) + ' 条标题不能为空。');
+          const path = (groupLabel || '第 ' + (groupIndex + 1) + ' 组') + ' / ' + location.path.join(' / ');
+          if (!itemLabel) errors.push(path + '：标题不能为空。');
+          if (!Array.isArray(item && item.children)) errors.push(path + '：children 必须是数组。');
+          if (location.depth > MAX_ITEM_DEPTH) errors.push(path + '：超过最多 ' + MAX_ITEM_DEPTH + ' 级。');
           if (!itemId || itemIds.has(itemId)) errors.push('条目 ID 重复或为空。');
           itemIds.add(itemId);
-          const sourceGroup = sourceGroups[groupIndex];
-          const sourceItems = sourceGroup && Array.isArray(sourceGroup.items) ? sourceGroup.items : [];
-          const sourceItem = sourceItems[itemIndex];
           const linkCheck = validateQuickLink(item && item.link);
-          if (!linkCheck.valid) {
-            errors.push('“' + (itemLabel || '未命名条目') + '”：' + linkCheck.message);
-          }
-          const shortcutCheck = validateImportedShortcut(sourceItem ? sourceItem.shortcut : item && item.shortcut);
-          if (!shortcutCheck.valid) {
-            errors.push('“' + (itemLabel || '未命名条目') + '”：' + shortcutCheck.message);
-          } else if (shortcutCheck.normalized) {
+          if (!linkCheck.valid) errors.push('“' + path + '”：' + linkCheck.message);
+          const shortcutCheck = validateImportedShortcut(item && item.shortcut);
+          if (!shortcutCheck.valid) errors.push('“' + path + '”：' + shortcutCheck.message);
+          else if (shortcutCheck.normalized) {
             if (shortcuts.has(shortcutCheck.normalized)) errors.push('快捷键 ' + shortcutCheck.normalized + ' 与“' + shortcuts.get(shortcutCheck.normalized) + '”重复。');
-            else shortcuts.set(shortcutCheck.normalized, itemLabel || '未命名条目');
+            else shortcuts.set(shortcutCheck.normalized, path);
           }
         });
       });
@@ -3101,7 +3403,7 @@
     }
     function summarizeDocument(value) {
       const groups = Array.isArray(value.groups) ? value.groups : [];
-      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + group.items.length, 0) + ' 条内容';
+      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + flattenItems({ groups: [{ items: group.items }] }).length, 0) + ' 条内容';
     }
     function readFileText(file) {
       if (typeof file.text === 'function') return file.text();
@@ -3133,7 +3435,8 @@
         hiddenIds.clear();
         copiedIds.clear();
         expandedIds.clear();
-        model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
+        expandedNavIds.clear();
+        allItems().forEach(item => expandedIds.add(item.id));
         saveOverride();
         render();
         announce('JSON 已导入：' + summarizeDocument(model) + '。', 'success');
@@ -3155,7 +3458,8 @@
       hiddenIds.clear();
       copiedIds.clear();
       expandedIds.clear();
-      model.groups.forEach(group => group.items.forEach(item => expandedIds.add(item.id)));
+      expandedNavIds.clear();
+       allItems().forEach(item => expandedIds.add(item.id));
       revealAll = true;
       try { localStorage.removeItem(storageKey); } catch (error) { storageAvailable = false; }
       render();
@@ -3222,7 +3526,7 @@
         return;
       }
       const shortcut = eventShortcut(event);
-      const item = model.groups.flatMap(group => group.items).find(entry => normalizeShortcut(entry.shortcut) === shortcut);
+      const item = allItems().find(entry => normalizeShortcut(entry.shortcut) === shortcut);
       if (item) {
         event.preventDefault();
         copyItem(item, document.querySelector('[data-item-id="' + item.id + '"]'));
@@ -3243,13 +3547,15 @@
     }
 
     function buildGeneratedHtml(value) {
-      const validation = validateDocument(value);
+      const migrated = migrateDocument(value);
+      const validation = validateDocument(migrated);
       if (!validation.valid) throw new Error(validation.errors.join('\n'));
-      return generatedShell(safeJsonForHtml(normalizeDocument(value)));
+      return generatedShell(safeJsonForHtml(normalizeDocument(migrated)));
     }
 
     window.HtmlPasteGenCore = {
       SCHEMA_VERSION,
+      MAX_ITEM_DEPTH,
       cloneDocument,
       newId,
       safeHtmlFilename,
@@ -3260,9 +3566,19 @@
       createItem,
       createGroup,
       createSampleDocument,
+      migrateDocument,
       normalizeDocument,
       validateDocument,
       moveItem,
+      walkItems,
+      flattenItems,
+      findItemLocation,
+      itemPath,
+      itemDepth,
+      descendantCount,
+      cloneItemTree,
+      indentItem,
+      outdentItem,
       resolveBatchSeparator,
       normalizeBatchEntries,
       insertBatchEntry,
@@ -3291,7 +3607,7 @@
     'use strict';
 
     const core = window.HtmlPasteGenCore;
-    const DRAFT_KEY = 'html-paste-gen:draft:v1';
+    const DRAFT_KEY = 'html-paste-gen:draft:v2';
     const SAVE_DELAY = 260;
     let saveTimer = 0;
     let toastTimer = 0;
@@ -3315,6 +3631,7 @@
     };
     const expandedPreviewIds = new Set();
     const expandedNavGroupIds = new Set();
+    const expandedNavNodeIds = new Set();
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
 
     function byId(id) {
@@ -3367,8 +3684,9 @@
         const raw = localStorage.getItem(DRAFT_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
-          const validation = core.validateDocument(parsed);
-          if (validation.valid) return core.normalizeDocument(parsed);
+          const migrated = core.migrateDocument(parsed);
+          const validation = core.validateDocument(migrated);
+          if (validation.valid) return core.normalizeDocument(migrated);
         }
       } catch (error) {
         setTimeout(() => announce('旧草稿无法读取，已载入示例数据。', 'warning'), 0);
@@ -3386,7 +3704,7 @@
     }
 
     function cleanExpandedPreviewIds() {
-      const validIds = new Set(state.document.groups.flatMap(group => group.items.map(item => item.id)));
+      const validIds = new Set(core.flattenItems(state.document).map(location => location.item.id));
       expandedPreviewIds.forEach(id => { if (!validIds.has(id)) expandedPreviewIds.delete(id); });
     }
 
@@ -3397,6 +3715,20 @@
 
     function resetGroupNavExpansion() {
       expandedNavGroupIds.clear();
+      expandedNavNodeIds.clear();
+    }
+
+    function cleanExpandedNavNodeIds() {
+      const validIds = new Set(core.flattenItems(state.document).map(location => location.item.id));
+      expandedNavNodeIds.forEach(id => { if (!validIds.has(id)) expandedNavNodeIds.delete(id); });
+    }
+
+    function expandNavAncestors(itemId) {
+      let location = core.findItemLocation(state.document, itemId);
+      while (location && location.parent) {
+        expandedNavNodeIds.add(location.parent.id);
+        location = core.findItemLocation(state.document, location.parent.id);
+      }
     }
 
     function togglePreviewCommand(itemId) {
@@ -3411,7 +3743,7 @@
 
     function findItem(groupId, itemId) {
       const group = findGroup(groupId);
-      return group && group.items.find(item => item.id === itemId);
+      return group ? core.findItemLocation({ groups: [group] }, itemId)?.item || null : null;
     }
 
     function setDraftStatus(message, type) {
@@ -3658,7 +3990,7 @@
 
     function summarizeNetworkDocument(value) {
       const groups = Array.isArray(value && value.groups) ? value.groups : [];
-      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + (Array.isArray(group.items) ? group.items.length : 0), 0) + ' 条内容';
+      return groups.length + ' 个分组，' + groups.reduce((count, group) => count + core.flattenItems({ groups: [{ items: group.items }] }).length, 0) + ' 条内容';
     }
 
     async function importNetworkJson(name) {
@@ -3675,9 +4007,10 @@
         try { payload = JSON.parse(raw); } catch (error) { payload = null; }
         if (!response.ok) throw new Error(payload && payload.error ? payload.error : '网络库读取失败（' + response.status + '）');
         if (!payload) throw new Error('JSON 文件格式无效。');
-        const validation = core.validateDocument(payload);
+        const migrated = core.migrateDocument(payload);
+        const validation = core.validateDocument(migrated);
         if (!validation.valid) throw new Error(validation.errors.join('；'));
-        const normalized = core.normalizeDocument(payload);
+        const normalized = core.normalizeDocument(migrated);
         if (!confirm('导入“' + file.name + '”将替换当前编辑内容（' + summarizeNetworkDocument(normalized) + '），是否继续？')) return;
         state.networkEditingName = '';
         state.networkDraft = null;
@@ -3761,7 +4094,17 @@
         contentInput.focus();
         return;
       }
-      const validation = core.validateDocument(parsed);
+      let migrated;
+      let validation;
+      try {
+        migrated = core.migrateDocument(parsed);
+        validation = core.validateDocument(migrated);
+      } catch (error) {
+        setNetworkStatus('JSON 文档校验失败：' + error.message, 'error');
+        announce('保存失败：' + error.message, 'error');
+        contentInput.focus();
+        return;
+      }
       if (!validation.valid) {
         const details = validation.errors.slice(0, 4).join('；');
         setNetworkStatus('JSON 文档校验失败：' + details, 'error');
@@ -3771,14 +4114,15 @@
       }
       const editingExisting = Boolean(state.networkEditingName);
       if (editingExisting && !confirm('确认覆盖网络库中的“' + filename + '”？')) return;
-      state.networkDraft = { name: filename, content: rawContent };
+      const canonicalContent = JSON.stringify(core.normalizeDocument(migrated), null, 2);
+      state.networkDraft = { name: filename, content: canonicalContent };
       state.networkBusy = true;
       renderNetworkEditor();
       try {
         const response = await fetch('/api/html-paste/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: filename, content: rawContent, overwrite: editingExisting })
+          body: JSON.stringify({ name: filename, content: canonicalContent, overwrite: editingExisting })
         });
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) throw new Error('同名文件已存在，请修改文件名后重试。');
@@ -3848,6 +4192,7 @@
       const list = byId('group-list');
       list.replaceChildren();
       cleanExpandedNavGroupIds();
+      cleanExpandedNavNodeIds();
       byId('group-count').textContent = `${state.document.groups.length} 个分组`;
 
       if (!state.document.groups.length) {
@@ -3868,7 +4213,7 @@
 
         const select = makeButton('', 'select-group', 'group-select');
         select.append(createElement('span', 'group-name', group.title || '未命名分组'));
-        select.append(createElement('span', 'count-badge', String(group.items.length)));
+        select.append(createElement('span', 'count-badge', String(core.flattenItems({ groups: [{ items: group.items }] }).length)));
         select.title = group.title || '未命名分组';
 
         const actions = createElement('div', 'group-actions');
@@ -3885,17 +4230,7 @@
         if (!group.items.length) {
           itemList.appendChild(createElement('p', 'group-item-empty', '暂无子条目'));
         } else {
-          group.items.forEach((item, itemIndex) => {
-            const itemLink = makeButton('', 'select-item', 'group-item-link');
-            itemLink.dataset.itemId = item.id;
-            itemLink.title = item.title || '未命名条目';
-            itemLink.setAttribute('aria-label', `定位到条目：${item.title || '未命名条目'}`);
-            itemLink.append(
-              createElement('span', 'group-item-number', String(itemIndex + 1)),
-              createElement('span', 'group-item-name', item.title || '未命名条目')
-            );
-            itemList.appendChild(itemLink);
-          });
+          renderItemTree(group.items, group, 1, itemList);
         }
 
         row.append(toggle, select, actions, itemList);
@@ -3903,12 +4238,60 @@
       });
     }
 
+    function renderItemTree(items, group, depth, container) {
+      const list = Array.isArray(items) ? items : [];
+      list.forEach((item, index) => {
+        const node = createElement('div', 'tree-node');
+        node.dataset.itemId = item.id;
+        node.dataset.groupId = group.id;
+        node.dataset.depth = String(depth);
+        node.style.setProperty('--tree-depth', String(depth));
+        const row = createElement('div', 'tree-node-row');
+        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+        const toggle = hasChildren
+          ? makeButton(expandedNavNodeIds.has(item.id) ? '▾' : '▸', 'toggle-item-children', 'tree-toggle', expandedNavNodeIds.has(item.id) ? '收起子条目' : '展开子条目')
+          : createElement('span', 'tree-toggle-spacer', '');
+        if (hasChildren) {
+          toggle.dataset.itemId = item.id;
+          toggle.setAttribute('aria-expanded', String(expandedNavNodeIds.has(item.id)));
+          toggle.setAttribute('aria-controls', 'tree-children-' + item.id);
+        }
+        const select = makeButton('', 'select-item', 'group-item-link');
+        select.dataset.itemId = item.id;
+        select.dataset.depth = String(depth);
+        select.title = item.title || '未命名条目';
+        select.setAttribute('aria-level', String(depth));
+        select.setAttribute('aria-posinset', String(index + 1));
+        select.setAttribute('aria-setsize', String(list.length));
+        select.append(createElement('span', 'group-item-number', String(index + 1)), createElement('span', 'group-item-name', item.title || '未命名条目'));
+        const tools = createElement('span', 'tree-node-toolbar');
+        const count = core.descendantCount(item);
+        if (count) tools.appendChild(createElement('span', 'tree-descendant-count', String(count)));
+        const indent = makeButton('＋', 'indent-item', 'tree-level-button', '降低层级');
+        const outdent = makeButton('−', 'outdent-item', 'tree-level-button', '提升层级');
+        indent.dataset.itemId = outdent.dataset.itemId = item.id;
+        indent.disabled = index === 0 || depth >= core.MAX_ITEM_DEPTH;
+        outdent.disabled = depth === 1;
+        tools.append(indent, outdent);
+        row.append(toggle, select, tools);
+        node.appendChild(row);
+        if (hasChildren) {
+          const children = createElement('div', 'tree-node-children');
+          children.id = 'tree-children-' + item.id;
+          children.hidden = !expandedNavNodeIds.has(item.id);
+          renderItemTree(item.children, group, depth + 1, children);
+          node.appendChild(children);
+        }
+        container.appendChild(node);
+      });
+    }
+
     function shortcutConflict(item) {
       const check = core.validateShortcut(item.shortcut);
       if (!check.valid) return check.message;
       if (!check.normalized) return '';
-      const owners = state.document.groups
-        .flatMap(group => group.items)
+      const owners = core.flattenItems(state.document)
+        .map(location => location.item)
         .filter(entry => entry.id !== item.id && core.normalizeShortcut(entry.shortcut) === check.normalized);
       return owners.length ? `与“${owners[0].title || '未命名条目'}”重复` : '';
     }
@@ -3919,10 +4302,14 @@
       return label;
     }
 
-    function createItemEditor(group, item, index) {
+    function createItemEditor(group, item, index, depth, siblings) {
+      const currentDepth = Number(depth || 1);
+      const currentSiblings = Array.isArray(siblings) ? siblings : group.items;
       const card = createElement('article', 'item-editor');
       card.dataset.groupId = group.id;
       card.dataset.itemId = item.id;
+      card.dataset.depth = String(currentDepth);
+      card.style.setProperty('--tree-depth', String(currentDepth));
       if (item.collapsed) card.classList.add('is-collapsed');
 
       const head = createElement('header', 'item-editor-head');
@@ -3933,11 +4320,18 @@
         makeButton(item.collapsed ? '展开' : '折叠', 'toggle-item-collapse', 'button button-small button-quiet'),
         makeButton('↑', 'move-item-up', 'button button-small', '上移条目'),
         makeButton('↓', 'move-item-down', 'button button-small', '下移条目'),
+        makeButton('＋ 降级', 'indent-item', 'button button-small generated-indent-item', '降低层级'),
+        makeButton('− 升级', 'outdent-item', 'button button-small generated-outdent-item', '提升层级'),
+        makeButton('添加子条目', 'add-child-item', 'button button-small'),
+        makeButton('添加同级', 'add-sibling-item', 'button button-small'),
         makeButton('复制', 'duplicate-item', 'button button-small'),
         makeButton('删除', 'delete-item', 'button button-small button-danger')
       );
       actions.children[1].disabled = index === 0;
-      actions.children[2].disabled = index === group.items.length - 1;
+      actions.children[2].disabled = index === currentSiblings.length - 1;
+      actions.children[3].disabled = index === 0 || currentDepth >= core.MAX_ITEM_DEPTH;
+      actions.children[4].disabled = currentDepth === 1;
+      actions.children[5].disabled = currentDepth >= core.MAX_ITEM_DEPTH;
       head.appendChild(actions);
 
       const body = createElement('div', 'item-editor-body');
@@ -4017,6 +4411,19 @@
       return card;
     }
 
+    function renderEditorTree(items, group, depth, container) {
+      const list = Array.isArray(items) ? items : [];
+      list.forEach((item, index) => {
+        const card = createItemEditor(group, item, index, depth, list);
+        container.appendChild(card);
+        if (Array.isArray(item.children) && item.children.length) {
+          const children = createElement('div', 'tree-editor-children');
+          renderEditorTree(item.children, group, depth + 1, children);
+          container.appendChild(children);
+        }
+      });
+    }
+
     function renderEditor() {
       const group = selectedGroup();
       const container = byId('editor-content');
@@ -4034,7 +4441,7 @@
         return;
       }
 
-      byId('selected-group-count').textContent = `${group.items.length} 条内容`;
+      byId('selected-group-count').textContent = `${core.flattenItems({ groups: [{ items: group.items }] }).length} 条内容`;
       if (document.activeElement !== byId('selected-group-title')) byId('selected-group-title').value = group.title;
       byId('selected-group-title').setAttribute('aria-invalid', String(!String(group.title || '').trim()));
 
@@ -4046,7 +4453,7 @@
         return;
       }
 
-      group.items.forEach((item, index) => container.appendChild(createItemEditor(group, item, index)));
+      renderEditorTree(group.items, group, 1, container);
     }
 
     function renderPreview() {
@@ -4054,7 +4461,7 @@
       const filtered = core.filterDocument(state.document, state.previewQuery, state.previewFavoritesOnly);
       const container = byId('preview-content');
       container.replaceChildren();
-      const total = filtered.groups.reduce((sum, group) => sum + group.items.length, 0);
+      const total = filtered.groups.reduce((sum, group) => sum + core.flattenItems({ groups: [{ items: group.items }] }).length, 0);
       byId('preview-count').textContent = `${total} 条可复制内容`;
       byId('preview-favorite').setAttribute('aria-pressed', String(state.previewFavoritesOnly));
       byId('preview-favorite').textContent = state.previewFavoritesOnly ? '★' : '☆';
@@ -4068,9 +4475,10 @@
         if (!group.items.length) return;
         const section = createElement('section', 'preview-group');
         const title = createElement('h3', 'preview-group-title');
-        title.append(createElement('span', '', group.title || '未命名分组'), createElement('span', 'count-badge', String(group.items.length)));
+        const groupItems = core.flattenItems({ groups: [{ items: group.items }] }).map(location => location.item);
+        title.append(createElement('span', '', group.title || '未命名分组'), createElement('span', 'count-badge', String(groupItems.length)));
         const cards = createElement('div', 'preview-cards');
-        group.items.forEach(item => {
+        groupItems.forEach(item => {
           const card = createElement('article', 'preview-card');
           card.dataset.previewItemId = item.id;
           card.tabIndex = 0;
@@ -4165,7 +4573,7 @@
       if (!itemButton || !context) return;
       itemButton.disabled = !group;
       context.textContent = group
-        ? (group.title || '未命名分组') + ' · ' + group.items.length + ' 条'
+        ? (group.title || '未命名分组') + ' · ' + core.flattenItems({ groups: [{ items: group.items }] }).length + ' 条'
         : '请选择分组或新建分组';
       context.title = context.textContent;
     }
@@ -4230,7 +4638,10 @@
 
     function selectAndFocus(groupId, itemId) {
       state.selectedGroupId = groupId;
-      if (itemId) expandedNavGroupIds.add(groupId);
+      if (itemId) {
+        expandedNavGroupIds.add(groupId);
+        expandNavAncestors(itemId);
+      }
       state.mobilePanel = 'editor';
       renderAll();
       requestAnimationFrame(() => {
@@ -4276,6 +4687,12 @@
       if (message) announce(message, 'success');
     }
 
+    function handleTreeAction(action, itemId) {
+      if (action === 'indent-item') return core.indentItem(state.document, itemId);
+      if (action === 'outdent-item') return core.outdentItem(state.document, itemId);
+      return { ok: false, reason: '未知的树操作。' };
+    }
+
     function handleAction(event) {
       const actionButton = event.target.closest('[data-action]');
       if (!actionButton) return;
@@ -4299,7 +4716,28 @@
       }
       if (action === 'select-item' && groupRow && actionButton.dataset.itemId) {
         expandedNavGroupIds.add(groupRow.dataset.groupId);
+        expandNavAncestors(actionButton.dataset.itemId);
         selectAndFocus(groupRow.dataset.groupId, actionButton.dataset.itemId);
+        return;
+      }
+      if (action === 'toggle-item-children' && actionButton.dataset.itemId) {
+        if (expandedNavNodeIds.has(actionButton.dataset.itemId)) expandedNavNodeIds.delete(actionButton.dataset.itemId);
+        else expandedNavNodeIds.add(actionButton.dataset.itemId);
+        renderGroupList();
+        return;
+      }
+      if (action === 'expand-all-nav' || action === 'collapse-all-nav') {
+        expandedNavGroupIds.clear();
+        expandedNavNodeIds.clear();
+        if (action === 'expand-all-nav') {
+          state.document.groups.forEach(group => {
+            expandedNavGroupIds.add(group.id);
+            core.flattenItems({ groups: [{ items: group.items }] }).forEach(location => {
+              if (location.item.children && location.item.children.length) expandedNavNodeIds.add(location.item.id);
+            });
+          });
+        }
+        renderGroupList();
         return;
       }
       if (action === 'add-group') {
@@ -4321,10 +4759,7 @@
         const copy = core.cloneDocument(group);
         copy.id = core.newId('group');
         copy.title += '（副本）';
-        copy.items.forEach(entry => {
-          entry.id = core.newId('item');
-          entry.shortcut = '';
-        });
+        copy.items = copy.items.map(entry => core.cloneItemTree(entry));
         state.document.groups.splice(groupIndex + 1, 0, copy);
         scheduleDraftSave();
         selectAndFocus(copy.id);
@@ -4332,7 +4767,7 @@
         return;
       }
       if (action === 'delete-group') {
-        if (!confirm(`删除分组“${group.title || '未命名分组'}”及其中 ${group.items.length} 条内容？`)) return;
+        if (!confirm(`删除分组“${group.title || '未命名分组'}”及其中 ${core.flattenItems({ groups: [{ items: group.items }] }).length} 条内容？`)) return;
         state.document.groups.splice(groupIndex, 1);
         state.selectedGroupId = state.document.groups[Math.min(groupIndex, state.document.groups.length - 1)]?.id || '';
         updateAfterAction('分组已删除。');
@@ -4346,22 +4781,36 @@
         return;
       }
       if (!item) return;
-      const itemIndex = group.items.indexOf(item);
+       const location = core.findItemLocation({ groups: [group] }, item.id);
       if (action === 'toggle-item-collapse') item.collapsed = !item.collapsed;
-      if (action === 'move-item-up') core.moveItem(group.items, itemIndex, -1);
-      if (action === 'move-item-down') core.moveItem(group.items, itemIndex, 1);
-      if (action === 'duplicate-item') {
-        const copy = core.cloneDocument(item);
-        copy.id = core.newId('item');
-        copy.title += '（副本）';
-        copy.shortcut = '';
-        group.items.splice(itemIndex + 1, 0, copy);
-      }
-      if (action === 'delete-item') {
-        if (!confirm(`删除条目“${item.title || '未命名条目'}”？`)) return;
-        group.items.splice(itemIndex, 1);
-      }
-      updateAfterAction(action === 'duplicate-item' ? '条目已复制；快捷键已清空。' : '');
+       if (action === 'move-item-up' && location) core.moveItem(location.siblings, location.index, -1);
+       if (action === 'move-item-down' && location) core.moveItem(location.siblings, location.index, 1);
+       if (action === 'indent-item' || action === 'outdent-item') {
+         const result = handleTreeAction(action, item.id);
+         if (!result.ok) {
+           announce(result.reason, 'warning');
+           return;
+         }
+       }
+       if (action === 'add-child-item') {
+         if (!Array.isArray(item.children)) item.children = [];
+         if (core.itemDepth(state.document, item.id) >= core.MAX_ITEM_DEPTH) {
+           announce(`最多只能 ${core.MAX_ITEM_DEPTH} 级，无法继续添加子条目。`, 'warning');
+           return;
+         }
+         item.children.push(core.createItem({ title: '新子条目' }));
+       }
+       if (action === 'add-sibling-item' && location) location.siblings.splice(location.index + 1, 0, core.createItem());
+       if (action === 'duplicate-item') {
+         const copy = core.cloneItemTree(item);
+         if (location) location.siblings.splice(location.index + 1, 0, copy);
+       }
+       if (action === 'delete-item') {
+         const childCount = core.descendantCount(item);
+         if (!confirm(`删除条目“${item.title || '未命名条目'}”及其 ${childCount} 个子条目？`)) return;
+         if (location) location.siblings.splice(location.index, 1);
+       }
+       updateAfterAction(action === 'duplicate-item' ? '条目已复制；快捷键已清空。' : '');
     }
 
     function updateItemField(event) {
@@ -4395,9 +4844,11 @@
     function addItemAfter(itemCard) {
       const group = findGroup(itemCard.dataset.groupId);
       if (!group) return;
-      const index = group.items.findIndex(item => item.id === itemCard.dataset.itemId);
-      const created = core.createItem({ title: `新条目 ${group.items.length + 1}` });
-      group.items.splice(index + 1, 0, created);
+      const location = core.findItemLocation({ groups: [group] }, itemCard.dataset.itemId);
+      const siblings = location ? location.siblings : group.items;
+      const index = location ? location.index : siblings.length - 1;
+      const created = core.createItem({ title: `新条目 ${siblings.length + 1}` });
+      siblings.splice(index + 1, 0, created);
       scheduleDraftSave();
       selectAndFocus(group.id, created.id);
     }
@@ -4444,9 +4895,10 @@
       if (!file) return;
       try {
         const parsed = JSON.parse(await readTextFile(file));
-        const validation = core.validateDocument(parsed);
+        const migrated = core.migrateDocument(parsed);
+        const validation = core.validateDocument(migrated);
         if (!validation.valid) throw new Error(validation.errors.join('；'));
-        const normalized = core.normalizeDocument(parsed);
+        const normalized = core.normalizeDocument(migrated);
         state.document = normalized;
         resetGroupNavExpansion();
         state.selectedGroupId = normalized.groups[0]?.id || '';
@@ -4572,7 +5024,7 @@
     });
     byId('collapse-all-button').addEventListener('click', event => {
       state.allCollapsed = !state.allCollapsed;
-      state.document.groups.forEach(group => group.items.forEach(item => { item.collapsed = state.allCollapsed; }));
+      core.flattenItems(state.document).forEach(location => { location.item.collapsed = state.allCollapsed; });
       event.currentTarget.textContent = state.allCollapsed ? '展开全部条目' : '折叠全部条目';
       renderEditor();
       scheduleDraftSave();

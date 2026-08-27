@@ -45,11 +45,75 @@ assert.strictEqual(core.shortcutFromEvent({
 }), 'Ctrl+Shift+A');
 
 const sample = core.createSampleDocument();
-assert.strictEqual(sample.schemaVersion, 1);
+assert.strictEqual(sample.schemaVersion, 2);
 assert.ok(sample.documentId);
 assert.strictEqual(sample.groups.length, 2);
 assert.ok(sample.groups.every(group => group.id && Array.isArray(group.items)));
 assert.ok(sample.groups.flatMap(group => group.items).every(item => item.id));
+assert.ok(sample.groups.flatMap(group => group.items).every(item => Array.isArray(item.children)));
+
+const treeDocument = {
+  schemaVersion: 2,
+  documentId: 'tree-doc',
+  meta: { title: '树测试', filename: 'tree-test.html' },
+  groups: [{
+    id: 'tree-group',
+    title: '树分组',
+    collapsed: false,
+    items: [{
+      id: 'root', title: '根', content: 'root', shortcut: '', link: '', note: '', favorite: false, collapsed: false,
+      children: [{
+        id: 'child', title: '子', content: 'child', shortcut: '', link: '', note: '', favorite: false, collapsed: false,
+        children: [{
+          id: 'grandchild', title: '孙', content: 'grandchild', shortcut: '', link: '', note: '', favorite: false, collapsed: false,
+          children: [{ id: 'leaf', title: '叶', content: 'leaf', shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] }]
+        }]
+      }]
+    }]
+  }]
+};
+const legacyDocument = {
+  schemaVersion: 1,
+  documentId: 'legacy-doc',
+  meta: { title: '旧版', filename: 'legacy.html' },
+  groups: [{
+    id: 'legacy-group', title: '旧分组', collapsed: false,
+    items: [
+      { id: 'legacy-a', title: '旧甲', content: 'a', shortcut: 'Alt+1', note: '备注甲', favorite: true, collapsed: false },
+      { id: 'legacy-b', title: '旧乙', content: 'b', shortcut: '', note: '', favorite: false, collapsed: false }
+    ]
+  }]
+};
+assert.deepStrictEqual(Array.from(core.flattenItems(treeDocument), entry => entry.item.id), ['root', 'child', 'grandchild', 'leaf']);
+assert.deepStrictEqual(Array.from(core.itemPath(treeDocument, 'leaf')), ['树分组', '根', '子', '孙', '叶']);
+assert.strictEqual(core.itemDepth(treeDocument, 'root'), 1);
+assert.strictEqual(core.itemDepth(treeDocument, 'leaf'), 4);
+assert.strictEqual(core.descendantCount(treeDocument.groups[0].items[0]), 3);
+assert.strictEqual(core.validateDocument(treeDocument).valid, true);
+const indentedTree = core.cloneDocument(treeDocument);
+indentedTree.groups[0].items[0].children.push({ id: 'sibling', title: '兄弟', content: 'sibling', shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] });
+assert.strictEqual(core.indentItem(indentedTree, 'sibling').ok, true);
+assert.strictEqual(indentedTree.groups[0].items[0].children.length, 1);
+assert.strictEqual(indentedTree.groups[0].items[0].children[0].children[1].id, 'sibling');
+assert.strictEqual(core.outdentItem(indentedTree, 'sibling').ok, true);
+assert.strictEqual(indentedTree.groups[0].items[0].children[1].id, 'sibling');
+const cloneSubtree = core.cloneItemTree(treeDocument.groups[0].items[0]);
+assert.notStrictEqual(cloneSubtree.id, 'root');
+assert.strictEqual(cloneSubtree.shortcut, '');
+assert.strictEqual(cloneSubtree.children[0].shortcut, '');
+assert.strictEqual(core.indentItem(treeDocument, 'root').ok, false);
+assert.strictEqual(core.indentItem(treeDocument, 'leaf').ok, false);
+const migrated = core.migrateDocument(legacyDocument);
+assert.strictEqual(migrated.schemaVersion, 2);
+assert.deepStrictEqual(migrated.groups[0].items.map(entry => entry.id), ['legacy-a', 'legacy-b']);
+assert.deepStrictEqual(Array.from(migrated.groups[0].items, entry => Array.from(entry.children)), [[], []]);
+assert.strictEqual(JSON.stringify(core.migrateDocument(treeDocument)), JSON.stringify(treeDocument));
+assert.strictEqual(core.buildGeneratedHtml(legacyDocument).startsWith('<!DOCTYPE html>'), true);
+assert.throws(() => core.migrateDocument({ schemaVersion: 99, groups: [] }), /不支持的数据版本/);
+const missingChildren = core.cloneDocument(treeDocument);
+delete missingChildren.groups[0].items[0].children;
+assert.strictEqual(core.validateDocument(missingChildren).valid, false);
+assert.match(Array.from(core.validateDocument(missingChildren).errors).join('\n'), /树分组 \/ 根.*children/);
 
 const validation = core.validateDocument(sample);
 assert.strictEqual(validation.valid, true);
@@ -80,18 +144,19 @@ const warningValidation = core.validateDocument(missingContent);
 assert.strictEqual(warningValidation.valid, true);
 assert.match(Array.from(warningValidation.warnings).join('\n'), /复制内容为空/);
 
-const normalized = core.normalizeDocument({
+const normalized = core.normalizeDocument(core.migrateDocument({
   schemaVersion: 1,
   documentId: 'doc-imported',
   meta: { title: '导入内容', filename: 'imported' },
   groups: [{ id: 'g1', title: '组', items: [{ id: 'i1', title: '条目', content: '正文' }] }]
-});
+}));
 assert.strictEqual(normalized.meta.themePreference, 'system');
 assert.strictEqual(normalized.meta.filename, 'imported.html');
 assert.strictEqual(normalized.groups[0].collapsed, false);
 assert.strictEqual(normalized.groups[0].items[0].favorite, false);
 assert.strictEqual(normalized.groups[0].items[0].shortcut, '');
 assert.strictEqual(normalized.groups[0].items[0].link, '');
+assert.deepStrictEqual(Array.from(normalized.groups[0].items[0].children), []);
 assert.strictEqual(core.validateQuickLink('https://example.com/docs').valid, true);
 assert.strictEqual(core.validateQuickLink('https://example.com:8443/docs').valid, true);
 assert.strictEqual(core.validateQuickLink('javascript:alert(1)').valid, false);
@@ -201,6 +266,9 @@ assert.strictEqual(byNote.groups.length, 1);
 assert.strictEqual(byNote.groups[0].items[0].title, '问题已处理');
 const byGroup = core.filterDocument(searchDoc, '常用命令', false);
 assert.strictEqual(byGroup.groups[0].items.length, 2);
+const nestedSearch = core.filterDocument(treeDocument, '叶', false);
+assert.strictEqual(nestedSearch.groups[0].items.length, 1);
+assert.strictEqual(nestedSearch.groups[0].items[0].children[0].children[0].children[0].id, 'leaf');
 const favorites = core.filterDocument(searchDoc, '', true);
 assert.ok(favorites.groups.flatMap(group => group.items).every(item => item.favorite));
 
@@ -364,7 +432,14 @@ assert.match(html, /sandbox=["']allow-scripts allow-forms allow-modals["']/);
 assert.match(html, /window\.open\(\s*networkFileUrl\(/);
 assert.doesNotMatch(html, /window\.open\(\s*['"]about:blank['"]/);
 assert.match(html, /noopener,noreferrer/);
-assert.match(generated, /const expandedIds = new Set\(model\.groups\.flatMap/);
+assert.match(generated, /const expandedIds = new Set\(allItems\(\)\.map/);
+assert.match(generated, /function\s+walkItems\s*\(/);
+assert.match(generated, /function\s+renderNavItems\s*\(/);
+assert.match(generated, /nav-tree-toggle/);
+assert.match(generated, /generated-indent-item/);
+assert.match(generated, /generated-outdent-item/);
+assert.match(generated, /aria-level/);
+assert.match(generated, /MAX_ITEM_DEPTH/);
 assert.match(generated, /let revealAll = true;/);
 assert.match(generated, /class=["']generated-toolbar["']/);
 assert.match(generated, /class=["']generated-toolbar-slot["']/);
@@ -395,6 +470,14 @@ assert.ok(
   storageFlagDeclaration >= 0 && storageFlagDeclaration < storageReadDuringInit,
   'storage fallback flag must be initialized before loadOverride can assign it'
 );
+
+const treeGenerated = core.buildGeneratedHtml(treeDocument);
+assert.match(treeGenerated, /根/);
+assert.match(treeGenerated, /子/);
+assert.match(treeGenerated, /孙/);
+assert.match(treeGenerated, /叶/);
+assert.match(treeGenerated, /renderNavItems/);
+assert.match(treeGenerated, /setAttribute\('aria-level', String\(depth\)\)/);
 
 const updated = core.cloneDocument(searchDoc);
 updated.meta.title = '已更新标题';

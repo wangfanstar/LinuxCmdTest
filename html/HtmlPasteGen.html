@@ -435,7 +435,7 @@
 
     .group-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 5px;
       padding: 5px;
       border: 1px solid transparent;
@@ -443,6 +443,8 @@
     }
 
     .group-row.is-active { border-color: #c9cffd; background: var(--primary-soft); }
+    .group-toggle { width: 29px; height: 29px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+    .group-toggle:hover, .group-toggle:focus-visible { background: var(--surface); color: var(--primary); outline: 3px solid rgba(79, 70, 229, .18); outline-offset: 1px; }
     .group-select { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
     .group-row.is-active .group-select { color: var(--primary-dark); }
     .group-name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
@@ -450,6 +452,13 @@
     .group-actions { display: flex; align-items: center; gap: 2px; }
     .icon-button { display: grid; width: 29px; height: 29px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--subtle); cursor: pointer; }
     .icon-button:hover { background: var(--surface); color: var(--primary); }
+    .group-item-list { display: grid; grid-column: 1 / -1; gap: 3px; margin: 1px 0 2px 29px; padding: 4px 0 3px 9px; border-left: 2px solid var(--line); }
+    .group-item-list[hidden] { display: none; }
+    .group-item-link { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 5px; align-items: center; min-width: 0; padding: 6px 7px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
+    .group-item-link:hover, .group-item-link:focus-visible { background: var(--surface); color: var(--primary-dark); outline: 2px solid rgba(79, 70, 229, .18); outline-offset: 1px; }
+    .group-item-number { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 6px; background: var(--surface-strong); color: var(--subtle); font-size: 10px; font-weight: 850; }
+    .group-item-name { min-width: 0; overflow: hidden; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .group-item-empty { margin: 0; padding: 5px 7px; color: var(--subtle); font-size: 11px; }
 
     .structure-tip { margin: 14px 2px 0; padding: 10px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
 
@@ -790,7 +799,7 @@
         </header>
         <div class="panel-body">
           <div id="group-list" class="group-list"></div>
-          <p class="structure-tip">先建分组，再集中录入条目。分组和条目都可复制、排序，快捷键冲突会在生成前标出。</p>
+          <p class="structure-tip">先建分组，再集中录入条目。左侧子条目默认折叠，点击箭头展开后可直接定位；分组和条目都可复制、排序，快捷键冲突会在生成前标出。</p>
         </div>
       </aside>
 
@@ -3305,6 +3314,7 @@
       networkBusy: false
     };
     const expandedPreviewIds = new Set();
+    const expandedNavGroupIds = new Set();
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
 
     function byId(id) {
@@ -3378,6 +3388,15 @@
     function cleanExpandedPreviewIds() {
       const validIds = new Set(state.document.groups.flatMap(group => group.items.map(item => item.id)));
       expandedPreviewIds.forEach(id => { if (!validIds.has(id)) expandedPreviewIds.delete(id); });
+    }
+
+    function cleanExpandedNavGroupIds() {
+      const validIds = new Set(state.document.groups.map(group => group.id));
+      expandedNavGroupIds.forEach(id => { if (!validIds.has(id)) expandedNavGroupIds.delete(id); });
+    }
+
+    function resetGroupNavExpansion() {
+      expandedNavGroupIds.clear();
     }
 
     function togglePreviewCommand(itemId) {
@@ -3663,6 +3682,7 @@
         state.networkEditingName = '';
         state.networkDraft = null;
         state.document = normalized;
+        resetGroupNavExpansion();
         state.selectedGroupId = normalized.groups[0]?.id || '';
         state.previewQuery = '';
         state.previewFavoritesOnly = false;
@@ -3827,6 +3847,7 @@
     function renderGroupList() {
       const list = byId('group-list');
       list.replaceChildren();
+      cleanExpandedNavGroupIds();
       byId('group-count').textContent = `${state.document.groups.length} 个分组`;
 
       if (!state.document.groups.length) {
@@ -3838,6 +3859,12 @@
         const row = createElement('div', 'group-row');
         row.dataset.groupId = group.id;
         if (group.id === state.selectedGroupId) row.classList.add('is-active');
+        const expanded = expandedNavGroupIds.has(group.id);
+        const itemListId = `group-item-list-${index}`;
+
+        const toggle = makeButton(expanded ? '▾' : '▸', 'toggle-group-items', 'group-toggle', expanded ? '收起子条目' : '展开子条目');
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute('aria-controls', itemListId);
 
         const select = makeButton('', 'select-group', 'group-select');
         select.append(createElement('span', 'group-name', group.title || '未命名分组'));
@@ -3850,7 +3877,28 @@
         up.disabled = index === 0;
         down.disabled = index === state.document.groups.length - 1;
         actions.append(up, down);
-        row.append(select, actions);
+
+        const itemList = createElement('div', 'group-item-list');
+        itemList.id = itemListId;
+        itemList.hidden = !expanded;
+        itemList.setAttribute('aria-label', `${group.title || '未命名分组'}子条目`);
+        if (!group.items.length) {
+          itemList.appendChild(createElement('p', 'group-item-empty', '暂无子条目'));
+        } else {
+          group.items.forEach((item, itemIndex) => {
+            const itemLink = makeButton('', 'select-item', 'group-item-link');
+            itemLink.dataset.itemId = item.id;
+            itemLink.title = item.title || '未命名条目';
+            itemLink.setAttribute('aria-label', `定位到条目：${item.title || '未命名条目'}`);
+            itemLink.append(
+              createElement('span', 'group-item-number', String(itemIndex + 1)),
+              createElement('span', 'group-item-name', item.title || '未命名条目')
+            );
+            itemList.appendChild(itemLink);
+          });
+        }
+
+        row.append(toggle, select, actions, itemList);
         list.appendChild(row);
       });
     }
@@ -4182,6 +4230,7 @@
 
     function selectAndFocus(groupId, itemId) {
       state.selectedGroupId = groupId;
+      if (itemId) expandedNavGroupIds.add(groupId);
       state.mobilePanel = 'editor';
       renderAll();
       requestAnimationFrame(() => {
@@ -4209,6 +4258,7 @@
         meta,
         groups: []
       };
+      resetGroupNavExpansion();
       state.selectedGroupId = '';
       state.previewQuery = '';
       state.previewFavoritesOnly = false;
@@ -4230,14 +4280,26 @@
       const actionButton = event.target.closest('[data-action]');
       if (!actionButton) return;
       const action = actionButton.dataset.action;
-      const groupRow = actionButton.closest('[data-group-id]');
+      const groupRow = actionButton.closest('.group-row[data-group-id]');
       const itemCard = actionButton.closest('[data-item-id]');
       const group = findGroup(groupRow && groupRow.dataset.groupId) || selectedGroup();
-      const item = itemCard && findItem(itemCard.dataset.groupId, itemCard.dataset.itemId);
+      const item = itemCard && findItem(itemCard.dataset.groupId || (groupRow && groupRow.dataset.groupId), itemCard.dataset.itemId);
 
       if (action === 'select-group' && groupRow) {
         state.selectedGroupId = groupRow.dataset.groupId;
         renderAll();
+        return;
+      }
+      if (action === 'toggle-group-items' && groupRow) {
+        const groupId = groupRow.dataset.groupId;
+        if (expandedNavGroupIds.has(groupId)) expandedNavGroupIds.delete(groupId);
+        else expandedNavGroupIds.add(groupId);
+        renderGroupList();
+        return;
+      }
+      if (action === 'select-item' && groupRow && actionButton.dataset.itemId) {
+        expandedNavGroupIds.add(groupRow.dataset.groupId);
+        selectAndFocus(groupRow.dataset.groupId, actionButton.dataset.itemId);
         return;
       }
       if (action === 'add-group') {
@@ -4386,6 +4448,7 @@
         if (!validation.valid) throw new Error(validation.errors.join('；'));
         const normalized = core.normalizeDocument(parsed);
         state.document = normalized;
+        resetGroupNavExpansion();
         state.selectedGroupId = normalized.groups[0]?.id || '';
         state.previewQuery = '';
         byId('preview-search').value = '';
@@ -4491,6 +4554,7 @@
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;
       state.document = createBlankDocument();
+      resetGroupNavExpansion();
       state.selectedGroupId = '';
       renderAll();
       scheduleDraftSave();
@@ -4500,6 +4564,7 @@
     byId('restore-sample-button').addEventListener('click', () => {
       if (!confirm('恢复内置示例？当前草稿会被替换。')) return;
       state.document = core.createSampleDocument();
+      resetGroupNavExpansion();
       state.selectedGroupId = state.document.groups[0].id;
       renderAll();
       scheduleDraftSave();

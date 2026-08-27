@@ -135,6 +135,14 @@ assert.match(html, /\.sidebar\s*\{[\s\S]*max-height:\s*calc\(100vh\s*-\s*var\(--
 assert.match(html, /\.sidebar\s*\{[\s\S]*overflow-y:\s*auto/);
 assert.match(html, /setProperty\(['"]--generated-toolbar-height['"]/);
 assert.match(html, /group-select-button/);
+assert.match(html, /group-item-list/);
+assert.match(html, /group-item-link/);
+assert.match(html, /toggle-group-items/);
+assert.match(html, /select-item/);
+assert.match(html, /expandedNavGroupIds/);
+assert.match(html, /aria-expanded/);
+assert.match(html, /aria-controls/);
+assert.match(html, /默认折叠/);
 assert.match(html, /function\s+markCopiedCards\s*\(/);
 assert.match(html, /batchEntries/);
 assert.match(html, /insertBatchEntry/);

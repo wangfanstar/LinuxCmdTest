@@ -471,6 +471,12 @@
     .group-item-number { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 6px; background: var(--surface-strong); color: var(--subtle); font-size: 10px; font-weight: 850; }
     .group-item-name { min-width: 0; overflow: hidden; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
     .group-item-empty { margin: 0; padding: 5px 7px; color: var(--subtle); font-size: 11px; }
+    .tree-context-menu { position: fixed; z-index: 90; display: grid; min-width: 220px; max-width: min(300px, calc(100vw - 16px)); gap: 3px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 18px 50px rgba(16, 24, 40, .24); }
+    .tree-context-menu[hidden] { display: none; }
+    .tree-context-menu-title { padding: 7px 9px 6px; overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .tree-context-menu-item { min-height: 36px; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
+    .tree-context-menu-item:hover, .tree-context-menu-item:focus-visible { background: var(--primary-soft); color: var(--primary); outline: none; }
+    .tree-context-menu-item:disabled { color: var(--subtle); cursor: not-allowed; opacity: .65; }
 
     .structure-tip { margin: 14px 2px 0; padding: 10px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
 
@@ -1316,6 +1322,46 @@
       return result;
     }
 
+    function cloneGroupTree(group) {
+      const copy = cloneDocument(group || {});
+      copy.id = newId('group');
+      copy.title = `${copy.title || '未命名分组'}（副本）`;
+      copy.items = Array.isArray(copy.items) ? copy.items.map(item => cloneItemTree(item)) : [];
+      return copy;
+    }
+
+    function pasteItemAsChild(value, targetId, source) {
+      const location = findItemLocation(value, targetId);
+      if (!location) return { ok: false, reason: '目标条目不存在。' };
+      const item = cloneItemTree(source);
+      if (location.depth + subtreeHeight(item) > MAX_ITEM_DEPTH) {
+        return { ok: false, reason: `粘贴后会超过最多 ${MAX_ITEM_DEPTH} 级。` };
+      }
+      if (!Array.isArray(location.item.children)) location.item.children = [];
+      location.item.children.push(item);
+      return { ok: true, item };
+    }
+
+    function pasteItemAsSibling(value, targetId, source) {
+      const location = findItemLocation(value, targetId);
+      if (!location) return { ok: false, reason: '目标条目不存在。' };
+      const item = cloneItemTree(source);
+      if (location.depth + subtreeHeight(item) - 1 > MAX_ITEM_DEPTH) {
+        return { ok: false, reason: `粘贴后会超过最多 ${MAX_ITEM_DEPTH} 级。` };
+      }
+      location.siblings.splice(location.index + 1, 0, item);
+      return { ok: true, item };
+    }
+
+    function pasteGroupAfter(value, groupId, source) {
+      const groups = Array.isArray(value && value.groups) ? value.groups : [];
+      const index = groups.findIndex(group => String(group && group.id || '') === String(groupId || ''));
+      if (index < 0) return { ok: false, reason: '目标分组不存在。' };
+      const group = cloneGroupTree(source);
+      groups.splice(index + 1, 0, group);
+      return { ok: true, group };
+    }
+
     function indentItem(value, itemId) {
       const location = findItemLocation(value, itemId);
       if (!location || location.index === 0 || location.depth >= MAX_ITEM_DEPTH || (location && location.depth + subtreeHeight(location.item) > MAX_ITEM_DEPTH)) {
@@ -1995,6 +2041,8 @@
       </footer>
     </form>
   </div>
+
+  <div id="tree-context-menu" class="tree-context-menu" role="menu" aria-label="树节点快捷操作" hidden></div>
 
   <template id="copy-card-controls-template">
     <label class="select-control" title="加入复制篮"><input class="item-select" type="checkbox" aria-label="加入复制篮"></label>
@@ -3648,7 +3696,12 @@
       itemPath,
       itemDepth,
       descendantCount,
+      subtreeHeight,
       cloneItemTree,
+      cloneGroupTree,
+      pasteItemAsChild,
+      pasteItemAsSibling,
+      pasteGroupAfter,
       indentItem,
       outdentItem,
       resolveBatchSeparator,
@@ -3704,6 +3757,8 @@
     const expandedPreviewIds = new Set();
     const expandedNavGroupIds = new Set();
     const expandedNavNodeIds = new Set();
+    let treeClipboard = null;
+    let contextMenuState = null;
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
 
     function byId(id) {
@@ -3816,6 +3871,133 @@
     function findItem(groupId, itemId) {
       const group = findGroup(groupId);
       return group ? core.findItemLocation({ groups: [group] }, itemId)?.item || null : null;
+    }
+
+    function closeTreeContextMenu() {
+      const menu = byId('tree-context-menu');
+      if (!menu) return;
+      menu.hidden = true;
+      menu.replaceChildren();
+      contextMenuState = null;
+    }
+
+    function contextMenuButton(label, action, disabled) {
+      const button = createElement('button', 'tree-context-menu-item', label);
+      button.type = 'button';
+      button.setAttribute('role', 'menuitem');
+      button.dataset.contextAction = action;
+      button.disabled = Boolean(disabled);
+      return button;
+    }
+
+    function resolveTreeContext(context) {
+      const value = context || contextMenuState;
+      if (!value) return null;
+      const group = findGroup(value.groupId);
+      if (!group) return null;
+      if (value.kind === 'group') return { kind: 'group', group };
+      const location = core.findItemLocation({ groups: [group] }, value.itemId);
+      return location ? { kind: 'item', group, item: location.item, location } : null;
+    }
+
+    function openTreeContextMenu(event, context) {
+      const target = resolveTreeContext(context);
+      const menu = byId('tree-context-menu');
+      if (!target || !menu) return;
+      contextMenuState = context;
+      menu.replaceChildren();
+      const title = target.kind === 'group' ? target.group.title || '未命名分组' : target.item.title || '未命名条目';
+      menu.appendChild(createElement('div', 'tree-context-menu-title', (target.kind === 'group' ? '分组：' : '条目：') + title));
+      if (target.kind === 'group') {
+        menu.append(
+          contextMenuButton('复制分组', 'copy-group'),
+          contextMenuButton('粘贴分组', 'paste-group', !treeClipboard || treeClipboard.kind !== 'group'),
+          contextMenuButton('删除分组', 'delete-group')
+        );
+      } else {
+        menu.append(
+          contextMenuButton('复制条目', 'copy-item'),
+          contextMenuButton('粘贴为子条目', 'paste-item-child', !treeClipboard || treeClipboard.kind !== 'item' || core.itemDepth(state.document, target.item.id) >= core.MAX_ITEM_DEPTH),
+          contextMenuButton('粘贴为同级条目', 'paste-item-sibling', !treeClipboard || treeClipboard.kind !== 'item'),
+          contextMenuButton('删除条目', 'delete-item')
+        );
+      }
+      menu.hidden = false;
+      menu.style.left = '0px';
+      menu.style.top = '0px';
+      const rect = menu.getBoundingClientRect();
+      const gutter = 8;
+      const maxLeft = Math.max(gutter, window.innerWidth - rect.width - gutter);
+      const maxTop = Math.max(gutter, window.innerHeight - rect.height - gutter);
+      const left = Math.min(Math.max(gutter, Number(event.clientX) || gutter), maxLeft);
+      const top = Math.min(Math.max(gutter, Number(event.clientY) || gutter), maxTop);
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      const firstEnabled = menu.querySelector('button:not(:disabled)');
+      if (firstEnabled) firstEnabled.focus({ preventScroll: true });
+    }
+
+    function handleTreeContextAction(action) {
+      const context = contextMenuState;
+      const target = resolveTreeContext(context);
+      closeTreeContextMenu();
+      if (!target) return;
+      if (action === 'copy-group') {
+        treeClipboard = { kind: 'group', value: core.cloneDocument(target.group) };
+        announce('已复制分组“' + (target.group.title || '未命名分组') + '”，可在分组菜单中粘贴。', 'success');
+        return;
+      }
+      if (action === 'copy-item') {
+        treeClipboard = { kind: 'item', value: core.cloneDocument(target.item) };
+        announce('已复制条目“' + (target.item.title || '未命名条目') + '”及其子条目。', 'success');
+        return;
+      }
+      if (action === 'paste-group') {
+        if (!treeClipboard || treeClipboard.kind !== 'group') return;
+        const result = core.pasteGroupAfter(state.document, target.group.id, treeClipboard.value);
+        if (!result.ok) return announce(result.reason, 'warning');
+        state.selectedGroupId = result.group.id;
+        updateAfterAction('分组已粘贴。');
+        return;
+      }
+      if (action === 'paste-item-child' || action === 'paste-item-sibling') {
+        if (!treeClipboard || treeClipboard.kind !== 'item') return;
+        const result = action === 'paste-item-child'
+          ? core.pasteItemAsChild(state.document, target.item.id, treeClipboard.value)
+          : core.pasteItemAsSibling(state.document, target.item.id, treeClipboard.value);
+        if (!result.ok) return announce(result.reason, 'warning');
+        state.selectedGroupId = target.group.id;
+        expandedNavGroupIds.add(target.group.id);
+        if (action === 'paste-item-child') expandedNavNodeIds.add(target.item.id);
+        expandNavAncestors(result.item.id);
+        updateAfterAction(action === 'paste-item-child' ? '条目已粘贴为子条目。' : '条目已粘贴为同级条目。');
+        return;
+      }
+      if (action === 'delete-group') {
+        const groupIndex = state.document.groups.indexOf(target.group);
+        if (groupIndex < 0 || !confirm(`删除分组“${target.group.title || '未命名分组'}”及其中 ${core.flattenItems({ groups: [{ items: target.group.items }] }).length} 条内容？`)) return;
+        state.document.groups.splice(groupIndex, 1);
+        state.selectedGroupId = state.document.groups[Math.min(groupIndex, state.document.groups.length - 1)]?.id || '';
+        updateAfterAction('分组已删除。');
+        return;
+      }
+      if (action === 'delete-item') {
+        const childCount = core.descendantCount(target.item);
+        if (!confirm(`删除条目“${target.item.title || '未命名条目'}”及其 ${childCount} 个子条目？`)) return;
+        const location = core.findItemLocation({ groups: [target.group] }, target.item.id);
+        if (location) location.siblings.splice(location.index, 1);
+        updateAfterAction('条目已删除。');
+      }
+    }
+
+    function handleTreeContextClick(event) {
+      const actionButton = event.target.closest('[data-context-action]');
+      if (actionButton && byId('tree-context-menu').contains(actionButton)) {
+        event.preventDefault();
+        handleTreeContextAction(actionButton.dataset.contextAction);
+        return;
+      }
+      if (!event.target.closest('#tree-context-menu')) closeTreeContextMenu();
     }
 
     function setDraftStatus(message, type) {
@@ -4261,6 +4443,7 @@
     }
 
     function renderGroupList() {
+      closeTreeContextMenu();
       const list = byId('group-list');
       list.replaceChildren();
       cleanExpandedNavGroupIds();
@@ -4287,6 +4470,11 @@
         select.append(createElement('span', 'group-name', group.title || '未命名分组'));
         select.append(createElement('span', 'count-badge', String(core.flattenItems({ groups: [{ items: group.items }] }).length)));
         select.title = group.title || '未命名分组';
+        select.addEventListener('contextmenu', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          openTreeContextMenu(event, { kind: 'group', groupId: group.id });
+        });
 
         const actions = createElement('div', 'group-actions');
         const up = makeButton('↑', 'move-group-up', 'icon-button', '上移分组');
@@ -4332,6 +4520,11 @@
         select.dataset.itemId = item.id;
         select.dataset.depth = String(depth);
         select.title = item.title || '未命名条目';
+        select.addEventListener('contextmenu', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          openTreeContextMenu(event, { kind: 'item', groupId: group.id, itemId: item.id });
+        });
         select.setAttribute('aria-level', String(depth));
         select.setAttribute('aria-posinset', String(index + 1));
         select.setAttribute('aria-setsize', String(list.length));
@@ -4828,10 +5021,7 @@
         return;
       }
       if (action === 'duplicate-group') {
-        const copy = core.cloneDocument(group);
-        copy.id = core.newId('group');
-        copy.title += '（副本）';
-        copy.items = copy.items.map(entry => core.cloneItemTree(entry));
+        const copy = core.cloneGroupTree(group);
         state.document.groups.splice(groupIndex + 1, 0, copy);
         scheduleDraftSave();
         selectAndFocus(copy.id);
@@ -5019,6 +5209,7 @@
       }
     });
     document.body.addEventListener('click', handleAction);
+    document.body.addEventListener('click', handleTreeContextClick);
     byId('preview-search').addEventListener('input', event => {
       state.previewQuery = event.target.value;
       renderPreview();
@@ -5069,6 +5260,11 @@
       if (state.networkPreviewName) setNetworkStatus('HTML 预览加载失败，请检查文件内容或服务器状态。', 'error');
     });
     document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !byId('tree-context-menu').hidden) {
+        event.preventDefault();
+        closeTreeContextMenu();
+        return;
+      }
       if (event.key === 'Escape' && !byId('network-library-dialog').hidden) {
         event.preventDefault();
         setNetworkLibraryDialogOpen(false);

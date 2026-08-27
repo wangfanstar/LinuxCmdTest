@@ -101,6 +101,39 @@ const cloneSubtree = core.cloneItemTree(treeDocument.groups[0].items[0]);
 assert.notStrictEqual(cloneSubtree.id, 'root');
 assert.strictEqual(cloneSubtree.shortcut, '');
 assert.strictEqual(cloneSubtree.children[0].shortcut, '');
+assert.strictEqual(core.subtreeHeight(treeDocument.groups[0].items[0]), 4);
+const copiedGroup = core.cloneGroupTree(treeDocument.groups[0]);
+assert.notStrictEqual(copiedGroup.id, treeDocument.groups[0].id);
+assert.notStrictEqual(copiedGroup.items[0].id, treeDocument.groups[0].items[0].id);
+assert.strictEqual(copiedGroup.items[0].shortcut, '');
+const childPasteDocument = core.cloneDocument(treeDocument);
+const childPaste = core.pasteItemAsChild(
+  childPasteDocument,
+  'root',
+  treeDocument.groups[0].items[0].children[0].children[0].children[0]
+);
+assert.strictEqual(childPaste.ok, true);
+assert.notStrictEqual(childPaste.item.id, 'leaf');
+assert.strictEqual(childPasteDocument.groups[0].items[0].children.at(-1).title, '叶（副本）');
+const siblingPasteDocument = core.cloneDocument(treeDocument);
+const siblingPaste = core.pasteItemAsSibling(
+  siblingPasteDocument,
+  'child',
+  treeDocument.groups[0].items[0].children[0]
+);
+assert.strictEqual(siblingPaste.ok, true);
+assert.strictEqual(siblingPasteDocument.groups[0].items[0].children.length, 2);
+const depthPasteDocument = core.cloneDocument(treeDocument);
+const depthBefore = JSON.stringify(depthPasteDocument);
+const depthPaste = core.pasteItemAsChild(depthPasteDocument, 'leaf', treeDocument.groups[0].items[0]);
+assert.strictEqual(depthPaste.ok, false);
+assert.match(depthPaste.reason, /最多 4 级/);
+assert.strictEqual(JSON.stringify(depthPasteDocument), depthBefore);
+const groupPasteDocument = core.cloneDocument(treeDocument);
+const groupPaste = core.pasteGroupAfter(groupPasteDocument, 'tree-group', treeDocument.groups[0]);
+assert.strictEqual(groupPaste.ok, true);
+assert.strictEqual(groupPasteDocument.groups.length, 2);
+assert.notStrictEqual(groupPasteDocument.groups[1].id, 'tree-group');
 assert.strictEqual(core.indentItem(treeDocument, 'root').ok, false);
 assert.strictEqual(core.indentItem(treeDocument, 'leaf').ok, false);
 const migrated = core.migrateDocument(legacyDocument);

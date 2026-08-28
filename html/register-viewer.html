@@ -133,6 +133,16 @@ body.layout-resizing {
 .drop-zone .dz-icon { font-size: 1.6rem; margin-bottom: 6px; }
 .drop-zone .dz-hint { font-size: 0.75rem; margin-top: 4px; color: #556; }
 
+/* 解析缓存开关 */
+.cache-opt {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px 4px;
+  font-size: 0.73rem; color: #7a8ba8; cursor: pointer;
+  user-select: none;
+}
+.cache-opt input { width: 14px; height: 14px; accent-color: var(--blue); cursor: pointer; }
+.cache-opt:hover { color: #aac2f0; }
+
 /* file input 由各自 label 内联控制，不在此全局隐藏 */
 
 /* 文件列表 */
@@ -193,6 +203,18 @@ body.layout-resizing {
   transition: color .15s;
 }
 .file-item .fi-remove:hover { color: var(--red); }
+.file-item .fi-reparse {
+  flex-shrink: 0;
+  color: #5a6a80;
+  cursor: pointer;
+  font-size: .9rem;
+  line-height: 1;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  transition: color .15s;
+}
+.file-item .fi-reparse:hover { color: var(--blue); }
 
 .file-list-empty {
   text-align: center;
@@ -310,6 +332,54 @@ select {
   cursor: pointer;
 }
 select:focus { border-color: var(--blue); }
+
+/* Block 多选下拉 */
+.msel { position: relative; }
+.msel-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 6px;
+  font-size: 0.88rem; font-family: inherit; background: var(--bg);
+  cursor: pointer; color: var(--text); max-width: 220px; white-space: nowrap;
+}
+.msel-btn:hover, .msel.open .msel-btn { border-color: var(--blue); }
+.msel.has-sel .msel-btn { border-color: var(--blue); background: #eaf2fd; }
+.msel-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-caret { color: var(--muted); font-size: .7rem; flex-shrink: 0; }
+.msel-clear { display: none; color: var(--muted); font-weight: 700; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.msel-clear:hover { color: var(--red); }
+.msel.has-sel .msel-clear { display: inline-block; }
+.msel-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0;
+  width: 280px; max-width: 72vw; background: #fff;
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.14); z-index: 200; padding: 8px;
+}
+.msel.open .msel-panel { display: block; }
+.msel-search {
+  width: 100%; padding: 6px 10px; margin-bottom: 6px;
+  border: 1.5px solid var(--border); border-radius: 5px;
+  font-size: .82rem; outline: none; background: var(--bg);
+}
+.msel-search:focus { border-color: var(--blue); background: #fff; }
+.msel-actions { display: flex; gap: 12px; padding: 0 2px 6px; font-size: .78rem; }
+.msel-actions a { color: var(--blue); text-decoration: none; cursor: pointer; }
+.msel-actions a:hover { text-decoration: underline; }
+.msel-count { margin-left: auto; color: var(--muted); font-size: .75rem; }
+.msel-list { max-height: 260px; overflow-y: auto; }
+.msel-item {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+  border-radius: 5px; cursor: pointer; font-size: .82rem;
+}
+.msel-item:hover { background: #f0f4fa; }
+.msel-item input { width: 13px; height: 13px; cursor: pointer; accent-color: var(--blue); flex-shrink: 0; margin: 0; }
+.msel-item .mi-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: "Consolas", monospace;
+}
+.msel-item .mi-cnt { color: var(--muted); font-size: .72rem; flex-shrink: 0; }
+.msel-item.checked { background: #eaf2fd; }
+.msel-item.checked .mi-name { color: var(--blue-dark); font-weight: 600; }
+.msel-empty { text-align: center; color: var(--muted); font-size: .78rem; padding: 14px 0; }
 
 .btn-toolbar {
   padding: 7px 14px;
@@ -573,6 +643,132 @@ select:focus { border-color: var(--blue); }
 .sram-access .acc-on  { background: #d1fae5; color: #065f46; padding: 1px 6px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; }
 .sram-access .acc-off { background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; text-decoration: line-through; opacity: .6; }
 
+/* ══ 渲染预算 / 性能保护提示条 ══ */
+.render-limit-bar {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin: 4px 0 10px;
+  border: 1px dashed var(--border); border-radius: 8px;
+  background: #fafbfd; color: var(--muted); font-size: .8rem;
+}
+.render-limit-bar b { color: var(--blue-dark); }
+.render-limit-bar .btn-toolbar { padding: 3px 11px; }
+
+/* ══ Block 导航浮动面板 ══ */
+#block-nav {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+  z-index: 300; display: flex; align-items: stretch;
+}
+.bn-tab {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 7px;
+  background: #1a2035; color: #9fb4d8;
+  border: 1px solid #2d3a54; border-right: none;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer; font-family: inherit;
+  box-shadow: -2px 2px 10px rgba(0,0,0,.18);
+  transition: background .15s, color .15s;
+}
+.bn-tab:hover { background: #2d3a54; color: #fff; }
+.bn-tab-icon { font-size: 1rem; line-height: 1; }
+.bn-tab-text {
+  writing-mode: vertical-rl; letter-spacing: 3px;
+  font-size: .72rem; font-weight: 700;
+}
+#block-nav.open .bn-tab { display: none; }
+.bn-panel {
+  display: none; width: 238px; max-height: 66vh;
+  background: #fff; border: 1px solid var(--border); border-right: none;
+  border-radius: 10px 0 0 10px;
+  box-shadow: -4px 4px 20px rgba(0,0,0,.16);
+  flex-direction: column; overflow: hidden;
+}
+#block-nav.open .bn-panel { display: flex; }
+.bn-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: #eef2f8;
+  border-bottom: 1px solid var(--border);
+  font-size: .78rem; font-weight: 700; color: #3a4a5c; white-space: nowrap;
+}
+.bn-count { color: var(--muted); font-weight: 400; font-size: .72rem; }
+.bn-close {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: .95rem; line-height: 1; padding: 0 2px;
+}
+.bn-close:hover { color: var(--red); }
+.bn-list { overflow-y: auto; padding: 6px; flex: 1; }
+.bn-list::-webkit-scrollbar { width: 4px; }
+.bn-list::-webkit-scrollbar-thumb { background: #c8d0e0; border-radius: 4px; }
+.bn-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: .78rem;
+}
+.bn-item:hover { background: #f0f4fa; }
+.bn-item.active { background: #eaf2fd; }
+.bn-item .bni-name {
+  flex: 1; font-family: "Consolas", monospace; color: #1a2035;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bn-item.active .bni-name { color: var(--blue-dark); font-weight: 700; }
+.bn-item .bni-sub {
+  font-size: .66rem; color: var(--muted); background: #f0f3f8;
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 6px;
+  max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
+}
+.bn-item .bni-cnt { color: var(--muted); font-size: .7rem; flex-shrink: 0; }
+@media (max-width: 600px) { .bn-panel { width: 180px; } }
+
+/* ══ 轻提示 ══ */
+#toast {
+  position: fixed; left: 50%; bottom: 34px;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(26,32,53,.92); color: #fff;
+  padding: 9px 18px; border-radius: 8px; font-size: .82rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 9000; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+#toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ══ Block 分组显示 ══ */
+.reg-group { margin-bottom: 10px; }
+.group-header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 14px;
+  background: linear-gradient(180deg, #e9effa, #e1eaf7);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer; user-select: none;
+  position: sticky; top: var(--group-top, 0px);
+  z-index: 40;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.group-header:hover { background: linear-gradient(180deg, #dfe8f8, #d7e3f3); }
+.reg-group.collapsed .group-body { display: none; }
+.gh-arrow { font-size: .68rem; color: var(--muted); transition: transform .18s; display: inline-block; width: 12px; flex-shrink: 0; }
+.reg-group.collapsed .gh-arrow { transform: rotate(-90deg); }
+.gh-chk { display: flex; align-items: center; flex-shrink: 0; }
+.gh-chk input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); }
+.gh-name { font-weight: 700; font-family: "Consolas", monospace; font-size: .9rem; color: #1a2035; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-sub { font-size: .72rem; color: var(--muted); background: #f0f3f8; border: 1px solid var(--border); padding: 1px 8px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; flex-shrink: 0; }
+.gh-counts { display: inline-flex; gap: 5px; flex-shrink: 0; }
+.gh-count { font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 3px; font-family: "Consolas", monospace; }
+.gh-reg  { background: #e0f2fe; color: #0369a1; }
+.gh-ind  { background: #d1fae5; color: #065f46; }
+.gh-sram { background: #ede9fe; color: #5b21b6; }
+.gh-addr { font-family: "Consolas", monospace; font-size: .75rem; color: #6b4eaa; font-weight: 600; white-space: nowrap; }
+.gh-total { margin-left: 4px; font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.gh-filter {
+  margin-left: auto; flex-shrink: 0;
+  font-size: .7rem; font-weight: 600; padding: 2px 9px;
+  border: 1px solid var(--border); border-radius: 999px;
+  color: var(--muted); background: #fff;
+  transition: all .15s; white-space: nowrap;
+}
+.gh-filter:hover { border-color: var(--blue); color: var(--blue); background: #eef5fe; }
+.gh-filter.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.gh-filter.active:hover { background: var(--blue-dark); }
+.group-body .reg-card:last-child { border-radius: 0 0 8px 8px; }
+
 mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; }
 
 /* 分页 */
@@ -620,6 +816,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
         <div>拖拽文件到此处（推荐）</div>
         <div class="dz-hint">支持 XML / JSON · 点击选择文件需稍等片刻</div>
       </div>
+      <label class="cache-opt" title="同名且大小/修改时间相同的文件，如已成功解析过则直接读取缓存结果，极大加快重复加载；改为需要强制重解析可按文件上的 ↻ 按钮">
+        <input type="checkbox" id="use-cache" checked onchange="onUseCacheChange()">
+        <span>使用解析缓存（更快）</span>
+      </label>
     </div>
 
     <!-- 选择类型按钮 -->
@@ -647,6 +847,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <div class="sidebar-btns">
       <button class="btn-side" onclick="pickFolder()">📁 加载文件夹</button>
       <button class="btn-side" onclick="netScan()">🌐 网络加载</button>
+      <button class="btn-side" onclick="clearCacheBtn()" title="清除本地解析缓存（再次加载时重新解析）">🧹 清除缓存</button>
       <button class="btn-side" onclick="clearAll()">🗑 清空全部</button>
     </div>
 
@@ -680,9 +881,22 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
         <span class="search-icon">🔍</span>
         <input type="text" id="search-input" placeholder="搜索寄存器名、地址、描述、字段名…" oninput="doFilter()">
       </div>
-      <select id="filter-block" onchange="doFilter()">
-        <option value="">全部 Block</option>
-      </select>
+      <div class="msel" id="block-msel">
+        <button type="button" class="msel-btn" onclick="toggleBlockPanel(event)" title="Block 多选筛选">
+          <span class="msel-label" id="block-msel-label">全部 Block</span>
+          <span class="msel-clear" id="block-msel-clear" onclick="clearBlockFilter(event)" title="清除 Block 筛选">×</span>
+          <span class="msel-caret">▾</span>
+        </button>
+        <div class="msel-panel" id="block-msel-panel">
+          <input type="text" class="msel-search" id="block-msel-search" placeholder="搜索 Block…" oninput="renderBlockPanel()">
+          <div class="msel-actions">
+            <a onclick="blockSelAll(true)">全选</a>
+            <a onclick="blockSelAll(false)">清空</a>
+            <span class="msel-count" id="block-msel-count"></span>
+          </div>
+          <div class="msel-list" id="block-msel-list"></div>
+        </div>
+      </div>
       <select id="filter-perm" onchange="doFilter()">
         <option value="">全部权限</option>
         <option value="RW">RW</option>
@@ -693,6 +907,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <label class="toggle-wrap">
         <input type="checkbox" id="show-reserved" checked onchange="doFilter()">
         显示保留位
+      </label>
+      <label class="toggle-wrap" title="按 Block 分组显示，点击组头可折叠/展开">
+        <input type="checkbox" id="group-by-block" checked onchange="toggleGroupBy()">
+        按 Block 分组
       </label>
       <button class="btn-toolbar secondary" onclick="expandAll()">全部展开</button>
       <button class="btn-toolbar secondary" onclick="collapseAll()">全部折叠</button>
@@ -750,6 +968,24 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
   </div><!-- /content -->
 </div><!-- /layout -->
 
+<!-- Block 导航浮动面板（默认折叠，右侧悬浮） -->
+<div id="block-nav" style="display:none;">
+  <button id="bn-tab" type="button" title="Block 导航" onclick="toggleBlockNav()">
+    <span class="bn-tab-icon">🧭</span><span class="bn-tab-text">Block</span>
+  </button>
+  <div class="bn-panel">
+    <div class="bn-head">
+      <span class="bn-title">Block 导航</span>
+      <span class="bn-count" id="bn-count"></span>
+      <button class="bn-close" type="button" title="收起" onclick="toggleBlockNav()">✕</button>
+    </div>
+    <div class="bn-list" id="bn-list"></div>
+  </div>
+</div>
+
+<!-- 轻提示 -->
+<div id="toast"></div>
+
 <script>
 var NS = 'http://registerdb.gt.com';
 var PAGE_SIZE = 50;
@@ -767,6 +1003,21 @@ var selected     = new Set();
 var currentPage  = 1;
 var dbInfos      = [];
 var uidCounter   = 0;
+
+// 按 Block 分组显示
+var groupByBlock    = true;    // 分组模式开关（默认开启）
+var filteredGroups  = [];      // 分组模式下的分组数据
+var collapsedGroups = {};      // 分组折叠状态：groupKey -> true
+
+// Block 多选过滤
+var selectedBlocks = new Set();  // 已勾选的 Block 集合（空集 = 全部）
+var blockNameList  = [];         // [{name, count}] Block 过滤面板列表
+
+// 大数据渲染保护：分组视图单次最多渲染的卡片数（超出显示"更多"）
+var RENDER_BUDGET = 600;         // 过滤器变化后的默认渲染上限
+var RENDER_STEP   = 600;         // "显示更多"每次增加的量
+var GROUP_EXPAND_MAX = 800;      // 单个组展开时懒渲染的上限
+var renderBudget  = RENDER_BUDGET;
 
 // ── 工具函数 ──────────────────────────────────────────────
 function gtext(el, tag) {
@@ -930,8 +1181,11 @@ function renderFileList() {
       + '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
       + '<span class="fi-name" title="' + escAttr(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
       + (p.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
-                : parsed ? '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>'
+                : parsed ? (p.fromCache
+                    ? '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="本次直接从解析缓存加载">⚡缓存</span>'
+                    : '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>')
                 : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
+      + (parsed ? '<button class="fi-reparse" onclick="reparseFile(' + k + ')" title="忽略缓存，重新解析此文件">↻</button>' : '')
       + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
     list.appendChild(div);
   }
@@ -976,6 +1230,177 @@ function scheduleAutoParse() {
   }, 0);
 }
 
+// ── IndexedDB 解析缓存 ───────────────────────────────────
+var CACHE_DB = 'registerViewerCache';
+var CACHE_STORE = 'parseCache';
+var CACHE_VER = 'v1';
+var _cacheDb = null;
+
+function cacheAvailable() { return !!window.indexedDB; }
+
+function cacheOpen(cb) {
+  if (!cacheAvailable()) { cb(null); return; }
+  if (_cacheDb) { cb(_cacheDb); return; }
+  var req;
+  try { req = window.indexedDB.open(CACHE_DB, 1); } catch (e) { cb(null); return; }
+  req.onupgradeneeded = function() {
+    var db = req.result;
+    if (!db.objectStoreNames.contains(CACHE_STORE)) {
+      db.createObjectStore(CACHE_STORE, { keyPath: 'key' }).createIndex('parsedAt', 'parsedAt');
+    }
+  };
+  req.onsuccess = function() { _cacheDb = req.result; cb(_cacheDb); };
+  req.onerror = function() { cb(null); };
+  req.onblocked = function() { cb(null); };
+}
+
+function cacheKeyFor(file) {
+  return CACHE_VER + '|' + file.name + '|' + file.size + '|' + (file.lastModified || 0);
+}
+
+function cacheGet(key, cb) {
+  cacheOpen(function(db) {
+    if (!db) { cb(null); return; }
+    try {
+      var tx = db.transaction(CACHE_STORE, 'readonly');
+      var rq = tx.objectStore(CACHE_STORE).get(key);
+      rq.onsuccess = function() { cb(rq.result || null); };
+      rq.onerror = function() { cb(null); };
+    } catch (e) { cb(null); }
+  });
+}
+
+function cachePut(rec, cb, tries) {
+  if (tries === undefined) tries = 2;
+  cacheOpen(function(db) {
+    if (!db) { if (cb) cb(false); return; }
+    try {
+      var tx = db.transaction(CACHE_STORE, 'readwrite');
+      var rq = tx.objectStore(CACHE_STORE).put(rec);
+      rq.onsuccess = function() { if (cb) cb(true); };
+      rq.onerror = function() {
+        // 配额/存储不足：删除最旧记录后重试一次
+        if (tries > 1) cacheEvictOldest(db, function() { cachePut(rec, cb, tries - 1); });
+        else if (cb) cb(false);
+      };
+    } catch (e) { if (cb) cb(false); }
+  });
+}
+
+function cacheEvictOldest(db, cb) {
+  try {
+    var tx = db.transaction(CACHE_STORE, 'readwrite');
+    var idx = tx.objectStore(CACHE_STORE).index('parsedAt');
+    var st = tx.objectStore(CACHE_STORE);
+    var rq = idx.openCursor();
+    var n = 0;
+    rq.onsuccess = function() {
+      var cur = rq.result;
+      if (cur && n < 5) { st.delete(cur.primaryKey); n++; cur.continue(); }
+    };
+    tx.oncomplete = function() { if (cb) cb(); };
+    tx.onerror = function() { if (cb) cb(); };
+    tx.onabort = function() { if (cb) cb(); };
+  } catch (e) { if (cb) cb(); }
+}
+
+function cacheDelete(key, cb) {
+  cacheOpen(function(db) {
+    if (!db) { if (cb) cb(); return; }
+    try {
+      var tx = db.transaction(CACHE_STORE, 'readwrite');
+      tx.objectStore(CACHE_STORE).delete(key);
+      tx.oncomplete = function() { if (cb) cb(); };
+      tx.onerror = function() { if (cb) cb(); };
+    } catch (e) { if (cb) cb(); }
+  });
+}
+
+function cacheClearAll(cb) {
+  cacheOpen(function(db) {
+    if (!db) { if (cb) cb(); return; }
+    try {
+      var tx = db.transaction(CACHE_STORE, 'readwrite');
+      tx.objectStore(CACHE_STORE).clear();
+      tx.oncomplete = function() { if (cb) cb(); };
+      tx.onerror = function() { if (cb) cb(); };
+    } catch (e) { if (cb) cb(); }
+  });
+}
+
+function isCacheEnabled() {
+  if (!cacheAvailable()) return false;
+  var el = document.getElementById('use-cache');
+  return !el || el.checked;
+}
+
+function onUseCacheChange() {
+  var el = document.getElementById('use-cache');
+  try { localStorage.setItem('rvUseCache', (el && el.checked) ? '1' : '0'); } catch (e) {}
+}
+
+function initCachePreference() {
+  try {
+    var v = localStorage.getItem('rvUseCache');
+    if (v === '0') { var el = document.getElementById('use-cache'); if (el) el.checked = false; }
+  } catch (e) {}
+}
+
+function clearCacheBtn() {
+  if (!confirm('确定清除本地解析缓存？再次加载文件时将重新解析。')) return;
+  cacheClearAll(function() { showToast('已清除解析缓存'); });
+}
+
+// 从缓存命中加载：重设 uid/_fileId 并恢复 dbInfo
+function applyCachedEntry(entry, hit, newRegs) {
+  var regs = hit.registers;
+  for (var i = 0; i < regs.length; i++) {
+    regs[i].uid = ++uidCounter;
+    regs[i]._fileId = entry.id;
+    newRegs.push(regs[i]);
+  }
+  if (hit.dbInfo) dbInfos.push({ fileId: entry.id, text: hit.dbInfo });
+  entry.fromCache = true;
+  entry.error = '';
+}
+
+// 解析成功后写入缓存（尽力而为）
+function writeCacheForEntry(entry, regs) {
+  if (!cacheAvailable() || !entry._cacheKey || !regs) return;
+  var dbInfoText = '';
+  for (var i = 0; i < dbInfos.length; i++) {
+    if (dbInfos[i].fileId === entry.id) { dbInfoText = dbInfos[i].text; break; }
+  }
+  cachePut({
+    key: entry._cacheKey,
+    name: entry.file.name,
+    size: entry.file.size,
+    lastModified: entry.file.lastModified || 0,
+    parsedAt: Date.now(),
+    dbInfo: dbInfoText,
+    registers: regs
+  }, null);
+}
+
+// 忽略缓存，强制重新解析某个文件
+function reparseFile(idx) {
+  if (parseInProgress) { showToast('正在解析中，请稍候'); return; }
+  var entry = pendingFiles[idx];
+  if (!entry || !entry.parsed) return;
+  if (entry._cacheKey) cacheDelete(entry._cacheKey, null);
+  allRegisters = allRegisters.filter(function(r) {
+    if (r._fileId === entry.id) { selected.delete(r.uid); return false; }
+    return true;
+  });
+  dbInfos = dbInfos.filter(function(info) { return info.fileId !== entry.id; });
+  entry.parsed = false;
+  entry.fromCache = false;
+  entry.error = '';
+  renderFileList();
+  refreshDataView();
+  scheduleAutoParse();
+}
+
 // ── 解析 ─────────────────────────────────────────────────
 function parseQueuedFiles() {
   if (parseInProgress) return;
@@ -993,9 +1418,48 @@ function parseQueuedFiles() {
   var eb = document.getElementById('parse-error-bar');
   if (eb) { eb.style.display = 'none'; eb.textContent = ''; }
 
-  var pending = filesToParse.length;
+  // 为每个文件计算缓存键（与是否启用缓存无关，重解析也要用到）
+  for (var k = 0; k < filesToParse.length; k++) filesToParse[k]._cacheKey = cacheKeyFor(filesToParse[k].file);
+
   var newRegs = [];
   var errors  = [];
+
+  if (!isCacheEnabled()) {
+    readAndParseFiles(filesToParse, filesToParse, newRegs, errors, generation);
+    return;
+  }
+
+  // 先尝试命中缓存，未命中的文件再实际读取解析
+  var misses = [];
+  var checked = 0;
+  for (var i = 0; i < filesToParse.length; i++) {
+    (function(entry) {
+      cacheGet(entry._cacheKey, function(hit) {
+        if (generation !== parseGeneration) return;
+        if (hit && Object.prototype.toString.call(hit.registers) === '[object Array]') {
+          var regs = hit.registers;
+          if (regs.length === 0 || regs[0] && regs[0].blockName !== undefined) {
+            applyCachedEntry(entry, hit, newRegs);
+          } else {
+            misses.push(entry);
+          }
+        } else {
+          misses.push(entry);
+        }
+        checked++;
+        if (checked === filesToParse.length) {
+          if (misses.length) readAndParseFiles(misses, filesToParse, newRegs, errors, generation);
+          else finishParseBatch(newRegs, filesToParse, errors, generation);
+        }
+      });
+    })(filesToParse[i]);
+  }
+}
+
+function readAndParseFiles(missEntries, filesToParse, newRegsPrev, errorsPrev, generation) {
+  var pending = missEntries.length;
+  var newRegs = newRegsPrev || [];
+  var errors = errorsPrev || [];
 
   function onFileRead(text, entry) {
     try {
@@ -1004,6 +1468,8 @@ function parseQueuedFiles() {
         : parseXML(text, entry.file.name, entry.id);
       for (var i = 0; i < regs.length; i++) newRegs.push(regs[i]);
       entry.error = '';
+      entry.fromCache = false;
+      writeCacheForEntry(entry, regs);
     } catch (err) {
       entry.error = err.message;
       errors.push(entry.file.name + ': ' + err.message);
@@ -1014,7 +1480,7 @@ function parseQueuedFiles() {
     }
   }
 
-  for (var i = 0; i < filesToParse.length; i++) {
+  for (var i = 0; i < missEntries.length; i++) {
     (function(entry) {
       var reader = new FileReader();
       reader.onload = function(e) {
@@ -1029,7 +1495,7 @@ function parseQueuedFiles() {
         }
       };
       reader.readAsText(entry.file, 'UTF-8');
-    })(filesToParse[i]);
+    })(missEntries[i]);
   }
 }
 
@@ -1402,17 +1868,24 @@ function refreshDataView() {
     if (!parseInProgress) document.getElementById('welcome').style.display = '';
   }
 
-  var sel = document.getElementById('filter-block');
-  var oldBlock = sel.value;
-  sel.innerHTML = '<option value="">全部 Block</option>';
+  // Block 多选过滤：重建列表（保留仍有效的勾选项）
   blockNames.sort();
-  for (var bi = 0; bi < blockNames.length; bi++) {
-    var opt = document.createElement('option');
-    opt.value = blockNames[bi];
-    opt.textContent = blockNames[bi];
-    sel.appendChild(opt);
+  var blockCntMap = {};
+  for (var bci = 0; bci < visibleRegs.length; bci++) {
+    var bn = visibleRegs[bci].blockName;
+    blockCntMap[bn] = (blockCntMap[bn] || 0) + 1;
   }
-  sel.value = blockNameSet[oldBlock] ? oldBlock : '';
+  blockNameList = [];
+  var keptBlocks = new Set();
+  for (var bi = 0; bi < blockNames.length; bi++) {
+    var bnm = blockNames[bi];
+    blockNameList.push({ name: bnm, count: blockCntMap[bnm] || 0 });
+    if (selectedBlocks.has(bnm)) keptBlocks.add(bnm);
+  }
+  selectedBlocks = keptBlocks;
+  updateBlockFilterUI();
+  renderBlockPanel();
+  renderBlockNav();
   doFilter();
 }
 
@@ -1435,9 +1908,250 @@ function onTypeFilter() {
   doFilter();
 }
 
+// ── Block 多选过滤 ───────────────────────────────────────
+function toggleBlockPanel(ev) {
+  if (ev && ev.target && ev.target.id === 'block-msel-clear') return;
+  var msel = document.getElementById('block-msel');
+  if (!msel.classList.contains('open')) {
+    document.getElementById('block-msel-search').value = '';
+    renderBlockPanel();
+    msel.classList.add('open');
+  } else {
+    msel.classList.remove('open');
+  }
+}
+
+function renderBlockPanel() {
+  var list = document.getElementById('block-msel-list');
+  if (!list) return;
+  var q = (document.getElementById('block-msel-search').value || '').trim().toLowerCase();
+  var html = [], shown = 0;
+  for (var i = 0; i < blockNameList.length; i++) {
+    var b = blockNameList[i];
+    if (q && b.name.toLowerCase().indexOf(q) === -1) continue;
+    shown++;
+    var checked = selectedBlocks.has(b.name);
+    var disp = b.name || '(无 Block)';
+    html.push('<label class="msel-item' + (checked ? ' checked' : '') + '">'
+      + '<input type="checkbox" data-block="' + escAttr(b.name) + '"' + (checked ? ' checked' : '')
+      + ' onchange="onBlockItemChange(this)">'
+      + '<span class="mi-name" title="' + escAttr(disp) + '">' + escHtml(disp) + '</span>'
+      + '<span class="mi-cnt">' + b.count + '</span></label>');
+  }
+  list.innerHTML = shown ? html.join('') : '<div class="msel-empty">无匹配 Block</div>';
+  var cnt = document.getElementById('block-msel-count');
+  if (cnt) cnt.textContent = selectedBlocks.size + ' / ' + blockNameList.length;
+}
+
+function onBlockItemChange(inp) {
+  var name = inp.getAttribute('data-block');
+  if (inp.checked) selectedBlocks.add(name); else selectedBlocks.delete(name);
+  var item = inp.parentNode;
+  if (item) {
+    if (inp.checked) item.classList.add('checked');
+    else item.classList.remove('checked');
+  }
+  updateBlockFilterUI();
+  doFilter();
+}
+
+function blockSelAll(all) {
+  var q = (document.getElementById('block-msel-search').value || '').trim().toLowerCase();
+  for (var i = 0; i < blockNameList.length; i++) {
+    var name = blockNameList[i].name;
+    if (q && name.toLowerCase().indexOf(q) === -1) continue;
+    if (all) selectedBlocks.add(name); else selectedBlocks.delete(name);
+  }
+  renderBlockPanel();
+  updateBlockFilterUI();
+  doFilter();
+}
+
+function clearBlockFilter(ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  selectedBlocks.clear();
+  updateBlockFilterUI();
+  renderBlockPanel();
+  doFilter();
+}
+
+function updateBlockFilterUI() {
+  var msel = document.getElementById('block-msel');
+  var label = document.getElementById('block-msel-label');
+  if (!msel || !label) return;
+  var n = selectedBlocks.size;
+  if (n === 0) {
+    label.textContent = '全部 Block';
+    msel.classList.remove('has-sel');
+  } else {
+    if (n === 1) {
+      var first = selectedBlocks.values().next();
+      label.textContent = (first && !first.done && first.value) ? first.value : '(无 Block)';
+    } else {
+      label.textContent = '已选 ' + n + ' 个 Block';
+    }
+    msel.classList.add('has-sel');
+  }
+}
+
+function initBlockPanelOutsideClick() {
+  document.addEventListener('click', function(ev) {
+    var msel = document.getElementById('block-msel');
+    if (!msel || !msel.classList.contains('open')) return;
+    if (msel.contains(ev.target)) return;
+    msel.classList.remove('open');
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key !== 'Escape') return;
+    var msel = document.getElementById('block-msel');
+    if (msel && msel.classList.contains('open')) msel.classList.remove('open');
+  });
+}
+
+// ── Block 导航浮动面板 ───────────────────────────────────
+var navGroups = [];   // 导航用分组列表（可见文件的全部数据）
+
+function toggleBlockNav(force) {
+  var nav = document.getElementById('block-nav');
+  if (!nav) return;
+  var open = (force === undefined) ? !nav.classList.contains('open') : !!force;
+  if (open) nav.classList.add('open');
+  else nav.classList.remove('open');
+}
+
+function renderBlockNav() {
+  var nav = document.getElementById('block-nav');
+  var list = document.getElementById('bn-list');
+  if (!nav || !list) return;
+  navGroups = buildGroups(getVisibleRegisters());
+  if (!navGroups.length) {
+    nav.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  nav.style.display = '';
+  var html = [];
+  for (var i = 0; i < navGroups.length; i++) {
+    var b = navGroups[i];
+    var disp = b.blockName || '(无 Block)';
+    html.push('<div class="bn-item" data-gkey="' + escAttr(b.key) + '" title="跳转到 ' + escAttr(disp) + '">'
+      + '<span class="bni-name">' + escHtml(disp) + '</span>'
+      + (b.subName ? '<span class="bni-sub">' + escHtml(b.subName) + '</span>' : '')
+      + '<span class="bni-cnt">' + b.regs.length + '</span></div>');
+  }
+  list.innerHTML = html.join('');
+  document.getElementById('bn-count').textContent = navGroups.length + ' 组';
+  updateActiveNav();
+}
+
+function findGroupEl(key) {
+  var gs = document.querySelectorAll('#reg-list .reg-group');
+  for (var i = 0; i < gs.length; i++) {
+    if (gs[i].getAttribute('data-gkey') === key) return gs[i];
+  }
+  return null;
+}
+
+function jumpToBlock(key) {
+  var g = null;
+  for (var i = 0; i < navGroups.length; i++) { if (navGroups[i].key === key) { g = navGroups[i]; break; } }
+  if (!g) return;
+  // 确保处于分组视图
+  if (!groupByBlock) {
+    groupByBlock = true;
+    document.getElementById('group-by-block').checked = true;
+  }
+  // 目标 Block 被多选筛选排除时自动纳入
+  if (selectedBlocks.size && !selectedBlocks.has(g.blockName)) {
+    selectedBlocks.add(g.blockName);
+    updateBlockFilterUI();
+    renderBlockPanel();
+  }
+  doFilter();
+  var el = findGroupEl(key);
+  if (!el) {
+    // 可能是渲染预算截断了目标组：提高预算到该组之前并重渲染
+    var idx = -1;
+    for (var i2 = 0; i2 < filteredGroups.length; i2++) { if (filteredGroups[i2].key === key) { idx = i2; break; } }
+    if (idx >= 0) {
+      var need = 0;
+      for (var i3 = 0; i3 <= idx; i3++) if (!collapsedGroups[filteredGroups[i3].key]) need += filteredGroups[i3].regs.length;
+      renderBudget = Math.max(renderBudget, need + 1);
+      renderPage();
+      el = findGroupEl(key);
+    }
+  }
+  if (!el) {
+    showToast('该 Block 被当前搜索/类型条件过滤，未显示');
+    return;
+  }
+  if (el.classList.contains('collapsed')) {
+    ensureGroupBody(el);
+    el.classList.remove('collapsed');
+    delete collapsedGroups[key];
+  }
+  var content = document.querySelector('.content');
+  var tb = document.getElementById('toolbar');
+  var offset = (tb ? tb.offsetHeight : 0) + 8;
+  var top = el.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop - offset;
+  content.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  updateActiveNav();
+}
+
+// 滚动监听：高亮当前位于视口顶部的 Block 组
+function updateActiveNav() {
+  var items = document.querySelectorAll('.bn-item');
+  if (!items.length) return;
+  var activeKey = '';
+  if (groupByBlock) {
+    var content = document.querySelector('.content');
+    var tb = document.getElementById('toolbar');
+    var probe = content.getBoundingClientRect().top + (tb ? tb.offsetHeight : 0) + 24;
+    var gs = document.querySelectorAll('#reg-list .reg-group');
+    for (var i = 0; i < gs.length; i++) {
+      var h = gs[i].querySelector('.group-header');
+      if (!h) continue;
+      if (h.getBoundingClientRect().top <= probe) activeKey = gs[i].getAttribute('data-gkey');
+      else break;
+    }
+  }
+  for (var j = 0; j < items.length; j++) {
+    if (items[j].getAttribute('data-gkey') === activeKey) items[j].classList.add('active');
+    else items[j].classList.remove('active');
+  }
+}
+
+function initBlockNav() {
+  document.getElementById('bn-list').addEventListener('click', function(ev) {
+    var t = ev.target;
+    var item = t.closest ? t.closest('.bn-item') : null;
+    if (item) jumpToBlock(item.getAttribute('data-gkey'));
+  });
+  var content = document.querySelector('.content');
+  var ticking = false;
+  content.addEventListener('scroll', function() {
+    var nav = document.getElementById('block-nav');
+    if (ticking || !nav.classList.contains('open')) return;
+    ticking = true;
+    requestAnimationFrame(function() {
+      ticking = false;
+      updateActiveNav();
+    });
+  });
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('visible');
+  if (t._timer) clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.classList.remove('visible'); }, 2600);
+}
+
 function doFilter() {
   var q     = document.getElementById('search-input').value.trim().toLowerCase();
-  var blk   = document.getElementById('filter-block').value;
+  var blkSet = selectedBlocks;   // Block 多选（空集 = 全部）
   var perm  = document.getElementById('filter-perm').value.toUpperCase();
   var ftReg  = document.getElementById('ft-reg').checked;
   var ftInd  = document.getElementById('ft-ind').checked;
@@ -1452,7 +2166,7 @@ function doFilter() {
     if (et === 'reg'      && !ftReg)  return false;
     if (et === 'indirect' && !ftInd)  return false;
     if (et === 'sram'     && !ftSram) return false;
-    if (blk  && r.blockName !== blk) return false;
+    if (blkSet.size && !blkSet.has(r.blockName)) return false;
     if (perm && r.entryType !== 'sram') {
       var ok = perm==='R' ? r._perms.some(function(p){return p==='R'||p==='RO';})
              : perm==='W' ? r._perms.some(function(p){return p==='W'||p==='WO';})
@@ -1472,12 +2186,14 @@ function doFilter() {
   }
 
   currentPage = 1;
+  renderBudget = RENDER_BUDGET;   // 每次过滤重置渲染预算
   var rsvTotal = visibleRegs.reduce(function(s,r){ return s + r.fields.filter(function(f){return f.reserved;}).length; }, 0);
   document.getElementById('result-count').textContent =
     filtered.length + ' / ' + visibleRegs.length + ' 条（保留位字段 ' + rsvTotal + ' 个）';
 
   updateSelectBar();
   renderPage();
+  updateActiveNav();
 }
 
 // ── 渲染 ─────────────────────────────────────────────────
@@ -1509,6 +2225,12 @@ function renderPage() {
   }
   empty.classList.remove('visible');
 
+  // 按 Block 分组模式
+  if (groupByBlock) {
+    renderGroupedPage(q);
+    return;
+  }
+
   var start = (currentPage-1)*PAGE_SIZE;
   var page  = filtered.slice(start, start+PAGE_SIZE);
 
@@ -1518,32 +2240,269 @@ function renderPage() {
   }
   list.innerHTML = cards.join('');
 
-  var headers = list.querySelectorAll('.reg-header');
-  for (var hi = 0; hi < headers.length; hi++) {
-    (function(h) {
-      h.addEventListener('click', function(ev) {
-        if (ev.target.type === 'checkbox') return;
-        if (isNameSelectionTarget(ev.target)) return;
-        var card = h.parentNode;
-        while (card && !card.classList.contains('reg-card')) card = card.parentNode;
-        if (card) card.classList.toggle('open');
-      });
-    })(headers[hi]);
-  }
-  var chkBoxes = list.querySelectorAll('.reg-chk');
-  for (var ki = 0; ki < chkBoxes.length; ki++) {
-    (function(chk) {
-      chk.addEventListener('change', function() {
-        var uid = Number(chk.dataset.uid);
-        if (chk.checked) selected.add(uid); else selected.delete(uid);
-        updateSelectBar(); syncHeaderCheckbox();
-      });
-      chk.checked = selected.has(Number(chk.dataset.uid));
-    })(chkBoxes[ki]);
-  }
-
   syncHeaderCheckbox();
   renderPagination();
+}
+
+// ── 按 Block 分组显示 ────────────────────────────────────
+function toggleGroupBy() {
+  groupByBlock = document.getElementById('group-by-block').checked;
+  currentPage = 1;
+  renderBudget = RENDER_BUDGET;
+  updateGroupTop();
+  renderPage();
+  updateActiveNav();
+}
+
+// 分组头吸顶偏移 = 工具栏实际高度（随换行/缩放变化）
+function updateGroupTop() {
+  var tb = document.getElementById('toolbar');
+  document.documentElement.style.setProperty('--group-top', (tb ? tb.offsetHeight : 0) + 'px');
+}
+
+// 将寄存器列表按 Block/Sub_Name 分组（保持来源文件中的出现顺序）
+function buildGroups(regs) {
+  var order = [], map = {};
+  for (var i = 0; i < regs.length; i++) {
+    var r = regs[i];
+    var key = (r.blockName || '') + '/' + (r.subName || '');
+    var g = map[key];
+    if (!g) {
+      g = { key: key, blockName: r.blockName || '', subName: r.subName || '',
+            regs: [], regCount: 0, indCount: 0, sramCount: 0, addrMin: null, addrMax: null };
+      map[key] = g;
+      order.push(g);
+    }
+    g.regs.push(r);
+    if (r.entryType === 'sram') g.sramCount++;
+    else if (r.entryType === 'indirect') g.indCount++;
+    else g.regCount++;
+    if (r.entryType !== 'sram') {
+      var n = parseNumericValue(r.addrDec);
+      if (!isNaN(n)) {
+        if (g.addrMin === null || n < g.addrMin) g.addrMin = n;
+        if (g.addrMax === null || n > g.addrMax) g.addrMax = n;
+      }
+    }
+  }
+  return order;
+}
+
+function buildGroupHeaderHtml(g, gi) {
+  var counts = [];
+  if (g.regCount)  counts.push('<span class="gh-count gh-reg">' + g.regCount + ' REG</span>');
+  if (g.indCount)  counts.push('<span class="gh-count gh-ind">' + g.indCount + ' IND</span>');
+  if (g.sramCount) counts.push('<span class="gh-count gh-sram">' + g.sramCount + ' SRAM</span>');
+  var addr = '';
+  if (g.addrMin !== null) {
+    addr = '<span class="gh-addr">' + toHex(String(g.addrMin))
+         + (g.addrMin !== g.addrMax ? ' ~ ' + toHex(String(g.addrMax)) : '') + '</span>';
+  }
+  var sub = g.subName
+    ? '<span class="gh-sub" title="' + escAttr(g.subName) + '">' + escHtml(g.subName) + '</span>' : '';
+  var dispName = g.blockName || '(无 Block)';
+  var inFilter = selectedBlocks.has(g.blockName);
+  var filterPill = '<span class="gh-filter' + (inFilter ? ' active' : '') + '" data-block="' + escAttr(g.blockName) + '"'
+    + ' title="' + (inFilter ? '移出 Block 筛选' : '仅显示该 Block（可叠加多个）') + '">'
+    + (inFilter ? '✓ 已筛选' : '筛选') + '</span>';
+  return '<div class="group-header" data-gi="' + gi + '" title="点击折叠/展开该 Block">'
+    + '<span class="gh-arrow">▼</span>'
+    + '<span class="gh-chk"><input type="checkbox" class="group-chk" data-gi="' + gi + '" title="全选/取消该 Block"></span>'
+    + '<span class="gh-name" title="' + escAttr(dispName) + '">' + escHtml(dispName) + '</span>'
+    + sub
+    + '<span class="gh-counts">' + counts.join('') + '</span>'
+    + addr
+    + filterPill
+    + '<span class="gh-total">' + g.regs.length + ' 项</span>'
+    + '</div>';
+}
+
+function renderGroupedPage(q) {
+  var list = document.getElementById('reg-list');
+  document.getElementById('pagination').innerHTML = '';
+
+  filteredGroups = buildGroups(filtered);
+
+  var html = [];
+  var rendered = 0;          // 本批次已渲染的卡片数
+  for (var gi = 0; gi < filteredGroups.length; gi++) {
+    var g = filteredGroups[gi];
+    var collapsed = !!collapsedGroups[g.key];
+    var bodyHtml = '';
+
+    // 仅在预算内渲染卡片（控制 DOM 规模，避免勾选/重排卡顿）
+    if (!collapsed && rendered < renderBudget) {
+      var left = renderBudget - rendered;
+      var n = Math.min(g.regs.length, left);
+      for (var ri = 0; ri < n; ri++) {
+        bodyHtml += buildCard(g.regs[ri], ri + 1, q);
+      }
+      rendered += n;
+    }
+
+    html.push('<div class="reg-group' + (collapsed ? ' collapsed' : '') + '" data-gkey="' + escAttr(g.key) + '">');
+    html.push(buildGroupHeaderHtml(g, gi));
+    // 折叠的组懒渲染：展开时再生成卡片，大数据量下更快
+    html.push('<div class="group-body"' + (bodyHtml ? ' data-built="1"' : '') + '>' + bodyHtml + '</div>');
+    html.push('</div>');
+
+    // 预算耗尽：给后续组一个"加载更多"入口
+    if (rendered >= renderBudget && gi < filteredGroups.length - 1) {
+      html.push('<div class="render-limit-bar">已显示前 <b>' + rendered + '</b> / ' + filtered.length
+        + ' 条（性能优化）<button class="btn-toolbar" onclick="showMore()">显示更多</button></div>');
+      break;
+    }
+  }
+  list.innerHTML = html.join('');
+  updateGroupTop();
+  syncHeaderCheckbox();
+  syncGroupCheckboxes();
+}
+
+// 加载更多：提高渲染预算并保留当前滚动位置
+function showMore() {
+  renderBudget += RENDER_STEP;
+  var content = document.querySelector('.content');
+  var st = content ? content.scrollTop : 0;
+  renderPage();
+  if (content) content.scrollTop = st;
+}
+
+// 单个组展开时懒渲染补全（限定上限，避免一次性渲染超大组）
+function ensureGroupBody(grp) {
+  var gh   = grp.querySelector('.group-header');
+  var body = grp.querySelector('.group-body');
+  if (!gh || !body || body.getAttribute('data-built')) return;
+  var g = filteredGroups[Number(gh.getAttribute('data-gi'))];
+  if (!g) return;
+  if (g.regs.length <= GROUP_EXPAND_MAX) {
+    var q2 = document.getElementById('search-input').value.trim();
+    var parts = [];
+    for (var i = 0; i < g.regs.length; i++) parts.push(buildCard(g.regs[i], i + 1, q2));
+    body.innerHTML = parts.join('');
+    body.setAttribute('data-built', '1');
+  } else {
+    var q3 = document.getElementById('search-input').value.trim();
+    var parts2 = [];
+    for (var j = 0; j < GROUP_EXPAND_MAX; j++) parts2.push(buildCard(g.regs[j], j + 1, q3));
+    parts2.push('<div class="render-limit-bar">本组还有 <b>' + (g.regs.length - GROUP_EXPAND_MAX)
+      + '</b> 项未显示<button class="btn-toolbar" onclick="expandGroupFull(' + gh.getAttribute('data-gi') + ')">显示本组全部</button></div>');
+    body.innerHTML = parts2.join('');
+    body.setAttribute('data-built', '1');
+  }
+}
+
+// 展开单个组剩余全部卡片（用户显式操作）
+function expandGroupFull(gi) {
+  var g = filteredGroups[gi];
+  if (!g) return;
+  var hdr = document.querySelector('.group-header[data-gi="' + gi + '"]');
+  if (!hdr) return;
+  var grp = hdr.closest('.reg-group');
+  if (!grp) return;
+  var body = grp.querySelector('.group-body');
+  if (!body) return;
+  var q2 = document.getElementById('search-input').value.trim();
+  var parts = [];
+  for (var i = 0; i < g.regs.length; i++) parts.push(buildCard(g.regs[i], i + 1, q2));
+  body.innerHTML = parts.join('');
+  body.setAttribute('data-built', '1');
+}
+
+// 同步分组头复选框（全选/半选状态）
+function syncGroupCheckboxes() {
+  var chks = document.querySelectorAll('.group-chk');
+  for (var i = 0; i < chks.length; i++) {
+    var g = filteredGroups[Number(chks[i].dataset.gi)];
+    if (!g) continue;
+    var all = g.regs.length > 0, any = false;
+    for (var j = 0; j < g.regs.length; j++) {
+      if (selected.has(g.regs[j].uid)) any = true;
+      else all = false;
+    }
+    chks[i].checked = all;
+    chks[i].indeterminate = !all && any;
+  }
+}
+
+// 只同步单个分组的复选框（单次勾选卡片时用，避免 O(N) 扫描全部分组）
+function syncOneGroupChk(gi) {
+  var chk = document.querySelector('.group-chk[data-gi="' + gi + '"]');
+  var g = filteredGroups[Number(gi)];
+  if (!chk || !g) return;
+  var all = g.regs.length > 0, any = false;
+  for (var j = 0; j < g.regs.length; j++) {
+    if (selected.has(g.regs[j].uid)) any = true;
+    else all = false;
+  }
+  chk.checked = all;
+  chk.indeterminate = !all && any;
+}
+
+// 事件委托：卡片展开/勾选、分组折叠/勾选（两种渲染模式通用）
+function initRegListDelegation() {
+  var list = document.getElementById('reg-list');
+  list.addEventListener('click', function(ev) {
+    var t = ev.target;
+    if (t.type === 'checkbox') return;
+    if (isNameSelectionTarget(t)) return;
+    // 组头上的"筛选"小按钮：把该 Block 加入/移出多选筛选
+    var gf = t.closest ? t.closest('.gh-filter') : null;
+    if (gf) {
+      var bn = gf.getAttribute('data-block');
+      if (selectedBlocks.has(bn)) selectedBlocks.delete(bn);
+      else selectedBlocks.add(bn);
+      updateBlockFilterUI();
+      doFilter();
+      return;
+    }
+    var gh = t.closest ? t.closest('.group-header') : null;
+    if (gh) {
+      var grp = gh.closest('.reg-group');
+      if (!grp) return;
+      var gkey = grp.getAttribute('data-gkey');
+      if (grp.classList.contains('collapsed')) {
+        ensureGroupBody(grp);
+        grp.classList.remove('collapsed');
+        if (gkey) delete collapsedGroups[gkey];
+      } else {
+        grp.classList.add('collapsed');
+        if (gkey) collapsedGroups[gkey] = true;
+      }
+      return;
+    }
+    var rh = t.closest ? t.closest('.reg-header') : null;
+    if (rh) {
+      var card = rh.parentNode;
+      while (card && !card.classList.contains('reg-card')) card = card.parentNode;
+      if (card) card.classList.toggle('open');
+    }
+  });
+  list.addEventListener('change', function(ev) {
+    var t = ev.target;
+    if (t.classList.contains('reg-chk')) {
+      var uid = Number(t.dataset.uid);
+      if (t.checked) selected.add(uid); else selected.delete(uid);
+      // 只同步该卡片所在分组的复选框，避免全量扫描
+      var grpEl = t.closest ? t.closest('.reg-group') : null;
+      if (groupByBlock && grpEl) {
+        var hdr = grpEl.querySelector('.group-header');
+        if (hdr) syncOneGroupChk(Number(hdr.getAttribute('data-gi')));
+      }
+      updateSelectBar(true);
+      syncHeaderCheckbox();
+    } else if (t.classList.contains('group-chk')) {
+      var g = filteredGroups[Number(t.dataset.gi)];
+      if (!g) return;
+      for (var i = 0; i < g.regs.length; i++) {
+        if (t.checked) selected.add(g.regs[i].uid);
+        else selected.delete(g.regs[i].uid);
+      }
+      syncVisibleCheckboxes();
+      syncHeaderCheckbox();
+      updateSelectBar();
+    }
+  });
 }
 
 function isNameSelectionTarget(target) {
@@ -1628,7 +2587,7 @@ function buildCard(r, idx, q) {
   return '<div class="' + cardClass + '">'
     + '<div class="reg-header">'
     + '<span class="col-idx">' + idx + '</span>'
-    + '<span class="chk-wrap"><input type="checkbox" class="reg-chk" data-uid="' + r.uid + '"></span>'
+    + '<span class="chk-wrap"><input type="checkbox" class="reg-chk" data-uid="' + r.uid + '"' + (selected.has(r.uid) ? ' checked' : '') + '></span>'
     + '<span class="col-name" title="' + escAttr(r.regName) + '">' + typeBadge + hl(r.regName, q) + '</span>'
     + '<span class="col-addr" title="' + escAttr(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
     + '<span class="col-desc" title="' + escAttr(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
@@ -1648,6 +2607,7 @@ function buildCard(r, idx, q) {
 
 // ── 全选 ─────────────────────────────────────────────────
 function getCurrentPageRegisters() {
+  if (groupByBlock) return filtered.slice();   // 分组模式无分页，"当前页"= 全部结果
   var start=(currentPage-1)*PAGE_SIZE;
   return filtered.slice(start,start+PAGE_SIZE);
 }
@@ -1675,8 +2635,8 @@ function toggleSelectAll(checked) {
   updateSelectBar();
 }
 function syncHeaderCheckbox() {
-  var pg=getCurrentPageRegisters();
   var el=document.getElementById('chk-all'); if(!el)return;
+  var pg = groupByBlock ? filtered : getCurrentPageRegisters();  // 分组模式避免复制大数组
   var allSel=pg.length>0;
   var anySel=false;
   for(var i=0;i<pg.length;i++){
@@ -1691,11 +2651,12 @@ function clearSelection() {
   syncVisibleCheckboxes();
   syncHeaderCheckbox(); updateSelectBar();
 }
-function updateSelectBar() {
+function updateSelectBar(skipGroupSync) {
   document.getElementById('select-count').textContent='已选 '+selected.size+' 个';
   var vis=filtered.length>0||selected.size>0;
   if(vis) document.getElementById('select-bar').classList.add('visible');
   else document.getElementById('select-bar').classList.remove('visible');
+  if (!skipGroupSync) syncGroupCheckboxes();
 }
 
 // ── JSON 导出 ─────────────────────────────────────────────
@@ -1783,15 +2744,31 @@ function goPage(p) {
 function expandAll() {
   var cards = document.querySelectorAll('.reg-card');
   for (var i = 0; i < cards.length; i++) cards[i].classList.add('open');
+  var gs = document.querySelectorAll('.reg-group.collapsed');
+  for (var j = 0; j < gs.length; j++) {
+    ensureGroupBody(gs[j]);
+    gs[j].classList.remove('collapsed');
+    var gk = gs[j].getAttribute('data-gkey');
+    if (gk) delete collapsedGroups[gk];
+  }
 }
 function collapseAll() {
   var cards = document.querySelectorAll('.reg-card');
   for (var i = 0; i < cards.length; i++) cards[i].classList.remove('open');
+  var gs = document.querySelectorAll('.reg-group');
+  for (var j = 0; j < gs.length; j++) {
+    gs[j].classList.add('collapsed');
+    var gk = gs[j].getAttribute('data-gkey');
+    if (gk) collapsedGroups[gk] = true;
+  }
 }
 
 // ── 清空 ─────────────────────────────────────────────────
 function clearAll() {
   pendingFiles=[]; allRegisters=[]; filtered=[]; selected.clear(); dbInfos=[]; uidCounter=0;
+  groupByBlock=true; filteredGroups=[]; collapsedGroups={};
+  var gbb=document.getElementById('group-by-block'); if (gbb) gbb.checked=true;
+  renderBudget = RENDER_BUDGET;
   nextFileId=0; parseScheduled=false; parseInProgress=false; parseGeneration++;
   renderFileList();
   document.getElementById('reg-list').innerHTML='';
@@ -1804,7 +2781,8 @@ function clearAll() {
   document.getElementById('welcome').style.display='';
   document.getElementById('loading').classList.remove('visible');
   document.getElementById('db-info').textContent='在左侧添加文件后自动解析';
-  document.getElementById('filter-block').innerHTML='<option value="">全部 Block</option>';
+  selectedBlocks.clear(); blockNameList=[]; updateBlockFilterUI(); renderBlockPanel();
+  navGroups=[]; renderBlockNav(); toggleBlockNav(false);
   document.getElementById('filter-perm').value='';
   document.getElementById('ft-reg').checked  = true;
   document.getElementById('ft-ind').checked  = true;
@@ -1980,10 +2958,14 @@ function netModalLoad() {
     fetch(f.baseUrl + f.name)
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.blob();
+        var lm = r.headers.get('Last-Modified');
+        var ts = lm ? Date.parse(lm) : 0;
+        return r.blob().then(function(b) {
+          return { blob: b, ts: (ts && !isNaN(ts)) ? ts : Date.now() };
+        });
       })
-      .then(function(blob) {
-        var file = new File([blob], f.name, { type: 'text/plain' });
+      .then(function(res) {
+        var file = new File([res.blob], f.name, { type: 'text/plain', lastModified: res.ts });
         addFiles([file], f.type);
         added++;
       })
@@ -2100,6 +3082,11 @@ function initLayoutResize() {
 
 initLayoutResize();
 initColResize();
+initRegListDelegation();
+initBlockPanelOutsideClick();
+initBlockNav();
+initCachePreference();
+window.addEventListener('resize', updateGroupTop);
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
 function saveSelectedToRegister() {

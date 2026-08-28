@@ -13,6 +13,10 @@ assert.ok(buildIndex >= 0 && stopIndex >= 0 && buildIndex < stopIndex,
   'restart must compile before stopping the running server');
 assert.match(restartBody, /if\s+!\s+cmd_build[\s\S]*?return\s+1/);
 assert.match(restartBody, /保留当前运行服务|未执行重启/);
+assert.match(restartBody, /cmd_stop\s+"\$@"/,
+  'restart must forward start/restart options to stop');
+assert.doesNotMatch(source, /_START_ARGS/,
+  'stop must not reference an undefined global argument array');
 
 const buildMatch = source.match(/cmd_build\(\) \{([\s\S]*?)\n\}/);
 assert.ok(buildMatch, 'cmd_build function must exist');

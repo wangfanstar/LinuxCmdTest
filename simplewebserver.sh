@@ -184,6 +184,7 @@ kill_pid() {
 
 cmd_stop() {
     local pid stopped=0
+    local stop_args=("$@")
 
     # ── 优先通过 PID 文件停止 ──────────────────────────────────────
     if pid=$(get_pid 2>/dev/null); then
@@ -202,8 +203,8 @@ cmd_stop() {
     # ── 兜底：按端口查找残留进程 ───────────────────────────────────
     # 解析启动端口（从命令行参数或默认值）
     local port=8881
-    for i in "${!_START_ARGS[@]:-}"; do
-        [[ "${_START_ARGS[$i]:-}" == "-p" ]] && port="${_START_ARGS[$((i+1))]:-8881}"
+    for i in "${!stop_args[@]}"; do
+        [[ "${stop_args[$i]:-}" == "-p" ]] && port="${stop_args[$((i+1))]:-8881}"
     done
     # 也从 PID 文件同级的 .port 文件读取（如有）
     [[ -f "${SCRIPT_DIR}/.port" ]] && port=$(<"${SCRIPT_DIR}/.port")
@@ -232,7 +233,7 @@ cmd_restart() {
         error "编译失败，保留当前运行服务，未执行重启"
         return 1
     fi
-    cmd_stop
+    cmd_stop "$@"
     cmd_start "$@"
 }
 
@@ -305,7 +306,7 @@ shift || true
 case "${COMMAND}" in
     build)              cmd_build ;;
     start)              cmd_start "$@" ;;
-    stop)               cmd_stop ;;
+    stop)               cmd_stop "$@" ;;
     restart)            cmd_restart "$@" ;;
     status)             cmd_status ;;
     help|--help|-h)     cmd_usage ;;

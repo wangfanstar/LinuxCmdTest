@@ -171,6 +171,8 @@ assert.match(initializeSource, /ArrowRight/);
 assert.match(initializeSource, /shiftKey/);
 assert.match(initializeSource, /event\.key\s*===\s*["']Home["']/);
 assert.match(initializeSource, /event\.key\s*===\s*["']End["']/);
+assert.match(initializeSource, /dblclick[\s\S]*persistStructureWidth\(\s*STRUCTURE_WIDTH_DEFAULT\b/);
+assert.match(initializeSource, /keydown[\s\S]*persistStructureWidth\(\s*next\b/);
 assert.match(html, /edit-meta-fields/);
 assert.match(html, /preview-command-toggle/);
 assert.match(html, /显示全部命令/);

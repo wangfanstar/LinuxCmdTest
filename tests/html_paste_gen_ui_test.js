@@ -6,6 +6,9 @@ const vm = require('vm');
 
 const htmlPath = 'html/HtmlPasteGen.html';
 const html = fs.readFileSync(htmlPath, 'utf8');
+const appMatch = html.match(/<script id="app-logic">([\s\S]*?)<\/script>/);
+assert.ok(appMatch, 'app-logic script must exist');
+const appScript = appMatch[1];
 
 for (const id of [
   'back-link',
@@ -77,7 +80,42 @@ assert.match(html, /class=["'][^"']*generation-bar[^"']*["'][^>]*aria-label=["']
 assert.match(html, /generation-bar[\s\S]*position:\s*sticky/);
 assert.match(html, /generation-bar[\s\S]*top:\s*0/);
 assert.match(html, /generation-bar[\s\S]*generate-button/);
-assert.match(html, /grid-template-columns:\s*minmax\(170px,\s*\.64fr\)\s+minmax\(480px,\s*1\.75fr\)\s+minmax\(300px,\s*1\.05fr\)/);
+assert.match(html, /\.app-shell\s*\{[^}]*width:\s*min\(1880px,\s*calc\(100%\s*-\s*32px\)\)/);
+assert.match(html, /--structure-width:\s*330px/);
+assert.match(html, /\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(260px,\s*var\(--structure-width[^)]*\)\)\s+8px\s+minmax\(560px,\s*1\.7fr\)\s+minmax\(320px,\s*1fr\)\)/);
+assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-label=["']调整左侧导航宽度["'])[^>]*>/);
+assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuemin=["']260["'])[^>]*>/);
+assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuemax=["']520["'])[^>]*>/);
+assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuenow=["']330["'])[^>]*>/);
+assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-orientation=["']vertical["'])[^>]*>/);
+assert.match(appScript, /const\s+STRUCTURE_WIDTH_KEY\s*=/);
+assert.match(appScript, /const\s+STRUCTURE_WIDTH_DEFAULT\s*=/);
+assert.match(appScript, /const\s+STRUCTURE_WIDTH_MIN\s*=\s*260/);
+assert.match(appScript, /const\s+STRUCTURE_WIDTH_MAX\s*=\s*520/);
+assert.match(appScript, /function\s+clampStructureWidth\s*\(/);
+assert.match(appScript, /Number\.isFinite/);
+assert.match(appScript, /Math\.min/);
+assert.match(appScript, /Math\.max/);
+assert.match(appScript, /function\s+readStructureWidth\s*\(/);
+assert.match(appScript, /readStructureWidth[\s\S]*localStorage\.getItem\(STRUCTURE_WIDTH_KEY[\s\S]*catch[\s\S]*STRUCTURE_WIDTH_DEFAULT/);
+assert.match(appScript, /function\s+setStructureWidth\s*\(/);
+assert.match(appScript, /setStructureWidth[\s\S]*style\.setProperty\(['"]--structure-width['"][\s\S]*aria-valuenow/);
+assert.match(appScript, /localStorage\.setItem\(STRUCTURE_WIDTH_KEY/);
+assert.match(appScript, /function\s+startWorkspaceResize\s*\(/);
+assert.match(appScript, /pointerdown/);
+assert.match(appScript, /pointermove/);
+assert.match(appScript, /pointerup/);
+assert.match(appScript, /pointercancel/);
+assert.match(appScript, /setPointerCapture/);
+assert.match(appScript, /releasePointerCapture/);
+assert.match(appScript, /dblclick/);
+assert.match(appScript, /ArrowLeft/);
+assert.match(appScript, /ArrowRight/);
+assert.match(appScript, /shiftKey/);
+assert.match(appScript, /event\.key\s*===\s*["']Home["']/);
+assert.match(appScript, /event\.key\s*===\s*["']End["']/);
+assert.match(appScript, /startWorkspaceResize\s*\(/);
+assert.match(html, /@media\s*\(max-width:\s*960px\)[\s\S]*?workspace-resizer[^}]*display:\s*none/);
 assert.match(html, /edit-meta-fields/);
 assert.match(html, /preview-command-toggle/);
 assert.match(html, /显示全部命令/);
@@ -216,8 +254,6 @@ assert.match(html, /preview-command-toggle/);
 assert.match(html, /event\.stopPropagation\(\)/);
 assert.match(html, /fullContent\.length\s*>\s*160/);
 
-const appMatch = html.match(/<script id="app-logic">([\s\S]*?)<\/script>/);
-assert.ok(appMatch, 'app-logic script must exist');
-assert.doesNotThrow(() => new vm.Script(appMatch[1], { filename: htmlPath }));
+assert.doesNotThrow(() => new vm.Script(appScript, { filename: htmlPath }));
 
 console.log('HtmlPasteGen UI contract tests passed');

@@ -3934,12 +3934,16 @@
       contextMenuState = null;
     }
 
-    function contextMenuButton(label, action, disabled) {
+    function contextMenuButton(label, action, disabled, disabledReason) {
       const button = createElement('button', 'tree-context-menu-item', label);
       button.type = 'button';
       button.setAttribute('role', 'menuitem');
       button.dataset.contextAction = action;
       button.disabled = Boolean(disabled);
+      if (button.disabled && disabledReason) {
+        button.title = disabledReason;
+        button.setAttribute('aria-label', `${label}：${disabledReason}`);
+      }
       return button;
     }
 
@@ -3962,9 +3966,11 @@
       const title = target.kind === 'group' ? target.group.title || '未命名分组' : target.item.title || '未命名条目';
       menu.appendChild(createElement('div', 'tree-context-menu-title', (target.kind === 'group' ? '分组：' : '条目：') + title));
       if (target.kind === 'group') {
+        const demotion = core.groupDemotionStatus(state.document, target.group.id);
         menu.append(
           contextMenuButton('复制分组', 'copy-group'),
           contextMenuButton('粘贴分组', 'paste-group', !treeClipboard || treeClipboard.kind !== 'group'),
+          contextMenuButton('降级为上一分组的条目', 'demote-group-to-item', !demotion.ok, demotion.reason),
           contextMenuButton('删除分组', 'delete-group')
         );
       } else {
@@ -3972,6 +3978,7 @@
           contextMenuButton('复制条目', 'copy-item'),
           contextMenuButton('粘贴为子条目', 'paste-item-child', !treeClipboard || treeClipboard.kind !== 'item' || core.itemDepth(state.document, target.item.id) >= core.MAX_ITEM_DEPTH),
           contextMenuButton('粘贴为同级条目', 'paste-item-sibling', !treeClipboard || treeClipboard.kind !== 'item'),
+          contextMenuButton('直接升级为分组', 'promote-item-to-group'),
           contextMenuButton('删除条目', 'delete-item')
         );
       }
@@ -4024,6 +4031,14 @@
         if (action === 'paste-item-child') expandedNavNodeIds.add(target.item.id);
         expandNavAncestors(result.item.id);
         updateAfterAction(action === 'paste-item-child' ? '条目已粘贴为子条目。' : '条目已粘贴为同级条目。');
+        return;
+      }
+      if (action === 'demote-group-to-item' && target.kind === 'group') {
+        demoteGroupFromEditor(target.group);
+        return;
+      }
+      if (action === 'promote-item-to-group' && target.kind === 'item') {
+        promoteItemFromEditor(target.item);
         return;
       }
       if (action === 'delete-group') {
@@ -4532,9 +4547,12 @@
         const actions = createElement('div', 'group-actions');
         const up = makeButton('↑', 'move-group-up', 'icon-button', '上移分组');
         const down = makeButton('↓', 'move-group-down', 'icon-button', '下移分组');
+        const demotion = core.groupDemotionStatus(state.document, group.id);
+        const demote = makeButton('↳', 'demote-group-to-item', 'icon-button group-demote-button', demotion.ok ? '降级为上一分组的条目' : demotion.reason);
         up.disabled = index === 0;
         down.disabled = index === state.document.groups.length - 1;
-        actions.append(up, down);
+        demote.disabled = !demotion.ok;
+        actions.append(up, down, demote);
 
         const itemList = createElement('div', 'group-item-list');
         itemList.id = itemListId;
@@ -4586,10 +4604,10 @@
         const count = core.descendantCount(item);
         if (count) tools.appendChild(createElement('span', 'tree-descendant-count', String(count)));
         const indent = makeButton('＋', 'indent-item', 'tree-level-button', '降低层级');
-        const outdent = makeButton('−', 'outdent-item', 'tree-level-button', '提升层级');
+        const outdent = makeButton('−', 'outdent-item', 'tree-level-button', depth === 1 ? '升级为分组' : '提升层级');
         indent.dataset.itemId = outdent.dataset.itemId = item.id;
         indent.disabled = index === 0 || depth >= core.MAX_ITEM_DEPTH;
-        outdent.disabled = depth === 1;
+        outdent.disabled = false;
         tools.append(indent, outdent);
         row.append(toggle, select, tools);
         node.appendChild(row);
@@ -4648,7 +4666,9 @@
       actions.children[1].disabled = index === 0;
       actions.children[2].disabled = index === currentSiblings.length - 1;
       actions.children[3].disabled = index === 0 || currentDepth >= core.MAX_ITEM_DEPTH;
-      actions.children[4].disabled = currentDepth === 1;
+      actions.children[4].disabled = false;
+      actions.children[4].title = currentDepth === 1 ? '升级为分组' : '提升层级';
+      actions.children[4].setAttribute('aria-label', actions.children[4].title);
       actions.children[5].disabled = currentDepth >= core.MAX_ITEM_DEPTH;
       head.appendChild(actions);
 
@@ -5005,6 +5025,51 @@
       if (message) announce(message, 'success');
     }
 
+    function demoteGroupFromEditor(group) {
+      const status = core.groupDemotionStatus(state.document, group && group.id);
+      if (!status.ok) {
+        announce(status.reason, 'warning');
+        return false;
+      }
+      const count = core.flattenItems({ groups: [{ items: status.group.items }] }).length;
+      if (!confirm(`将分组“${status.group.title || '未命名分组'}”降级为“${status.targetGroup.title || '未命名分组'}”末尾的条目？其中 ${count} 条内容会作为它的子条目。`)) {
+        return false;
+      }
+      const result = core.demoteGroupToItem(state.document, status.group.id);
+      if (!result.ok) {
+        announce(result.reason, 'warning');
+        return false;
+      }
+      expandedNavGroupIds.add(result.group.id);
+      if (result.item.children.length) expandedNavNodeIds.add(result.item.id);
+      scheduleDraftSave();
+      selectAndFocus(result.group.id, result.item.id);
+      announce('分组已降级为上一分组中的条目。', 'success');
+      return true;
+    }
+
+    function promoteItemFromEditor(item) {
+      const location = core.findItemLocation(state.document, item && item.id);
+      if (!location) {
+        announce('目标条目不存在，请刷新后重试。', 'warning');
+        return false;
+      }
+      const count = core.descendantCount(location.item);
+      if (!confirm(`将条目“${location.item.title || '未命名条目'}”升级为新分组？原条目及其 ${count} 个子条目会完整保留为新组第一条。`)) {
+        return false;
+      }
+      const result = core.promoteItemToGroup(state.document, location.item.id);
+      if (!result.ok) {
+        announce(result.reason, 'warning');
+        return false;
+      }
+      expandedNavGroupIds.add(result.group.id);
+      scheduleDraftSave();
+      selectAndFocus(result.group.id, result.item.id);
+      announce('条目已升级为新分组，原内容完整保留。', 'success');
+      return true;
+    }
+
     function handleTreeAction(action, itemId) {
       if (action === 'indent-item') return core.indentItem(state.document, itemId);
       if (action === 'outdent-item') return core.outdentItem(state.document, itemId);
@@ -5073,6 +5138,10 @@
         updateAfterAction();
         return;
       }
+      if (action === 'demote-group-to-item') {
+        demoteGroupFromEditor(group);
+        return;
+      }
       if (action === 'duplicate-group') {
         const copy = core.cloneGroupTree(group);
         state.document.groups.splice(groupIndex + 1, 0, copy);
@@ -5101,6 +5170,10 @@
        if (action === 'move-item-up' && location) core.moveItem(location.siblings, location.index, -1);
        if (action === 'move-item-down' && location) core.moveItem(location.siblings, location.index, 1);
        if (action === 'indent-item' || action === 'outdent-item') {
+         if (action === 'outdent-item' && location && location.depth === 1) {
+           promoteItemFromEditor(item);
+           return;
+         }
          const result = handleTreeAction(action, item.id);
          if (!result.ok) {
            announce(result.reason, 'warning');

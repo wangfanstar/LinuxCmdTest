@@ -260,19 +260,24 @@ function finishStructureResize(event) {
   saveStructureWidth(width);
 }
 
+function startWorkspaceResize(event) {
+  if (typeof window.PointerEvent === 'undefined') return;
+  const workspace = document.querySelector('.workspace');
+  const resizer = byId('workspace-resizer');
+  if (!workspace || !resizer) return;
+  event.preventDefault();
+  structureResizeActive = true;
+  workspace.classList.add('is-resizing');
+  resizer.setPointerCapture?.(event.pointerId);
+  updateStructureWidthFromPointer(event);
+}
+
 function initializeStructureResizer() {
   const workspace = document.querySelector('.workspace');
   const resizer = byId('workspace-resizer');
   if (!workspace || !resizer) return;
   setStructureWidth(readStructureWidth());
-  resizer.addEventListener('pointerdown', event => {
-    if (typeof window.PointerEvent === 'undefined') return;
-    event.preventDefault();
-    structureResizeActive = true;
-    workspace.classList.add('is-resizing');
-    resizer.setPointerCapture?.(event.pointerId);
-    updateStructureWidthFromPointer(event);
-  });
+  resizer.addEventListener('pointerdown', startWorkspaceResize);
   resizer.addEventListener('pointermove', updateStructureWidthFromPointer);
   resizer.addEventListener('pointerup', finishStructureResize);
   resizer.addEventListener('pointercancel', finishStructureResize);

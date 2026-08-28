@@ -134,6 +134,92 @@ const groupPaste = core.pasteGroupAfter(groupPasteDocument, 'tree-group', treeDo
 assert.strictEqual(groupPaste.ok, true);
 assert.strictEqual(groupPasteDocument.groups.length, 2);
 assert.notStrictEqual(groupPasteDocument.groups[1].id, 'tree-group');
+const boundaryDocument = {
+  schemaVersion: 2,
+  documentId: 'boundary-doc',
+  meta: { title: '跨层级测试', filename: 'boundary.html', themePreference: 'system' },
+  groups: [
+    {
+      id: 'group-alpha', title: '甲组', collapsed: false,
+      items: [
+        { id: 'alpha-item', title: '甲条目', content: 'alpha', shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] }
+      ]
+    },
+    {
+      id: 'group-beta', title: '乙组', collapsed: true,
+      items: [
+        {
+          id: 'beta-root', title: '乙根', content: 'beta-root', shortcut: 'Alt+7', link: 'https://example.com/beta', note: '保留备注', favorite: true, collapsed: false,
+          children: [
+            {
+              id: 'beta-child', title: '乙子', content: 'beta-child', shortcut: '', link: '', note: '', favorite: false, collapsed: false,
+              children: [
+                { id: 'beta-leaf', title: '乙叶', content: 'beta-leaf', shortcut: '', link: '', note: '', favorite: false, collapsed: false, children: [] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { id: 'group-gamma', title: '丙组', collapsed: false, items: [] }
+  ]
+};
+
+const demotionDocument = core.cloneDocument(boundaryDocument);
+const demotion = core.demoteGroupToItem(demotionDocument, 'group-beta');
+assert.strictEqual(demotion.ok, true);
+assert.deepStrictEqual(Array.from(demotionDocument.groups, group => group.id), ['group-alpha', 'group-gamma']);
+assert.strictEqual(demotion.group.id, 'group-alpha');
+assert.strictEqual(demotion.item.title, '乙组');
+assert.strictEqual(demotion.item.content, '');
+assert.strictEqual(demotion.item.collapsed, true);
+assert.notStrictEqual(demotion.item.id, 'group-beta');
+assert.deepStrictEqual(Array.from(demotion.item.children, item => item.id), ['beta-root']);
+assert.strictEqual(demotion.item.children[0].shortcut, 'Alt+7');
+assert.strictEqual(demotion.item.children[0].link, 'https://example.com/beta');
+assert.strictEqual(demotion.item.children[0].note, '保留备注');
+assert.strictEqual(demotion.item.children[0].favorite, true);
+assert.strictEqual(core.validateDocument(demotionDocument).valid, true);
+
+const firstGroupDocument = core.cloneDocument(boundaryDocument);
+const firstGroupBefore = JSON.stringify(firstGroupDocument);
+const firstGroupDemotion = core.demoteGroupToItem(firstGroupDocument, 'group-alpha');
+assert.strictEqual(firstGroupDemotion.ok, false);
+assert.match(firstGroupDemotion.reason, /第一个分组|上一分组/);
+assert.strictEqual(JSON.stringify(firstGroupDocument), firstGroupBefore);
+
+const deepGroupDocument = core.cloneDocument(treeDocument);
+deepGroupDocument.groups.unshift({ id: 'depth-target', title: '接收组', collapsed: false, items: [] });
+const deepGroupBefore = JSON.stringify(deepGroupDocument);
+const deepGroupDemotion = core.demoteGroupToItem(deepGroupDocument, 'tree-group');
+assert.strictEqual(deepGroupDemotion.ok, false);
+assert.match(deepGroupDemotion.reason, /最多 4 级/);
+assert.strictEqual(JSON.stringify(deepGroupDocument), deepGroupBefore);
+
+const nestedPromotionDocument = core.cloneDocument(boundaryDocument);
+const nestedPromotion = core.promoteItemToGroup(nestedPromotionDocument, 'beta-child');
+assert.strictEqual(nestedPromotion.ok, true);
+assert.deepStrictEqual(Array.from(nestedPromotionDocument.groups, group => group.title), ['甲组', '乙组', '乙子', '丙组']);
+assert.strictEqual(nestedPromotion.group.items.length, 1);
+assert.strictEqual(nestedPromotion.group.items[0].id, 'beta-child');
+assert.strictEqual(nestedPromotion.group.items[0].children[0].id, 'beta-leaf');
+assert.deepStrictEqual(Array.from(nestedPromotionDocument.groups[1].items[0].children, item => item.id), []);
+assert.strictEqual(core.validateDocument(nestedPromotionDocument).valid, true);
+
+const topPromotionDocument = core.cloneDocument(boundaryDocument);
+const topPromotion = core.promoteItemToGroup(topPromotionDocument, 'beta-root');
+assert.strictEqual(topPromotion.ok, true);
+assert.deepStrictEqual(Array.from(topPromotionDocument.groups, group => group.title), ['甲组', '乙组', '乙根', '丙组']);
+assert.strictEqual(topPromotion.item.id, 'beta-root');
+assert.strictEqual(topPromotion.item.shortcut, 'Alt+7');
+assert.strictEqual(topPromotion.item.note, '保留备注');
+assert.strictEqual(topPromotion.item.children[0].id, 'beta-child');
+
+const missingBoundaryDocument = core.cloneDocument(boundaryDocument);
+const missingBoundaryBefore = JSON.stringify(missingBoundaryDocument);
+assert.strictEqual(core.demoteGroupToItem(missingBoundaryDocument, 'missing-group').ok, false);
+assert.strictEqual(core.promoteItemToGroup(missingBoundaryDocument, 'missing-item').ok, false);
+assert.strictEqual(JSON.stringify(missingBoundaryDocument), missingBoundaryBefore);
 assert.strictEqual(core.indentItem(treeDocument, 'root').ok, false);
 assert.strictEqual(core.indentItem(treeDocument, 'leaf').ok, false);
 const migrated = core.migrateDocument(legacyDocument);

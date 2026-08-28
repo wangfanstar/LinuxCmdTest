@@ -1364,6 +1364,56 @@
       return { ok: true, group };
     }
 
+    function groupDemotionStatus(value, groupId) {
+      const groups = Array.isArray(value && value.groups) ? value.groups : [];
+      const index = groups.findIndex(group => String(group && group.id || '') === String(groupId || ''));
+      if (index < 0) return { ok: false, reason: '目标分组不存在，请刷新后重试。' };
+      if (index === 0) return { ok: false, reason: '第一个分组没有可接收它的上一分组。' };
+      const group = groups[index];
+      const targetGroup = groups[index - 1];
+      if (!Array.isArray(group.items) || !Array.isArray(targetGroup && targetGroup.items)) {
+        return { ok: false, reason: '分组条目结构无效，无法转换。' };
+      }
+      const childHeight = group.items.length ? Math.max.apply(null, group.items.map(subtreeHeight)) : 0;
+      if (childHeight + 1 > MAX_ITEM_DEPTH) {
+        return { ok: false, reason: `降级后会超过最多 ${MAX_ITEM_DEPTH} 级。` };
+      }
+      return { ok: true, reason: '', groups, index, group, targetGroup };
+    }
+
+    function demoteGroupToItem(value, groupId) {
+      const status = groupDemotionStatus(value, groupId);
+      if (!status.ok) return status;
+      const item = createItem({
+        title: String(status.group.title || '').trim() || '未命名分组',
+        collapsed: Boolean(status.group.collapsed),
+        children: status.group.items
+      });
+      status.targetGroup.items.push(item);
+      status.groups.splice(status.index, 1);
+      return { ok: true, reason: '', group: status.targetGroup, item, sourceGroup: status.group };
+    }
+
+    function promoteItemToGroup(value, itemId) {
+      const groups = Array.isArray(value && value.groups) ? value.groups : [];
+      const location = findItemLocation(value, itemId);
+      if (!location) return { ok: false, reason: '目标条目不存在，请刷新后重试。' };
+      const groupIndex = groups.indexOf(location.group);
+      if (groupIndex < 0 || !Array.isArray(location.siblings)) {
+        return { ok: false, reason: '条目所在分组结构无效，无法转换。' };
+      }
+      const sourceGroup = location.group;
+      const item = location.item;
+      const group = createGroup({
+        title: String(item.title || '').trim() || '未命名条目',
+        collapsed: false,
+        items: [item]
+      });
+      location.siblings.splice(location.index, 1);
+      groups.splice(groupIndex + 1, 0, group);
+      return { ok: true, reason: '', group, item, sourceGroup };
+    }
+
     function indentItem(value, itemId) {
       const location = findItemLocation(value, itemId);
       if (!location || location.index === 0 || location.depth >= MAX_ITEM_DEPTH || (location && location.depth + subtreeHeight(location.item) > MAX_ITEM_DEPTH)) {
@@ -3702,6 +3752,9 @@
       pasteItemAsChild,
       pasteItemAsSibling,
       pasteGroupAfter,
+      groupDemotionStatus,
+      demoteGroupToItem,
+      promoteItemToGroup,
       indentItem,
       outdentItem,
       resolveBatchSeparator,

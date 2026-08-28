@@ -10,6 +10,42 @@ const appMatch = html.match(/<script id="app-logic">([\s\S]*?)<\/script>/);
 assert.ok(appMatch, 'app-logic script must exist');
 const appScript = appMatch[1];
 
+function extractFunctionSource(source, name) {
+  const match = source.match(new RegExp(`function\\s+${name}\\s*\\(`));
+  assert.ok(match, `missing function ${name}`);
+  const openBrace = source.indexOf('{', match.index);
+  assert.ok(openBrace >= 0, `missing function body for ${name}`);
+  let depth = 0;
+  let state = 'code';
+  let escaped = false;
+  for (let index = openBrace; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (state === 'line-comment') {
+      if (char === '\n' || char === '\r') state = 'code';
+      continue;
+    }
+    if (state === 'block-comment') {
+      if (char === '*' && next === '/') { state = 'code'; index += 1; }
+      continue;
+    }
+    if (state === 'single' || state === 'double' || state === 'template') {
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if ((state === 'single' && char === "'") || (state === 'double' && char === '"') || (state === 'template' && char === '`')) state = 'code';
+      continue;
+    }
+    if (char === '/' && next === '/') { state = 'line-comment'; index += 1; continue; }
+    if (char === '/' && next === '*') { state = 'block-comment'; index += 1; continue; }
+    if (char === "'") { state = 'single'; continue; }
+    if (char === '"') { state = 'double'; continue; }
+    if (char === '`') { state = 'template'; continue; }
+    if (char === '{') depth += 1;
+    if (char === '}' && --depth === 0) return source.slice(match.index, index + 1);
+  }
+  assert.fail(`unterminated function ${name}`);
+}
+
 for (const id of [
   'back-link',
   'page-title',
@@ -81,41 +117,62 @@ assert.match(html, /generation-bar[\s\S]*position:\s*sticky/);
 assert.match(html, /generation-bar[\s\S]*top:\s*0/);
 assert.match(html, /generation-bar[\s\S]*generate-button/);
 assert.match(html, /\.app-shell\s*\{[^}]*width:\s*min\(1880px,\s*calc\(100%\s*-\s*32px\)\)/);
-assert.match(html, /--structure-width:\s*330px/);
 assert.match(html, /\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(260px,\s*var\(--structure-width[^)]*\)\)\s+8px\s+minmax\(560px,\s*1\.7fr\)\s+minmax\(320px,\s*1fr\)\)/);
+assert.match(html, /\.workspace\s*\{[^}]*--structure-width:\s*330px[^}]*\}/);
 assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-label=["']调整左侧导航宽度["'])[^>]*>/);
 assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuemin=["']260["'])[^>]*>/);
 assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuemax=["']520["'])[^>]*>/);
 assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-valuenow=["']330["'])[^>]*>/);
 assert.match(html, /<button(?=[^>]*id=["']workspace-resizer["'])(?=[^>]*aria-orientation=["']vertical["'])[^>]*>/);
+assert.match(html, /@media\s*\(max-width:\s*960px\)[\s\S]*?workspace-resizer[^}]*display:\s*none/);
+
 assert.match(appScript, /const\s+STRUCTURE_WIDTH_KEY\s*=/);
 assert.match(appScript, /const\s+STRUCTURE_WIDTH_DEFAULT\s*=/);
 assert.match(appScript, /const\s+STRUCTURE_WIDTH_MIN\s*=\s*260/);
 assert.match(appScript, /const\s+STRUCTURE_WIDTH_MAX\s*=\s*520/);
-assert.match(appScript, /function\s+clampStructureWidth\s*\(/);
-assert.match(appScript, /Number\.isFinite/);
-assert.match(appScript, /Math\.min/);
-assert.match(appScript, /Math\.max/);
-assert.match(appScript, /function\s+readStructureWidth\s*\(/);
-assert.match(appScript, /readStructureWidth[\s\S]*localStorage\.getItem\(STRUCTURE_WIDTH_KEY[\s\S]*catch[\s\S]*STRUCTURE_WIDTH_DEFAULT/);
-assert.match(appScript, /function\s+setStructureWidth\s*\(/);
-assert.match(appScript, /setStructureWidth[\s\S]*style\.setProperty\(['"]--structure-width['"][\s\S]*aria-valuenow/);
-assert.match(appScript, /localStorage\.setItem\(STRUCTURE_WIDTH_KEY/);
-assert.match(appScript, /function\s+startWorkspaceResize\s*\(/);
-assert.match(appScript, /pointerdown/);
-assert.match(appScript, /pointermove/);
-assert.match(appScript, /pointerup/);
-assert.match(appScript, /pointercancel/);
-assert.match(appScript, /setPointerCapture/);
-assert.match(appScript, /releasePointerCapture/);
-assert.match(appScript, /dblclick/);
-assert.match(appScript, /ArrowLeft/);
-assert.match(appScript, /ArrowRight/);
-assert.match(appScript, /shiftKey/);
-assert.match(appScript, /event\.key\s*===\s*["']Home["']/);
-assert.match(appScript, /event\.key\s*===\s*["']End["']/);
-assert.match(appScript, /startWorkspaceResize\s*\(/);
-assert.match(html, /@media\s*\(max-width:\s*960px\)[\s\S]*?workspace-resizer[^}]*display:\s*none/);
+const clampSource = extractFunctionSource(appScript, 'clampStructureWidth');
+const readSource = extractFunctionSource(appScript, 'readStructureWidth');
+const setSource = extractFunctionSource(appScript, 'setStructureWidth');
+const startSource = extractFunctionSource(appScript, 'startWorkspaceResize');
+const updateSource = extractFunctionSource(appScript, 'updateStructureWidthFromPointer');
+const finishSource = extractFunctionSource(appScript, 'finishWorkspaceResize');
+const initializeSource = extractFunctionSource(appScript, 'initializeWorkspaceResizer');
+assert.match(clampSource, /Number\.isFinite/);
+assert.match(clampSource, /STRUCTURE_WIDTH_DEFAULT/);
+assert.match(clampSource, /STRUCTURE_WIDTH_MIN/);
+assert.match(clampSource, /STRUCTURE_WIDTH_MAX/);
+assert.match(clampSource, /Math\.min/);
+assert.match(clampSource, /Math\.max/);
+assert.match(readSource, /localStorage\.getItem\(STRUCTURE_WIDTH_KEY/);
+assert.match(readSource, /catch/);
+assert.match(readSource, /STRUCTURE_WIDTH_DEFAULT/);
+assert.match(setSource, /style\.setProperty\(['"]--structure-width['"]/);
+assert.match(setSource, /setAttribute\(['"]aria-valuenow['"]/);
+assert.match(setSource, /localStorage\.setItem\(STRUCTURE_WIDTH_KEY/);
+assert.match(startSource, /pointerdown/);
+assert.match(startSource, /preventDefault\(\)/);
+assert.match(startSource, /structureResizeActive/);
+assert.match(startSource, /setPointerCapture/);
+assert.match(startSource, /updateStructureWidthFromPointer/);
+assert.match(updateSource, /clientX/);
+assert.match(updateSource, /getBoundingClientRect/);
+assert.match(updateSource, /setStructureWidth/);
+assert.match(finishSource, /pointerup/);
+assert.match(finishSource, /pointercancel/);
+assert.match(finishSource, /releasePointerCapture/);
+assert.match(finishSource, /saveStructureWidth/);
+assert.match(initializeSource, /setStructureWidth\(readStructureWidth\(\)\)/);
+assert.match(initializeSource, /pointerdown[\s\S]*startWorkspaceResize/);
+assert.match(initializeSource, /pointermove/);
+assert.match(initializeSource, /pointerup/);
+assert.match(initializeSource, /pointercancel/);
+assert.match(initializeSource, /dblclick/);
+assert.match(initializeSource, /keydown/);
+assert.match(initializeSource, /ArrowLeft/);
+assert.match(initializeSource, /ArrowRight/);
+assert.match(initializeSource, /shiftKey/);
+assert.match(initializeSource, /event\.key\s*===\s*["']Home["']/);
+assert.match(initializeSource, /event\.key\s*===\s*["']End["']/);
 assert.match(html, /edit-meta-fields/);
 assert.match(html, /preview-command-toggle/);
 assert.match(html, /显示全部命令/);

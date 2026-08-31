@@ -320,6 +320,15 @@ def resolve_title(reg_name_norm, titles):
     return best
 
 
+def _qualified(rn, rec):
+    """Only accept a *name-only* (non-address) match when the register-file name is
+    a strictly longer, more qualified form of the manual register name. A bare
+    generic token such as 'CONTROL' must not bind to a manual 'Control' record
+    from an unrelated block/domain."""
+    nm = compact(rec.get("name") or "")
+    return bool(nm) and len(rn) > len(nm) and rn.endswith(nm)
+
+
 def _pick_rep(matches, rn):
     """Pick a representative catalog record for a register whose exact address is
     missing from the manual, but whose name suffix matches catalog entries.
@@ -327,7 +336,8 @@ def _pick_rep(matches, rn):
     Disambiguate by domain: a register name such as '...FEC_STATUS_1' should bind
     to catalog records in the 'FEC' domain rather than the equally-named 'PCS'
     Status registers. Prefer the domain group with uniform text; a group must be
-    homogeneous (same text) to be a safe guess.
+    homogeneous (same text) to be a safe guess. Every name-only pick is guarded by
+    _qualified(), so a bare/generic register name is never guessed.
     """
     if not matches:
         return None
@@ -337,10 +347,10 @@ def _pick_rep(matches, rn):
     for dom, recs in groups.items():
         if dom and dom in rn:
             texts = {(c.get("text") or "").strip() for c in recs}
-            if len(texts) == 1 and next(iter(texts)):
+            if len(texts) == 1 and next(iter(texts)) and _qualified(rn, recs[0]):
                 return recs[0]
     texts = {(c.get("text") or "").strip() for c in matches}
-    if len(texts) == 1 and next(iter(texts)):
+    if len(texts) == 1 and next(iter(texts)) and _qualified(rn, matches[0]):
         return matches[0]
     return None
 
@@ -357,7 +367,7 @@ def match_register(reg, reg_by_name, reg_by_addr, titles):
     if t:
         cands = reg_by_name.get(t) or []
         if len(cands) == 1:
-            return cands[0]
+            return cands[0] if _qualified(rn, cands[0]) else None
         if len(cands) > 1 and a is not None:
             for c in cands:
                 if a in (c.get("addresses") or []):
@@ -368,7 +378,7 @@ def match_register(reg, reg_by_name, reg_by_addr, titles):
         if name_norm and rn.endswith(name_norm):
             matches.extend(recs)
     if len(matches) == 1:
-        return matches[0]
+        return matches[0] if _qualified(rn, matches[0]) else None
     if len(matches) > 1 and a is not None:
         for c in matches:
             if a in (c.get("addresses") or []):

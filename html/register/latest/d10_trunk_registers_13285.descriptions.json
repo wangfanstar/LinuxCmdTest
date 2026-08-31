@@ -2022,17 +2022,6 @@
         "pdfPage": 120
       }
     },
-    "reg\u001fBWLI_SP_E\u001fCPP_QC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fBWLI_SP_E\u001fCPP_QC\u001fCONTROL\u001fBLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fBWLI_SP_E\u001fCPP_QC\u001fINTR_STS_0": {
       "shortDesc": "A count of transmitted PFC frame with priority",
       "fullDesc": "A count of transmitted PFC frame with priority\n0.",
@@ -2276,15 +2265,6 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
-      }
-    },
-    "reg\u001fBWLI_SP_E\u001fCPP_SCH\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {},
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fBWLI_SP_E\u001fCPP_SCH\u001fINTR_STS_0": {
@@ -3792,15 +3772,6 @@
         "pdfPage": 114
       }
     },
-    "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_RX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {},
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_RX\u001fINTR_STS_0": {
       "shortDesc": "A count of transmitted PFC frame with priority",
       "fullDesc": "A count of transmitted PFC frame with priority\n0.",
@@ -4308,17 +4279,6 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
-      }
-    },
-    "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_TX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_TX\u001fCONTROL\u001fBLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_TX\u001fINTR_STS_0": {
@@ -5476,17 +5436,6 @@
         "pdfPage": 85
       }
     },
-    "reg\u001fEGR_L3\u001fLCAC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fEGR_L3\u001fLCAC\u001fCONTROL\u001fTKN_BLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fEGR_L3\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -6461,17 +6410,6 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
-      }
-    },
-    "reg\u001fEMF\u001fLCAC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fEMF\u001fLCAC\u001fCONTROL\u001fTKN_BLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fEMF\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -27189,15 +27127,6 @@
         "pdfPage": 86
       }
     },
-    "reg\u001fHPP_MACI\u001fMACI_RX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {},
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fHPP_MACI\u001fMACI_RX\u001fECC_SINGLE_ERROR_MASK_0": {
       "shortDesc": "A count of transmitted packets with 65 to 127",
       "fullDesc": "A count of transmitted packets with 65 to 127\noctets length. (both valid and invalid packets).\nRecord high 32-bit of\netherStatsTxPkts65to127Octets",
@@ -27881,17 +27810,6 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 119
-      }
-    },
-    "reg\u001fINGR_L3\u001fLCAC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fINGR_L3\u001fLCAC\u001fCONTROL\u001fTKN_BLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fINGR_L3\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -28873,17 +28791,6 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 117
-      }
-    },
-    "reg\u001fINGR_PARSER\u001fLCAC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fINGR_PARSER\u001fLCAC\u001fCONTROL\u001fTKN_BLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fINGR_PARSER\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -67555,17 +67462,6 @@
         "pdfPage": 120
       }
     },
-    "reg\u001fTM\u001fQC\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fTM\u001fQC\u001fCONTROL\u001fBLOCK_EN\u001f0\u001f0": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fTM\u001fQC\u001fINTR_STS_0": {
       "shortDesc": "A count of transmitted PFC frame with priority",
       "fullDesc": "A count of transmitted PFC frame with priority\n0.",
@@ -67897,15 +67793,6 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
-      }
-    },
-    "reg\u001fTM\u001fSCH\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {},
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fTM\u001fSCH\u001fINTR_STS_0": {
@@ -68752,23 +68639,6 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
-      }
-    },
-    "reg\u001fTM\u001fTM_MIRX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fENQ_CREDIT_EN\u001f8\u001f8": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fAQM_CREDIT_EN\u001f9\u001f9": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fTL_NOC_CREDIT_EN\u001f10\u001f10": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fRN_NOC_CREDIT_EN\u001f11\u001f11": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fSPARE0_CREDIT_EN\u001f16\u001f16": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fSPARE1_CREDIT_EN\u001f17\u001f17": "FEC Control Register",
-        "reg\u001fTM\u001fTM_MIRX\u001fCONTROL\u001fCN11_CREDIT_EN\u001f18\u001f18": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fTM\u001fTM_MIRX\u001fSIM_MODE": {
@@ -69911,23 +69781,6 @@
         "pdfPage": 120
       }
     },
-    "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fENQ_CREDIT_EN\u001f8\u001f8": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fAQM_CREDIT_EN\u001f9\u001f9": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fTL_NOC_CREDIT_EN\u001f10\u001f10": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fRN_NOC_CREDIT_EN\u001f11\u001f11": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fSPARE0_CREDIT_EN\u001f16\u001f16": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fSPARE1_CREDIT_EN\u001f17\u001f17": "FEC Control Register",
-        "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL\u001fCN11_CREDIT_EN\u001f18\u001f18": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fTM_N0\u001fCPP_MIRX\u001fSIM_MODE": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -70914,23 +70767,6 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 85
-      }
-    },
-    "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fENQ_CREDIT_EN\u001f8\u001f8": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fAQM_CREDIT_EN\u001f9\u001f9": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fTL_NOC_CREDIT_EN\u001f10\u001f10": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fRN_NOC_CREDIT_EN\u001f11\u001f11": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fSPARE0_CREDIT_EN\u001f16\u001f16": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fSPARE1_CREDIT_EN\u001f17\u001f17": "FEC Control Register",
-        "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL\u001fCN11_CREDIT_EN\u001f18\u001f18": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fTM_W7\u001fCPP_MIRX\u001fSIM_MODE": {
@@ -72001,23 +71837,6 @@
         "pdfPage": 120
       }
     },
-    "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fENQ_CREDIT_EN\u001f8\u001f8": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fAQM_CREDIT_EN\u001f9\u001f9": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fTL_NOC_CREDIT_EN\u001f10\u001f10": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fRN_NOC_CREDIT_EN\u001f11\u001f11": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fSPARE0_CREDIT_EN\u001f16\u001f16": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fSPARE1_CREDIT_EN\u001f17\u001f17": "FEC Control Register",
-        "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL\u001fCN11_CREDIT_EN\u001f18\u001f18": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
-      }
-    },
     "reg\u001fUMI_B\u001fUM_MIRX\u001fSIM_MODE": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -73004,23 +72823,6 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 85
-      }
-    },
-    "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL": {
-      "shortDesc": "FEC Control Register",
-      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
-      "fields": {
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fENQ_CREDIT_EN\u001f8\u001f8": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fAQM_CREDIT_EN\u001f9\u001f9": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fTL_NOC_CREDIT_EN\u001f10\u001f10": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fRN_NOC_CREDIT_EN\u001f11\u001f11": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fSPARE0_CREDIT_EN\u001f16\u001f16": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fSPARE1_CREDIT_EN\u001f17\u001f17": "FEC Control Register",
-        "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL\u001fCN11_CREDIT_EN\u001f18\u001f18": "FEC Control Register"
-      },
-      "source": {
-        "manual": "CEPCS_reference_guide_v1.82.pdf",
-        "pdfPage": 86
       }
     },
     "reg\u001fUMI_T\u001fUM_MIRX\u001fSIM_MODE": {
@@ -74012,7 +73814,7 @@
       }
     }
   },
-  "generatedAt": "2026-08-31T07:32:35Z",
+  "generatedAt": "2026-08-31T07:45:53Z",
   "sourceRegisterFile": "d10_trunk_registers_13285.json",
   "sourceManuals": [
     "CEFEC_reference_guide_v1.1.pdf",

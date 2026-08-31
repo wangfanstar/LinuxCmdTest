@@ -348,6 +348,13 @@ def match_register(reg, reg_by_name, reg_by_addr, titles):
         for c in matches:
             if a in (c.get("addresses") or []):
                 return c
+    # Same register type repeated across instances/copies: if every candidate that
+    # ends with this name shares identical text, use it even if this exact address
+    # is missing from the manual (e.g. FEC Control at 0x100 not in the sampled table).
+    if len(matches) > 1:
+        texts = {(c.get("text") or "").strip() for c in matches}
+        if len(texts) == 1 and next(iter(texts)):
+            return matches[0]
     return None
 
 

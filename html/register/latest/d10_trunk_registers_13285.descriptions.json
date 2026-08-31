@@ -1729,6 +1729,15 @@
         "pdfPage": 120
       }
     },
+    "reg\u001fBWLI_SP_E\u001fCPP_QC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fBWLI_SP_E\u001fCPP_QC\u001fINTR_STS_0": {
       "shortDesc": "A count of transmitted PFC frame with priority",
       "fullDesc": "A count of transmitted PFC frame with priority\n0.",
@@ -1943,6 +1952,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fBWLI_SP_E\u001fCPP_SCH\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fBWLI_SP_E\u001fCPP_SCH\u001fINTR_STS_0": {
@@ -3322,6 +3340,15 @@
         "pdfPage": 114
       }
     },
+    "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_RX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_RX\u001fINTR_STS_0": {
       "shortDesc": "A count of transmitted PFC frame with priority",
       "fullDesc": "A count of transmitted PFC frame with priority\n0.",
@@ -3644,6 +3671,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_TX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fCPP_MACI_PIPE\u001fCPP_MACI_TX\u001fINTR_STS_0": {
@@ -4537,6 +4573,15 @@
         "pdfPage": 85
       }
     },
+    "reg\u001fEGR_L3\u001fLCAC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fEGR_L3\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -5192,6 +5237,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fEMF\u001fLCAC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fEMF\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -14657,6 +14711,26 @@
         "pdfPage": 114
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1": {
+      "shortDesc": "PCS control1 register.",
+      "fullDesc": "PCS control1 register.\n[15] Reserved.\n[14] Loopback.\n[13] rx bypass scrambler\n[12] tx bypass scrambler\n[11:0] Reserved.",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1\u001fLOOPBACK\u001f14\u001f14": "Loopback."
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 53
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_2": {
+      "shortDesc": "PCS Status2 Register",
+      "fullDesc": "PCS Status2 Register\n[15:4] Reserved\n[3:0] indicate which speed mode is currently running on\nthis channel.\nIf it doesn't have any mode specified, it'll have a default\nvalue of 4'hf to indicate speed mode is not being\nconfigured.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 54
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_3": {
       "shortDesc": "PCS Status3 Register",
       "fullDesc": "PCS Status3 Register\n[15] Latched block lock\n[14] Latched high BER\n[13:8] BER\n[7:0] Errored blocks\nFor all register field with a LH/LL attribute, the value will\nkeep high/low until it was read.\n[13:8] record ber counter value, when it updates to over\nthe max value, it'll keep to 6'h3f and not roll over.",
@@ -15206,6 +15280,78 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 52
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE0_MAPPING": {
+      "shortDesc": "Lane 0 mapping register",
+      "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE1_MAPPING": {
+      "shortDesc": "Lane 1 mapping register",
+      "fullDesc": "Lane 1 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 1",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE8_MAPPING": {
@@ -15883,6 +16029,28 @@
         "pdfPage": 120
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_0": {
+      "shortDesc": "FEC Status0 Register",
+      "fullDesc": "FEC Status0 Register\n[15:0] Indicate lane 15~10 is locked.\nFor 10G/25G FEC bypass/40G, it indicates a pcs\nblock lock, and for other mode, it means alignment\nmarker are locked for this lane.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -16260,6 +16428,17 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 86
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD": {
+      "shortDesc": "PCS TX FIFO threshold register.",
+      "fullDesc": "PCS TX FIFO threshold register.\n[3:0] PCS TX FIFO threshold\nFor 10G/25G, default value is 16'h08 and it's set\nto 16'h0c for other mode.",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD\u001fPCS_TX_FIFO_THRESHOLD\u001f0\u001f4": "PCS TX FIFO threshold"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 119
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_PCS_100G_AM_PATTERN_LANE0_0": {
@@ -17214,6 +17393,150 @@
         "pdfPage": 55
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -17230,6 +17553,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 55
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_1_FEC_CONTROL": {
@@ -17723,6 +18064,42 @@
         "pdfPage": 57
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_2_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_2_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_2_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_2_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_2_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -18034,6 +18411,150 @@
         "pdfPage": 59
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -18050,6 +18571,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 59
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_3_FEC_CONTROL": {
@@ -19178,6 +19717,150 @@
         "pdfPage": 66
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -19194,6 +19877,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 66
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_5_FEC_CONTROL": {
@@ -19687,6 +20388,42 @@
         "pdfPage": 68
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_6_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_6_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_6_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_6_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_6_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -19998,6 +20735,141 @@
         "pdfPage": 70
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -20014,6 +20886,37 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 70
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_7_FEC_STATUS_0": {
@@ -21666,6 +22569,15 @@
         "pdfPage": 86
       }
     },
+    "reg\u001fHPP_MACI\u001fMACI_RX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fHPP_MACI\u001fMACI_RX\u001fECC_SINGLE_ERROR_MASK_0": {
       "shortDesc": "A count of transmitted packets with 65 to 127",
       "fullDesc": "A count of transmitted packets with 65 to 127\noctets length. (both valid and invalid packets).\nRecord high 32-bit of\netherStatsTxPkts65to127Octets",
@@ -22177,6 +23089,15 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 119
+      }
+    },
+    "reg\u001fINGR_L3\u001fLCAC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fINGR_L3\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -22933,6 +23854,15 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 117
+      }
+    },
+    "reg\u001fINGR_PARSER\u001fLCAC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fINGR_PARSER\u001fLCAC\u001fFIFO_OVER_UNDER_FLOW": {
@@ -30940,6 +31870,26 @@
         "pdfPage": 114
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1": {
+      "shortDesc": "PCS control1 register.",
+      "fullDesc": "PCS control1 register.\n[15] Reserved.\n[14] Loopback.\n[13] rx bypass scrambler\n[12] tx bypass scrambler\n[11:0] Reserved.",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1\u001fLOOPBACK\u001f14\u001f14": "Loopback."
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 53
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_2": {
+      "shortDesc": "PCS Status2 Register",
+      "fullDesc": "PCS Status2 Register\n[15:4] Reserved\n[3:0] indicate which speed mode is currently running on\nthis channel.\nIf it doesn't have any mode specified, it'll have a default\nvalue of 4'hf to indicate speed mode is not being\nconfigured.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 54
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_3": {
       "shortDesc": "PCS Status3 Register",
       "fullDesc": "PCS Status3 Register\n[15] Latched block lock\n[14] Latched high BER\n[13:8] BER\n[7:0] Errored blocks\nFor all register field with a LH/LL attribute, the value will\nkeep high/low until it was read.\n[13:8] record ber counter value, when it updates to over\nthe max value, it'll keep to 6'h3f and not roll over.",
@@ -31489,6 +32439,78 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 52
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE0_MAPPING": {
+      "shortDesc": "Lane 0 mapping register",
+      "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE1_MAPPING": {
+      "shortDesc": "Lane 1 mapping register",
+      "fullDesc": "Lane 1 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 1",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE8_MAPPING": {
@@ -32166,6 +33188,28 @@
         "pdfPage": 120
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_0": {
+      "shortDesc": "FEC Status0 Register",
+      "fullDesc": "FEC Status0 Register\n[15:0] Indicate lane 15~10 is locked.\nFor 10G/25G FEC bypass/40G, it indicates a pcs\nblock lock, and for other mode, it means alignment\nmarker are locked for this lane.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -32543,6 +33587,17 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 86
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD": {
+      "shortDesc": "PCS TX FIFO threshold register.",
+      "fullDesc": "PCS TX FIFO threshold register.\n[3:0] PCS TX FIFO threshold\nFor 10G/25G, default value is 16'h08 and it's set\nto 16'h0c for other mode.",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD\u001fPCS_TX_FIFO_THRESHOLD\u001f0\u001f4": "PCS TX FIFO threshold"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 119
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_100G_AM_PATTERN_LANE0_0": {
@@ -33497,6 +34552,150 @@
         "pdfPage": 55
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -33513,6 +34712,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 55
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_FEC_CONTROL": {
@@ -34006,6 +35223,42 @@
         "pdfPage": 57
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -34317,6 +35570,150 @@
         "pdfPage": 59
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -34333,6 +35730,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 59
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_FEC_CONTROL": {
@@ -35461,6 +36876,150 @@
         "pdfPage": 66
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -35477,6 +37036,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 66
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_FEC_CONTROL": {
@@ -35970,6 +37547,42 @@
         "pdfPage": 68
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -36281,6 +37894,141 @@
         "pdfPage": 70
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -36297,6 +38045,37 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 70
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_STATUS_0": {
@@ -37841,6 +39620,26 @@
         "pdfPage": 114
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1": {
+      "shortDesc": "PCS control1 register.",
+      "fullDesc": "PCS control1 register.\n[15] Reserved.\n[14] Loopback.\n[13] rx bypass scrambler\n[12] tx bypass scrambler\n[11:0] Reserved.",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1\u001fLOOPBACK\u001f14\u001f14": "Loopback."
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 53
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_2": {
+      "shortDesc": "PCS Status2 Register",
+      "fullDesc": "PCS Status2 Register\n[15:4] Reserved\n[3:0] indicate which speed mode is currently running on\nthis channel.\nIf it doesn't have any mode specified, it'll have a default\nvalue of 4'hf to indicate speed mode is not being\nconfigured.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 54
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_3": {
       "shortDesc": "PCS Status3 Register",
       "fullDesc": "PCS Status3 Register\n[15] Latched block lock\n[14] Latched high BER\n[13:8] BER\n[7:0] Errored blocks\nFor all register field with a LH/LL attribute, the value will\nkeep high/low until it was read.\n[13:8] record ber counter value, when it updates to over\nthe max value, it'll keep to 6'h3f and not roll over.",
@@ -38390,6 +40189,78 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 52
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE0_MAPPING": {
+      "shortDesc": "Lane 0 mapping register",
+      "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE1_MAPPING": {
+      "shortDesc": "Lane 1 mapping register",
+      "fullDesc": "Lane 1 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 1",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE8_MAPPING": {
@@ -39067,6 +40938,28 @@
         "pdfPage": 120
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_0": {
+      "shortDesc": "FEC Status0 Register",
+      "fullDesc": "FEC Status0 Register\n[15:0] Indicate lane 15~10 is locked.\nFor 10G/25G FEC bypass/40G, it indicates a pcs\nblock lock, and for other mode, it means alignment\nmarker are locked for this lane.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -39444,6 +41337,17 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD": {
+      "shortDesc": "PCS TX FIFO threshold register.",
+      "fullDesc": "PCS TX FIFO threshold register.\n[3:0] PCS TX FIFO threshold\nFor 10G/25G, default value is 16'h08 and it's set\nto 16'h0c for other mode.",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD\u001fPCS_TX_FIFO_THRESHOLD\u001f0\u001f4": "PCS TX FIFO threshold"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 119
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_100G_AM_PATTERN_LANE0_0": {
@@ -40398,6 +42302,150 @@
         "pdfPage": 55
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -40414,6 +42462,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 55
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_FEC_CONTROL": {
@@ -40907,6 +42973,42 @@
         "pdfPage": 57
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -41218,6 +43320,150 @@
         "pdfPage": 59
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -41234,6 +43480,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 59
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_FEC_CONTROL": {
@@ -42362,6 +44626,150 @@
         "pdfPage": 66
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -42378,6 +44786,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 66
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_FEC_CONTROL": {
@@ -42871,6 +45297,42 @@
         "pdfPage": 68
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -43182,6 +45644,141 @@
         "pdfPage": 70
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -43198,6 +45795,37 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 70
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_STATUS_0": {
@@ -43716,6 +46344,26 @@
         "pdfPage": 114
       }
     },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1": {
+      "shortDesc": "PCS control1 register.",
+      "fullDesc": "PCS control1 register.\n[15] Reserved.\n[14] Loopback.\n[13] rx bypass scrambler\n[12] tx bypass scrambler\n[11:0] Reserved.",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1\u001fLOOPBACK\u001f14\u001f14": "Loopback."
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 53
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_STATUS_2": {
+      "shortDesc": "PCS Status2 Register",
+      "fullDesc": "PCS Status2 Register\n[15:4] Reserved\n[3:0] indicate which speed mode is currently running on\nthis channel.\nIf it doesn't have any mode specified, it'll have a default\nvalue of 4'hf to indicate speed mode is not being\nconfigured.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 54
+      }
+    },
     "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_STATUS_3": {
       "shortDesc": "PCS Status3 Register",
       "fullDesc": "PCS Status3 Register\n[15] Latched block lock\n[14] Latched high BER\n[13:8] BER\n[7:0] Errored blocks\nFor all register field with a LH/LL attribute, the value will\nkeep high/low until it was read.\n[13:8] record ber counter value, when it updates to over\nthe max value, it'll keep to 6'h3f and not roll over.",
@@ -43770,6 +46418,28 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_0": {
+      "shortDesc": "FEC Status0 Register",
+      "fullDesc": "FEC Status0 Register\n[15:0] Indicate lane 15~10 is locked.\nFor 10G/25G FEC bypass/40G, it indicates a pcs\nblock lock, and for other mode, it means alignment\nmarker are locked for this lane.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
@@ -44005,6 +46675,17 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 85
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD": {
+      "shortDesc": "PCS TX FIFO threshold register.",
+      "fullDesc": "PCS TX FIFO threshold register.\n[3:0] PCS TX FIFO threshold\nFor 10G/25G, default value is 16'h08 and it's set\nto 16'h0c for other mode.",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD\u001fPCS_TX_FIFO_THRESHOLD\u001f0\u001f4": "PCS TX FIFO threshold"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 119
       }
     },
     "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_PCS_100G_AM_PATTERN_LANE0_0": {
@@ -46473,6 +49154,26 @@
         "pdfPage": 114
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1": {
+      "shortDesc": "PCS control1 register.",
+      "fullDesc": "PCS control1 register.\n[15] Reserved.\n[14] Loopback.\n[13] rx bypass scrambler\n[12] tx bypass scrambler\n[11:0] Reserved.",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_CONTROL_1\u001fLOOPBACK\u001f14\u001f14": "Loopback."
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 53
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_2": {
+      "shortDesc": "PCS Status2 Register",
+      "fullDesc": "PCS Status2 Register\n[15:4] Reserved\n[3:0] indicate which speed mode is currently running on\nthis channel.\nIf it doesn't have any mode specified, it'll have a default\nvalue of 4'hf to indicate speed mode is not being\nconfigured.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 54
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_STATUS_3": {
       "shortDesc": "PCS Status3 Register",
       "fullDesc": "PCS Status3 Register\n[15] Latched block lock\n[14] Latched high BER\n[13:8] BER\n[7:0] Errored blocks\nFor all register field with a LH/LL attribute, the value will\nkeep high/low until it was read.\n[13:8] record ber counter value, when it updates to over\nthe max value, it'll keep to 6'h3f and not roll over.",
@@ -47022,6 +49723,78 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 52
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE0_MAPPING": {
+      "shortDesc": "Lane 0 mapping register",
+      "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE1_MAPPING": {
+      "shortDesc": "Lane 1 mapping register",
+      "fullDesc": "Lane 1 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 1",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_M100GNF_LANE8_MAPPING": {
@@ -47699,6 +50472,28 @@
         "pdfPage": 120
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_0": {
+      "shortDesc": "FEC Status0 Register",
+      "fullDesc": "FEC Status0 Register\n[15:0] Indicate lane 15~10 is locked.\nFor 10G/25G FEC bypass/40G, it indicates a pcs\nblock lock, and for other mode, it means alignment\nmarker are locked for this lane.",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -48076,6 +50871,17 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD": {
+      "shortDesc": "PCS TX FIFO threshold register.",
+      "fullDesc": "PCS TX FIFO threshold register.\n[3:0] PCS TX FIFO threshold\nFor 10G/25G, default value is 16'h08 and it's set\nto 16'h0c for other mode.",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_TX_FIFO_THRESHOLD\u001fPCS_TX_FIFO_THRESHOLD\u001f0\u001f4": "PCS TX FIFO threshold"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 119
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_PCS_100G_AM_PATTERN_LANE0_0": {
@@ -49030,6 +51836,150 @@
         "pdfPage": 55
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -49046,6 +51996,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 55
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_1_FEC_CONTROL": {
@@ -49539,6 +52507,42 @@
         "pdfPage": 57
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_2_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -49850,6 +52854,150 @@
         "pdfPage": 59
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -49866,6 +53014,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 59
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_3_FEC_CONTROL": {
@@ -50994,6 +54160,150 @@
         "pdfPage": 66
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE18": {
+      "shortDesc": "BIP error counter lane 18 register",
+      "fullDesc": "BIP error counter lane 18 register\n[15:0] Errors detected by BIP in PCS lane 18",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -51010,6 +54320,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 66
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_5_FEC_CONTROL": {
@@ -51503,6 +54831,42 @@
         "pdfPage": 68
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE4_MAPPING": {
+      "shortDesc": "Lane 4 mapping register",
+      "fullDesc": "Lane 4 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE5_MAPPING": {
+      "shortDesc": "Lane 5 mapping register",
+      "fullDesc": "Lane 5 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE6_MAPPING": {
+      "shortDesc": "Lane 6 mapping register",
+      "fullDesc": "Lane 6 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_LANE7_MAPPING": {
+      "shortDesc": "Lane 7 mapping register",
+      "fullDesc": "Lane 7 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 51
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_6_FEC_CONTROL": {
       "shortDesc": "FEC Control Register",
       "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
@@ -51814,6 +55178,141 @@
         "pdfPage": 70
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE4": {
+      "shortDesc": "BIP error counter lane 4 register",
+      "fullDesc": "BIP error counter lane 4 register\n[15:0] Errors detected by BIP in PCS lane 4",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE5": {
+      "shortDesc": "BIP error counter lane 5 register",
+      "fullDesc": "BIP error counter lane 5 register\n[15:0] Errors detected by BIP in PCS lane 5",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE6": {
+      "shortDesc": "BIP error counter lane 6 register",
+      "fullDesc": "BIP error counter lane 6 register\n[15:0] Errors detected by BIP in PCS lane 6",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 49
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE7": {
+      "shortDesc": "BIP error counter lane 7 register",
+      "fullDesc": "BIP error counter lane 7 register\n[15:0] Errors detected by BIP in PCS lane 7",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE8": {
+      "shortDesc": "BIP error counter lane 8 register",
+      "fullDesc": "BIP error counter lane 8 register\n[15:0] Errors detected by BIP in PCS lane 8",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE9": {
+      "shortDesc": "BIP error counter lane 9 register",
+      "fullDesc": "BIP error counter lane 9 register\n[15:0] Errors detected by BIP in PCS lane 9",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE10": {
+      "shortDesc": "BIP error counter lane 10 register",
+      "fullDesc": "BIP error counter lane 10 register\n[15:0] Errors detected by BIP in PCS lane 10",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE11": {
+      "shortDesc": "BIP error counter lane 11 register",
+      "fullDesc": "BIP error counter lane 11 register\n[15:0] Errors detected by BIP in PCS lane 11",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE12": {
+      "shortDesc": "BIP error counter lane 12 register",
+      "fullDesc": "BIP error counter lane 12 register\n[15:0] Errors detected by BIP in PCS lane 12",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE13": {
+      "shortDesc": "BIP error counter lane 13 register",
+      "fullDesc": "BIP error counter lane 13 register\n[15:0] Errors detected by BIP in PCS lane 13",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE14": {
+      "shortDesc": "BIP error counter lane 14 register",
+      "fullDesc": "BIP error counter lane 14 register\n[15:0] Errors detected by BIP in PCS lane 14",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE15": {
+      "shortDesc": "BIP error counter lane 15 register",
+      "fullDesc": "BIP error counter lane 15 register\n[15:0] Errors detected by BIP in PCS lane 15",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE16": {
+      "shortDesc": "BIP error counter lane 16 register",
+      "fullDesc": "BIP error counter lane 16 register\n[15:0] Errors detected by BIP in PCS lane 16",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE17": {
+      "shortDesc": "BIP error counter lane 17 register",
+      "fullDesc": "BIP error counter lane 17 register\n[15:0] Errors detected by BIP in PCS lane 17",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_BIP_ERROR_COUNTER_LANE19": {
+      "shortDesc": "BIP error counter lane 19 register",
+      "fullDesc": "BIP error counter lane 19 register\n[15:0] Errors detected by BIP in PCS lane 19",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE0_MAPPING": {
       "shortDesc": "Lane 0 mapping register",
       "fullDesc": "Lane 0 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 0",
@@ -51830,6 +55329,37 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 70
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE2_MAPPING": {
+      "shortDesc": "Lane 2 mapping register",
+      "fullDesc": "Lane 2 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 2",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_LANE3_MAPPING": {
+      "shortDesc": "Lane 3 mapping register",
+      "fullDesc": "Lane 3 mapping register\n[15:5] Reserved\n[4:0] PCS lane received in service interface lane 3",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 50
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_CORRECTION_ENABLE\u001f0\u001f0": "FEC bypass correction enable",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_BYPASS_INDICATION_ENABLE\u001f1\u001f1": "FEC bypass indication enable",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_CONTROL\u001fFEC_DEGRADED_SER_ENABLE\u001f4\u001f4": "FEC degraded SER enable"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_7_FEC_STATUS_0": {
@@ -52049,6 +55579,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fTM\u001fQC\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fTM\u001fQC\u001fINTR_STS_0": {
@@ -52346,6 +55885,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fTM\u001fSCH\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fTM\u001fSCH\u001fINTR_STS_0": {
@@ -53084,6 +56632,15 @@
       "source": {
         "manual": "CEMAC_reference_guide_v1.7.pdf",
         "pdfPage": 120
+      }
+    },
+    "reg\u001fTM\u001fTM_MIRX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fTM\u001fTM_MIRX\u001fSIM_MODE": {
@@ -54022,6 +57579,15 @@
         "pdfPage": 120
       }
     },
+    "reg\u001fTM_N0\u001fCPP_MIRX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fTM_N0\u001fCPP_MIRX\u001fSIM_MODE": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -54830,6 +58396,15 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 85
+      }
+    },
+    "reg\u001fTM_W7\u001fCPP_MIRX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fTM_W7\u001fCPP_MIRX\u001fSIM_MODE": {
@@ -55669,6 +59244,15 @@
         "pdfPage": 120
       }
     },
+    "reg\u001fUMI_B\u001fUM_MIRX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
+      }
+    },
     "reg\u001fUMI_B\u001fUM_MIRX\u001fSIM_MODE": {
       "shortDesc": "Unused, read as 0.",
       "fullDesc": "Unused, read as 0.",
@@ -56477,6 +60061,15 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 85
+      }
+    },
+    "reg\u001fUMI_T\u001fUM_MIRX\u001fCONTROL": {
+      "shortDesc": "FEC Control Register",
+      "fullDesc": "FEC Control Register\n[15:5] Reserved\n[4] FEC degraded SER enable\n[3] Reserved\n[2] 25G RS-FEC enable\n[1] FEC bypass indication enable\n[0] FEC bypass correction enable",
+      "fields": {},
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 86
       }
     },
     "reg\u001fUMI_T\u001fUM_MIRX\u001fSIM_MODE": {
@@ -57290,7 +60883,7 @@
       }
     }
   },
-  "generatedAt": "2026-08-31T07:02:34Z",
+  "generatedAt": "2026-08-31T07:14:28Z",
   "sourceRegisterFile": "d10_trunk_registers_13285.json",
   "sourceManuals": [
     "CEFEC_reference_guide_v1.1.pdf",

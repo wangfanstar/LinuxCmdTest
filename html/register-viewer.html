@@ -258,6 +258,13 @@ body.layout-resizing {
 .file-section-header.regs { color: #7ab8ff; }
 .file-section-header.descs { color: #ffd479; }
 .file-section-header .fsh-count { margin-left: auto; font-weight: 400; font-size: .66rem; color: #5a6a80; }
+.fsh-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: #ffd479; cursor: pointer; user-select: none;
+  margin-left: 6px;
+}
+.fsh-toggle input { width: 12px; height: 12px; accent-color: #ffd479; cursor: pointer; margin: 0; }
+.fsh-toggle:hover { color: #ffe9a8; }
 
 /* 描述文件条目（错误态高亮） */
 .file-item.desc-item.has-error { border-color: #6a2a2a; background: #3a2222; }
@@ -695,32 +702,42 @@ select:focus { border-color: var(--blue); }
 /* ══ Block 导航（中间独立列，默认折叠） ══ */
 .bn-column {
   flex-shrink: 0;
-  width: 44px;
-  background: #151e30;
+  width: 46px;
+  background: linear-gradient(180deg, #131c2e, #0f1626);
   border-right: 1px solid #2d3a54;
   overflow: hidden;
-  transition: width .18s ease;
+  transition: width .2s ease;
   display: flex;
   flex-direction: column;
   z-index: 40;
+  box-shadow: 1px 0 6px rgba(0,0,0,.25);
 }
-.bn-column.expanded { width: 252px; }
+.bn-column.expanded { width: 258px; }
 .bn-col-toggle {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
-  padding: 10px 0;
+  padding: 12px 0;
   cursor: pointer;
-  color: #7a8ba8; font-size: .74rem; font-weight: 700;
+  color: #8b9cc0; font-size: .74rem; font-weight: 700;
   border-bottom: 1px solid #2d3a54;
   justify-content: center;
   white-space: nowrap;
   letter-spacing: .5px;
-  transition: color .15s;
+  transition: color .15s, background .15s;
 }
 .bn-column.expanded .bn-col-toggle { justify-content: flex-start; padding: 10px 12px; }
-.bn-col-toggle:hover { color: #aac2f0; }
-.bn-col-arrow { font-size: .7rem; transition: transform .18s; }
+.bn-col-toggle:hover { color: #aac2f0; background: #1a2740; }
+.bn-col-arrow { font-size: .72rem; transition: transform .18s; color: #7ab8ff; }
 .bn-col-label { overflow: hidden; }
+.bn-col-head {
+  display: none; align-items: center; gap: 6px;
+  padding: 10px 12px; border-bottom: 1px solid #2d3a54;
+}
+.bn-column.expanded .bn-col-head { display: flex; }
+.bn-col-title { font-weight: 700; font-size: .8rem; color: #dbe4f5; white-space: nowrap; flex: 1; }
+.bn-col-head .bn-count { margin-left: 0; color: #6f80a0; }
+.bn-col-close { color: #7a8ba8; cursor: pointer; font-size: .7rem; flex-shrink: 0; padding: 0 3px; }
+.bn-col-close:hover { color: #ffaaaa; }
 .bn-col-body {
   flex: 1; display: none; overflow: hidden;
   padding: 8px 10px;
@@ -735,7 +752,7 @@ select:focus { border-color: var(--blue); }
 .bn-nav-title:hover { color: #aac2f0; }
 .bn-caret { display: inline-block; transition: transform .15s; font-size: .72rem; color: #7a8ba8; }
 .bn-nav-section.open .bn-caret { transform: rotate(90deg); }
-.bn-count { color: #7a8ba8; font-weight: 400; font-size: .68rem; margin-left: auto; }
+.bn-count { color: #6f80a0; font-weight: 400; font-size: .68rem; margin-left: auto; }
 .bn-body { margin-top: 8px; }
 .bn-search { position: relative; margin-bottom: 6px; }
 .bn-search-icon {
@@ -744,11 +761,11 @@ select:focus { border-color: var(--blue); }
 }
 .bn-search input {
   width: 100%; padding: 5px 8px 5px 24px;
-  border: 1px solid #3a4e70; border-radius: 5px;
-  font-size: .76rem; outline: none; background: #151e30; color: #c8d0e0;
+  border: 1px solid #3a4e70; border-radius: 6px;
+  font-size: .76rem; outline: none; background: #101827; color: #c8d0e0;
 }
 .bn-search input::placeholder { color: #5a6a80; }
-.bn-search input:focus { border-color: var(--blue); background: #182238; }
+.bn-search input:focus { border-color: var(--blue); background: #16203400; }
 .bn-list { overflow-y: auto; max-height: 36vh; }
 .bn-list::-webkit-scrollbar { width: 4px; }
 .bn-list::-webkit-scrollbar-thumb { background: #3a4e70; border-radius: 4px; }
@@ -756,26 +773,31 @@ select:focus { border-color: var(--blue); }
 .bn-node { user-select: none; }
 .bn-row {
   display: flex; align-items: center; gap: 5px;
-  padding: 4px 6px; border-radius: 5px; cursor: pointer; font-size: .76rem;
-  color: #b9c3da;
+  padding: 5px 7px; border-radius: 6px; cursor: pointer; font-size: .76rem;
+  color: #b9c3da; transition: background .12s;
 }
 .bn-row:hover { background: #27334d; }
-.bn-row.active { background: #2d4a86; color: #fff; }
+.bn-row.active { background: linear-gradient(90deg, #2d4a86, #3a5aa0); color: #fff; box-shadow: inset 0 0 0 1px #4a74c0; }
 .bn-row.active .bni-cnt { color: #cfe0ff; }
 .bn-twist {
-  flex-shrink: 0; width: 13px; text-align: center;
+  flex-shrink: 0; width: 14px; text-align: center;
   color: #5a6a80; font-size: .62rem; transition: transform .15s;
 }
+.bn-row.active .bn-twist { color: #cfe0ff; }
 .bn-node.open > .bn-row .bn-twist { transform: rotate(90deg); }
-.bn-nodot { width: 13px; flex-shrink: 0; }
+.bn-nodot { width: 14px; flex-shrink: 0; }
 .bn-row .bni-name {
   flex: 1; font-family: "Consolas", monospace;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bn-row.lvl1 .bni-name { font-weight: 700; color: #dbe4f5; }
-.bn-row.lvl2 .bni-name { font-weight: 400; }
-.bn-row.lvl2 { padding-left: 14px; }
-.bn-row .bni-cnt { color: #6f80a0; font-size: .68rem; flex-shrink: 0; }
+.bn-row.lvl1 { padding-left: 7px; }
+.bn-row.lvl2 .bni-name { font-weight: 400; color: #cdd7ec; }
+.bn-row.lvl2 { padding-left: 16px; }
+.bn-row .bni-cnt {
+  color: #6f80a0; font-size: .68rem; flex-shrink: 0;
+  background: #1a2438; border: 1px solid #2d3a54; border-radius: 8px; padding: 0 6px;
+}
 .bn-children { list-style: none; }
 .bn-empty { text-align: center; color: #5a6a80; font-size: .76rem; padding: 16px 0; }
 
@@ -1006,6 +1028,11 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <span class="bn-col-label" id="bn-col-label">Block</span>
     </div>
     <div class="bn-col-body" id="bn-col-body">
+      <div class="bn-col-head">
+        <span class="bn-col-title">🗂 Block 导航</span>
+        <span class="bn-count" id="bn-count"></span>
+        <span class="bn-col-close" onclick="toggleBnColumn(false)" title="折叠">◀</span>
+      </div>
       <div class="bn-search">
         <span class="bn-search-icon">🔍</span>
         <input type="text" id="bn-search" placeholder="搜索 Block…" oninput="renderBlockNavList()">
@@ -1326,12 +1353,13 @@ function mergeDescriptionOverlay(patch) {
 }
 
 function applyOverlayToRegister(reg) {
+  if (!overlayDisplayOn) return false;
   var rk = regKeyOf(reg);
   var patch = descriptionOverlay[rk];
   if (!patch) return false;
   var touched = false;
-  if (!reg.shortDesc && patch.shortDesc) { reg.shortDesc = patch.shortDesc; touched = true; }
-  if (!reg.fullDesc  && patch.fullDesc)  { reg.fullDesc  = patch.fullDesc;  touched = true; }
+  if (!reg.shortDesc && patch.shortDesc) { reg.shortDesc = patch.shortDesc; reg._shortFilled = true; touched = true; }
+  if (!reg.fullDesc  && patch.fullDesc)  { reg.fullDesc  = patch.fullDesc;  reg._fullFilled  = true; touched = true; }
   for (var i = 0; i < reg.fields.length; i++) {
     var f = reg.fields[i];
     if (f.desc) continue;
@@ -1345,6 +1373,43 @@ function applyOverlayToRegister(reg) {
   }
   if (touched) { reg._descSource = 'manual'; reg._overlaySource = patch.source; }
   return touched;
+}
+
+// 左侧「显示附加描述」开关：取消后不把叠加层描述应用到展示
+var overlayDisplayOn = true;
+function setOverlayDisplay(on) {
+  overlayDisplayOn = !!on;
+  try { localStorage.setItem('rvOverlayDisplay', on ? '1' : '0'); } catch (e) {}
+  if (!on) {
+    for (var i = 0; i < allRegisters.length; i++) {
+      var r = allRegisters[i];
+      if (r._descSource !== 'manual') continue;
+      if (r._shortFilled) { r.shortDesc = ''; delete r._shortFilled; }
+      if (r._fullFilled)  { r.fullDesc  = ''; delete r._fullFilled; }
+      for (var j = 0; j < r.fields.length; j++) {
+        var f = r.fields[j];
+        if (f._descSource === 'manual') { f.desc = ''; delete f._descSource; }
+      }
+      delete r._descSource; delete r._overlaySource;
+    }
+    refreshDataView();
+  } else {
+    applyOverlayToAllRegisters();
+  }
+  syncOverlayDescCheckbox(on);
+}
+
+function syncOverlayDescCheckbox(on) {
+  var el = document.getElementById('show-overlay-desc');
+  if (el && el.checked !== !!on) el.checked = !!on;
+}
+
+function initOverlayDisplay() {
+  var el = document.getElementById('show-overlay-desc');
+  var v = '1';
+  try { v = localStorage.getItem('rvOverlayDisplay') || '1'; } catch (e) {}
+  overlayDisplayOn = v !== '0';
+  if (el) el.checked = overlayDisplayOn;
 }
 
 function applyOverlayToAllRegisters() {
@@ -1644,6 +1709,8 @@ function renderFileList() {
     var descHead = document.createElement('div');
     descHead.className = 'file-section-header descs';
     descHead.innerHTML = '<span class="fsh-ic">🎨</span> 描述文件（附加描述）'
+      + '<label class="fsh-toggle" title="取消勾选后不显示附加描述（描述文件仍保留）">'
+      + '<input type="checkbox" id="show-overlay-desc" onchange="setOverlayDisplay(this.checked)">显示</label>'
       + '<span class="fsh-count">' + descFiles.length + '</span>';
     list.appendChild(descHead);
     for (var dk = 0; dk < descFiles.length; dk++) {
@@ -3825,6 +3892,7 @@ function autoLoadRegisterDescriptions() {
 
 initFileInputs();
 autoLoadLatestRegisters();
+initOverlayDisplay();
 initShowDescriptions();
 autoLoadRegisterDescriptions();
 

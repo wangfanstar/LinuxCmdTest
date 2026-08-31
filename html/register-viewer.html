@@ -1411,14 +1411,17 @@ function setOverlayDisplay(on) {
 function syncOverlayDescCheckbox(on) {
   var el = document.getElementById('show-overlay-desc');
   if (el && el.checked !== !!on) el.checked = !!on;
+  var tb = document.getElementById('show-descriptions');
+  if (tb && tb.checked !== !!on) tb.checked = !!on;
 }
 
 function initOverlayDisplay() {
+  // 描述文件默认勾选显示：每次加载都回到开启状态，避免误存为关闭
+  overlayDisplayOn = true;
   var el = document.getElementById('show-overlay-desc');
-  var v = '1';
-  try { v = localStorage.getItem('rvOverlayDisplay') || '1'; } catch (e) {}
-  overlayDisplayOn = v !== '0';
-  if (el) el.checked = overlayDisplayOn;
+  if (el) el.checked = true;
+  var tb = document.getElementById('show-descriptions');
+  if (tb) tb.checked = true;
 }
 
 function applyOverlayToAllRegisters() {
@@ -3847,21 +3850,13 @@ function showDescriptionsEnabled() {
   return !el || el.checked;
 }
 
+// 顶部与左侧的「显示附加描述」均为显示开关：取消=不把叠加层描述应用到展示（文件仍保留）
 function toggleShowDescriptions() {
   var el = document.getElementById('show-descriptions');
-  var on = !el || el.checked;
-  try { localStorage.setItem('rvShowDesc', on ? '1' : '0'); } catch (e) {}
-  if (on) {
-    autoLoadRegisterDescriptions();
-    showToast('已启用：显示附加描述');
-  } else {
-    removeAllDescFiles();
-    showToast('已关闭：移除附加描述');
-  }
+  setOverlayDisplay(!el || !!el.checked);
 }
 
 function autoLoadRegisterDescriptions() {
-  if (!showDescriptionsEnabled()) return;   // 顶部「显示附加描述」关闭时不加载
   if (location.protocol === 'file:') {
     showToast('本地打开无法自动扫描描述文件，请由服务器服务，或手动更换描述文件');
     return;
@@ -3916,7 +3911,6 @@ function autoLoadRegisterDescriptions() {
 initFileInputs();
 autoLoadLatestRegisters();
 initOverlayDisplay();
-initShowDescriptions();
 autoLoadRegisterDescriptions();
 
 // ── 列宽调整 ─────────────────────────────────────────────

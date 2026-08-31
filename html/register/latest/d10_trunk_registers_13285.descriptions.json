@@ -16051,6 +16051,24 @@
         "pdfPage": 86
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1": {
+      "shortDesc": "FEC Status1 Register",
+      "fullDesc": "FEC Status1 Register\n[15:9] Reserved.\n[8] Align Status\n[7] Reserved\n[6] Local Degraded SER received\n[5] Remote degraded SER received\n[4] FEC degraded SER\n[3] FEC degraded SER ability\n[2] FEC high SER\n[1] FEC bypass indication ability\n[0] FEC bypass correction ability\nCEPCS core can support both FEC bypass indicate\nfor all speed mode and bypass correction for\n100G/50G/25G.\nFor all register field with a LH attribute, the value will\nkeep high until it was read.",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_CORRECTION_ABILITY\u001f0\u001f0": "FEC bypass correction ability",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_INDICATION_ABILITY\u001f1\u001f1": "FEC bypass indication ability",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_HIGH_SER\u001f2\u001f2": "FEC high SER",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER_ABILITY\u001f3\u001f3": "FEC degraded SER ability",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER\u001f4\u001f4": "FEC degraded SER",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fREMOTE_DEGRADED_SER_RECEIVED\u001f5\u001f5": "Remote degraded SER received",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fLOCAL_DEGRADED_SER_RECEIVED\u001f6\u001f6": "Local Degraded SER received",
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fALIGN_STATUS\u001f8\u001f8": "Align Status"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 87
+      }
+    },
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -33210,6 +33228,24 @@
         "pdfPage": 86
       }
     },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1": {
+      "shortDesc": "FEC Status1 Register",
+      "fullDesc": "FEC Status1 Register\n[15:9] Reserved.\n[8] Align Status\n[7] Reserved\n[6] Local Degraded SER received\n[5] Remote degraded SER received\n[4] FEC degraded SER\n[3] FEC degraded SER ability\n[2] FEC high SER\n[1] FEC bypass indication ability\n[0] FEC bypass correction ability\nCEPCS core can support both FEC bypass indicate\nfor all speed mode and bypass correction for\n100G/50G/25G.\nFor all register field with a LH attribute, the value will\nkeep high until it was read.",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_CORRECTION_ABILITY\u001f0\u001f0": "FEC bypass correction ability",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_INDICATION_ABILITY\u001f1\u001f1": "FEC bypass indication ability",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_HIGH_SER\u001f2\u001f2": "FEC high SER",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER_ABILITY\u001f3\u001f3": "FEC degraded SER ability",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER\u001f4\u001f4": "FEC degraded SER",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fREMOTE_DEGRADED_SER_RECEIVED\u001f5\u001f5": "Remote degraded SER received",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fLOCAL_DEGRADED_SER_RECEIVED\u001f6\u001f6": "Local Degraded SER received",
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fALIGN_STATUS\u001f8\u001f8": "Align Status"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 87
+      }
+    },
     "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -40960,6 +40996,24 @@
         "pdfPage": 86
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1": {
+      "shortDesc": "FEC Status1 Register",
+      "fullDesc": "FEC Status1 Register\n[15:9] Reserved.\n[8] Align Status\n[7] Reserved\n[6] Local Degraded SER received\n[5] Remote degraded SER received\n[4] FEC degraded SER\n[3] FEC degraded SER ability\n[2] FEC high SER\n[1] FEC bypass indication ability\n[0] FEC bypass correction ability\nCEPCS core can support both FEC bypass indicate\nfor all speed mode and bypass correction for\n100G/50G/25G.\nFor all register field with a LH attribute, the value will\nkeep high until it was read.",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_CORRECTION_ABILITY\u001f0\u001f0": "FEC bypass correction ability",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_INDICATION_ABILITY\u001f1\u001f1": "FEC bypass indication ability",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_HIGH_SER\u001f2\u001f2": "FEC high SER",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER_ABILITY\u001f3\u001f3": "FEC degraded SER ability",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER\u001f4\u001f4": "FEC degraded SER",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fREMOTE_DEGRADED_SER_RECEIVED\u001f5\u001f5": "Remote degraded SER received",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fLOCAL_DEGRADED_SER_RECEIVED\u001f6\u001f6": "Local Degraded SER received",
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fALIGN_STATUS\u001f8\u001f8": "Align Status"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 87
+      }
+    },
     "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -46442,6 +46496,24 @@
         "pdfPage": 86
       }
     },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1": {
+      "shortDesc": "FEC Status1 Register",
+      "fullDesc": "FEC Status1 Register\n[15:9] Reserved.\n[8] Align Status\n[7] Reserved\n[6] Local Degraded SER received\n[5] Remote degraded SER received\n[4] FEC degraded SER\n[3] FEC degraded SER ability\n[2] FEC high SER\n[1] FEC bypass indication ability\n[0] FEC bypass correction ability\nCEPCS core can support both FEC bypass indicate\nfor all speed mode and bypass correction for\n100G/50G/25G.\nFor all register field with a LH attribute, the value will\nkeep high until it was read.",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_CORRECTION_ABILITY\u001f0\u001f0": "FEC bypass correction ability",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_INDICATION_ABILITY\u001f1\u001f1": "FEC bypass indication ability",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_HIGH_SER\u001f2\u001f2": "FEC high SER",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER_ABILITY\u001f3\u001f3": "FEC degraded SER ability",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER\u001f4\u001f4": "FEC degraded SER",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fREMOTE_DEGRADED_SER_RECEIVED\u001f5\u001f5": "Remote degraded SER received",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fLOCAL_DEGRADED_SER_RECEIVED\u001f6\u001f6": "Local Degraded SER received",
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fALIGN_STATUS\u001f8\u001f8": "Align Status"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 87
+      }
+    },
     "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
       "shortDesc": "FEC corrected codewords counter Register",
       "fullDesc": "FEC corrected codewords counter Register\n[15:0] FEC corrected codewords upper count.\nThese bits will keep 1 in case of overflow.\nWhen registers FEC corrected codewords lower\ncounter and FEC corrected codewords upper\ncounter are used to read the 32-bit counter value, the\nregister lower is read first, the value of the upper is\nlatched when (and only when) register lower is read,\nand reads of register higher return the latched value\nrather than the current value of the counter.",
@@ -50492,6 +50564,24 @@
       "source": {
         "manual": "CEPCS_reference_guide_v1.82.pdf",
         "pdfPage": 86
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1": {
+      "shortDesc": "FEC Status1 Register",
+      "fullDesc": "FEC Status1 Register\n[15:9] Reserved.\n[8] Align Status\n[7] Reserved\n[6] Local Degraded SER received\n[5] Remote degraded SER received\n[4] FEC degraded SER\n[3] FEC degraded SER ability\n[2] FEC high SER\n[1] FEC bypass indication ability\n[0] FEC bypass correction ability\nCEPCS core can support both FEC bypass indicate\nfor all speed mode and bypass correction for\n100G/50G/25G.\nFor all register field with a LH attribute, the value will\nkeep high until it was read.",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_CORRECTION_ABILITY\u001f0\u001f0": "FEC bypass correction ability",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_BYPASS_INDICATION_ABILITY\u001f1\u001f1": "FEC bypass indication ability",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_HIGH_SER\u001f2\u001f2": "FEC high SER",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER_ABILITY\u001f3\u001f3": "FEC degraded SER ability",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fFEC_DEGRADED_SER\u001f4\u001f4": "FEC degraded SER",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fREMOTE_DEGRADED_SER_RECEIVED\u001f5\u001f5": "Remote degraded SER received",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fLOCAL_DEGRADED_SER_RECEIVED\u001f6\u001f6": "Local Degraded SER received",
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_STATUS_1\u001fALIGN_STATUS\u001f8\u001f8": "Align Status"
+      },
+      "source": {
+        "manual": "CEPCS_reference_guide_v1.82.pdf",
+        "pdfPage": 87
       }
     },
     "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CEPCS0_0_FEC_CORRECTED_CODEWORDS_COUNTER_H": {
@@ -60883,7 +60973,7 @@
       }
     }
   },
-  "generatedAt": "2026-08-31T07:14:28Z",
+  "generatedAt": "2026-08-31T07:23:03Z",
   "sourceRegisterFile": "d10_trunk_registers_13285.json",
   "sourceManuals": [
     "CEFEC_reference_guide_v1.1.pdf",

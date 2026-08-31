@@ -320,6 +320,31 @@ def resolve_title(reg_name_norm, titles):
     return best
 
 
+def _pick_rep(matches, rn):
+    """Pick a representative catalog record for a register whose exact address is
+    missing from the manual, but whose name suffix matches catalog entries.
+
+    Disambiguate by domain: a register name such as '...FEC_STATUS_1' should bind
+    to catalog records in the 'FEC' domain rather than the equally-named 'PCS'
+    Status registers. Prefer the domain group with uniform text; a group must be
+    homogeneous (same text) to be a safe guess.
+    """
+    if not matches:
+        return None
+    groups = defaultdict(list)
+    for c in matches:
+        groups[(c.get("domain") or "")].append(c)
+    for dom, recs in groups.items():
+        if dom and dom in rn:
+            texts = {(c.get("text") or "").strip() for c in recs}
+            if len(texts) == 1 and next(iter(texts)):
+                return recs[0]
+    texts = {(c.get("text") or "").strip() for c in matches}
+    if len(texts) == 1 and next(iter(texts)):
+        return matches[0]
+    return None
+
+
 def match_register(reg, reg_by_name, reg_by_addr, titles):
     """Return a catalog register record for a register-file entry, or None."""
     a = parse_addr(reg)
@@ -348,14 +373,7 @@ def match_register(reg, reg_by_name, reg_by_addr, titles):
         for c in matches:
             if a in (c.get("addresses") or []):
                 return c
-    # Same register type repeated across instances/copies: if every candidate that
-    # ends with this name shares identical text, use it even if this exact address
-    # is missing from the manual (e.g. FEC Control at 0x100 not in the sampled table).
-    if len(matches) > 1:
-        texts = {(c.get("text") or "").strip() for c in matches}
-        if len(texts) == 1 and next(iter(texts)):
-            return matches[0]
-    return None
+    return _pick_rep(matches, rn)
 
 
 def match_field(f, reg_name_norm, field_by_key, field_by_reg, titles):

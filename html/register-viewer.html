@@ -3883,7 +3883,8 @@ function autoLoadRegisterDescriptions() {
         var name = normalized.split('/').pop();
         var entry = { id: ++nextDescFileId, name: name, path: normalized, data: null, error: '' };
         descFiles.push(entry);
-        return fetch('./register/' + urlPath)
+        // cache-bust so a changed description overlay is always fetched fresh
+        return fetch('./register/' + urlPath + '?v=' + Date.now())
           .then(function(resp) {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             return resp.json();

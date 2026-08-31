@@ -1306,6 +1306,15 @@ function badgeClass(perm, fieldName) {
   return 'badge-default';
 }
 
+// 主文件日期（版本提示）
+function fmtFileDate(ms) {
+  if (!ms || !isFinite(ms) || ms <= 0) return '';
+  var d = new Date(ms);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
 // ── 描述叠加层：键与查补 ──────────────────────────────────
 // 键由寄存器内容拼接（不含路径/文件名），生成器(Python)与前端(JS)必须保持完全一致
 function regKeyOf(r) {
@@ -2437,7 +2446,20 @@ function refreshDataView() {
   } else if (!infoText) {
     infoText = '在左侧添加文件后自动解析';
   }
-  document.getElementById('db-info').textContent = infoText;
+
+  // 顶栏版本提示：可见主文件的名称 + 修改时间
+  var fparts = [];
+  for (var fdi = 0; fdi < pendingFiles.length; fdi++) {
+    var pe = pendingFiles[fdi];
+    if (pe.visible === false) continue;
+    var ds = fmtFileDate(pe.file && pe.file.lastModified);
+    fparts.push(escHtml(pe.file.name) + (ds ? ' <span style="color:#7ab8ff;">(' + ds + ')</span>' : ''));
+  }
+  var fileDateHtml = fparts.length
+    ? '<span style="color:#c8d0e0;">' + fparts.join(' · ') + '</span>' : '';
+  document.getElementById('db-info').innerHTML = fileDateHtml
+    ? (fileDateHtml + (infoText ? '  ·  ' + escHtml(infoText) : ''))
+    : escHtml(infoText);
 
   if (allRegisters.length) {
     document.getElementById('toolbar').classList.add('visible');

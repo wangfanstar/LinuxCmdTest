@@ -283,13 +283,36 @@ def source_of(rec):
     return {"manual": s.get("document", ""), "pdfPage": s.get("pdfPage")}
 
 
+# Each manual describes a distinct core whose registers appear in the register
+# file with a recognizable prefix, e.g. REGFILE_CEMAC*, REGFILE_CEPCS*,
+# REGFILE_CEFEC*, REGFILE_CESOC* / WRAP. Other chip blocks (AQM, TM, BWLI_*, ...)
+# reuse the same small addresses, so matching must be scoped per core to avoid
+# cross-manual / cross-address-space false positives.
+IP_TOKENS = [
+    ("CEPCS", ["CEPCS"]),
+    ("CEMAC", ["CEMAC", "MAC_CFG", "MAC_STATUS"]),
+    ("CEFEC", ["CEFEC"]),
+    ("CESOCX16_WRAP", ["CESOCX", "CESOC", "WRAP"]),
+]
+
+
+def ip_for_register(reg):
+    rn = compact(reg.get("regName") or "")
+    for ip, toks in IP_TOKENS:
+        for t in toks:
+            if t in rn:
+                return ip
+    return None
+
+
 def build_catalog_indexes(catalogs):
-    reg_by_name = defaultdict(list)
-    reg_by_addr = defaultdict(list)
-    field_by_key = defaultdict(list)     # (nameNorm, startBit, endBit) -> [rec]
-    field_by_reg = defaultdict(list)     # (titleNorm, nameNorm, startBit, endBit) -> [rec]
-    titles = set()
+    indexes = {}
     for ip, records in catalogs.items():
+        reg_by_name = defaultdict(list)
+        reg_by_addr = defaultdict(list)
+        field_by_key = defaultdict(list)   # (nameNorm, startBit, endBit) -> [rec]
+        field_by_reg = defaultdict(list)   # (titleNorm, nameNorm, startBit, endBit) -> [rec]
+        titles = set()
         for rec in records:
             kind = rec.get("kind")
             if kind == "register":
@@ -304,12 +327,31 @@ def build_catalog_indexes(catalogs):
                 field_by_key[key].append(rec)
                 field_by_reg[(t,) + key].append(rec)
                 titles.add(t)
-    return reg_by_name, reg_by_addr, field_by_key, field_by_reg, titles
+        indexes[ip] = (reg_by_name, reg_by_addr, field_by_key, field_by_reg, titles)
+    return indexes
 
 
 def parse_addr(reg):
     a = reg.get("address") or ""
     return int(a.replace("0x", "").replace("0X", ""), 16) if a else None
+
+
+def _is_reserved_name(text):
+    c = compact(text)
+    return bool(c) and (c.startswith("RESERV") or c.startswith("RSVD"))
+
+
+def is_reserved_record(rec):
+    """Catalog record that stands for an unused/reserved hole."""
+    name = (rec.get("name") or "")
+    text = (rec.get("text") or "")
+    if _is_reserved_name(name):
+        return True
+    return text.strip().lower().startswith("unused, read as 0") or text.strip().lower().startswith("reserved")
+
+
+def is_reserved_register(reg):
+    return _is_reserved_name(reg.get("regName") or "")
 
 
 def resolve_title(reg_name_norm, titles):
@@ -407,7 +449,7 @@ def match_field(f, reg_name_norm, field_by_key, field_by_reg, titles):
 
 def build_overlay(register_file, catalogs):
     """Scan a register file and fill empty descriptions from the PDF catalogs."""
-    reg_by_name, reg_by_addr, field_by_key, field_by_reg, titles = build_catalog_indexes(catalogs)
+    indexes = build_catalog_indexes(catalogs)
     regs = json.loads(Path(register_file).read_text(encoding="utf-8-sig"))
     overlay = {"version": OVERLAY_FORMAT_VERSION, "registers": {}}
     reg_desc_empty = reg_desc_filled = 0
@@ -419,23 +461,32 @@ def build_overlay(register_file, catalogs):
         full_empty = not (reg.get("fullDesc") or "").strip()
         patch = {"shortDesc": "", "fullDesc": "", "fields": {}, "source": None}
         reg_done = field_done = False
+        ip = ip_for_register(reg)
+        idx = indexes.get(ip) if ip else None   # manual-core scoping (avoids false matches)
         if short_empty or full_empty:
             reg_desc_empty += 1
-            m = match_register(reg, reg_by_name, reg_by_addr, titles)
-            if m:
-                text = (m.get("text") or "").strip()
-                if text:
-                    patch["fullDesc"] = text
-                    patch["shortDesc"] = text.split("\n")[0].strip() or text
-                    patch["source"] = patch["source"] or source_of(m)
-                    reg_done = True
+            if idx:
+                m = match_register(reg, idx[0], idx[1], idx[4])
+                # A 'RESERVED / Unused, read as 0.' catalog entry only applies to a
+                # register whose own name is reserved; otherwise it's an address hole.
+                if m and is_reserved_record(m) and not is_reserved_register(reg):
+                    m = None
+                if m:
+                    text = (m.get("text") or "").strip()
+                    if text:
+                        patch["fullDesc"] = text
+                        patch["shortDesc"] = text.split("\n")[0].strip() or text
+                        patch["source"] = patch["source"] or source_of(m)
+                        reg_done = True
         rn = compact(reg.get("regName") or "")
         bl = bit_lines(patch["fullDesc"]) if patch["fullDesc"] else {}
         for f in reg.get("fields") or []:
             if (f.get("description") or "").strip():
                 continue
             field_empty += 1
-            fm = match_field(f, rn, field_by_key, field_by_reg, titles)
+            if not idx:
+                continue  # register doesn't belong to a manual core: never invent desc
+            fm = match_field(f, rn, idx[2], idx[3], idx[4])
             if fm and (fm.get("text") or "").strip():
                 patch["fields"][field_key_of(rk, f)] = fm["text"].strip()
                 if not patch["source"]:

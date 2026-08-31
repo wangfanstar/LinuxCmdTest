@@ -653,69 +653,59 @@ select:focus { border-color: var(--blue); }
 .render-limit-bar b { color: var(--blue-dark); }
 .render-limit-bar .btn-toolbar { padding: 3px 11px; }
 
-/* ══ Block 导航浮动面板 ══ */
-#block-nav {
-  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
-  z-index: 300; display: flex; align-items: stretch;
+/* ══ Block 导航（左侧栏 PDF 目录书签树） ══ */
+.bn-nav-section { padding-bottom: 6px; }
+.bn-nav-title {
+  display: flex; align-items: center; gap: 7px;
+  cursor: pointer; margin-bottom: 0;
+  transition: color .15s;
 }
-.bn-tab {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 12px 7px;
-  background: #1a2035; color: #9fb4d8;
-  border: 1px solid #2d3a54; border-right: none;
-  border-radius: 8px 0 0 8px;
-  cursor: pointer; font-family: inherit;
-  box-shadow: -2px 2px 10px rgba(0,0,0,.18);
-  transition: background .15s, color .15s;
+.bn-nav-title:hover { color: #aac2f0; }
+.bn-caret { display: inline-block; transition: transform .15s; font-size: .72rem; color: #7a8ba8; }
+.bn-nav-section.open .bn-caret { transform: rotate(90deg); }
+.bn-count { color: #7a8ba8; font-weight: 400; font-size: .68rem; margin-left: auto; }
+.bn-body { margin-top: 8px; }
+.bn-search { position: relative; margin-bottom: 6px; }
+.bn-search-icon {
+  position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  color: #5a6a80; font-size: .74rem; pointer-events: none;
 }
-.bn-tab:hover { background: #2d3a54; color: #fff; }
-.bn-tab-icon { font-size: 1rem; line-height: 1; }
-.bn-tab-text {
-  writing-mode: vertical-rl; letter-spacing: 3px;
-  font-size: .72rem; font-weight: 700;
+.bn-search input {
+  width: 100%; padding: 5px 8px 5px 24px;
+  border: 1px solid #3a4e70; border-radius: 5px;
+  font-size: .76rem; outline: none; background: #151e30; color: #c8d0e0;
 }
-#block-nav.open .bn-tab { display: none; }
-.bn-panel {
-  display: none; width: 238px; max-height: 66vh;
-  background: #fff; border: 1px solid var(--border); border-right: none;
-  border-radius: 10px 0 0 10px;
-  box-shadow: -4px 4px 20px rgba(0,0,0,.16);
-  flex-direction: column; overflow: hidden;
-}
-#block-nav.open .bn-panel { display: flex; }
-.bn-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; background: #eef2f8;
-  border-bottom: 1px solid var(--border);
-  font-size: .78rem; font-weight: 700; color: #3a4a5c; white-space: nowrap;
-}
-.bn-count { color: var(--muted); font-weight: 400; font-size: .72rem; }
-.bn-close {
-  margin-left: auto; background: none; border: none; cursor: pointer;
-  color: var(--muted); font-size: .95rem; line-height: 1; padding: 0 2px;
-}
-.bn-close:hover { color: var(--red); }
-.bn-list { overflow-y: auto; padding: 6px; flex: 1; }
+.bn-search input::placeholder { color: #5a6a80; }
+.bn-search input:focus { border-color: var(--blue); background: #182238; }
+.bn-list { overflow-y: auto; max-height: 36vh; }
 .bn-list::-webkit-scrollbar { width: 4px; }
-.bn-list::-webkit-scrollbar-thumb { background: #c8d0e0; border-radius: 4px; }
-.bn-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: .78rem;
+.bn-list::-webkit-scrollbar-thumb { background: #3a4e70; border-radius: 4px; }
+.bn-tree { list-style: none; }
+.bn-node { user-select: none; }
+.bn-row {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 6px; border-radius: 5px; cursor: pointer; font-size: .76rem;
+  color: #b9c3da;
 }
-.bn-item:hover { background: #f0f4fa; }
-.bn-item.active { background: #eaf2fd; }
-.bn-item .bni-name {
-  flex: 1; font-family: "Consolas", monospace; color: #1a2035;
+.bn-row:hover { background: #27334d; }
+.bn-row.active { background: #2d4a86; color: #fff; }
+.bn-row.active .bni-cnt { color: #cfe0ff; }
+.bn-twist {
+  flex-shrink: 0; width: 13px; text-align: center;
+  color: #5a6a80; font-size: .62rem; transition: transform .15s;
+}
+.bn-node.open > .bn-row .bn-twist { transform: rotate(90deg); }
+.bn-nodot { width: 13px; flex-shrink: 0; }
+.bn-row .bni-name {
+  flex: 1; font-family: "Consolas", monospace;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bn-item.active .bni-name { color: var(--blue-dark); font-weight: 700; }
-.bn-item .bni-sub {
-  font-size: .66rem; color: var(--muted); background: #f0f3f8;
-  border: 1px solid var(--border); border-radius: 999px; padding: 0 6px;
-  max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
-}
-.bn-item .bni-cnt { color: var(--muted); font-size: .7rem; flex-shrink: 0; }
-@media (max-width: 600px) { .bn-panel { width: 180px; } }
+.bn-row.lvl1 .bni-name { font-weight: 700; color: #dbe4f5; }
+.bn-row.lvl2 .bni-name { font-weight: 400; }
+.bn-row.lvl2 { padding-left: 14px; }
+.bn-row .bni-cnt { color: #6f80a0; font-size: .68rem; flex-shrink: 0; }
+.bn-children { list-style: none; }
+.bn-empty { text-align: center; color: #5a6a80; font-size: .76rem; padding: 16px 0; }
 
 /* ══ 轻提示 ══ */
 #toast {
@@ -838,6 +828,21 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <div class="s-stat"><strong id="s-regs">0</strong>寄存器</div>
       <div class="s-stat"><strong id="s-fields">0</strong>字段</div>
       <div class="s-stat"><strong id="s-blocks">0</strong>Block</div>
+    </div>
+
+    <!-- Block 导航（PDF 目录书签式树，默认折叠） -->
+    <div class="sidebar-section bn-nav-section" id="bn-nav">
+      <div class="sidebar-title bn-nav-title" id="bn-title" onclick="toggleBlockNav()">
+        <span class="bn-caret" id="bn-caret">▸</span> Block 导航
+        <span class="bn-count" id="bn-count"></span>
+      </div>
+      <div class="bn-body" id="bn-body" style="display:none;">
+        <div class="bn-search">
+          <span class="bn-search-icon">🔍</span>
+          <input type="text" id="bn-search" placeholder="搜索 Block…" oninput="renderBlockNavList()">
+        </div>
+        <div class="bn-list" id="bn-list"></div>
+      </div>
     </div>
 
     <!-- 解析错误提示 -->
@@ -968,21 +973,6 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
   </div><!-- /content -->
 </div><!-- /layout -->
 
-<!-- Block 导航浮动面板（默认折叠，右侧悬浮） -->
-<div id="block-nav" style="display:none;">
-  <button id="bn-tab" type="button" title="Block 导航" onclick="toggleBlockNav()">
-    <span class="bn-tab-icon">🧭</span><span class="bn-tab-text">Block</span>
-  </button>
-  <div class="bn-panel">
-    <div class="bn-head">
-      <span class="bn-title">Block 导航</span>
-      <span class="bn-count" id="bn-count"></span>
-      <button class="bn-close" type="button" title="收起" onclick="toggleBlockNav()">✕</button>
-    </div>
-    <div class="bn-list" id="bn-list"></div>
-  </div>
-</div>
-
 <!-- 轻提示 -->
 <div id="toast"></div>
 
@@ -1007,17 +997,16 @@ var uidCounter   = 0;
 // 按 Block 分组显示
 var groupByBlock    = true;    // 分组模式开关（默认开启）
 var filteredGroups  = [];      // 分组模式下的分组数据
-var collapsedGroups = {};      // 分组折叠状态：groupKey -> true
 
 // Block 多选过滤
 var selectedBlocks = new Set();  // 已勾选的 Block 集合（空集 = 全部）
 var blockNameList  = [];         // [{name, count}] Block 过滤面板列表
 
-// 大数据渲染保护：分组视图单次最多渲染的卡片数（超出显示"更多"）
-var RENDER_BUDGET = 600;         // 过滤器变化后的默认渲染上限
-var RENDER_STEP   = 600;         // "显示更多"每次增加的量
-var GROUP_EXPAND_MAX = 800;      // 单个组展开时懒渲染的上限
-var renderBudget  = RENDER_BUDGET;
+// 大数据渲染保护：分组视图按"顶层 Block 数"分页（每页最多 10 个 Block），Block 默认折叠
+var GROUP_PAGE_SIZE = 10;        // 每页最多显示的顶层 Block 数
+var groupPage       = 1;         // 分组视图当前页（1 基）
+var groupPageCount  = 1;         // 分组视图总页数
+var expandedGroups  = {};        // 已展开的分组（groupKey -> true）；默认全部折叠
 
 // ── 工具函数 ──────────────────────────────────────────────
 function gtext(el, tag) {
@@ -2011,38 +2000,117 @@ function initBlockPanelOutsideClick() {
 // ── Block 导航浮动面板 ───────────────────────────────────
 var navGroups = [];   // 导航用分组列表（可见文件的全部数据）
 
+// 左侧栏 Block 导航（PDF 目录书签式树）
+var navExpanded = true;    // 导航面板默认展开
+var expandedBlocks = {};   // 导航树中展开的 Block（blockName -> true）
+
 function toggleBlockNav(force) {
-  var nav = document.getElementById('block-nav');
-  if (!nav) return;
-  var open = (force === undefined) ? !nav.classList.contains('open') : !!force;
-  if (open) nav.classList.add('open');
-  else nav.classList.remove('open');
+  var section = document.getElementById('bn-nav');
+  var body = document.getElementById('bn-body');
+  if (!section || !body) return;
+  var open = (force === undefined) ? !navExpanded : !!force;
+  navExpanded = open;
+  if (open) section.classList.add('open');
+  else section.classList.remove('open');
+  body.style.display = open ? '' : 'none';
 }
 
 function renderBlockNav() {
-  var nav = document.getElementById('block-nav');
+  var section = document.getElementById('bn-nav');
   var list = document.getElementById('bn-list');
-  if (!nav || !list) return;
+  var title = document.getElementById('bn-title');
+  if (!section || !list) return;
   navGroups = buildGroups(getVisibleRegisters());
+  var cntEl = document.getElementById('bn-count');
   if (!navGroups.length) {
-    nav.style.display = 'none';
+    section.style.display = 'none';
     list.innerHTML = '';
+    if (cntEl) cntEl.textContent = '';
     return;
   }
-  nav.style.display = '';
-  var html = [];
+  section.style.display = '';
+  // 同步展开/折叠状态（默认展开）
+  var body = document.getElementById('bn-body');
+  if (navExpanded) section.classList.add('open');
+  else section.classList.remove('open');
+  if (body) body.style.display = navExpanded ? '' : 'none';
+  // 图标的展示数量 = 顶层 Block 数
+  var topBlockCount = topBlockCountOf(navGroups);
+  if (cntEl) cntEl.textContent = topBlockCount + '';
+  renderBlockNavList();
+}
+
+// 顶层 Block 数
+function topBlockCountOf(groups) {
+  var seen = {}, c = 0;
+  for (var i = 0; i < groups.length; i++) {
+    if (!seen[groups[i].blockName]) { seen[groups[i].blockName] = true; c++; }
+  }
+  return c;
+}
+
+// 依据搜索框过滤并渲染树
+function renderBlockNavList() {
+  var list = document.getElementById('bn-list');
+  if (!list) return;
+  var q = (document.getElementById('bn-search').value || '').trim().toLowerCase();
+
+  // 构建 Block -> [subName...] 树（保持出现顺序）
+  var blocks = [], blockIdx = {};
   for (var i = 0; i < navGroups.length; i++) {
     var b = navGroups[i];
-    var disp = b.blockName || '(无 Block)';
-    html.push('<div class="bn-item" data-gkey="' + escAttr(b.key) + '" title="跳转到 ' + escAttr(disp) + '">'
-      + '<span class="bni-name">' + escHtml(disp) + '</span>'
-      + (b.subName ? '<span class="bni-sub">' + escHtml(b.subName) + '</span>' : '')
-      + '<span class="bni-cnt">' + b.regs.length + '</span></div>');
+    var bn = b.blockName || '(无 Block)';
+    if (blockIdx[bn] === undefined) {
+      blockIdx[bn] = blocks.length;
+      blocks.push({ name: bn, subs: [], subIdx: {}, regs: 0 });
+    }
+    var blk = blocks[blockIdx[bn]];
+    blk.regs += b.regs.length;
+    var sn = b.subName || '';
+    if (!sn) { blk._direct = (blk._direct || 0); }
+    if (blk.subIdx[sn] === undefined) {
+      blk.subIdx[sn] = blk.subs.length;
+      blk.subs.push({ name: sn || '(无 Sub_Name)', gkey: b.key, regs: b.regs.length, direct: !sn });
+    } else {
+      blk.subs[blk.subIdx[sn]].regs += b.regs.length;
+    }
   }
-  list.innerHTML = html.join('');
-  document.getElementById('bn-count').textContent = navGroups.length + ' 组';
+
+  // 过滤（Block 名或 Sub_Name 命中则保留整棵）
+  var html = [];
+  for (var bi = 0; bi < blocks.length; bi++) {
+    var blk = blocks[bi];
+    var nameL = blk.name.toLowerCase();
+    // 若过滤词为空则全部保留；否则 Block 名或任一 Sub_Name 命中
+    var keep = !q || nameL.indexOf(q) > -1 || blk.subs.some(function(s){ return s.name.toLowerCase().indexOf(q) > -1; });
+    if (!keep) continue;
+    var isOpen = !!expandedBlocks[blk.name];
+    html.push('<div class="bn-node' + (isOpen ? ' open' : '') + '" data-block="' + escAttr(blk.name) + '">');
+    // 一级：Block
+    html.push('<div class="bn-row lvl1" data-block="' + escAttr(blk.name) + '" title="展开/收起 ' + escAttr(blk.name) + '" data-toggle="1">'
+      + '<span class="bn-twist">▸</span>'
+      + '<span class="bni-name">' + escHtml(blk.name) + '</span>'
+      + '<span class="bni-cnt">' + formatCount(blk.regs) + '</span></div>');
+    // 二级：Sub_Name
+    if (isOpen || q) {
+      html.push('<ul class="bn-children">');
+      for (var si = 0; si < blk.subs.length; si++) {
+        var s = blk.subs[si];
+        html.push('<li class="bn-node-sub">'
+          + '<div class="bn-row lvl2" data-gkey="' + escAttr(s.gkey) + '" data-block="' + escAttr(blk.name) + '" title="跳转到 ' + escAttr(blk.name + (s.name==='(无 Sub_Name)'?'':' / '+s.name)) + '">'
+          + '<span class="bn-nodot"></span>'
+          + '<span class="bni-name">' + escHtml(s.name) + '</span>'
+          + '<span class="bni-cnt">' + formatCount(s.regs) + '</span></div></li>');
+      }
+      html.push('</ul>');
+    }
+    html.push('</div>');
+  }
+  list.innerHTML = html.length ? html.join('') : '<div class="bn-empty">无匹配 Block</div>';
   updateActiveNav();
 }
+
+function formatCount(n) { return (n >= 10000) ? (Math.round(n/1000) + 'k') : (n + ''); }
 
 function findGroupEl(key) {
   var gs = document.querySelectorAll('#reg-list .reg-group');
@@ -2067,40 +2135,43 @@ function jumpToBlock(key) {
     updateBlockFilterUI();
     renderBlockPanel();
   }
+  // 展开目标组，折叠其它组（保持页面整洁、聚焦）
+  for (var n = 0; n < filteredGroups.length; n++) delete expandedGroups[filteredGroups[n].key];
+  expandedGroups[key] = true;
+
+  // 过滤后转到目标组所在页
   doFilter();
-  var el = findGroupEl(key);
-  if (!el) {
-    // 可能是渲染预算截断了目标组：提高预算到该组之前并重渲染
-    var idx = -1;
-    for (var i2 = 0; i2 < filteredGroups.length; i2++) { if (filteredGroups[i2].key === key) { idx = i2; break; } }
-    if (idx >= 0) {
-      var need = 0;
-      for (var i3 = 0; i3 <= idx; i3++) if (!collapsedGroups[filteredGroups[i3].key]) need += filteredGroups[i3].regs.length;
-      renderBudget = Math.max(renderBudget, need + 1);
-      renderPage();
-      el = findGroupEl(key);
+  var idx = -1;
+  for (var i2 = 0; i2 < filteredGroups.length; i2++) { if (filteredGroups[i2].key === key) { idx = i2; break; } }
+  if (idx >= 0) {
+    // 找到包含该组的页
+    for (var pgi = 0; pgi < groupPages.length; pgi++) {
+      if (idx >= groupPages[pgi].startGi && idx < groupPages[pgi].endGi) { groupPage = pgi + 1; break; }
     }
-  }
-  if (!el) {
+    // 页已确定，直接重渲到该页（不重算分页，避免 groupPageDirty 重置）
+    groupPageDirty = false;
+    renderPage();
+    var el = findGroupEl(key);
+    if (!el) { showToast('该 Block 被当前搜索/类型条件过滤，未显示'); return; }
+    if (el.classList.contains('collapsed')) {
+      ensureGroupBody(el);
+      el.classList.remove('collapsed');
+      expandedGroups[key] = true;
+    }
+    var content = document.querySelector('.content');
+    var tb = document.getElementById('toolbar');
+    var offset = (tb ? tb.offsetHeight : 0) + 8;
+    var top = el.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop - offset;
+    content.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    updateActiveNav();
+  } else {
     showToast('该 Block 被当前搜索/类型条件过滤，未显示');
-    return;
   }
-  if (el.classList.contains('collapsed')) {
-    ensureGroupBody(el);
-    el.classList.remove('collapsed');
-    delete collapsedGroups[key];
-  }
-  var content = document.querySelector('.content');
-  var tb = document.getElementById('toolbar');
-  var offset = (tb ? tb.offsetHeight : 0) + 8;
-  var top = el.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop - offset;
-  content.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-  updateActiveNav();
 }
 
 // 滚动监听：高亮当前位于视口顶部的 Block 组
 function updateActiveNav() {
-  var items = document.querySelectorAll('.bn-item');
+  var items = document.querySelectorAll('.bn-row.lvl2');
   if (!items.length) return;
   var activeKey = '';
   if (groupByBlock) {
@@ -2115,23 +2186,42 @@ function updateActiveNav() {
       else break;
     }
   }
-  for (var j = 0; j < items.length; j++) {
-    if (items[j].getAttribute('data-gkey') === activeKey) items[j].classList.add('active');
-    else items[j].classList.remove('active');
+  if (activeKey) {
+    var activeBlock = activeKey.split('/')[0] || '';
+    if (activeBlock && !expandedBlocks[activeBlock]) expandedBlocks[activeBlock] = true;
+    // 若因折叠结构未渲染出目标二级节点，重渲一次以显示高亮
+    var found = false;
+    for (var j = 0; j < items.length; j++) {
+      var m = items[j].getAttribute('data-gkey') === activeKey;
+      items[j].classList.toggle('active', m);
+      if (m) found = true;
+    }
+    if (!found) renderBlockNavList();
+  } else {
+    for (var j2 = 0; j2 < items.length; j2++) items[j2].classList.remove('active');
   }
 }
 
 function initBlockNav() {
   document.getElementById('bn-list').addEventListener('click', function(ev) {
     var t = ev.target;
-    var item = t.closest ? t.closest('.bn-item') : null;
+    // 一级：展开/收起
+    var lvl1 = t.closest ? t.closest('.bn-row.lvl1') : null;
+    if (lvl1) {
+      var bn = lvl1.getAttribute('data-block');
+      if (expandedBlocks[bn]) delete expandedBlocks[bn];
+      else expandedBlocks[bn] = true;
+      renderBlockNavList();
+      return;
+    }
+    // 二级：跳转
+    var item = t.closest ? t.closest('.bn-row.lvl2') : null;
     if (item) jumpToBlock(item.getAttribute('data-gkey'));
   });
   var content = document.querySelector('.content');
   var ticking = false;
   content.addEventListener('scroll', function() {
-    var nav = document.getElementById('block-nav');
-    if (ticking || !nav.classList.contains('open')) return;
+    if (ticking || !navExpanded) return;
     ticking = true;
     requestAnimationFrame(function() {
       ticking = false;
@@ -2186,7 +2276,7 @@ function doFilter() {
   }
 
   currentPage = 1;
-  renderBudget = RENDER_BUDGET;   // 每次过滤重置渲染预算
+  groupPage = 1; groupPageDirty = true;   // 每次过滤重置分组分页
   var rsvTotal = visibleRegs.reduce(function(s,r){ return s + r.fields.filter(function(f){return f.reserved;}).length; }, 0);
   document.getElementById('result-count').textContent =
     filtered.length + ' / ' + visibleRegs.length + ' 条（保留位字段 ' + rsvTotal + ' 个）';
@@ -2248,7 +2338,7 @@ function renderPage() {
 function toggleGroupBy() {
   groupByBlock = document.getElementById('group-by-block').checked;
   currentPage = 1;
-  renderBudget = RENDER_BUDGET;
+  groupPage = 1; groupPageDirty = true;
   updateGroupTop();
   renderPage();
   updateActiveNav();
@@ -2317,55 +2407,81 @@ function buildGroupHeaderHtml(g, gi) {
     + '</div>';
 }
 
-function renderGroupedPage(q) {
-  var list = document.getElementById('reg-list');
-  document.getElementById('pagination').innerHTML = '';
+// 分组视图分页：按"顶层 Block 名数"切页（每页最多 GROUP_PAGE_SIZE 个 Block），Block 不拆分、默认折叠
+var groupPageDirty = true;   // 过滤器变化后需重新计算分页
+var groupPages = [];         // [{startGi, endGi, blocks}]
 
-  filteredGroups = buildGroups(filtered);
-
-  var html = [];
-  var rendered = 0;          // 本批次已渲染的卡片数
+function rebuildGroupPages() {
+  groupPages = [];
+  if (!filteredGroups) return;
+  var cur = null;
+  var prevBlock = null;
   for (var gi = 0; gi < filteredGroups.length; gi++) {
     var g = filteredGroups[gi];
-    var collapsed = !!collapsedGroups[g.key];
-    var bodyHtml = '';
-
-    // 仅在预算内渲染卡片（控制 DOM 规模，避免勾选/重排卡顿）
-    if (!collapsed && rendered < renderBudget) {
-      var left = renderBudget - rendered;
-      var n = Math.min(g.regs.length, left);
-      for (var ri = 0; ri < n; ri++) {
-        bodyHtml += buildCard(g.regs[ri], ri + 1, q);
-      }
-      rendered += n;
+    var isNewBlock = (g.blockName !== prevBlock);
+    if (!cur || (isNewBlock && cur.blocks >= GROUP_PAGE_SIZE)) {
+      if (cur) groupPages.push(cur);
+      cur = { startGi: gi, endGi: gi + 1, blocks: 1 };
+    } else {
+      if (isNewBlock) cur.blocks += 1;
+      cur.endGi = gi + 1;
     }
+    prevBlock = g.blockName;
+  }
+  if (cur) groupPages.push(cur);
+  groupPageCount = Math.max(1, groupPages.length);
+  if (groupPage > groupPageCount) groupPage = groupPageCount;
+  if (groupPage < 1) groupPage = 1;
+}
 
-    html.push('<div class="reg-group' + (collapsed ? ' collapsed' : '') + '" data-gkey="' + escAttr(g.key) + '">');
-    html.push(buildGroupHeaderHtml(g, gi));
-    // 折叠的组懒渲染：展开时再生成卡片，大数据量下更快
-    html.push('<div class="group-body"' + (bodyHtml ? ' data-built="1"' : '') + '>' + bodyHtml + '</div>');
-    html.push('</div>');
+function renderGroupedPage(q) {
+  var list = document.getElementById('reg-list');
 
-    // 预算耗尽：给后续组一个"加载更多"入口
-    if (rendered >= renderBudget && gi < filteredGroups.length - 1) {
-      html.push('<div class="render-limit-bar">已显示前 <b>' + rendered + '</b> / ' + filtered.length
-        + ' 条（性能优化）<button class="btn-toolbar" onclick="showMore()">显示更多</button></div>');
-      break;
+  filteredGroups = buildGroups(filtered);
+  if (groupPageDirty) {
+    rebuildGroupPages();
+    groupPageDirty = false;
+  } else {
+    // 数据未变（如仅展开/折叠）则无需重建；但仍保证页数有效
+    if (groupPage > groupPageCount) groupPage = groupPageCount;
+  }
+
+  var page = groupPages[groupPage - 1];
+  var html = [];
+  if (page) {
+    for (var gi = page.startGi; gi < page.endGi; gi++) {
+      var g = filteredGroups[gi];
+      var collapsed = !expandedGroups[g.key];
+      var bodyHtml = '';
+      if (!collapsed) {
+        // 组内限额渲染：超大组懒渲染 + 补齐
+        bodyHtml = renderGroupBodyCards(g, gi, q);
+      }
+      html.push('<div class="reg-group' + (collapsed ? ' collapsed' : '') + '" data-gkey="' + escAttr(g.key) + '">');
+      html.push(buildGroupHeaderHtml(g, gi));
+      html.push('<div class="group-body"' + (bodyHtml ? ' data-built="1"' : '') + '>' + bodyHtml + '</div>');
+      html.push('</div>');
     }
   }
   list.innerHTML = html.join('');
   updateGroupTop();
   syncHeaderCheckbox();
   syncGroupCheckboxes();
+  renderGroupPagination();
 }
 
-// 加载更多：提高渲染预算并保留当前滚动位置
-function showMore() {
-  renderBudget += RENDER_STEP;
-  var content = document.querySelector('.content');
-  var st = content ? content.scrollTop : 0;
-  renderPage();
-  if (content) content.scrollTop = st;
+// 渲染单个组展开时的卡片（限定上限，超限给出"显示本组全部"）
+function renderGroupBodyCards(g, gi, q) {
+  if (g.regs.length <= GROUP_PAGE_SIZE) {
+    var parts = [];
+    for (var i = 0; i < g.regs.length; i++) parts.push(buildCard(g.regs[i], i + 1, q));
+    return parts.join('');
+  }
+  var parts2 = [];
+  for (var j = 0; j < GROUP_PAGE_SIZE; j++) parts2.push(buildCard(g.regs[j], j + 1, q));
+  parts2.push('<div class="render-limit-bar">本组还有 <b>' + (g.regs.length - GROUP_PAGE_SIZE)
+    + '</b> 项未显示<button class="btn-toolbar" onclick="expandGroupFull(' + gi + ')">显示本组全部</button></div>');
+  return parts2.join('');
 }
 
 // 单个组展开时懒渲染补全（限定上限，避免一次性渲染超大组）
@@ -2375,21 +2491,9 @@ function ensureGroupBody(grp) {
   if (!gh || !body || body.getAttribute('data-built')) return;
   var g = filteredGroups[Number(gh.getAttribute('data-gi'))];
   if (!g) return;
-  if (g.regs.length <= GROUP_EXPAND_MAX) {
-    var q2 = document.getElementById('search-input').value.trim();
-    var parts = [];
-    for (var i = 0; i < g.regs.length; i++) parts.push(buildCard(g.regs[i], i + 1, q2));
-    body.innerHTML = parts.join('');
-    body.setAttribute('data-built', '1');
-  } else {
-    var q3 = document.getElementById('search-input').value.trim();
-    var parts2 = [];
-    for (var j = 0; j < GROUP_EXPAND_MAX; j++) parts2.push(buildCard(g.regs[j], j + 1, q3));
-    parts2.push('<div class="render-limit-bar">本组还有 <b>' + (g.regs.length - GROUP_EXPAND_MAX)
-      + '</b> 项未显示<button class="btn-toolbar" onclick="expandGroupFull(' + gh.getAttribute('data-gi') + ')">显示本组全部</button></div>');
-    body.innerHTML = parts2.join('');
-    body.setAttribute('data-built', '1');
-  }
+  var q2 = document.getElementById('search-input').value.trim();
+  body.innerHTML = renderGroupBodyCards(g, Number(gh.getAttribute('data-gi')), q2);
+  body.setAttribute('data-built', '1');
 }
 
 // 展开单个组剩余全部卡片（用户显式操作）
@@ -2407,6 +2511,37 @@ function expandGroupFull(gi) {
   for (var i = 0; i < g.regs.length; i++) parts.push(buildCard(g.regs[i], i + 1, q2));
   body.innerHTML = parts.join('');
   body.setAttribute('data-built', '1');
+}
+
+// 分组视图分页栏
+function renderGroupPagination() {
+  var pg = document.getElementById('pagination');
+  if (groupPageCount <= 1) { pg.innerHTML = ''; return; }
+  var html = '<button class="page-btn" onclick="goGroupPage(' + (groupPage-1) + ')"' + (groupPage===1?' disabled':'') + '>‹</button>';
+  var pset = {}, pkeys = [];
+  var candidates = [1, groupPageCount, groupPage, groupPage-1, groupPage+1];
+  for (var ci = 0; ci < candidates.length; ci++) {
+    var cp = candidates[ci];
+    if (cp >= 1 && cp <= groupPageCount && !pset[cp]) { pset[cp] = true; pkeys.push(cp); }
+  }
+  pkeys.sort(function(a,b){return a-b;});
+  var prev = null;
+  for (var pi = 0; pi < pkeys.length; pi++) {
+    var p = pkeys[pi];
+    if (prev !== null && p - prev > 1) html += '<span style="color:var(--muted)">…</span>';
+    html += '<button class="page-btn' + (p===groupPage?' active':'') + '" onclick="goGroupPage(' + p + ')">' + p + '</button>';
+    prev = p;
+  }
+  html += '<button class="page-btn" onclick="goGroupPage(' + (groupPage+1) + ')"' + (groupPage===groupPageCount?' disabled':'') + '>›</button>';
+  html += '<span style="font-size:.82rem;color:var(--muted)">第' + groupPage + '/' + groupPageCount + '页</span>';
+  pg.innerHTML = html;
+}
+
+function goGroupPage(p) {
+  if (p < 1 || p > groupPageCount) return;
+  groupPage = p;
+  renderPage();
+  document.querySelector('.content').scrollTo({top:0,behavior:'smooth'});
 }
 
 // 同步分组头复选框（全选/半选状态）
@@ -2464,10 +2599,10 @@ function initRegListDelegation() {
       if (grp.classList.contains('collapsed')) {
         ensureGroupBody(grp);
         grp.classList.remove('collapsed');
-        if (gkey) delete collapsedGroups[gkey];
+        if (gkey) expandedGroups[gkey] = true;
       } else {
         grp.classList.add('collapsed');
-        if (gkey) collapsedGroups[gkey] = true;
+        if (gkey) delete expandedGroups[gkey];
       }
       return;
     }
@@ -2749,7 +2884,7 @@ function expandAll() {
     ensureGroupBody(gs[j]);
     gs[j].classList.remove('collapsed');
     var gk = gs[j].getAttribute('data-gkey');
-    if (gk) delete collapsedGroups[gk];
+    if (gk) expandedGroups[gk] = true;
   }
 }
 function collapseAll() {
@@ -2759,16 +2894,17 @@ function collapseAll() {
   for (var j = 0; j < gs.length; j++) {
     gs[j].classList.add('collapsed');
     var gk = gs[j].getAttribute('data-gkey');
-    if (gk) collapsedGroups[gk] = true;
+    if (gk) delete expandedGroups[gk];
   }
 }
 
 // ── 清空 ─────────────────────────────────────────────────
 function clearAll() {
   pendingFiles=[]; allRegisters=[]; filtered=[]; selected.clear(); dbInfos=[]; uidCounter=0;
-  groupByBlock=true; filteredGroups=[]; collapsedGroups={};
+  groupByBlock=true; filteredGroups=[]; expandedGroups={};
   var gbb=document.getElementById('group-by-block'); if (gbb) gbb.checked=true;
-  renderBudget = RENDER_BUDGET;
+  groupPages=[]; groupPage=1; groupPageCount=1; groupPageDirty=true;
+  expandedBlocks={}; navExpanded=true;
   nextFileId=0; parseScheduled=false; parseInProgress=false; parseGeneration++;
   renderFileList();
   document.getElementById('reg-list').innerHTML='';
@@ -2782,7 +2918,7 @@ function clearAll() {
   document.getElementById('loading').classList.remove('visible');
   document.getElementById('db-info').textContent='在左侧添加文件后自动解析';
   selectedBlocks.clear(); blockNameList=[]; updateBlockFilterUI(); renderBlockPanel();
-  navGroups=[]; renderBlockNav(); toggleBlockNav(false);
+  navGroups=[]; renderBlockNav();
   document.getElementById('filter-perm').value='';
   document.getElementById('ft-reg').checked  = true;
   document.getElementById('ft-ind').checked  = true;
@@ -2983,7 +3119,72 @@ function netModalLoad() {
   });
 }
 
+function isLatestRegisterPath(relPath) {
+  var p = String(relPath || '').replace(/\\/g, '/');
+  var parts = p.split('/');
+  if (parts.shift() !== 'latest' || !parts.length) return false;
+  for (var i = 0; i < parts.length; i++) {
+    if (!parts[i] || parts[i] === '.' || parts[i] === '..') return false;
+  }
+  return /\.(xml|json)$/i.test(parts[parts.length - 1]);
+}
+
+function autoLoadLatestRegisters() {
+  fetch('/api/list-register-files')
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    })
+    .then(function(data) {
+      if (!data || !data.ok || !Array.isArray(data.files))
+        throw new Error('接口返回异常');
+
+      var paths = data.files;
+      paths = paths.filter(isLatestRegisterPath);
+      if (!paths.length) return;
+
+      var errors = [];
+      var requests = paths.map(function(relPath) {
+        var normalized = String(relPath).replace(/\\/g, '/');
+        var urlPath = normalized.split('/').map(encodeURIComponent).join('/');
+        return fetch('./register/' + urlPath)
+          .then(function(resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var modified = resp.headers.get('Last-Modified');
+            var timestamp = modified ? Date.parse(modified) : 0;
+            return resp.blob().then(function(blob) {
+              var name = normalized.split('/').pop();
+              return new File([blob], name, {
+                type: name.toLowerCase().endsWith('.json') ? 'application/json' : 'text/xml',
+                lastModified: timestamp && !isNaN(timestamp) ? timestamp : Date.now()
+              });
+            });
+          })
+          .catch(function(err) {
+            errors.push(normalized + ': ' + err.message);
+            return null;
+          });
+      });
+
+      return Promise.all(requests).then(function(files) {
+        var xmlFiles = files.filter(function(file) {
+          return file && file.name.toLowerCase().endsWith('.xml');
+        });
+        var jsonFiles = files.filter(function(file) {
+          return file && file.name.toLowerCase().endsWith('.json');
+        });
+        if (xmlFiles.length) addFiles(xmlFiles, 'xml');
+        if (jsonFiles.length) addFiles(jsonFiles, 'json');
+        if (errors.length) showToast('latest/ 自动加载完成，失败 ' + errors.length + ' 个');
+      });
+    })
+    .catch(function(err) {
+      showToast('latest/ 自动加载失败：' + err.message);
+    });
+}
+
 initFileInputs();
+autoLoadLatestRegisters();
 
 // ── 列宽调整 ─────────────────────────────────────────────
 // colWidths: [#, chk, name, addr, desc(null=1fr), block, toggle]

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "registers": {
     "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CEMAC0_0_MAC_CFG": {
       "shortDesc": "MAC core general control and configuration",
@@ -46153,7 +46153,7 @@
       }
     }
   },
-  "generatedAt": "2026-08-31T08:53:29Z",
+  "generatedAt": "2026-08-31T09:35:38Z",
   "sourceRegisterFile": "d10_trunk_registers_13285.json",
   "sourceManuals": [
     "CEFEC_reference_guide_v1.1.pdf",

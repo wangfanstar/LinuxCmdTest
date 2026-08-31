@@ -46,7 +46,7 @@ SEP = "\x1f"
 # Register identities are read from the register file and referenced as a single
 # immutable string. The browser (register-viewer.html) uses identical keys via
 # regKeyOf()/fieldKeyOf(); keep the join order + separator in lockstep.
-OVERLAY_FORMAT_VERSION = 1
+OVERLAY_FORMAT_VERSION = 2
 OVERLAY_NAME = "register_descriptions.json"
 DESC_SUFFIX = ".descriptions.json"
 

@@ -994,6 +994,11 @@ var currentPage  = 1;
 var dbInfos      = [];
 var uidCounter   = 0;
 
+// 描述叠加层：按内容键查表补空描述（只补空，不覆盖原始描述）
+var descriptionOverlay = {};
+var descriptionOverlayLoaded = false;
+var descriptionOverlayVersion = null;
+
 // 按 Block 分组显示
 var groupByBlock    = true;    // 分组模式开关（默认开启）
 var filteredGroups  = [];      // 分组模式下的分组数据
@@ -1111,6 +1116,73 @@ function badgeClass(perm, fieldName) {
   return 'badge-default';
 }
 
+// ── 描述叠加层：键与查补 ──────────────────────────────────
+// 键由寄存器内容拼接（不含路径/文件名），生成器(Python)与前端(JS)必须保持完全一致
+function regKeyOf(r) {
+  return [r.entryType || 'reg', r.blockName || '', r.subName || '', r.regName || ''].join('\x1f');
+}
+function fieldKeyOf(regKey, f) {
+  return [regKey, f.name || '', f.startBit, f.endBit].join('\x1f');
+}
+
+function isDescriptionPath(relPath) {
+  var p = String(relPath || '').replace(/\\/g, '/');
+  var parts = p.split('/');
+  if (parts.shift() !== 'descriptions' || !parts.length) return false;
+  return /\.json$/i.test(parts[parts.length - 1]);
+}
+
+function mergeDescriptionOverlay(patch) {
+  if (!patch || typeof patch !== 'object' || !patch.registers) return;
+  if (patch.version) descriptionOverlayVersion = patch.version;
+  var regKeys = Object.keys(patch.registers);
+  for (var i = 0; i < regKeys.length; i++) {
+    var k = regKeys[i];
+    var cur = descriptionOverlay[k] || { shortDesc: '', fullDesc: '', fields: {}, source: null };
+    var src = patch.registers[k];
+    if (cur.source == null && src.source) cur.source = src.source;
+    if (src.shortDesc && !cur.shortDesc) cur.shortDesc = src.shortDesc;
+    if (src.fullDesc  && !cur.fullDesc)  cur.fullDesc  = src.fullDesc;
+    if (src.fields) {
+      var fk = Object.keys(src.fields);
+      for (var j = 0; j < fk.length; j++) {
+        if (!cur.fields[fk[j]]) cur.fields[fk[j]] = src.fields[fk[j]];
+      }
+    }
+    descriptionOverlay[k] = cur;
+  }
+  descriptionOverlayLoaded = true;
+  applyOverlayToAllRegisters();
+}
+
+function applyOverlayToRegister(reg) {
+  var rk = regKeyOf(reg);
+  var patch = descriptionOverlay[rk];
+  if (!patch) return false;
+  var touched = false;
+  if (!reg.shortDesc && patch.shortDesc) { reg.shortDesc = patch.shortDesc; touched = true; }
+  if (!reg.fullDesc  && patch.fullDesc)  { reg.fullDesc  = patch.fullDesc;  touched = true; }
+  for (var i = 0; i < reg.fields.length; i++) {
+    var f = reg.fields[i];
+    if (f.desc) continue;
+    var fk = fieldKeyOf(rk, f);
+    if (patch.fields && patch.fields[fk]) {
+      f.desc = patch.fields[fk];
+      f._descSource = 'manual';
+      touched = true;
+      if (reg._search) reg._search += ' ' + patch.fields[fk].toLowerCase();
+    }
+  }
+  if (touched) { reg._descSource = 'manual'; reg._overlaySource = patch.source; }
+  return touched;
+}
+
+function applyOverlayToAllRegisters() {
+  if (!descriptionOverlayLoaded) return;
+  for (var i = 0; i < allRegisters.length; i++) applyOverlayToRegister(allRegisters[i]);
+  refreshDataView();
+}
+
 // ── 文件队列管理 ──────────────────────────────────────────
 function addFiles(files, type) {
   var added = false;
@@ -1222,7 +1294,7 @@ function scheduleAutoParse() {
 // ── IndexedDB 解析缓存 ───────────────────────────────────
 var CACHE_DB = 'registerViewerCache';
 var CACHE_STORE = 'parseCache';
-var CACHE_VER = 'v1';
+var CACHE_VER = 'v2';
 var _cacheDb = null;
 
 function cacheAvailable() { return !!window.indexedDB; }
@@ -1244,7 +1316,8 @@ function cacheOpen(cb) {
 }
 
 function cacheKeyFor(file) {
-  return CACHE_VER + '|' + file.name + '|' + file.size + '|' + (file.lastModified || 0);
+  return CACHE_VER + '|' + file.name + '|' + file.size + '|' + (file.lastModified || 0)
+       + '|overlay:' + (descriptionOverlayVersion || '');
 }
 
 function cacheGet(key, cb) {
@@ -1567,7 +1640,7 @@ function parseRegElement(reg, blockName, subName, filename, entryType, fileId) {
     if (!permSet[p]) { permSet[p] = true; permsArr.push(p); }
   }
 
-  return {
+  var obj = {
     uid: ++uidCounter, blockName: blockName, subName: subName, filename: filename,
     _fileId: fileId,
     regName: regName, entryType: entryType,
@@ -1576,6 +1649,8 @@ function parseRegElement(reg, blockName, subName, filename, entryType, fileId) {
     resetOn: gtext(reg, 'Reset_On'), ztlMode: gtext(reg, 'ZTL_Mode'), copies: copiesStr,
     fields: fields, _search: searchParts.join(' ').toLowerCase(), _perms: permsArr
   };
+  applyOverlayToRegister(obj);
+  return obj;
 }
 
 // ── 解析 XML ─────────────────────────────────────────────
@@ -1676,7 +1751,7 @@ function parseXML(text, filename, fileId) {
           sSearchParts.push(sFields[ssi].name + ' ' + sFields[ssi].desc);
         }
 
-        result.push({
+        var sObj = {
           uid:       ++uidCounter,
           blockName: blockName,
           subName:   subName,
@@ -1701,7 +1776,9 @@ function parseXML(text, filename, fileId) {
           fields:    sFields,
           _search:   sSearchParts.join(' ').toLowerCase(),
           _perms:    []
-        });
+        };
+        applyOverlayToRegister(sObj);
+        result.push(sObj);
       }
     }
   }
@@ -1767,7 +1844,7 @@ function parseImportedJSON(text, filename, fileId) {
       if (!permSet2[p2]) { permSet2[p2] = true; permsArr2.push(p2); }
     }
 
-    result.push({
+    var obj2 = {
       uid:       uid,
       blockName: r.blockName || '',
       subName:   r.subName || '',
@@ -1791,7 +1868,9 @@ function parseImportedJSON(text, filename, fileId) {
       fields:    fields,
       _search:   searchParts2.join(' ').toLowerCase(),
       _perms:    permsArr2
-    });
+    };
+    applyOverlayToRegister(obj2);
+    result.push(obj2);
   }
   return result;
 }
@@ -2656,7 +2735,9 @@ function buildCard(r, idx, q) {
     var rc   = f.reserved ? ' class="row-reserved"' : '';
     var descDisplay = (f.reserved && !f.desc)
       ? '<span style="color:#bbb;font-style:italic;">保留位，软件勿修改</span>'
-      : hl(f.desc, q);
+      : (f._descSource === 'manual'
+          ? '<span class="badge badge-default" title="来自手册" style="margin-right:4px;">📖手册</span>' + hl(f.desc, q)
+          : hl(f.desc, q));
     var permLabel = f.reserved
       ? '<span class="badge badge-RSV">RSV</span>'
       : '<span class="badge ' + bc + '">' + (escHtml(f.perm) || '—') + '</span>';
@@ -2680,6 +2761,11 @@ function buildCard(r, idx, q) {
   if (!isSram && r.addrRange) metaParts.push('<span><strong>地址范围:</strong> ' + escHtml(r.addrRange) + '</span>');
   metaParts.push('<span><strong>Block:</strong> ' + escHtml(r.blockName) + ' / ' + escHtml(r.subName) + '</span>');
   metaParts.push('<span><strong>来源:</strong> ' + escHtml(r.filename) + '</span>');
+  if (r._descSource === 'manual') {
+    var srcTxt = (r._overlaySource && r._overlaySource.manual) ? r._overlaySource.manual : '手册';
+    if (r._overlaySource && r._overlaySource.pdfPage) srcTxt += '(p.' + r._overlaySource.pdfPage + ')';
+    metaParts.push('<span><strong>描述:</strong> <span class="badge badge-default">📖 ' + escHtml(srcTxt) + '</span></span>');
+  }
   var meta = metaParts.join('');
 
   // ── SRAM 专属信息行 ──
@@ -3023,7 +3109,8 @@ function netScan() {
     })
     .then(function(data) {
       if (!data.ok || !data.files) throw new Error('接口返回异常');
-      _netFileList = data.files.map(function(relPath) {
+      var files = data.files.filter(function(p) { return !isDescriptionPath(p); });
+      _netFileList = files.map(function(relPath) {
         var name = relPath.split('/').pop();
         var ext  = name.split('.').pop().toLowerCase();
         // baseUrl = register/ + 子目录前缀（若有）
@@ -3187,8 +3274,49 @@ function autoLoadLatestRegisters() {
     });
 }
 
+function autoLoadRegisterDescriptions() {
+  if (location.protocol === 'file:') {
+    showToast('本地打开无法自动加载描述叠加层，请由服务器服务或使用“加载文件夹”选择 descriptions/');
+    return;
+  }
+  fetch('/api/list-register-files')
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    })
+    .then(function(data) {
+      if (!data || !data.ok || !Array.isArray(data.files))
+        throw new Error('接口返回异常');
+      var paths = data.files.filter(isDescriptionPath);
+      if (!paths.length) return;
+      var errors = [];
+      var requests = paths.map(function(relPath) {
+        var normalized = String(relPath).replace(/\\/g, '/');
+        var urlPath = normalized.split('/').map(encodeURIComponent).join('/');
+        return fetch('./register/' + urlPath)
+          .then(function(resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.json();
+          })
+          .then(function(patch) {
+            mergeDescriptionOverlay(patch);
+          })
+          .catch(function(err) {
+            errors.push(normalized + ': ' + err.message);
+          });
+      });
+      return Promise.all(requests).then(function() {
+        if (errors.length) showToast('描述叠加层加载完成，失败 ' + errors.length + ' 个');
+      });
+    })
+    .catch(function(err) {
+      showToast('描述叠加层加载失败：' + err.message);
+    });
+}
+
 initFileInputs();
 autoLoadLatestRegisters();
+autoLoadRegisterDescriptions();
 
 // ── 列宽调整 ─────────────────────────────────────────────
 // colWidths: [#, chk, name, addr, desc(null=1fr), block, toggle]

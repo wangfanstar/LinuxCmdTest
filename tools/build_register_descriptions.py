@@ -440,6 +440,14 @@ def build_overlay(register_file, catalogs):
                 patch["fields"][field_key_of(rk, f)] = raw
                 field_filled += 1
                 field_done = True
+                continue
+            # Last resort: the manual documents the register as a whole only.
+            # For a non-reserved field with no dedicated text, reuse the register
+            # description so the field is not left blank.
+            if not (f.get("reserved") or False) and patch["shortDesc"]:
+                patch["fields"][field_key_of(rk, f)] = patch["shortDesc"]
+                field_filled += 1
+                field_done = True
         if reg_done:
             reg_desc_filled += 1
         if reg_done or field_done:

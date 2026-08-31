@@ -874,9 +874,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
         <code>主名.json → 主名.descriptions.json</code><br>
         例如：<code>d10_trunk_registers_13285.json</code><br>
         <code>d10_trunk_registers_13285.descriptions.json</code><br>
-        打开页面会自动扫描加载（同名后缀默认加载）。<br>
-        也可用 <b>＋ 描述</b> 手动挑选一个描述 JSON；点条目 <b>×</b> 单个移除，<br>
+        打开页面会自动扫描加载（同名后缀默认加载）；点击 <b>＋ JSON</b> 选择文件时也会自动识别<br>
+        描述文件与主文件。也可用 <b>＋ 描述</b> 手动挑选描述 JSON；描述条目支持 <b>更换</b> 与 <b>× 关闭</b>，<br>
         或用 <b>移除描述</b> 一键清空。<br>
+        勾选 <b>只看附加描述</b> 可仅显示带手册/叠加层描述的寄存器。<br>
         只有描述为空且匹配上时才会填充，带「📖手册」标记，<b>不覆盖</b>原有描述。
       </div>
     </div>
@@ -947,6 +948,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <label class="toggle-wrap">
         <input type="checkbox" id="show-reserved" checked onchange="doFilter()">
         显示保留位
+      </label>
+      <label class="toggle-wrap" title="仅显示带附加描述（手册/叠加层）的寄存器">
+        <input type="checkbox" id="only-overlaid" onchange="doFilter()">
+        只看附加描述
       </label>
       <label class="toggle-wrap" title="按 Block 分组显示，点击组头可折叠/展开">
         <input type="checkbox" id="group-by-block" checked onchange="toggleGroupBy()">
@@ -1230,23 +1235,9 @@ function applyOverlayToAllRegisters() {
   refreshDataView();
 }
 
-// ── 描述文件管理（同目录同名后缀，手动一键增删 + 自动发现）──────
+// ── 描述文件管理（同目录同名后缀，手动一键增删/更换 + 自动发现）──────
 function renderDescFiles() {
-  var list  = document.getElementById('file-list');
-  if (!list) return;
-  var existing = list.querySelectorAll('.file-item.desc-item');
-  for (var i = 0; i < existing.length; i++) existing[i].remove();
-  for (var k = 0; k < descFiles.length; k++) {
-    var d = descFiles[k];
-    var div = document.createElement('div');
-    div.className = 'file-item desc-item' + (d.error ? ' has-error' : '');
-    div.innerHTML = '<span class="fi-icon" title="描述文件">🎨</span>'
-      + '<span class="fi-name" title="' + escAttr(d.name || d.path) + '">' + escHtml(d.name || d.path) + '</span>'
-      + (d.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
-        : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
-      + '<button class="fi-remove" onclick="removeDescFile(' + d.id + ')" title="移除该描述文件">×</button>';
-    list.insertBefore(div, list.firstChild);
-  }
+  renderFileList();
 }
 
 function readDescFile(file, cb) {
@@ -1259,14 +1250,22 @@ function readDescFile(file, cb) {
   reader.readAsText(file, 'UTF-8');
 }
 
+function descFileExistsByName(name) {
+  for (var i = 0; i < descFiles.length; i++) {
+    if (descFiles[i].name === name) return true;
+  }
+  return false;
+}
+
 function addDescFiles(files, opts) {
   opts = opts || {};
-  var count = 0;
+  var added = 0;
   for (var i = 0; i < files.length; i++) {
     (function(f) {
+      if (descFileExistsByName(f.name)) return;   // 避免重复加载同名描述文件
       var entry = { id: ++nextDescFileId, name: f.name, path: opts.path || null, data: null, error: '' };
       descFiles.push(entry);
-      count++;
+      added++;
       readDescFile(f, function(err, patch) {
         if (err) {
           entry.error = (err && err.message) || '解析失败';
@@ -1295,6 +1294,28 @@ function removeAllDescFiles() {
   rebuildDescOverlay();
 }
 
+function replaceDescFiles(id, files) {
+  if (!files.length) return;
+  var idx = -1;
+  for (var i = 0; i < descFiles.length; i++) { if (descFiles[i].id === id) { idx = i; break; } }
+  if (idx < 0) return;
+  var entry = descFiles[idx];
+  readDescFile(files[0], function(err, patch) {
+    if (err) {
+      entry.error = (err && err.message) || '解析失败';
+    } else if (!patch || typeof patch !== 'object' || !patch.registers) {
+      entry.error = '不是有效的描述文件（缺少 registers）';
+    } else {
+      entry.name = files[0].name;
+      entry.path = null;
+      entry.data = patch;
+      entry.error = '';
+    }
+    rebuildDescOverlay();
+    if (!entry.error) showToast('已更换描述文件：' + entry.name);
+  });
+}
+
 function rebuildDescOverlay() {
   descriptionOverlay = {};
   descriptionOverlayLoaded = false;
@@ -1305,7 +1326,9 @@ function rebuildDescOverlay() {
   applyOverlayToAllRegisters();
 }
 
-function pickDescFiles() { _descInput.click(); }
+var _descReplaceId = null;
+function pickDescFiles() { _descReplaceId = null; _descInput.click(); }
+function pickDescFilesReplace(id) { _descReplaceId = id; _descInput.click(); }
 
 // ── 文件队列管理 ──────────────────────────────────────────
 function addFiles(files, type) {
@@ -1371,7 +1394,8 @@ function renderFileList() {
       + '<span class="fi-name" title="' + escAttr(dtn) + '">' + escHtml(dtn) + '</span>'
       + (dd.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
         : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
-      + '<button class="fi-remove" onclick="removeDescFile(' + dd.id + ')" title="移除该描述文件">×</button>';
+      + '<button class="fi-reparse" onclick="pickDescFilesReplace(' + dd.id + ')" title="更换该描述文件">更换</button>'
+      + '<button class="fi-remove" onclick="removeDescFile(' + dd.id + ')" title="关闭/移除该描述文件">×</button>';
     list.appendChild(divD);
   }
 
@@ -2490,6 +2514,7 @@ function doFilter() {
   var ftInd  = document.getElementById('ft-ind').checked;
   var ftSram = document.getElementById('ft-sram').checked;
   var showR  = document.getElementById('show-reserved').checked;
+  var onlyOvl = document.getElementById('only-overlaid').checked;
   var visibleFileIds = getVisibleFileIds();
   var visibleRegs = getVisibleRegisters();
 
@@ -2500,6 +2525,7 @@ function doFilter() {
     if (et === 'indirect' && !ftInd)  return false;
     if (et === 'sram'     && !ftSram) return false;
     if (blkSet.size && !blkSet.has(r.blockName)) return false;
+    if (onlyOvl && r._descSource !== 'manual') return false;
     if (perm && r.entryType !== 'sram') {
       var ok = perm==='R' ? r._perms.some(function(p){return p==='R'||p==='RO';})
              : perm==='W' ? r._perms.some(function(p){return p==='W'||p==='WO';})
@@ -3175,6 +3201,7 @@ function clearAll() {
   document.getElementById('ft-reg').checked  = true;
   document.getElementById('ft-ind').checked  = true;
   document.getElementById('ft-sram').checked = true;
+  var onlyOvlEl = document.getElementById('only-overlaid'); if (onlyOvlEl) onlyOvlEl.checked = false;
   document.getElementById('pill-reg').classList.remove('pill-off');
   document.getElementById('pill-ind').classList.remove('pill-off');
   document.getElementById('pill-sram').classList.remove('pill-off');
@@ -3223,7 +3250,13 @@ function initFileInputs() {
   _descInput.style.cssText = style;
   _descInput.onchange = function() {
     if (_descInput.files && _descInput.files.length) {
-      addDescFiles(Array.prototype.slice.call(_descInput.files));
+      var files = Array.prototype.slice.call(_descInput.files);
+      if (_descReplaceId != null) {
+        replaceDescFiles(_descReplaceId, files);
+        _descReplaceId = null;
+      } else {
+        addDescFiles(files);
+      }
       _descInput.value = '';
     }
   };

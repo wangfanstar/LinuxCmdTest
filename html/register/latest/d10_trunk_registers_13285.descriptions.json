@@ -7208,6 +7208,39 @@
         "pdfPage": 44
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHTSE_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_FC_TX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_FC_TX_RESET\u001fFC_TX_CH_RST\u001f0\u001f7": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_FC_RX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fREGFILE_CESOC_X8_0_FC_RX_RESET\u001fFC_RX_CH_RST\u001f0\u001f7": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
     "sram\u001fEMU_NP_CLUSTER\u001fNP_HE_MAC_IP\u001fCEMAC_100G_RX_MEM": {
       "shortDesc": "A count of frames that are successfully",
       "fullDesc": "A count of frames that are successfully\ntransmitted.",
@@ -14446,6 +14479,28 @@
         "pdfPage": 45
       }
     },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN": {
+      "shortDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock",
+      "fullDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock\nof CEFEC codec is disable, bit[0] is used for CEFEC codec 0 of\nCESOCX8,\nbit[1] is used for CEFEC codec 1 of CESOCX8,",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN\u001fCODECS_FEC_CLK_EN\u001f0\u001f3": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHETS_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
     "sram\u001fEMU_NP_CLUSTER\u001fNP_HE_MACW_PCS\u001fCEPCS_DESKEW_MEM": {
       "shortDesc": "BER high order counter register",
       "fullDesc": "BER high order counter register\n[15:0] BER high order\nThis counter records value of ber counter[21:6].",
@@ -21662,6 +21717,39 @@
       "source": {
         "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
         "pdfPage": 44
+      }
+    },
+    "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHTSE_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_FC_TX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_FC_TX_RESET\u001fFC_TX_CH_RST\u001f0\u001f7": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_FC_RX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fMACW_MAC\u001fMAC_IP\u001fREGFILE_CESOC_X8_0_FC_RX_RESET\u001fFC_RX_CH_RST\u001f0\u001f7": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
       }
     },
     "sram\u001fMACW_MAC\u001fMAC_IP\u001fCEMAC_100G_RX_MEM": {
@@ -28897,6 +28985,28 @@
       "shortDesc": "Per FEC codec active high reset for RX data path of FEC cores,",
       "fullDesc": "Per FEC codec active high reset for RX data path of FEC cores,\nSince there are 2 FEC codecs, only low 2 bits are used, bit[31:2] are\nreserved.",
       "fields": {},
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN": {
+      "shortDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock",
+      "fullDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock\nof CEFEC codec is disable, bit[0] is used for CEFEC codec 0 of\nCESOCX8,\nbit[1] is used for CEFEC codec 1 of CESOCX8,",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN\u001fCODECS_FEC_CLK_EN\u001f0\u001f3": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fMACW_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHETS_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
       "source": {
         "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
         "pdfPage": 45
@@ -36140,6 +36250,28 @@
         "pdfPage": 45
       }
     },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN": {
+      "shortDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock",
+      "fullDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock\nof CEFEC codec is disable, bit[0] is used for CEFEC codec 0 of\nCESOCX8,\nbit[1] is used for CEFEC codec 1 of CESOCX8,",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN\u001fCODECS_FEC_CLK_EN\u001f0\u001f3": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHETS_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
     "sram\u001fSDS_CMU_PCS\u001fMACW_PCS\u001fCEPCS_DESKEW_MEM": {
       "shortDesc": "BER high order counter register",
       "fullDesc": "BER high order counter register\n[15:0] BER high order\nThis counter records value of ber counter[21:6].",
@@ -38875,6 +39007,39 @@
       "fullDesc": "Per FEC codec active high reset for RX data path of FEC cores,\nSince there are 2 FEC codecs, only low 2 bits are used, bit[31:2] are\nreserved.",
       "fields": {
         "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_SOFT_FEC_RX_RST\u001fFEC_CORE_RX_SOFT_RST\u001f0\u001f1": "Per FEC codec active high reset for RX data path of FEC cores,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN": {
+      "shortDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock",
+      "fullDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock\nof CEFEC codec is disable, bit[0] is used for CEFEC codec 0 of\nCESOCX8,\nbit[1] is used for CEFEC codec 1 of CESOCX8,",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN\u001fCODECS_FEC_CLK_EN\u001f0\u001f0": "is used for CEFEC codec 0 of"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_FC_TX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_FC_TX_RESET\u001fFC_TX_CH_RST\u001f0\u001f1": "Per CHANNEL active high reset for FC_MUX tx logic, reset rdy"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_FC_RX_RESET": {
+      "shortDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy",
+      "fullDesc": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy\nsignal to go back initial state.\nBit[0] is used to reset FC_MUX channel 0\nBit[7] is used to reset FX_MUX channel 7\nOnly low 8 bits are used, bit[31:8] are reserved",
+      "fields": {
+        "indirect\u001fSDS_MAC_AUX\u001fAUX_MAC\u001fREGFILE_CESOC_X8_0_FC_RX_RESET\u001fFC_RX_CH_RST\u001f0\u001f1": "Per CHANNEL active high reset for FC_MUX rx logic, reset rdy"
       },
       "source": {
         "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
@@ -46141,6 +46306,28 @@
         "pdfPage": 45
       }
     },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN": {
+      "shortDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock",
+      "fullDesc": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock\nof CEFEC codec is disable, bit[0] is used for CEFEC codec 0 of\nCESOCX8,\nbit[1] is used for CEFEC codec 1 of CESOCX8,",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_CEFEC_CLK_EN\u001fCODECS_FEC_CLK_EN\u001f0\u001f3": "Bit[1:0] are used to enable the clock of CEFEC core, if set 0, clock"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
+    "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN": {
+      "shortDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,",
+      "fullDesc": "Bit[7:0] are used to enable the HETS functions for 8x channels,\nHETS are enabled by default,\nBit[0] is used to enable HETS of channel 0\nBit[7] is used to enable HETS of channel 7\nPlease note, HETS could not work for 10GE/10GWIS/1GE/25G\nbypass FEC even the register is set to 1.\nUser could disable HETS if set register bits to 0.",
+      "fields": {
+        "indirect\u001fSDS_PCS\u001fMACW_PCS\u001fREGFILE_CESOC_X8_0_HETS_EN\u001fHETS_CH_EN\u001f0\u001f7": "are used to enable the HETS functions for 8x channels,"
+      },
+      "source": {
+        "manual": "CESOCX16_WRAP_reference_guide_v1.0.pdf",
+        "pdfPage": 45
+      }
+    },
     "sram\u001fSDS_PCS\u001fMACW_PCS\u001fCEPCS_DESKEW_MEM": {
       "shortDesc": "BER high order counter register",
       "fullDesc": "BER high order counter register\n[15:0] BER high order\nThis counter records value of ber counter[21:6].",
@@ -46153,7 +46340,7 @@
       }
     }
   },
-  "generatedAt": "2026-08-31T09:35:38Z",
+  "generatedAt": "2026-08-31T10:55:30Z",
   "sourceRegisterFile": "d10_trunk_registers_13285.json",
   "sourceManuals": [
     "CEFEC_reference_guide_v1.1.pdf",

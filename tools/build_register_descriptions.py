@@ -120,7 +120,9 @@ def append_continuation(record, text, src):
 
 def address_values(text):
     text = re.sub(r"\s+", "", text).replace("0X", "0x")
-    # Do not guess malformed addresses, including the literal 'OF' in WRAP.
+    # PDF OCR often renders the digit '0' as the letter 'O' in hex offsets
+    # (e.g. 'OC' means 0x0C). 'O'/'o' is never a valid hex digit, so fold it to '0'.
+    text = re.sub(r"(?i)o", "0", text)
     if re.fullmatch(r"(?:0x)?[0-9a-fA-F]+", text):
         return [int(text.removeprefix("0x"), 16)]
     if re.fullmatch(r"(?:0x)?[0-9a-fA-F]+[~\-](?:0x)?[0-9a-fA-F]+", text):
@@ -303,20 +305,38 @@ def source_of(rec):
 # REGFILE_CEFEC*, REGFILE_CESOC* / WRAP. Other chip blocks (AQM, TM, BWLI_*, ...)
 # reuse the same small addresses, so matching must be scoped per core to avoid
 # cross-manual / cross-address-space false positives.
-IP_TOKENS = [
-    ("CEPCS", ["CEPCS"]),
-    ("CEMAC", ["CEMAC", "MAC_CFG", "MAC_STATUS"]),
-    ("CEFEC", ["CEFEC"]),
-    ("CESOCX16_WRAP", ["CESOCX", "CESOC", "WRAP"]),
-]
+#
+# Determine the core from the REGFILE_<CORE> prefix (the reliable signal). A plain
+# substring test is ambiguous: 'REGFILE_CESOC_X8_0_CEFEC_CLK_EN' contains both
+# CESOC and CEFEC, and CEFEC has no register map, so it must be routed to WRAP.
+REGFILE_CORE_RE = re.compile(r"^REGFILE_([^_]+)_", re.IGNORECASE)
+CORE_IP = {
+    "CEMAC": "CEMAC",
+    "CEPCS": "CEPCS",
+    "CEFEC": "CEFEC",
+    "CESOC": "CESOCX16_WRAP",
+    "CESOCX": "CESOCX16_WRAP",
+    "WRAP": "CESOCX16_WRAP",
+}
 
 
 def ip_for_register(reg):
-    rn = compact(reg.get("regName") or "")
-    for ip, toks in IP_TOKENS:
-        for t in toks:
-            if t in rn:
-                return ip
+    name = reg.get("regName") or ""
+    m = REGFILE_CORE_RE.match(name)
+    if m:
+        core = m.group(1).upper()
+        if core in CORE_IP:
+            return CORE_IP[core]
+        core2 = re.sub(r"\d+$", "", core)  # CEMAC0 -> CEMAC
+        if core2 in CORE_IP:
+            return CORE_IP[core2]
+    # bare names (no REGFILE_ prefix): match a word-boundary core token
+    un = (name or "").upper()
+    for tok, ip in [("CESOCX", "CESOCX16_WRAP"), ("CESOC", "CESOCX16_WRAP"),
+                    ("WRAP", "CESOCX16_WRAP"), ("CEMAC", "CEMAC"),
+                    ("CEPCS", "CEPCS"), ("CEFEC", "CEFEC")]:
+        if re.search(r"(?:^|[^A-Z0-9])" + tok + r"(?:$|[^A-Z0-9])", un):
+            return ip
     return None
 
 

@@ -27,6 +27,3 @@ html/wiki/sqlite_db/wiki_auth.db
 .idea/
 *.swp
 *~
-
-# register JSON data files are runtime artifacts - not version-controlled
-html/register/**/*.json

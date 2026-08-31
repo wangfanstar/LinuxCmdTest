@@ -3130,6 +3130,10 @@ function isLatestRegisterPath(relPath) {
 }
 
 function autoLoadLatestRegisters() {
+  if (location.protocol === 'file:') {
+    showToast('本地打开无法自动扫描 latest/，请使用“加载文件夹”选择 register/latest/');
+    return;
+  }
   fetch('/api/list-register-files')
     .then(function(resp) {
       if (!resp.ok) throw new Error('HTTP ' + resp.status);

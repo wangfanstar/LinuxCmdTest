@@ -27,4 +27,6 @@ require_text "paths.filter(isLatestRegisterPath)"
 require_text 'Promise.all(requests)'
 require_text "addFiles(xmlFiles, 'xml')"
 require_text "addFiles(jsonFiles, 'json')"
+require_text "if (location.protocol === 'file:')"
+require_text '本地打开无法自动扫描 latest/'
 require_text 'autoLoadLatestRegisters();'

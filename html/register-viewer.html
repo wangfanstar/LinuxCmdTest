@@ -223,6 +223,21 @@ body.layout-resizing {
   padding: 20px 0;
 }
 
+/* 描述文件与寄存器文件之间的分隔小标题 */
+.file-divider {
+  padding: 6px 8px 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #7a8ba8;
+  border-top: 1px solid #2d3a54;
+  margin-top: 6px;
+}
+
+/* 描述文件条目（错误态高亮） */
+.file-item.desc-item.has-error { border-color: #6a2a2a; background: #3a2222; }
+
 /* 侧边按钮区 */
 .sidebar-btns {
   padding: 12px 14px;
@@ -848,10 +863,30 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <!-- 解析错误提示 -->
     <div id="parse-error-bar" style="display:none;margin:0 14px 8px;padding:8px 10px;background:#4a2020;color:#ffaaaa;border-radius:6px;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;"></div>
 
+    <!-- 使用说明 -->
+    <div class="sidebar-section">
+      <div class="sidebar-title help-title" id="help-title" onclick="toggleHelp()">
+        <span class="bn-caret" id="help-caret">▸</span> 📘 使用说明
+      </div>
+      <div class="bn-body" id="help-body" style="display:none;font-size:0.72rem;color:#9fb0d0;line-height:1.6;">
+        <b>描述文件（叠加层）</b><br>
+        描述文件是 JSON，与被说明的<b>寄存器文件放在同一文件夹</b>，命名为<br>
+        <code>主名.json → 主名.descriptions.json</code><br>
+        例如：<code>d10_trunk_registers_13285.json</code><br>
+        <code>d10_trunk_registers_13285.descriptions.json</code><br>
+        打开页面会自动扫描加载（同名后缀默认加载）。<br>
+        也可用 <b>＋ 描述</b> 手动挑选一个描述 JSON；点条目 <b>×</b> 单个移除，<br>
+        或用 <b>移除描述</b> 一键清空。<br>
+        只有描述为空且匹配上时才会填充，带「📖手册」标记，<b>不覆盖</b>原有描述。
+      </div>
+    </div>
+
     <!-- 操作按钮 -->
     <div class="sidebar-btns">
       <button class="btn-side" onclick="pickFolder()">📁 加载文件夹</button>
       <button class="btn-side" onclick="netScan()">🌐 网络加载</button>
+      <button class="btn-side" onclick="pickDescFiles()" title="手动选择一个描述(叠加层)JSON 文件">🎨 ＋ 描述</button>
+      <button class="btn-side" onclick="removeAllDescFiles()" title="一键移除所有已加载的描述文件">🗑 移除描述</button>
       <button class="btn-side" onclick="clearCacheBtn()" title="清除本地解析缓存（再次加载时重新解析）">🧹 清除缓存</button>
       <button class="btn-side" onclick="clearAll()">🗑 清空全部</button>
     </div>
@@ -999,6 +1034,11 @@ var descriptionOverlay = {};
 var descriptionOverlayLoaded = false;
 var descriptionOverlayVersion = null;
 
+// 描述文件（同名后缀，同目录存放）：手动加载/自动发现的叠加层源
+var DESC_SUFFIX = '.descriptions.json';
+var descFiles = [];          // [{id, name, path, data, error}]
+var nextDescFileId = 0;
+
 // 按 Block 分组显示
 var groupByBlock    = true;    // 分组模式开关（默认开启）
 var filteredGroups  = [];      // 分组模式下的分组数据
@@ -1125,11 +1165,19 @@ function fieldKeyOf(regKey, f) {
   return [regKey, f.name || '', f.startBit, f.endBit].join('\x1f');
 }
 
+// 描述文件与原始文件同目录、同名加后缀：foo.json <-> foo.descriptions.json
+function isDescFileName(name) {
+  return /\.descriptions\.json$/i.test(String(name || ''));
+}
+function isRegisterFileName(name) {
+  var n = String(name || '');
+  return /\.(xml|json)$/i.test(n) && !isDescFileName(n);
+}
+function companionNameFor(regName) {
+  return String(regName || '').replace(/\.[^.]+$/, '') + DESC_SUFFIX;
+}
 function isDescriptionPath(relPath) {
-  var p = String(relPath || '').replace(/\\/g, '/');
-  var parts = p.split('/');
-  if (parts.shift() !== 'descriptions' || !parts.length) return false;
-  return /\.json$/i.test(parts[parts.length - 1]);
+  return isDescFileName(String(relPath || '').split('/').pop());
 }
 
 function mergeDescriptionOverlay(patch) {
@@ -1152,7 +1200,6 @@ function mergeDescriptionOverlay(patch) {
     descriptionOverlay[k] = cur;
   }
   descriptionOverlayLoaded = true;
-  applyOverlayToAllRegisters();
 }
 
 function applyOverlayToRegister(reg) {
@@ -1183,11 +1230,94 @@ function applyOverlayToAllRegisters() {
   refreshDataView();
 }
 
+// ── 描述文件管理（同目录同名后缀，手动一键增删 + 自动发现）──────
+function renderDescFiles() {
+  var list  = document.getElementById('file-list');
+  if (!list) return;
+  var existing = list.querySelectorAll('.file-item.desc-item');
+  for (var i = 0; i < existing.length; i++) existing[i].remove();
+  for (var k = 0; k < descFiles.length; k++) {
+    var d = descFiles[k];
+    var div = document.createElement('div');
+    div.className = 'file-item desc-item' + (d.error ? ' has-error' : '');
+    div.innerHTML = '<span class="fi-icon" title="描述文件">🎨</span>'
+      + '<span class="fi-name" title="' + escAttr(d.name || d.path) + '">' + escHtml(d.name || d.path) + '</span>'
+      + (d.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
+        : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
+      + '<button class="fi-remove" onclick="removeDescFile(' + d.id + ')" title="移除该描述文件">×</button>';
+    list.insertBefore(div, list.firstChild);
+  }
+}
+
+function readDescFile(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try { cb(null, JSON.parse(e.target.result)); }
+    catch (err) { cb(err, null); }
+  };
+  reader.onerror = function() { cb(new Error('文件读取失败'), null); };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function addDescFiles(files, opts) {
+  opts = opts || {};
+  var count = 0;
+  for (var i = 0; i < files.length; i++) {
+    (function(f) {
+      var entry = { id: ++nextDescFileId, name: f.name, path: opts.path || null, data: null, error: '' };
+      descFiles.push(entry);
+      count++;
+      readDescFile(f, function(err, patch) {
+        if (err) {
+          entry.error = (err && err.message) || '解析失败';
+        } else if (!patch || typeof patch !== 'object' || !patch.registers) {
+          entry.error = '不是有效的描述文件（缺少 registers）';
+        } else {
+          entry.data = patch;
+          mergeDescriptionOverlay(patch);
+        }
+        renderDescFiles();
+        applyOverlayToAllRegisters();
+        if (!entry.error) showToast('已加载描述文件：' + entry.name);
+      });
+    })(files[i]);
+  }
+}
+
+function removeDescFile(id) {
+  descFiles = descFiles.filter(function(d) { return d.id !== id; });
+  rebuildDescOverlay();
+}
+
+function removeAllDescFiles() {
+  if (!descFiles.length) return;
+  descFiles = [];
+  rebuildDescOverlay();
+}
+
+function rebuildDescOverlay() {
+  descriptionOverlay = {};
+  descriptionOverlayLoaded = false;
+  descriptionOverlayVersion = null;
+  for (var i = 0; i < descFiles.length; i++) {
+    if (descFiles[i].data) mergeDescriptionOverlay(descFiles[i].data);
+  }
+  applyOverlayToAllRegisters();
+}
+
+function pickDescFiles() { _descInput.click(); }
+
 // ── 文件队列管理 ──────────────────────────────────────────
 function addFiles(files, type) {
   var added = false;
+  var descAdds = [];
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
+    // 描述文件（同名后缀）不进寄存器队列，直接作为叠加层加载
+    if (isDescFileName(f.name)) {
+      descAdds.push(f);
+      continue;
+    }
     var dup = false;
     for (var j = 0; j < pendingFiles.length; j++) {
       if (pendingFiles[j].file.name === f.name && pendingFiles[j].file.size === f.size) { dup = true; break; }
@@ -1197,6 +1327,7 @@ function addFiles(files, type) {
       added = true;
     }
   }
+  if (descAdds.length) addDescFiles(descAdds);
   renderFileList();
   if (added) scheduleAutoParse();
 }
@@ -1220,7 +1351,7 @@ function removeFile(idx) {
 function renderFileList() {
   var list  = document.getElementById('file-list');
   var empty = document.getElementById('file-list-empty');
-  if (!pendingFiles.length) {
+  if (!pendingFiles.length && !descFiles.length) {
     empty.style.display = '';
     var old = list.querySelectorAll('.file-item');
     for (var i = 0; i < old.length; i++) old[i].remove();
@@ -1229,6 +1360,28 @@ function renderFileList() {
   empty.style.display = 'none';
   var old2 = list.querySelectorAll('.file-item');
   for (var j = 0; j < old2.length; j++) old2[j].remove();
+
+  // 描述文件在前
+  for (var dk = 0; dk < descFiles.length; dk++) {
+    var dd = descFiles[dk];
+    var dtn = dd.name || dd.path || '';
+    var divD = document.createElement('div');
+    divD.className = 'file-item desc-item' + (dd.error ? ' has-error' : '');
+    divD.innerHTML = '<span class="fi-icon" title="描述文件">🎨</span>'
+      + '<span class="fi-name" title="' + escAttr(dtn) + '">' + escHtml(dtn) + '</span>'
+      + (dd.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
+        : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
+      + '<button class="fi-remove" onclick="removeDescFile(' + dd.id + ')" title="移除该描述文件">×</button>';
+    list.appendChild(divD);
+  }
+
+  // 描述文件与寄存器文件分隔小标题
+  if (descFiles.length && pendingFiles.length) {
+    var divider = document.createElement('div');
+    divider.className = 'file-divider';
+    divider.textContent = '寄存器文件';
+    list.appendChild(divider);
+  }
 
   for (var k = 0; k < pendingFiles.length; k++) {
     var p = pendingFiles[k];
@@ -2092,6 +2245,17 @@ function toggleBlockNav(force) {
   if (open) section.classList.add('open');
   else section.classList.remove('open');
   body.style.display = open ? '' : 'none';
+}
+
+var helpOpen = false;
+function toggleHelp() {
+  var title = document.getElementById('help-title');
+  var body  = document.getElementById('help-body');
+  var caret = document.getElementById('help-caret');
+  if (!title || !body) return;
+  helpOpen = !helpOpen;
+  if (caret) caret.textContent = helpOpen ? '▾' : '▸';
+  if (body) body.style.display = helpOpen ? '' : 'none';
 }
 
 function renderBlockNav() {
@@ -2987,6 +3151,8 @@ function collapseAll() {
 // ── 清空 ─────────────────────────────────────────────────
 function clearAll() {
   pendingFiles=[]; allRegisters=[]; filtered=[]; selected.clear(); dbInfos=[]; uidCounter=0;
+  descFiles=[]; nextDescFileId=0;
+  descriptionOverlay={}; descriptionOverlayLoaded=false; descriptionOverlayVersion=null;
   groupByBlock=true; filteredGroups=[]; expandedGroups={};
   var gbb=document.getElementById('group-by-block'); if (gbb) gbb.checked=true;
   groupPages=[]; groupPage=1; groupPageCount=1; groupPageDirty=true;
@@ -3018,6 +3184,7 @@ function clearAll() {
 // ── 文件选择（使用预创建的持久 input，避免每次动态创建的卡顿）──────
 var _xmlInput    = null;
 var _jsonInput   = null;
+var _descInput   = null;
 var _folderInput = null;
 
 function initFileInputs() {
@@ -3048,6 +3215,19 @@ function initFileInputs() {
     }
   };
   document.body.appendChild(_jsonInput);
+
+  _descInput = document.createElement('input');
+  _descInput.type     = 'file';
+  _descInput.multiple = true;
+  _descInput.accept   = '.json';
+  _descInput.style.cssText = style;
+  _descInput.onchange = function() {
+    if (_descInput.files && _descInput.files.length) {
+      addDescFiles(Array.prototype.slice.call(_descInput.files));
+      _descInput.value = '';
+    }
+  };
+  document.body.appendChild(_descInput);
 
   _folderInput = document.createElement('input');
   _folderInput.type = 'file';
@@ -3232,6 +3412,7 @@ function autoLoadLatestRegisters() {
 
       var paths = data.files;
       paths = paths.filter(isLatestRegisterPath);
+      paths = paths.filter(function(p) { return !isDescFileName(p.split('/').pop()); });
       if (!paths.length) return;
 
       var errors = [];
@@ -3276,7 +3457,7 @@ function autoLoadLatestRegisters() {
 
 function autoLoadRegisterDescriptions() {
   if (location.protocol === 'file:') {
-    showToast('本地打开无法自动加载描述叠加层，请由服务器服务或使用“加载文件夹”选择 descriptions/');
+    showToast('本地打开无法自动扫描描述文件，请由服务器服务，或用「＋ 描述」手动选择');
     return;
   }
   fetch('/api/list-register-files')
@@ -3293,24 +3474,35 @@ function autoLoadRegisterDescriptions() {
       var requests = paths.map(function(relPath) {
         var normalized = String(relPath).replace(/\\/g, '/');
         var urlPath = normalized.split('/').map(encodeURIComponent).join('/');
+        var name = normalized.split('/').pop();
+        var entry = { id: ++nextDescFileId, name: name, path: normalized, data: null, error: '' };
+        descFiles.push(entry);
         return fetch('./register/' + urlPath)
           .then(function(resp) {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             return resp.json();
           })
           .then(function(patch) {
-            mergeDescriptionOverlay(patch);
+            if (!patch || typeof patch !== 'object' || !patch.registers) {
+              entry.error = '不是有效的描述文件（缺少 registers）';
+            } else {
+              entry.data = patch;
+              mergeDescriptionOverlay(patch);
+            }
           })
           .catch(function(err) {
+            entry.error = err.message;
             errors.push(normalized + ': ' + err.message);
           });
       });
       return Promise.all(requests).then(function() {
-        if (errors.length) showToast('描述叠加层加载完成，失败 ' + errors.length + ' 个');
+        renderFileList();
+        applyOverlayToAllRegisters();
+        if (errors.length) showToast('描述文件自动加载完成，失败 ' + errors.length + ' 个');
       });
     })
     .catch(function(err) {
-      showToast('描述叠加层加载失败：' + err.message);
+      showToast('描述文件自动加载失败：' + err.message);
     });
 }
 

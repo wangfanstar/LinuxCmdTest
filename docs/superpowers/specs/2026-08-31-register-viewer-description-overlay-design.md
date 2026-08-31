@@ -49,12 +49,20 @@
 
 ### 目录与文件
 
-叠加层统一放在专门的 `html/register/descriptions/` 目录（`build_register_descriptions.py`
-已默认输出到该处）。该目录**不是**寄存器目录，不会出现在 `netScan` 的寄存器列表里，
-也不会被当作寄存器解析。
+叠加层与被说明的寄存器文件放在**同一文件夹**，名为 `<寄存器文件名>.descriptions.json`（同名后缀，
+便于维护）。例如：
 
-默认文件名：`register_descriptions.json`。可由 `--output` 指定；若按手册拆分，则一个文件一个
-手册（`<Manual>.descriptions.json`），运行时按文件名排序后合并。
+```
+html/register/latest/d10_trunk_registers_13285.json
+html/register/latest/d10_trunk_registers_13285.descriptions.json
+```
+
+默认文件名由 `--publish` 依 `--registers` 生成：`<寄存器文件名去后缀>.descriptions.json`。
+可用 `--output-dir` / `--output` 覆盖。`build_register_descriptions.py` 默认即输出到
+寄存器文件所在目录。
+
+该文件是叠加层，不是寄存器：前端用 `isDescFileName` 区分，**不会**进入 `pendingFiles` 队列，
+也不会出现在 `netScan` 的寄存器列表。
 
 ### 叠加层 Schema
 
@@ -120,28 +128,28 @@
 - 新增 `--coverage-report`：统计空缺被填补数、未匹配数，未匹配项写入报告供人工复核。
 
 匹配采用**宽松 + 可复核**策略：能精确匹配的写入；无法确定的先不进叠加层，由覆盖率报告提示
-人工人工确认（必要时在工具中增加手工映射表）。
+人工确认（必要时在工具中增加手工映射表）。
+另有「全名汇总字段兜底」：当寄存器级描述文本含 `[N] 名称` / `[Hi:Lo] 名称` 行时，按其与
+字段名归一化比对，把汇总文本拆成逐字段描述。
 
-### 运行时（前端后续改动）
+### 运行时（前端已实现）
 
-> 本次仅写设计文档，不改前端。以下为后续实现方向。
-
-- 新增 `autoLoadRegisterDescriptions()`（仿 `autoLoadLatestRegisters()`）：
-  - 拉取 `/api/list-register-files`，过滤路径前缀为 `descriptions/` 的 `.json`。
-  - 逐个 `fetch('./register/' + urlPath)`，解析后合并进全局 `descriptionOverlay` 查表。
-  - **不**进入 `pendingFiles` 队列，不参与寄存器统计/导出。
-- 解析钩子：
-  - 在 `parseRegElement` / `parseImportedJSON` / SRAM 构建完 `shortDesc` / `fullDesc` /
-    `fields[]` 之后，若为空则查 `descriptionOverlay` 填充，并标 `_descSource = 'manual'`。
-- 渲染：
-  - `buildCard` 对 `_descSource === 'manual'` 的描述加「📖 / 手册」徽标或 tooltip，
-    tooltip 显示叠加层 `source`（手册 + 页码）。
-- 排除项：
-  - `netScan()` 列表与 `netModalLoad` 过滤掉 `descriptions/` 前缀文件。
-  - `saveSelectedToRegister()` / `exportAll()` 只处理寄存器，叠加层不参与。
-- 缓存：
-  - `use-cache` 的缓存 key 需并入叠加层版本号。简单做法：把 `CACHE_VER` 升到 `v2`，
-    并把 `descriptionOverlay` 的 `version` 拼入 `cacheKeyFor()`。
+- 自动加载：`autoLoadRegisterDescriptions()` 拉取 `/api/list-register-files`，过滤
+  `isDescFileName`（`*.descriptions.json`），逐个 `fetch('./register/' + urlPath)`，
+  解析后合并进 `descriptionOverlay`，并写入 `descFiles` 列表（可单独移除）。
+- 默认同名后缀：`foo.json` ⇄ `foo.descriptions.json`，同目录即可自动识别加载；`autoLoadLatestRegisters`
+  / `netScan` / 文件夹加载均把描述文件与寄存器文件分开，不会混入寄存器队列。
+- 手动增删：
+  - 「＋ 描述」= `pickDescFiles()` 选择任意描述 JSON 加载。
+  - 「×」= `removeDescFile(id)`；「移除描述」= `removeAllDescFiles()`。
+  - 移除时 `rebuildDescOverlay()` 由剩余项重放叠加，保证回退干净。
+- 解析钩子：`parseRegElement` / `parseImportedJSON` / SRAM 构建完 `shortDesc` / `fullDesc` /
+  `fields[]` 之后，若为空则查 `descriptionOverlay` 填充，并标 `_descSource = 'manual'`。
+- 渲染：`buildCard` 对 `_descSource === 'manual'` 的描述加「📖手册」徽标；`reg-meta` 显示来源手册。
+- 帮助：侧栏「📘 使用说明」折叠面板说明命名约定与用法。
+- 排除项：`netScan()` 列表与 `netModalLoad` 过滤掉描述文件；`saveSelectedToRegister()` /
+  `exportAll()` 只处理寄存器。
+- 缓存：`CACHE_VER` 升到 `v2`，并把叠加层 `version` 拼入 `cacheKeyFor()`。
 - 本地打开（`file:` 协议）无法拉取叠加层，跳过并 toast 提示（与 `latest/` 自动加载一致）。
   **由服务器服务时**，因为键是内容键，任何加载方式的寄存器文件都能被正确补全。
 

@@ -48,6 +48,7 @@ SEP = "\x1f"
 # regKeyOf()/fieldKeyOf(); keep the join order + separator in lockstep.
 OVERLAY_FORMAT_VERSION = 1
 OVERLAY_NAME = "register_descriptions.json"
+DESC_SUFFIX = ".descriptions.json"
 
 
 
@@ -430,15 +431,16 @@ def main():
     parser.add_argument("--manual-dir", type=Path, default=ROOT / "html/register")
     parser.add_argument("--registers", type=Path,
                         default=ROOT / "html/register/latest/d10_trunk_registers_13285.json")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "html/register/descriptions")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="Directory for the overlay (default: same folder as --registers)")
     parser.add_argument("--inspect", action="store_true",
                         help="Extract catalogs to a temporary inspection file without publishing")
     parser.add_argument("--publish", action="store_true",
-                        help="Build the description overlay JSON into the output dir")
+                        help="Build the description overlay JSON (companion file) and write it")
     parser.add_argument("--coverage-report", type=Path, default=None,
                         help="Also write an unmatched-coverage report to this path")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Overlay filename inside the output dir (default register_descriptions.json)")
+                        help="Overlay filename; default <registers-stem>.descriptions.json")
     args = parser.parse_args()
 
     cache_dir = Path(tempfile.gettempdir()) / "wfwebserver-regdesc-cache"
@@ -459,9 +461,14 @@ def main():
     overlay["generatedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     overlay["sourceRegisterFile"] = Path(args.registers).name
     overlay["sourceManuals"] = [m["file"] for m in docs.values()]
-    out_dir = args.output_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / (args.output.name if args.output else OVERLAY_NAME)
+    reg_path = Path(args.registers)
+    if args.output_dir:
+        out_dir = args.output_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / (args.output.name if args.output else reg_path.stem + DESC_SUFFIX)
+    else:
+        out_file = reg_path.with_name(args.output.name if args.output
+                                      else reg_path.stem + DESC_SUFFIX)
     out_file.write_text(json.dumps(overlay, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Wrote overlay:", out_file)
     print("Registers empty/filled: {empty}/{filled}".format(**stats["registers"]))

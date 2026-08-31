@@ -52,6 +52,12 @@ body {
 }
 .topbar h1 { font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
 .topbar .db-info { font-size: 0.78rem; color: #aab; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-check {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.8rem; color: #c8d0e0; white-space: nowrap; cursor: pointer; user-select: none;
+}
+.topbar-check input { width: 14px; height: 14px; accent-color: var(--blue); cursor: pointer; }
+.topbar-check:hover { color: #aac2f0; }
 
 /* ══════════════════════════════════════
    主体：左侧栏 + 右侧内容
@@ -223,17 +229,23 @@ body.layout-resizing {
   padding: 20px 0;
 }
 
-/* 描述文件与寄存器文件之间的分隔小标题 */
-.file-divider {
-  padding: 6px 8px 4px;
-  font-size: 0.68rem;
+/* 文件列表分区小标题：寄存器文件 / 描述文件 文案区分 */
+.file-section-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 8px 4px;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: .6px;
   color: #7a8ba8;
   border-top: 1px solid #2d3a54;
   margin-top: 6px;
+  white-space: nowrap;
 }
+.file-section-header:first-child { border-top: none; margin-top: 0; }
+.file-section-header .fsh-ic { font-size: .78rem; }
+.file-section-header.regs { color: #7ab8ff; }
+.file-section-header.descs { color: #ffd479; }
+.file-section-header .fsh-count { margin-left: auto; font-weight: 400; font-size: .66rem; color: #5a6a80; }
 
 /* 描述文件条目（错误态高亮） */
 .file-item.desc-item.has-error { border-color: #6a2a2a; background: #3a2222; }
@@ -668,7 +680,40 @@ select:focus { border-color: var(--blue); }
 .render-limit-bar b { color: var(--blue-dark); }
 .render-limit-bar .btn-toolbar { padding: 3px 11px; }
 
-/* ══ Block 导航（左侧栏 PDF 目录书签树） ══ */
+/* ══ Block 导航（中间独立列，默认折叠） ══ */
+.bn-column {
+  flex-shrink: 0;
+  width: 44px;
+  background: #151e30;
+  border-right: 1px solid #2d3a54;
+  overflow: hidden;
+  transition: width .18s ease;
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+}
+.bn-column.expanded { width: 252px; }
+.bn-col-toggle {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 0;
+  cursor: pointer;
+  color: #7a8ba8; font-size: .74rem; font-weight: 700;
+  border-bottom: 1px solid #2d3a54;
+  justify-content: center;
+  white-space: nowrap;
+  letter-spacing: .5px;
+  transition: color .15s;
+}
+.bn-column.expanded .bn-col-toggle { justify-content: flex-start; padding: 10px 12px; }
+.bn-col-toggle:hover { color: #aac2f0; }
+.bn-col-arrow { font-size: .7rem; transition: transform .18s; }
+.bn-col-label { overflow: hidden; }
+.bn-col-body {
+  flex: 1; display: none; overflow: hidden;
+  padding: 8px 10px;
+}
+.bn-column.expanded .bn-col-body { display: block; }
 .bn-nav-section { padding-bottom: 6px; }
 .bn-nav-title {
   display: flex; align-items: center; gap: 7px;
@@ -795,6 +840,9 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
   .layout { flex-direction: column; height: auto; }
   .sidebar { width: 100%; height: auto; max-height: 280px; flex-direction: row; flex-wrap: wrap; }
   .layout-resizer { display: none; }
+  .bn-column { width: 100%; height: auto; flex-direction: row; }
+  .bn-column .bn-col-toggle { justify-content: flex-start; }
+  .bn-column .bn-col-body { flex: 1; }
   .content { height: auto; overflow: visible; }
 }
 </style>
@@ -805,6 +853,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 <div class="topbar">
   <h1>⚙ 寄存器查看器</h1>
   <div class="db-info" id="db-info">在左侧添加文件后自动解析</div>
+  <label class="topbar-check" title="开启后自动加载/显示描述文件（叠加层）描述；关闭即移除已加载的描述文件">
+    <input type="checkbox" id="show-descriptions" checked onchange="toggleShowDescriptions()">
+    显示附加描述
+  </label>
   <a href="index.html" style="font-size:13px;color:#8b949e;text-decoration:none;margin-left:16px;white-space:nowrap;" title="返回首页">← 返回首页</a>
 </div>
 
@@ -845,20 +897,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <div class="s-stat"><strong id="s-blocks">0</strong>Block</div>
     </div>
 
-    <!-- Block 导航（PDF 目录书签式树，默认折叠） -->
-    <div class="sidebar-section bn-nav-section" id="bn-nav">
-      <div class="sidebar-title bn-nav-title" id="bn-title" onclick="toggleBlockNav()">
-        <span class="bn-caret" id="bn-caret">▸</span> Block 导航
-        <span class="bn-count" id="bn-count"></span>
-      </div>
-      <div class="bn-body" id="bn-body" style="display:none;">
-        <div class="bn-search">
-          <span class="bn-search-icon">🔍</span>
-          <input type="text" id="bn-search" placeholder="搜索 Block…" oninput="renderBlockNavList()">
-        </div>
-        <div class="bn-list" id="bn-list"></div>
-      </div>
-    </div>
+    <!-- Block 导航已移至中间独立列（见 bn-column），此处仅保留统计 -->
 
     <!-- 解析错误提示 -->
     <div id="parse-error-bar" style="display:none;margin:0 14px 8px;padding:8px 10px;background:#4a2020;color:#ffaaaa;border-radius:6px;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;"></div>
@@ -874,9 +913,9 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
         <code>主名.json → 主名.descriptions.json</code><br>
         例如：<code>d10_trunk_registers_13285.json</code><br>
         <code>d10_trunk_registers_13285.descriptions.json</code><br>
-        打开页面会自动扫描加载（同名后缀默认加载）；点击 <b>＋ JSON</b> 选择文件时也会自动识别<br>
-        描述文件与主文件。也可用 <b>＋ 描述</b> 手动挑选描述 JSON；描述条目支持 <b>更换</b> 与 <b>× 关闭</b>，<br>
-        或用 <b>移除描述</b> 一键清空。<br>
+        右上角 <b>显示附加描述</b> 开关：勾选=自动加载/显示描述文件；取消=一键移除并关闭。<br>
+        描述条目支持 <b>更换</b> 与 <b>× 关闭</b>；左侧列出「🎨描述文件」与「📄寄存器文件（主文件）」两类。<br>
+        中间列的 <b>Block 导航</b> 默认折叠，点击可展开跳转。<br>
         勾选 <b>只看附加描述</b> 可仅显示带手册/叠加层描述的寄存器。<br>
         只有描述为空且匹配上时才会填充，带「📖手册」标记，<b>不覆盖</b>原有描述。
       </div>
@@ -886,8 +925,6 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <div class="sidebar-btns">
       <button class="btn-side" onclick="pickFolder()">📁 加载文件夹</button>
       <button class="btn-side" onclick="netScan()">🌐 网络加载</button>
-      <button class="btn-side" onclick="pickDescFiles()" title="手动选择一个描述(叠加层)JSON 文件">🎨 ＋ 描述</button>
-      <button class="btn-side" onclick="removeAllDescFiles()" title="一键移除所有已加载的描述文件">🗑 移除描述</button>
       <button class="btn-side" onclick="clearCacheBtn()" title="清除本地解析缓存（再次加载时重新解析）">🧹 清除缓存</button>
       <button class="btn-side" onclick="clearAll()">🗑 清空全部</button>
     </div>
@@ -895,6 +932,21 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
   </aside>
 
   <div class="layout-resizer" id="layout-resizer" title="拖动调整宽度"></div>
+
+  <!-- ══ 中间列：Block 导航（默认折叠，点击可展开） ══ -->
+  <nav class="bn-column" id="bn-column">
+    <div class="bn-col-toggle" id="bn-col-toggle" onclick="toggleBnColumn()" title="展开/折叠 Block 导航">
+      <span class="bn-col-arrow" id="bn-col-arrow">▶</span>
+      <span class="bn-col-label" id="bn-col-label">Block</span>
+    </div>
+    <div class="bn-col-body" id="bn-col-body">
+      <div class="bn-search">
+        <span class="bn-search-icon">🔍</span>
+        <input type="text" id="bn-search" placeholder="搜索 Block…" oninput="renderBlockNavList()">
+      </div>
+      <div class="bn-list" id="bn-list"></div>
+    </div>
+  </nav>
 
   <!-- ══ 右侧内容区 ══ -->
   <div class="content">
@@ -1383,49 +1435,58 @@ function renderFileList() {
   empty.style.display = 'none';
   var old2 = list.querySelectorAll('.file-item');
   for (var j = 0; j < old2.length; j++) old2[j].remove();
+  var oldH = list.querySelectorAll('.file-section-header');
+  for (var h = 0; h < oldH.length; h++) oldH[h].remove();
 
-  // 描述文件在前
-  for (var dk = 0; dk < descFiles.length; dk++) {
-    var dd = descFiles[dk];
-    var dtn = dd.name || dd.path || '';
-    var divD = document.createElement('div');
-    divD.className = 'file-item desc-item' + (dd.error ? ' has-error' : '');
-    divD.innerHTML = '<span class="fi-icon" title="描述文件">🎨</span>'
-      + '<span class="fi-name" title="' + escAttr(dtn) + '">' + escHtml(dtn) + '</span>'
-      + (dd.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
-        : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
-      + '<button class="fi-reparse" onclick="pickDescFilesReplace(' + dd.id + ')" title="更换该描述文件">更换</button>'
-      + '<button class="fi-remove" onclick="removeDescFile(' + dd.id + ')" title="关闭/移除该描述文件">×</button>';
-    list.appendChild(divD);
+  // 描述文件区（文案区分：附加描述）
+  if (descFiles.length) {
+    var descHead = document.createElement('div');
+    descHead.className = 'file-section-header descs';
+    descHead.innerHTML = '<span class="fsh-ic">🎨</span> 描述文件（附加描述）'
+      + '<span class="fsh-count">' + descFiles.length + '</span>';
+    list.appendChild(descHead);
+    for (var dk = 0; dk < descFiles.length; dk++) {
+      var dd = descFiles[dk];
+      var dtn = dd.name || dd.path || '';
+      var divD = document.createElement('div');
+      divD.className = 'file-item desc-item' + (dd.error ? ' has-error' : '');
+      divD.innerHTML = '<span class="fi-icon" title="描述文件">🎨</span>'
+        + '<span class="fi-name" title="' + escAttr(dtn) + '">' + escHtml(dtn) + '</span>'
+        + (dd.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
+          : '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="描述叠加层">🎨描述</span>')
+        + '<button class="fi-reparse" onclick="pickDescFilesReplace(' + dd.id + ')" title="更换该描述文件">更换</button>'
+        + '<button class="fi-remove" onclick="removeDescFile(' + dd.id + ')" title="关闭/移除该描述文件">×</button>';
+      list.appendChild(divD);
+    }
   }
 
-  // 描述文件与寄存器文件分隔小标题
-  if (descFiles.length && pendingFiles.length) {
-    var divider = document.createElement('div');
-    divider.className = 'file-divider';
-    divider.textContent = '寄存器文件';
-    list.appendChild(divider);
-  }
-
-  for (var k = 0; k < pendingFiles.length; k++) {
-    var p = pendingFiles[k];
-    var parsed = p.parsed || false;
-    var div = document.createElement('div');
-    var hidden = p.visible === false;
-    div.className = 'file-item' + (parsed ? ' parsed' : '') + (hidden ? ' file-hidden' : '');
-    div.innerHTML = '<input type="checkbox" class="fi-visible file-visible-chk" '
-      + (hidden ? '' : 'checked ')
-      + 'onchange="toggleFileVisible(' + k + ', this.checked)" onclick="event.stopPropagation()" title="显示/搜索此文件">'
-      + '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
-      + '<span class="fi-name" title="' + escAttr(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
-      + (p.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
-                : parsed ? (p.fromCache
-                    ? '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="本次直接从解析缓存加载">⚡缓存</span>'
-                    : '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>')
-                : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
-      + (parsed ? '<button class="fi-reparse" onclick="reparseFile(' + k + ')" title="忽略缓存，重新解析此文件">↻</button>' : '')
-      + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
-    list.appendChild(div);
+  // 寄存器文件区（文案区分：主寄存器文件）
+  if (pendingFiles.length) {
+    var regHead = document.createElement('div');
+    regHead.className = 'file-section-header regs';
+    regHead.innerHTML = '<span class="fsh-ic">📄</span> 寄存器文件（主文件）'
+      + '<span class="fsh-count">' + pendingFiles.length + '</span>';
+    list.appendChild(regHead);
+    for (var k = 0; k < pendingFiles.length; k++) {
+      var p = pendingFiles[k];
+      var parsed = p.parsed || false;
+      var div = document.createElement('div');
+      var hidden = p.visible === false;
+      div.className = 'file-item' + (parsed ? ' parsed' : '') + (hidden ? ' file-hidden' : '');
+      div.innerHTML = '<input type="checkbox" class="fi-visible file-visible-chk" '
+        + (hidden ? '' : 'checked ')
+        + 'onchange="toggleFileVisible(' + k + ', this.checked)" onclick="event.stopPropagation()" title="显示/搜索此文件">'
+        + '<span class="fi-icon">' + (p.type === 'json' ? '📄' : '🗂') + '</span>'
+        + '<span class="fi-name" title="' + escAttr(p.file.name) + '">' + escHtml(p.file.name) + '</span>'
+        + (p.error ? '<span class="fi-badge" style="background:#5a2a2a;color:#ffaaaa;">解析失败</span>'
+                  : parsed ? (p.fromCache
+                      ? '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="本次直接从解析缓存加载">⚡缓存</span>'
+                      : '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>')
+                  : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
+        + (parsed ? '<button class="fi-reparse" onclick="reparseFile(' + k + ')" title="忽略缓存，重新解析此文件">↻</button>' : '')
+        + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
+      list.appendChild(div);
+    }
   }
 }
 
@@ -1582,6 +1643,13 @@ function initCachePreference() {
   try {
     var v = localStorage.getItem('rvUseCache');
     if (v === '0') { var el = document.getElementById('use-cache'); if (el) el.checked = false; }
+  } catch (e) {}
+}
+
+function initShowDescriptions() {
+  try {
+    var v = localStorage.getItem('rvShowDesc');
+    if (v === '0') { var el = document.getElementById('show-descriptions'); if (el) el.checked = false; }
   } catch (e) {}
 }
 
@@ -2257,18 +2325,17 @@ function initBlockPanelOutsideClick() {
 var navGroups = [];   // 导航用分组列表（可见文件的全部数据）
 
 // 左侧栏 Block 导航（PDF 目录书签式树）
-var navExpanded = true;    // 导航面板默认展开
+var navExpanded = false;   // Block 导航列默认折叠
 var expandedBlocks = {};   // 导航树中展开的 Block（blockName -> true）
 
-function toggleBlockNav(force) {
-  var section = document.getElementById('bn-nav');
-  var body = document.getElementById('bn-body');
-  if (!section || !body) return;
-  var open = (force === undefined) ? !navExpanded : !!force;
-  navExpanded = open;
-  if (open) section.classList.add('open');
-  else section.classList.remove('open');
-  body.style.display = open ? '' : 'none';
+function toggleBnColumn(force) {
+  var col = document.getElementById('bn-column');
+  var arrow = document.getElementById('bn-col-arrow');
+  if (!col) return;
+  navExpanded = (force === undefined) ? !navExpanded : !!force;
+  col.classList.toggle('expanded', navExpanded);
+  if (arrow) arrow.textContent = navExpanded ? '◀' : '▶';
+  if (navExpanded) renderBlockNavList();
 }
 
 var helpOpen = false;
@@ -2283,24 +2350,18 @@ function toggleHelp() {
 }
 
 function renderBlockNav() {
-  var section = document.getElementById('bn-nav');
+  var col = document.getElementById('bn-column');
   var list = document.getElementById('bn-list');
-  var title = document.getElementById('bn-title');
-  if (!section || !list) return;
+  if (!col || !list) return;
   navGroups = buildGroups(getVisibleRegisters());
   var cntEl = document.getElementById('bn-count');
   if (!navGroups.length) {
-    section.style.display = 'none';
+    col.style.display = 'none';
     list.innerHTML = '';
     if (cntEl) cntEl.textContent = '';
     return;
   }
-  section.style.display = '';
-  // 同步展开/折叠状态（默认展开）
-  var body = document.getElementById('bn-body');
-  if (navExpanded) section.classList.add('open');
-  else section.classList.remove('open');
-  if (body) body.style.display = navExpanded ? '' : 'none';
+  col.style.display = '';
   // 图标的展示数量 = 顶层 Block 数
   var topBlockCount = topBlockCountOf(navGroups);
   if (cntEl) cntEl.textContent = topBlockCount + '';
@@ -3182,7 +3243,10 @@ function clearAll() {
   groupByBlock=true; filteredGroups=[]; expandedGroups={};
   var gbb=document.getElementById('group-by-block'); if (gbb) gbb.checked=true;
   groupPages=[]; groupPage=1; groupPageCount=1; groupPageDirty=true;
-  expandedBlocks={}; navExpanded=true;
+  expandedBlocks={}; navExpanded=false;
+  var bnColEl = document.getElementById('bn-column');
+  if (bnColEl) bnColEl.classList.remove('expanded');
+  var bnArrowEl = document.getElementById('bn-col-arrow'); if (bnArrowEl) bnArrowEl.textContent='▶';
   nextFileId=0; parseScheduled=false; parseInProgress=false; parseGeneration++;
   renderFileList();
   document.getElementById('reg-list').innerHTML='';
@@ -3488,9 +3552,28 @@ function autoLoadLatestRegisters() {
     });
 }
 
+function showDescriptionsEnabled() {
+  var el = document.getElementById('show-descriptions');
+  return !el || el.checked;
+}
+
+function toggleShowDescriptions() {
+  var el = document.getElementById('show-descriptions');
+  var on = !el || el.checked;
+  try { localStorage.setItem('rvShowDesc', on ? '1' : '0'); } catch (e) {}
+  if (on) {
+    autoLoadRegisterDescriptions();
+    showToast('已启用：显示附加描述');
+  } else {
+    removeAllDescFiles();
+    showToast('已关闭：移除附加描述');
+  }
+}
+
 function autoLoadRegisterDescriptions() {
+  if (!showDescriptionsEnabled()) return;   // 顶部「显示附加描述」关闭时不加载
   if (location.protocol === 'file:') {
-    showToast('本地打开无法自动扫描描述文件，请由服务器服务，或用「＋ 描述」手动选择');
+    showToast('本地打开无法自动扫描描述文件，请由服务器服务，或手动更换描述文件');
     return;
   }
   fetch('/api/list-register-files')
@@ -3541,6 +3624,7 @@ function autoLoadRegisterDescriptions() {
 
 initFileInputs();
 autoLoadLatestRegisters();
+initShowDescriptions();
 autoLoadRegisterDescriptions();
 
 // ── 列宽调整 ─────────────────────────────────────────────

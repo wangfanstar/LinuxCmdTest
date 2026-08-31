@@ -560,6 +560,14 @@ select:focus { border-color: var(--blue); }
 }
 .tbl-header .th-chk input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); }
 
+/* 表头固定在上侧，不随列表下翻移动 */
+#tbl-header-wrap {
+  position: sticky;
+  top: var(--group-top, 0px);
+  z-index: 46;
+  background: #eef2f8;
+}
+
 /* 列宽拖动手柄 */
 .tbl-header span { position: relative; overflow: visible; }
 .col-rh {
@@ -822,7 +830,7 @@ select:focus { border-color: var(--blue); }
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer; user-select: none;
-  position: sticky; top: var(--group-top, 0px);
+  position: sticky; top: calc(var(--group-top, 0px) + var(--tbl-h, 0px));
   z-index: 40;
   box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
@@ -2970,7 +2978,10 @@ function toggleGroupBy() {
 // 分组头吸顶偏移 = 工具栏实际高度（随换行/缩放变化）
 function updateGroupTop() {
   var tb = document.getElementById('toolbar');
+  var tbl = document.getElementById('tbl-header');
   document.documentElement.style.setProperty('--group-top', (tb ? tb.offsetHeight : 0) + 'px');
+  document.documentElement.style.setProperty('--tbl-h',
+    (tbl && tbl.offsetParent ? tbl.offsetHeight : 0) + 'px');
 }
 
 // 将寄存器列表按 Block/Sub_Name 分组（保持来源文件中的出现顺序）

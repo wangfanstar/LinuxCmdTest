@@ -53,7 +53,7 @@
     [hidden] { display: none !important; }
 
     .app-shell {
-      width: min(1540px, calc(100% - 32px));
+      width: min(1880px, calc(100% - 32px));
       margin: 0 auto;
       padding: 22px 0 44px;
     }
@@ -325,11 +325,50 @@
     .mobile-tab[aria-selected="true"] { background: var(--surface); color: var(--primary); box-shadow: 0 2px 8px rgba(31, 51, 80, .09); }
 
     .workspace {
+      --structure-width: 330px;
       display: grid;
-      grid-template-columns: minmax(170px, .64fr) minmax(480px, 1.75fr) minmax(300px, 1.05fr);
-      gap: 14px;
+      grid-template-columns: minmax(260px, var(--structure-width)) 8px minmax(560px, 1.7fr) minmax(320px, 1fr);
+      gap: 14px 10px;
       align-items: start;
       margin-top: 14px;
+    }
+
+    .workspace.is-resizing,
+    .workspace.is-resizing * { user-select: none; }
+
+    .workspace-resizer {
+      align-self: stretch;
+      min-height: 420px;
+      width: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: transparent;
+      cursor: col-resize;
+      touch-action: none;
+    }
+
+    .workspace-resizer::before {
+      display: block;
+      width: 3px;
+      height: 100%;
+      margin: 0 auto;
+      border-radius: inherit;
+      background: var(--line-strong);
+      content: "";
+      transition: background .14s ease, width .14s ease;
+    }
+
+    .workspace-resizer:hover::before,
+    .workspace-resizer:focus-visible::before,
+    .workspace.is-resizing .workspace-resizer::before {
+      width: 5px;
+      background: var(--primary);
+    }
+
+    .workspace-resizer:focus-visible {
+      outline: 3px solid rgba(79, 70, 229, .22);
+      outline-offset: 2px;
     }
 
     .panel {
@@ -428,8 +467,9 @@
     #network-preview { display: block; width: 100%; min-height: 255px; border: 0; background: #fff; }
     .network-empty { margin: 0; padding: 30px 12px; border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); font-size: 13px; text-align: center; }
 
-    .structure-panel, .preview-panel { position: sticky; top: 12px; max-height: calc(100vh - 24px); }
-    .structure-panel .panel-body, .preview-panel .panel-body { max-height: calc(100vh - 86px); overflow: auto; }
+    .structure-panel, .preview-panel { display: flex; flex-direction: column; position: sticky; top: var(--editor-sticky-top, 160px); max-height: calc(100dvh - var(--editor-sticky-top, 160px) - 92px); }
+    .structure-panel > .panel-head, .preview-panel > .panel-head, .composition-toolbar { flex: none; }
+    .structure-panel .panel-body, .preview-panel .panel-body { min-height: 0; overflow: auto; }
 
     .group-list { display: grid; gap: 7px; }
     .structure-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
@@ -480,6 +520,38 @@
 
     .structure-tip { margin: 14px 2px 0; padding: 10px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
 
+    .composition-toolbar { display: grid; gap: 7px; padding: 10px 13px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+    .composition-toolbar .helper { margin: 0; }
+    .composition-select { width: 17px; height: 17px; margin: 4px; accent-color: var(--primary); cursor: pointer; }
+    .composition-picking .tree-node-row { grid-template-columns: 25px 26px minmax(0, 1fr); padding-left: 0; }
+    .composition-picking .tree-node-toolbar { display: none; }
+    .composition-picking .group-item-link { grid-template-columns: 22px minmax(0, 1fr); }
+    .composition-picking .tree-node-row[data-picked="true"] { background: var(--primary-soft); border-radius: 8px; }
+    .saved-compositions { margin-bottom: 13px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .saved-compositions summary { cursor: pointer; font-weight: 800; font-size: 12px; }
+    .composition-saved-row { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+    .composition-saved-row > :first-child { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+    .composition-dialog { width: min(850px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 70px #0004; }
+    .composition-dialog::backdrop { background: #18233788; }
+    .composition-dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 34px); }
+    .composition-dialog header, .composition-dialog footer { flex: none; padding: 14px 18px; background: var(--surface-soft); }
+    .composition-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); }
+    .composition-dialog h2 { margin: 0; font-size: 18px; }
+    .composition-dialog footer { border-top: 1px solid var(--line); }
+    .composition-dialog-body { display: grid; gap: 13px; min-height: 0; padding: 16px 18px; overflow-y: auto; }
+    .composition-dialog-body > label { display: grid; gap: 5px; }
+    .composition-steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .composition-step { display: grid; gap: 7px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .composition-step-head { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .composition-step-head input { flex: 1; width: 120px; min-width: 80px; }
+    .composition-step textarea { min-height: 78px; }
+    #composition-preview { min-height: 110px; }
+    #composition-status { margin: 0 0 8px; color: var(--red); font-size: 12px; }
+
+    @media (min-width: 961px) and (max-width: 1550px) {
+      .workspace { grid-template-columns: minmax(260px, min(var(--structure-width), 32vw)) 8px minmax(0, 1.55fr) minmax(280px, .95fr); }
+    }
+
     .editor-meta {
       display: grid;
       grid-template-columns: minmax(160px, 1fr) auto;
@@ -498,7 +570,7 @@
       position: fixed;
       z-index: 45;
       top: 50%;
-      right: max(16px, calc((100vw - 1540px) / 2 - 154px));
+      right: max(16px, calc((100vw - 1880px) / 2 - 154px));
       display: grid;
       width: 142px;
       gap: 7px;
@@ -621,14 +693,24 @@
     .toast[data-type="error"] { background: #94251e; }
     .toast[data-type="warning"] { background: #775000; }
 
+    @media (max-width: 2220px) {
+      .app-shell { padding-bottom: 100px; }
+      .quick-actions { top: auto; bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; width: auto; max-width: calc(100% - 32px); transform: none; }
+      .quick-actions-title { display: none; }
+      .quick-actions .button { width: auto; }
+      .quick-actions-context { max-width: 220px; }
+      .toast-region { bottom: 90px; }
+    }
+
     @media (max-width: 1180px) {
       .hero-main { grid-template-columns: 1fr; }
       .project-fields { grid-template-columns: 1fr 1fr auto; }
-      .workspace { grid-template-columns: minmax(165px, .6fr) minmax(430px, 1.55fr) minmax(280px, .95fr); }
+      .workspace { grid-template-columns: minmax(240px, min(var(--structure-width), 32vw)) 8px minmax(0, 1.55fr) minmax(280px, .95fr); }
     }
 
     @media (max-width: 960px) {
       .workspace { display: block; margin-top: 0; }
+      .workspace-resizer { display: none; }
     }
 
     @media (max-width: 900px) {
@@ -819,11 +901,35 @@
             <button class="button button-small" type="button" data-action="add-group">＋ 分组</button>
           </div>
         </header>
+        <div class="composition-toolbar">
+          <div class="inline-actions">
+            <button id="composition-select-toggle" class="button button-small" type="button" aria-pressed="false">☑ 组合多选</button>
+            <button id="composition-create" class="button button-small button-primary" type="button">＋ 新建组合</button>
+            <button id="composition-clear" class="button button-small" type="button" hidden>清空选择</button>
+          </div>
+          <p id="composition-selection-count" class="helper" aria-live="polite">跨组勾选条目，组合为可重复使用的测试命令。</p>
+        </div>
         <div class="panel-body">
+          <details id="saved-compositions" class="saved-compositions" open hidden>
+            <summary id="composition-list-summary">自定义组合</summary>
+            <div id="composition-list"></div>
+          </details>
           <div id="group-list" class="group-list"></div>
           <p class="structure-tip">先建分组，再集中录入条目。左侧子条目默认折叠，点击箭头展开后可直接定位；分组和条目都可复制、排序，快捷键冲突会在生成前标出。</p>
         </div>
       </aside>
+
+      <button id="workspace-resizer"
+              class="workspace-resizer"
+              type="button"
+              role="separator"
+              aria-controls="group-list"
+              aria-label="调整左侧导航宽度"
+              title="拖动调整左侧导航宽度；双击恢复默认"
+              aria-orientation="vertical"
+              aria-valuemin="260"
+              aria-valuemax="520"
+              aria-valuenow="330"></button>
 
       <section id="editor-panel" class="panel editor-panel" data-mobile-panel="editor" aria-label="条目编辑">
         <header class="panel-head">
@@ -867,6 +973,37 @@
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
   <div id="tree-context-menu" class="tree-context-menu" role="menu" aria-label="树节点快捷操作" hidden></div>
+
+  <dialog id="composition-dialog" class="composition-dialog" aria-labelledby="composition-dialog-title">
+    <form id="composition-form">
+      <header>
+        <h2 id="composition-dialog-title">新建自定义组合</h2>
+        <button id="composition-close" class="button button-small" type="button" aria-label="关闭组合编辑">关闭</button>
+      </header>
+      <div class="composition-dialog-body">
+        <p class="helper">步骤按当前顺序连接，只保存和复制文本，不执行命令。原条目修改或删除不影响已保存的组合。</p>
+        <label><span class="field-label">组合名称</span><input id="composition-title" class="field" required maxlength="100" placeholder="例如：回归测试 · 环境检查"></label>
+        <div class="inline-actions">
+          <label><span class="field-label">步骤分隔符</span><select id="composition-separator" class="field"><option value="newline">换行</option><option value="blankline">空行</option><option value="space">空格</option><option value="custom">自定义</option></select></label>
+          <label id="composition-custom-separator-wrap" hidden><span class="field-label">自定义分隔符（留空直接连接）</span><input id="composition-custom-separator" class="field" placeholder="例如： &amp;&amp; "></label>
+        </div>
+        <ol id="composition-steps" class="composition-steps" aria-label="组合步骤"></ol>
+        <div class="inline-actions">
+          <button id="composition-add-step" class="button button-small" type="button">＋ 自定义步骤</button>
+          <button id="composition-add-selected" class="button button-small" type="button">追加左侧已选条目</button>
+          <button id="composition-pick-more" class="button button-small" type="button">返回左侧选条目</button>
+        </div>
+        <label><span class="field-label">完整命令预览</span><textarea id="composition-preview" class="textarea" readonly></textarea></label>
+      </div>
+      <footer>
+        <p id="composition-status" role="status"></p>
+        <div class="inline-actions">
+          <button class="button button-primary" type="submit">保存组合</button>
+          <button id="composition-cancel" class="button" type="button">取消</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
 
   <script id="core-logic">
   (function () {
@@ -1066,6 +1203,71 @@
       }, overrides || {});
     }
 
+    // Compositions contain snapshots, never live references or executable code.
+    // This normalizer is also embedded in the standalone generated page.
+    function normalizeComposition(value) {
+      if (!value || !Array.isArray(value.parts)) throw new Error('组合步骤必须是数组。');
+      return {
+        separator: value.separator == null ? '\n' : String(value.separator),
+        parts: value.parts.map(part => {
+          if (!part || typeof part !== 'object') throw new Error('组合步骤格式无效。');
+          return {
+            id: String(part.id || newId('part')),
+            sourceId: String(part.sourceId || ''),
+            title: String(part.title || '自定义步骤'),
+            content: String(part.content == null ? '' : part.content)
+          };
+        })
+      };
+    }
+
+    function compositionFromSelection(value, ids) {
+      const items = new Map(flattenItems(value).map(location => [location.item.id, location.item]));
+      return normalizeComposition({ parts: uniqueIds(ids).map(id => {
+        const item = items.get(id);
+        if (!item) throw new Error('选中的条目已不存在，请重新选择。');
+        return { sourceId: item.id, title: item.title, content: item.content };
+      }) });
+    }
+
+    function compositionText(value) {
+      const normalized = normalizeComposition(value);
+      return normalized.parts.map(part => part.content).join(normalized.separator);
+    }
+
+    function saveComposition(value, itemId, title, composition) {
+      const normalizedTitle = String(title || '').trim();
+      if (!normalizedTitle) throw new Error('请输入组合名称。');
+      const normalized = normalizeComposition(composition);
+      if (!normalized.parts.length || !normalized.parts.some(part => part.content.trim())) {
+        throw new Error('至少添加一个有内容的步骤。');
+      }
+      const content = compositionText(normalized);
+      if (itemId) {
+        const location = findItemLocation(value, itemId);
+        if (!location || !location.item.composition) throw new Error('该组合已不存在。');
+        Object.assign(location.item, { title: normalizedTitle, content, composition: normalized });
+        return { item: location.item, group: location.group };
+      }
+      let group = value.groups.find(entry => entry.title === '自定义组合');
+      if (!group) {
+        group = createGroup({ title: '自定义组合' });
+        value.groups.push(group);
+      }
+      const item = createItem({ title: normalizedTitle, content, composition: normalized });
+      group.items.push(item);
+      return { item, group };
+    }
+
+    function setItemContent(item, content) {
+      if (item.content === content) return;
+      item.content = content;
+      // Full-text editing in the generated page becomes one editable snapshot.
+      if (item.composition) item.composition = normalizeComposition({
+        parts: [{ title: '手动编辑的完整命令', content }]
+      });
+    }
+
     function createSampleDocument() {
       return {
         schemaVersion: SCHEMA_VERSION,
@@ -1125,6 +1327,7 @@
         note: String(source.note || ''),
         favorite: Boolean(source.favorite),
         collapsed: Boolean(source.collapsed),
+        ...(source.composition ? { composition: normalizeComposition(source.composition) } : {}),
         children: source.children.map((child, index) => normalizeItem(child, depth + 1, path.concat(String(child && child.title || `第 ${index + 1} 条`))))
       };
     }
@@ -1177,7 +1380,7 @@
         groups: []
       };
       if (!Array.isArray(value.groups)) throw new Error('分组列表格式无效。');
-      normalized.groups = value.groups.map(group => ({
+      normalized.groups = value.groups.map((group, groupIndex) => ({
         id: String(group && group.id || newId('group')),
         title: String(group && group.title || '').trim(),
         collapsed: Boolean(group && group.collapsed),
@@ -2274,9 +2477,13 @@
         note: String(source.note || ''),
         favorite: Boolean(source.favorite),
         collapsed: Boolean(source.collapsed),
+        ...(source.composition ? { composition: normalizeComposition(source.composition) } : {}),
         children: source.children.map((child, index) => normalizeImportedItem(child, depth + 1, path + ' / ' + String(child && child.title || '第 ' + (index + 1) + ' 条')))
       };
     }
+    ${normalizeComposition.toString()}
+    ${setItemContent.toString()}
+
     function migrateLegacyItem(item) {
       const source = item && typeof item === 'object' ? item : {};
       return Object.assign({}, source, { children: Array.isArray(source.children) ? source.children.map(migrateLegacyItem) : [] });
@@ -2880,6 +3087,7 @@
       copyAction.setAttribute('aria-label', '复制“' + item.title + '”正文');
       const titleRow = createElement('div', 'card-title-row');
       titleRow.append(createElement('span', 'item-title', item.title));
+      if (item.composition) titleRow.append(createElement('span', 'card-order-badge', '组合 · ' + item.composition.parts.length + ' 步'));
       const order = copyOrder.indexOf(item.id);
       if (order >= 0) titleRow.append(createElement('span', 'card-order-badge', String(order + 1)));
       const content = createElement('pre', 'item-content');
@@ -3139,6 +3347,7 @@
       outdent.disabled = depth === 1;
       controls.append(favorite, up, down, indent, outdent, button('添加子条目', 'add-child-item'), button('添加同级', 'add-sibling-item'), button('复制整棵子树', 'duplicate-item'), button('删除子树', 'delete-item', 'mini-button button-danger'));
       row.append(title, meta, content, controls);
+      if (item.composition) row.append(createElement('p', 'item-note', '自定义组合：在此修改完整正文会保存为单个步骤；如需逐步调整，请将 JSON 导回 HtmlPasteGen 使用“编辑组合”。'));
       return row;
     }
     function findGroup(groupId) { return model.groups.find(group => group.id === groupId); }
@@ -3235,7 +3444,7 @@
         const item = findItem(group, row.dataset.itemId);
         if (!item) return;
         if (field === 'item-title') item.title = event.target.value;
-        if (field === 'item-content') item.content = event.target.value;
+        if (field === 'item-content') setItemContent(item, event.target.value);
         if (field === 'item-note') item.note = event.target.value;
         if (field === 'item-shortcut') item.shortcut = normalizeShortcut(event.target.value);
         if (field === 'item-link') item.link = event.target.value.trim();
@@ -3735,6 +3944,11 @@
       shortcutFromEvent,
       createItem,
       createGroup,
+      normalizeComposition,
+      compositionFromSelection,
+      compositionText,
+      saveComposition,
+      setItemContent,
       createSampleDocument,
       migrateDocument,
       normalizeDocument,
@@ -3786,10 +4000,19 @@
 
     const core = window.HtmlPasteGenCore;
     const DRAFT_KEY = 'html-paste-gen:draft:v2';
+    const STRUCTURE_WIDTH_KEY = 'html-paste-gen:structure-width:v1';
+    const STRUCTURE_WIDTH_DEFAULT = 330;
+    const STRUCTURE_WIDTH_MIN = 260;
+    const STRUCTURE_WIDTH_MAX = 520;
+    const STRUCTURE_WIDTH_STEP = 16;
+    const STRUCTURE_WIDTH_LARGE_STEP = 80;
     const SAVE_DELAY = 260;
     let saveTimer = 0;
     let toastTimer = 0;
     let previewCopyTimer = 0;
+    let structureResizeActive = false;
+    let structurePointerId = null;
+    let structurePointerOffset = 0;
 
     const state = {
       document: loadInitialDocument(),
@@ -3812,16 +4035,272 @@
     const expandedNavNodeIds = new Set();
     let treeClipboard = null;
     let contextMenuState = null;
+    let compositionSelection = [];
+    let compositionPicking = false;
+    let compositionDraft = null;
     state.selectedGroupId = state.document.groups[0] ? state.document.groups[0].id : '';
 
     function byId(id) {
       return document.getElementById(id);
     }
 
+    function updateCompositionControls() {
+      const validIds = new Set(core.flattenItems(state.document).map(location => location.item.id));
+      compositionSelection = compositionSelection.filter(id => validIds.has(id));
+      const selected = new Set(compositionSelection);
+      byId('group-list').classList.toggle('composition-picking', compositionPicking);
+      byId('composition-select-toggle').setAttribute('aria-pressed', String(compositionPicking));
+      byId('composition-select-toggle').textContent = compositionPicking ? '完成选择' : '☑ 组合多选';
+      byId('composition-clear').hidden = !compositionSelection.length;
+      byId('composition-create').textContent = compositionDraft ? '继续编辑组合' : compositionSelection.length ? '组合已选条目' : '＋ 新建组合';
+      byId('composition-selection-count').textContent = compositionSelection.length
+        ? `已选 ${compositionSelection.length} 条 · 按勾选顺序组合，保存前可调整顺序。`
+        : compositionDraft ? '组合草稿已保留；选好条目后点击“继续编辑组合”。' : '跨组勾选条目，组合为可重复使用的测试命令。';
+      document.querySelectorAll('[data-composition-item]').forEach(input => {
+        input.checked = selected.has(input.dataset.compositionItem);
+        input.closest('.tree-node-row').dataset.picked = String(input.checked);
+        input.title = input.checked ? `组合顺序：${compositionSelection.indexOf(input.dataset.compositionItem) + 1}` : '加入自定义组合';
+      });
+      document.querySelectorAll('[data-composition-group]').forEach(input => {
+        const group = findGroup(input.dataset.compositionGroup);
+        const items = core.flattenItems({ groups: group ? [group] : [] });
+        const count = items.filter(location => selected.has(location.item.id)).length;
+        input.checked = items.length > 0 && count === items.length;
+        input.indeterminate = count > 0 && count < items.length;
+      });
+    }
+
+    function renderSavedCompositions() {
+      const entries = core.flattenItems(state.document).filter(location => location.item.composition);
+      byId('saved-compositions').hidden = !entries.length;
+      byId('composition-list-summary').textContent = `自定义组合 · ${entries.length}`;
+      const list = byId('composition-list');
+      list.replaceChildren();
+      entries.forEach(({ item }) => {
+        const row = createElement('div', 'composition-saved-row');
+        const edit = createElement('button', 'button button-small', item.title || '未命名组合');
+        edit.type = 'button';
+        edit.title = `编辑组合 · ${item.composition.parts.length} 步`;
+        edit.addEventListener('click', () => openCompositionEditor(item.id));
+        const remove = createElement('button', 'button button-small button-danger', '删除');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `删除组合：${item.title}`);
+        remove.addEventListener('click', () => {
+          if (!confirm(`删除组合“${item.title}”及其子条目？原始来源条目不会删除。`)) return;
+          const location = core.findItemLocation(state.document, item.id);
+          if (!location) return;
+          location.siblings.splice(location.index, 1);
+          if (compositionDraft && compositionDraft.itemId === item.id) compositionDraft = null;
+          updateAfterAction('组合已删除，原始条目保持不变。');
+        });
+        row.append(edit, remove);
+        list.appendChild(row);
+      });
+    }
+
+    function openCompositionEditor(itemId) {
+      if (itemId) {
+        if (compositionDraft && !confirm('放弃尚未保存的组合草稿，编辑这个组合？')) return;
+        const location = core.findItemLocation(state.document, itemId);
+        if (!location || !location.item.composition) return;
+        compositionDraft = { itemId, title: location.item.title, ...core.normalizeComposition(location.item.composition) };
+      } else if (!compositionDraft) {
+        compositionDraft = { itemId: '', title: '', ...core.compositionFromSelection(state.document, compositionSelection) };
+        compositionSelection = [];
+      } else if (compositionSelection.length) {
+        compositionDraft.parts.push(...core.compositionFromSelection(state.document, compositionSelection).parts);
+        compositionSelection = [];
+      }
+      byId('composition-dialog-title').textContent = compositionDraft.itemId ? '编辑自定义组合' : '新建自定义组合';
+      byId('composition-title').value = compositionDraft.title;
+      const separatorModes = new Map([['\n', 'newline'], ['\n\n', 'blankline'], [' ', 'space']]);
+      byId('composition-separator').value = separatorModes.get(compositionDraft.separator) || 'custom';
+      byId('composition-custom-separator').value = compositionDraft.separator;
+      byId('composition-status').textContent = '';
+      renderCompositionSteps();
+      updateCompositionPreview();
+      updateCompositionControls();
+      byId('composition-dialog').showModal();
+      byId('composition-title').focus();
+    }
+
+    function closeCompositionEditor() {
+      byId('composition-dialog').close();
+      compositionDraft = null;
+      updateCompositionControls();
+    }
+
+    function renderCompositionSteps() {
+      const list = byId('composition-steps');
+      list.replaceChildren();
+      compositionDraft.parts.forEach((part, index) => {
+        const row = createElement('li', 'composition-step');
+        const head = createElement('div', 'composition-step-head');
+        head.appendChild(createElement('span', 'count-badge', String(index + 1)));
+        const title = createElement('input', 'field');
+        title.value = part.title;
+        title.setAttribute('aria-label', `第 ${index + 1} 步名称`);
+        title.addEventListener('input', () => { part.title = title.value; });
+        head.appendChild(title);
+        [['↑', -1, '上移'], ['↓', 1, '下移'], ['删除', 0, '删除']].forEach(([text, direction, label]) => {
+          const button = createElement('button', 'button button-small', text);
+          button.type = 'button';
+          button.setAttribute('aria-label', `${label}第 ${index + 1} 步`);
+          button.disabled = direction === -1 && index === 0 || direction === 1 && index === compositionDraft.parts.length - 1;
+          button.addEventListener('click', () => {
+            if (direction) core.moveItem(compositionDraft.parts, index, direction);
+            else compositionDraft.parts.splice(index, 1);
+            renderCompositionSteps();
+            updateCompositionPreview();
+          });
+          head.appendChild(button);
+        });
+        const content = createElement('textarea', 'textarea');
+        content.value = part.content;
+        content.setAttribute('aria-label', `第 ${index + 1} 步命令`);
+        content.spellcheck = false;
+        content.addEventListener('input', () => { part.content = content.value; updateCompositionPreview(); });
+        row.append(head, content);
+        list.appendChild(row);
+      });
+      if (!compositionDraft.parts.length) list.appendChild(createElement('li', 'helper', '还没有步骤：可添加自定义内容，或返回左侧勾选条目。'));
+    }
+
+    function updateCompositionPreview() {
+      if (!compositionDraft) return;
+      const mode = byId('composition-separator').value;
+      const separators = { newline: '\n', blankline: '\n\n', space: ' ' };
+      compositionDraft.separator = mode === 'custom' ? byId('composition-custom-separator').value : separators[mode];
+      byId('composition-custom-separator-wrap').hidden = mode !== 'custom';
+      byId('composition-preview').value = core.compositionText(compositionDraft);
+      byId('composition-add-selected').disabled = !compositionSelection.length;
+    }
+
+    function submitComposition(event) {
+      event.preventDefault();
+      try {
+        const result = core.saveComposition(state.document, compositionDraft.itemId, byId('composition-title').value, compositionDraft);
+        closeCompositionEditor();
+        compositionSelection = [];
+        compositionPicking = false;
+        scheduleDraftSave();
+        selectAndFocus(result.group.id, result.item.id);
+        announce('组合已保存；生成的 HTML 和导出的 JSON 都会包含该命令。', 'success');
+      } catch (error) {
+        byId('composition-status').textContent = error.message;
+      }
+    }
+
+    function clampStructureWidth(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return STRUCTURE_WIDTH_DEFAULT;
+      return Math.min(STRUCTURE_WIDTH_MAX, Math.max(STRUCTURE_WIDTH_MIN, Math.round(numeric)));
+    }
+
+    function readStructureWidth() {
+      try {
+        const savedWidth = localStorage.getItem(STRUCTURE_WIDTH_KEY);
+        return savedWidth === null ? STRUCTURE_WIDTH_DEFAULT : clampStructureWidth(savedWidth);
+      } catch (error) {
+        return STRUCTURE_WIDTH_DEFAULT;
+      }
+    }
+
+    function setStructureWidth(value) {
+      const workspace = document.querySelector('.workspace');
+      const resizer = byId('workspace-resizer');
+      if (!workspace || !resizer) return STRUCTURE_WIDTH_DEFAULT;
+      const width = clampStructureWidth(value);
+      workspace.style.setProperty('--structure-width', width + 'px');
+      resizer.setAttribute('aria-valuenow', String(width));
+      return width;
+    }
+
+    function saveStructureWidth(value) {
+      try {
+        localStorage.setItem(STRUCTURE_WIDTH_KEY, String(clampStructureWidth(value)));
+      } catch (error) {
+        // 布局偏好不可保存时仍保留本次会话的视觉调整。
+      }
+    }
+
+    function persistStructureWidth(value, message) {
+      const width = setStructureWidth(value);
+      saveStructureWidth(width);
+      if (message) announce(message, 'info');
+      return width;
+    }
+
+    function updateStructureWidthFromPointer(event) {
+      if (!structureResizeActive || event.pointerId !== structurePointerId) return;
+      const workspace = document.querySelector('.workspace');
+      if (!workspace) return;
+      const rect = workspace.getBoundingClientRect();
+      setStructureWidth(event.clientX - rect.left - structurePointerOffset);
+    }
+
+    function finishStructureResize(event) {
+      if (!structureResizeActive || event.pointerId !== structurePointerId) return;
+      if (event.type === 'pointerup') updateStructureWidthFromPointer(event);
+      structureResizeActive = false;
+      structurePointerId = null;
+      const workspace = document.querySelector('.workspace');
+      const resizer = byId('workspace-resizer');
+      workspace?.classList.remove('is-resizing');
+      if (resizer && resizer.hasPointerCapture?.(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+      const width = Number(resizer?.getAttribute('aria-valuenow')) || STRUCTURE_WIDTH_DEFAULT;
+      saveStructureWidth(width);
+    }
+
+    function startWorkspaceResize(event) {
+      if (typeof window.PointerEvent === 'undefined' || event.button !== 0 || structureResizeActive) return;
+      const workspace = document.querySelector('.workspace');
+      const resizer = byId('workspace-resizer');
+      if (!workspace || !resizer) return;
+      event.preventDefault();
+      structureResizeActive = true;
+      structurePointerId = event.pointerId;
+      structurePointerOffset = event.clientX - workspace.getBoundingClientRect().left - document.querySelector('.structure-panel').getBoundingClientRect().width;
+      workspace.classList.add('is-resizing');
+      resizer.setPointerCapture?.(event.pointerId);
+      updateStructureWidthFromPointer(event);
+    }
+
+    function initializeStructureResizer() {
+      const workspace = document.querySelector('.workspace');
+      const resizer = byId('workspace-resizer');
+      if (!workspace || !resizer) return;
+      setStructureWidth(readStructureWidth());
+      resizer.addEventListener('pointerdown', startWorkspaceResize);
+      // Keep tracking when the pointer leaves the divider or capture is unavailable.
+      document.addEventListener('pointermove', updateStructureWidthFromPointer);
+      document.addEventListener('pointerup', finishStructureResize);
+      document.addEventListener('pointercancel', finishStructureResize);
+      resizer.addEventListener('lostpointercapture', finishStructureResize);
+      resizer.addEventListener('dblclick', () => {
+        persistStructureWidth(STRUCTURE_WIDTH_DEFAULT, '左侧导航已恢复默认宽度。');
+      });
+      resizer.addEventListener('keydown', event => {
+        const current = Number(resizer.getAttribute('aria-valuenow')) || STRUCTURE_WIDTH_DEFAULT;
+        const step = event.shiftKey ? STRUCTURE_WIDTH_LARGE_STEP : STRUCTURE_WIDTH_STEP;
+        let next = current;
+        if (event.key === 'ArrowLeft') next = current - step;
+        else if (event.key === 'ArrowRight') next = current + step;
+        else if (event.key === 'Home') next = STRUCTURE_WIDTH_MIN;
+        else if (event.key === 'End') next = STRUCTURE_WIDTH_MAX;
+        else return;
+        event.preventDefault();
+        persistStructureWidth(next, `左侧导航宽度：${clampStructureWidth(next)}px。`);
+      });
+    }
+
     function syncEditorStickyOffsets() {
       const generationBar = document.querySelector('.generation-bar');
       if (!generationBar) return;
       document.documentElement.style.setProperty('--generation-bar-height', Math.ceil(generationBar.getBoundingClientRect().height) + 'px');
+      const projectToolbar = document.querySelector('.project-toolbar');
+      const stickyTop = generationBar.getBoundingClientRect().height + (projectToolbar ? projectToolbar.getBoundingClientRect().height : 0) + 12;
+      document.documentElement.style.setProperty('--editor-sticky-top', Math.ceil(stickyTop) + 'px');
     }
 
     function setNetworkLibraryDialogOpen(open) {
@@ -3896,6 +4375,9 @@
     function resetGroupNavExpansion() {
       expandedNavGroupIds.clear();
       expandedNavNodeIds.clear();
+      compositionSelection = [];
+      compositionDraft = null;
+      compositionPicking = false;
     }
 
     function cleanExpandedNavNodeIds() {
@@ -4512,8 +4994,10 @@
 
     function renderGroupList() {
       closeTreeContextMenu();
+      renderSavedCompositions();
       const list = byId('group-list');
       list.replaceChildren();
+      updateCompositionControls();
       cleanExpandedNavGroupIds();
       cleanExpandedNavNodeIds();
       byId('group-count').textContent = `${state.document.groups.length} 个分组`;
@@ -4553,6 +5037,18 @@
         down.disabled = index === state.document.groups.length - 1;
         demote.disabled = !demotion.ok;
         actions.append(up, down, demote);
+        if (compositionPicking) {
+          const selection = createElement('input', 'composition-select');
+          selection.type = 'checkbox';
+          selection.dataset.compositionGroup = group.id;
+          selection.setAttribute('aria-label', `选择本组全部条目：${group.title}`);
+          selection.addEventListener('change', () => {
+            const ids = core.flattenItems({ groups: [group] }).map(location => location.item.id);
+            compositionSelection = selection.checked ? Array.from(new Set(compositionSelection.concat(ids))) : compositionSelection.filter(id => !ids.includes(id));
+            updateCompositionControls();
+          });
+          actions.replaceChildren(selection);
+        }
 
         const itemList = createElement('div', 'group-item-list');
         itemList.id = itemListId;
@@ -4567,6 +5063,7 @@
         row.append(toggle, select, actions, itemList);
         list.appendChild(row);
       });
+      updateCompositionControls();
     }
 
     function renderItemTree(items, group, depth, container) {
@@ -4609,6 +5106,17 @@
         indent.disabled = index === 0 || depth >= core.MAX_ITEM_DEPTH;
         outdent.disabled = false;
         tools.append(indent, outdent);
+        if (compositionPicking) {
+          const selection = createElement('input', 'composition-select');
+          selection.type = 'checkbox';
+          selection.dataset.compositionItem = item.id;
+          selection.setAttribute('aria-label', `组合选择：${item.title}`);
+          selection.addEventListener('change', () => {
+            compositionSelection = core.toggleCopyOrder(compositionSelection, item.id, selection.checked);
+            updateCompositionControls();
+          });
+          row.appendChild(selection);
+        }
         row.append(toggle, select, tools);
         node.appendChild(row);
         if (hasChildren) {
@@ -4670,6 +5178,7 @@
       actions.children[4].title = currentDepth === 1 ? '升级为分组' : '提升层级';
       actions.children[4].setAttribute('aria-label', actions.children[4].title);
       actions.children[5].disabled = currentDepth >= core.MAX_ITEM_DEPTH;
+      if (item.composition) actions.appendChild(makeButton('编辑组合', 'edit-composition', 'button button-small button-primary'));
       head.appendChild(actions);
 
       const body = createElement('div', 'item-editor-body');
@@ -4719,9 +5228,11 @@
       content.placeholder = '粘贴需要完整复制的内容…';
       content.dataset.field = 'content';
       content.setAttribute('aria-label', '复制内容');
+      content.readOnly = Boolean(item.composition);
       const contentLabel = labeledControl('复制内容', content, 'wide');
       const contentHelp = createElement('p', String(item.content || '') ? 'helper' : 'helper helper-error', String(item.content || '') ? 'Ctrl+Enter 可立即新增下一条。' : '内容为空时仍可保存，但生成前会显示警告。');
       contentLabel.appendChild(contentHelp);
+      if (item.composition) contentHelp.textContent = `自定义组合 · ${item.composition.parts.length} 步。点击“编辑组合”可增删步骤、排序和修改命令。`;
 
       const note = createElement('input', 'field');
       note.type = 'text';
@@ -5165,6 +5676,10 @@
         return;
       }
       if (!item) return;
+      if (action === 'edit-composition') {
+        openCompositionEditor(item.id);
+        return;
+      }
        const location = core.findItemLocation({ groups: [group] }, item.id);
       if (action === 'toggle-item-collapse') item.collapsed = !item.collapsed;
        if (action === 'move-item-up' && location) core.moveItem(location.siblings, location.index, -1);
@@ -5208,6 +5723,7 @@
       const item = findItem(card.dataset.groupId, card.dataset.itemId);
       if (!item) return;
       if (field === 'favorite') item.favorite = event.target.checked;
+      else if (field === 'content') core.setItemContent(item, event.target.value);
       else item[field] = event.target.value;
       const summary = card.querySelector('.item-summary');
       if (summary && field === 'title') summary.textContent = item.title || '未命名条目';
@@ -5299,6 +5815,44 @@
         announce(`导入失败，当前草稿未改变：${error.message}`, 'error');
       }
     }
+
+    byId('composition-select-toggle').addEventListener('click', () => {
+      compositionPicking = !compositionPicking;
+      if (compositionPicking) state.document.groups.forEach(group => expandedNavGroupIds.add(group.id));
+      renderGroupList();
+    });
+    byId('composition-create').addEventListener('click', () => openCompositionEditor());
+    byId('composition-clear').addEventListener('click', () => { compositionSelection = []; updateCompositionControls(); });
+    byId('composition-form').addEventListener('submit', submitComposition);
+    byId('composition-title').addEventListener('input', event => { if (compositionDraft) compositionDraft.title = event.target.value; });
+    byId('composition-close').addEventListener('click', closeCompositionEditor);
+    byId('composition-cancel').addEventListener('click', closeCompositionEditor);
+    byId('composition-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCompositionEditor(); });
+    byId('composition-separator').addEventListener('change', updateCompositionPreview);
+    byId('composition-custom-separator').addEventListener('input', updateCompositionPreview);
+    byId('composition-add-step').addEventListener('click', () => {
+      compositionDraft.parts.push({ id: core.newId('part'), sourceId: '', title: '自定义步骤', content: '' });
+      renderCompositionSteps();
+      updateCompositionPreview();
+      byId('composition-steps').lastElementChild.querySelector('textarea').focus();
+    });
+    byId('composition-add-selected').addEventListener('click', () => {
+      compositionDraft.parts.push(...core.compositionFromSelection(state.document, compositionSelection).parts);
+      compositionSelection = [];
+      renderCompositionSteps();
+      updateCompositionPreview();
+      updateCompositionControls();
+    });
+    byId('composition-pick-more').addEventListener('click', () => {
+      byId('composition-dialog').close();
+      compositionPicking = true;
+      state.mobilePanel = 'structure';
+      state.document.groups.forEach(group => expandedNavGroupIds.add(group.id));
+      renderGroupList();
+      renderMobilePanel();
+      document.querySelector('.structure-panel').scrollIntoView({ block: 'start' });
+      byId('composition-create').focus();
+    });
 
     byId('page-title').addEventListener('input', event => {
       state.document.meta.title = event.target.value;
@@ -5397,6 +5951,11 @@
       }
     });
     window.addEventListener('resize', syncEditorStickyOffsets);
+    if (typeof ResizeObserver === 'function') {
+      const editorToolbarObserver = new ResizeObserver(syncEditorStickyOffsets);
+      editorToolbarObserver.observe(document.querySelector('.generation-bar'));
+      editorToolbarObserver.observe(document.querySelector('.project-toolbar'));
+    }
     byId('new-project-button').addEventListener('click', () => {
       if (!confirm('新建空白项目？当前草稿会被替换，建议先导出 JSON 备份。')) return;
       state.document = createBlankDocument();
@@ -5427,6 +5986,7 @@
     if (location.protocol === 'file:') byId('back-link').hidden = true;
     setDraftStatus('草稿已载入');
     syncEditorStickyOffsets();
+    initializeStructureResizer();
     renderAll();
     loadNetworkLibrary();
   }());

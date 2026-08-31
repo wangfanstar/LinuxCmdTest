@@ -275,6 +275,21 @@ def bit_lines(text):
     return out
 
 
+def find_bit_line(bl, f):
+    """Find a bit-summary line whose bit range matches a field's bit range.
+
+    Handles register-level text such as 'Bit[31:16] is used to set almost empty
+    threshold,' where the field name is not echoed.
+    """
+    lo0, hi0 = int(f.get("startBit") or 0), int(f.get("endBit") or 0)
+    if hi0 < lo0:
+        lo0, hi0 = hi0, lo0
+    for (_nm, (lo, hi, text)) in bl.items():
+        if lo == lo0 and hi == hi0:
+            return text
+    return None
+
+
 def source_of(rec):
     srcs = rec.get("sources") or []
     if not srcs:
@@ -496,8 +511,12 @@ def build_overlay(register_file, catalogs):
                 continue
             # Fallback: parse the register-level summary text into per-field desc
             fn = compact(f.get("name") or "")
-            if fn and fn in bl:
-                lo, hi, raw = bl[fn]
+            raw = bl[fn][2] if (fn and fn in bl) else None
+            if raw is None:
+                # Match by bit range (e.g. 'Bit[31:16] is used to set almost empty
+                # threshold,' -> field [16:31]) when the field name isn't echoed.
+                raw = find_bit_line(bl, f)
+            if raw:
                 patch["fields"][field_key_of(rk, f)] = raw
                 field_filled += 1
                 field_done = True

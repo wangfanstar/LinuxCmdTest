@@ -699,7 +699,7 @@ select:focus { border-color: var(--blue); }
 .render-limit-bar b { color: var(--blue-dark); }
 .render-limit-bar .btn-toolbar { padding: 3px 11px; }
 
-/* ══ Block 导航（中间独立列，默认折叠） ══ */
+/* ══ Block 导航（中间独立列，默认展开，可点击折叠） ══ */
 .bn-column {
   flex-shrink: 0;
   width: 46px;
@@ -725,7 +725,7 @@ select:focus { border-color: var(--blue); }
   letter-spacing: .5px;
   transition: color .15s, background .15s;
 }
-.bn-column.expanded .bn-col-toggle { justify-content: flex-start; padding: 10px 12px; }
+.bn-column.expanded .bn-col-toggle { display: none; }
 .bn-col-toggle:hover { color: #aac2f0; background: #1a2740; }
 .bn-col-arrow { font-size: .72rem; transition: transform .18s; color: #7ab8ff; }
 .bn-col-label { overflow: hidden; }
@@ -1021,8 +1021,8 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 
   <div class="layout-resizer" id="layout-resizer" title="拖动调整宽度"></div>
 
-  <!-- ══ 中间列：Block 导航（默认折叠，点击可展开） ══ -->
-  <nav class="bn-column" id="bn-column">
+  <!-- ══ 中间列：Block 导航（默认展开，可折叠） ══ -->
+  <nav class="bn-column expanded" id="bn-column">
     <div class="bn-col-toggle" id="bn-col-toggle" onclick="toggleBnColumn()" title="展开/折叠 Block 导航">
       <span class="bn-col-arrow" id="bn-col-arrow">▶</span>
       <span class="bn-col-label" id="bn-col-label">Block</span>
@@ -1719,7 +1719,7 @@ function renderFileList() {
     descHead.className = 'file-section-header descs';
     descHead.innerHTML = '<span class="fsh-ic">🎨</span> 描述文件（附加描述）'
       + '<label class="fsh-toggle" title="取消勾选后不显示附加描述（描述文件仍保留）">'
-      + '<input type="checkbox" id="show-overlay-desc" onchange="setOverlayDisplay(this.checked)">显示</label>'
+      + '<input type="checkbox" id="show-overlay-desc"' + (overlayDisplayOn ? ' checked' : '') + ' onchange="setOverlayDisplay(this.checked)">显示</label>'
       + '<span class="fsh-count">' + descFiles.length + '</span>';
     list.appendChild(descHead);
     for (var dk = 0; dk < descFiles.length; dk++) {
@@ -2615,7 +2615,7 @@ function initBlockPanelOutsideClick() {
 var navGroups = [];   // 导航用分组列表（可见文件的全部数据）
 
 // 左侧栏 Block 导航（PDF 目录书签式树）
-var navExpanded = false;   // Block 导航列默认折叠
+var navExpanded = true;   // Block 导航列默认展开
 var expandedBlocks = {};   // 导航树中展开的 Block（blockName -> true）
 
 function toggleBnColumn(force) {
@@ -3533,10 +3533,10 @@ function clearAll() {
   groupByBlock=true; filteredGroups=[]; expandedGroups={};
   var gbb=document.getElementById('group-by-block'); if (gbb) gbb.checked=true;
   groupPages=[]; groupPage=1; groupPageCount=1; groupPageDirty=true;
-  expandedBlocks={}; navExpanded=false;
+  expandedBlocks={}; navExpanded=true;
   var bnColEl = document.getElementById('bn-column');
-  if (bnColEl) bnColEl.classList.remove('expanded');
-  var bnArrowEl = document.getElementById('bn-col-arrow'); if (bnArrowEl) bnArrowEl.textContent='▶';
+  if (bnColEl) bnColEl.classList.add('expanded');
+  var bnArrowEl = document.getElementById('bn-col-arrow'); if (bnArrowEl) bnArrowEl.textContent='◀';
   nextFileId=0; parseScheduled=false; parseInProgress=false; parseGeneration++;
   renderFileList();
   document.getElementById('reg-list').innerHTML='';

@@ -691,6 +691,16 @@ select:focus { border-color: var(--blue); }
 .bit-range     { font-family: "Consolas", monospace; font-weight: 600; color: #444; white-space: nowrap; }
 .field-name-cell { font-family: "Consolas", monospace; font-weight: 600; color: #1a2035; }
 .reset-val     { font-family: "Consolas", monospace; color: #6b4eaa; }
+.rst-wrap { position: relative; cursor: pointer; }
+.rst-preview { border-bottom: 1px dashed #6b4eaa; }
+.rst-preview:hover { color: #6b4eaa; background: #f3ecff; }
+.rst-pop {
+  display: none; position: absolute; left: 0; top: 100%; z-index: 70;
+  background: #1e2740; border: 1px solid #3a4e70; border-radius: 6px;
+  padding: 6px 9px; font-size: .72rem; color: #c8d0e0; white-space: pre;
+  font-family: "Consolas", monospace; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.rst-pop.visible { display: block; }
 .field-desc    { color: #555; line-height: 1.5; white-space: pre-wrap; }
 
 /* 徽章 */
@@ -1375,6 +1385,23 @@ function toHex(decStr) {
 function toHexShort(decStr) {
   var n = parseNumericValue(decStr);
   return isNaN(n) ? (decStr || '0') : '0x' + n.toString(16).toUpperCase();
+}
+
+// 复位值换算弹出：hex / dec / bin（按字段位宽补齐，4 位分组）
+function buildRstPopup(resetVal, width) {
+  var hx = String(resetVal == null ? '' : resetVal).replace(/0x/i, '');
+  var v;
+  try { v = BigInt(hx ? '0x' + hx : '0'); } catch (e) { v = 0n; }
+  var w = parseInt(width, 10) || 0;
+  var bin = v.toString(2);
+  if (w > bin.length) bin = '0'.repeat(w - bin.length) + bin;
+  var grouped = bin.replace(/\B(?=(\d{4})+(?!\d))/g, ' ');
+  return 'HEX 0x' + hx.toUpperCase() + '\nDEC ' + v.toString(10) + '\nBIN ' + grouped;
+}
+
+function toggleRstPreview(el) {
+  var pop = el.nextElementSibling;
+  if (pop) pop.classList.toggle('visible');
 }
 
 // 寄存器值解析必须使用 BigInt；Number 在超过 53 bit 后会静默丢失精度。
@@ -2123,6 +2150,7 @@ function renderFileList() {
                       ? '<span class="fi-badge" style="background:#4a3a10;color:#ffd479;" title="本次直接从解析缓存加载">⚡缓存</span>'
                       : '<span class="fi-badge" style="background:#1e4a2e;color:#7cdba0;">✓已解析</span>')
                   : '<span class="fi-badge ' + p.type + '">' + p.type.toUpperCase() + '</span>')
+        + '<button class="fi-reparse" onclick="pickRegFilesReplace(' + p.id + ')" title="更换该寄存器文件">更换</button>'
         + (parsed ? '<button class="fi-reparse" onclick="reparseFile(' + k + ')" title="忽略缓存，重新解析此文件">↻</button>' : '')
         + '<button class="fi-remove" onclick="removeFile(' + k + ')" title="移除">×</button>';
       list.appendChild(div);
@@ -2346,6 +2374,26 @@ function reparseFile(idx) {
   renderFileList();
   refreshDataView();
   scheduleAutoParse();
+}
+
+// 更换寄存器文件：删除旧条目并加载新文件
+var _regReplaceId = null;
+function pickRegFilesReplace(id) {
+  if (parseInProgress) { showToast('正在解析中，请稍候'); return; }
+  _regReplaceId = id;
+  _regReplaceInput.click();
+}
+
+function replaceRegFile(id, files) {
+  _regReplaceId = null;
+  if (!files.length) return;
+  var idx = -1;
+  for (var i = 0; i < pendingFiles.length; i++) { if (pendingFiles[i].id === id) { idx = i; break; } }
+  if (idx < 0) return;
+  var f = files[0];
+  removeFile(idx);
+  addFiles([f], f.name.toLowerCase().endsWith('.json') ? 'json' : 'xml');
+  showToast('已更换寄存器文件：' + f.name);
 }
 
 // ── 解析 ─────────────────────────────────────────────────
@@ -3830,7 +3878,10 @@ function buildCard(r, idx, q) {
       + '<td class="bit-range">' + bits + '</td>'
       + '<td style="text-align:center;">' + f.width + '</td>'
       + '<td>' + permLabel + '</td>'
-      + '<td class="reset-val">' + toHexShort(f.resetVal) + '</td>'
+      + '<td class="reset-val"><span class="rst-wrap" title="点击查看十进制/二进制换算">'
+      + '<span class="rst-preview" onclick="toggleRstPreview(this)">' + toHexShort(f.resetVal) + '</span>'
+      + '<span class="rst-pop">' + escHtml(buildRstPopup(f.resetVal, f.width)) + '</span>'
+      + '</span></td>'
       + '<td class="field-desc">' + conflictWarn + descDisplay + '</td>'
       + '</tr>';
   }).join('');
@@ -4113,6 +4164,7 @@ function clearAll() {
 var _xmlInput    = null;
 var _jsonInput   = null;
 var _descInput   = null;
+var _regReplaceInput = null;
 var _folderInput = null;
 
 function initFileInputs() {
@@ -4162,6 +4214,18 @@ function initFileInputs() {
     }
   };
   document.body.appendChild(_descInput);
+
+  _regReplaceInput = document.createElement('input');
+  _regReplaceInput.type     = 'file';
+  _regReplaceInput.accept   = '.xml,.json';
+  _regReplaceInput.style.cssText = style;
+  _regReplaceInput.onchange = function() {
+    if (_regReplaceInput.files && _regReplaceInput.files.length) {
+      replaceRegFile(_regReplaceId, Array.prototype.slice.call(_regReplaceInput.files));
+      _regReplaceInput.value = '';
+    }
+  };
+  document.body.appendChild(_regReplaceInput);
 
   _folderInput = document.createElement('input');
   _folderInput.type = 'file';

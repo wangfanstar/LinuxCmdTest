@@ -725,8 +725,12 @@ select:focus { border-color: var(--blue); }
 .bin-table .bin-bit { color: #6b4eaa; white-space: nowrap; }
 .bin-table .bin-num { color: #6b4eaa; font-family: "Consolas", monospace; white-space: nowrap; }
 .bin-table .bin-vals { white-space: nowrap; }
-.bin-table .bin-vals .fbin-i { color: #9aa8ba; font-size: .62rem; letter-spacing: 1px; }
-.bin-table .bin-vals .fbin-v { color: #1a4d80; font-weight: 700; font-size: .7rem; letter-spacing: 1px; }
+/* 二进制可读网格：每行最多 16 位，2 列 × 8 位，下标行 + 位值行 */
+.bin-readable { border-collapse: collapse; margin: 2px 0; }
+.bin-readable td.bin-blk { border: 1px solid var(--border); padding: 2px 6px; text-align: center; }
+.bin-readable td.bin-blk { font-family: "Consolas", monospace; }
+.bin-readable td.bin-blk { color: #9aa8ba; font-size: .62rem; letter-spacing: 1px; background: #f7f9fc; }
+.bin-readable td.bin-blk.bv { color: #1a4d80; font-weight: 700; font-size: .7rem; background: #fff; }
 
 /* 徽章 */
 .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
@@ -3996,13 +4000,24 @@ document.addEventListener('keydown', function(ev) {
 
 // ── 内联二进制值列（默认折叠，点击表头展开；显示下标值与实际值对比）──
 function fieldBinHtml(s, e, val) {
-  var idx = [], v = [];
-  for (var b = e; b >= s; b--) {
-    idx.push(b);
-    v.push(((val >> BigInt(b)) & 1n) ? '1' : '0');
+  // 每行最多 16 位：分成 2 列，每列 8 位，下标行 + 位值行
+  var blocks = [];
+  for (var top = e; top >= s; top -= 8) {
+    var bot = Math.max(s, top - 7);
+    var idx = [], v = [];
+    for (var b = top; b >= bot; b--) {
+      idx.push(b);
+      v.push(((val >> BigInt(b)) & 1n) ? '1' : '0');
+    }
+    blocks.push({ idx: idx.join(' '), val: v.join(' ') });
   }
-  return '<span class="fbin"><span class="fbin-i">' + idx.join(' ') + '</span>'
-       + '<span class="fbin-v">' + v.join(' ') + '</span></span>';
+  var rows = '';
+  for (var i = 0; i < blocks.length; i += 2) {
+    var b1 = blocks[i], b2 = blocks[i + 1] || { idx: '', val: '' };
+    rows += '<tr><td class="bin-blk">' + b1.idx + '</td><td class="bin-blk">' + b2.idx + '</td></tr>'
+          + '<tr><td class="bin-blk bv">' + b1.val + '</td><td class="bin-blk bv">' + b2.val + '</td></tr>';
+  }
+  return '<table class="bin-readable"><tbody>' + rows + '</tbody></table>';
 }
 
 function buildCard(r, idx, q) {

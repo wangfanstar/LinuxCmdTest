@@ -725,12 +725,12 @@ select:focus { border-color: var(--blue); }
 .bin-table .bin-bit { color: #6b4eaa; white-space: nowrap; }
 .bin-table .bin-num { color: #6b4eaa; font-family: "Consolas", monospace; white-space: nowrap; }
 .bin-table .bin-vals { white-space: nowrap; }
-/* 二进制可读网格：每行最多 16 位，2 列 × 8 位，下标行 + 位值行 */
-.bin-readable { border-collapse: collapse; margin: 2px 0; }
-.bin-readable td.bin-blk { border: 1px solid var(--border); padding: 2px 6px; text-align: center; }
-.bin-readable td.bin-blk { font-family: "Consolas", monospace; }
-.bin-readable td.bin-blk { color: #9aa8ba; font-size: .62rem; letter-spacing: 1px; background: #f7f9fc; }
-.bin-readable td.bin-blk.bv { color: #1a4d80; font-weight: 700; font-size: .7rem; background: #fff; }
+/* 二进制可读网格：每行 16 位（2 列 × 8 位），每位一个固定宽单元格，下标/位值列对齐 */
+.bin-readable { border-collapse: collapse; margin: 2px 0; font-family: "Consolas", monospace; }
+.bin-readable .bin-bit { border: 1px solid var(--border); min-width: 22px; padding: 2px 0; text-align: center; }
+.bin-readable .bin-bit.idx { color: #9aa8ba; font-size: .64rem; background: #f7f9fc; }
+.bin-readable .bin-val-row .bin-bit { color: #1a4d80; font-weight: 700; font-size: .74rem; background: #fff; }
+.bin-readable .bin-bit.bin-sep { border-left: 2px solid #a8c0e0; }
 
 /* 徽章 */
 .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
@@ -4000,22 +4000,21 @@ document.addEventListener('keydown', function(ev) {
 
 // ── 内联二进制值列（默认折叠，点击表头展开；显示下标值与实际值对比）──
 function fieldBinHtml(s, e, val) {
-  // 每行最多 16 位：分成 2 列，每列 8 位，下标行 + 位值行
-  var blocks = [];
-  for (var top = e; top >= s; top -= 8) {
-    var bot = Math.max(s, top - 7);
-    var idx = [], v = [];
-    for (var b = top; b >= bot; b--) {
-      idx.push(b);
-      v.push(((val >> BigInt(b)) & 1n) ? '1' : '0');
-    }
-    blocks.push({ idx: idx.join(' '), val: v.join(' ') });
-  }
+  // 每行最多 16 位，分 2 列（各 8 位）；每位一个固定宽单元格，下标/位值列对齐，
+  // 第 9 位处加竖直分隔线（bin-sep）标出两列。
   var rows = '';
-  for (var i = 0; i < blocks.length; i += 2) {
-    var b1 = blocks[i], b2 = blocks[i + 1] || { idx: '', val: '' };
-    rows += '<tr><td class="bin-blk">' + b1.idx + '</td><td class="bin-blk">' + b2.idx + '</td></tr>'
-          + '<tr><td class="bin-blk bv">' + b1.val + '</td><td class="bin-blk bv">' + b2.val + '</td></tr>';
+  for (var top = e; top >= s; top -= 16) {
+    var bot = Math.max(s, top - 15);
+    var idxCells = '', valCells = '';
+    var n = 0;
+    for (var b = top; b >= bot; b--) {
+      var sep = (n === 8) ? ' bin-sep' : '';
+      idxCells += '<td class="bin-bit idx' + sep + '">' + b + '</td>';
+      valCells += '<td class="bin-bit' + sep + '">' + (((val >> BigInt(b)) & 1n) ? '1' : '0') + '</td>';
+      n++;
+    }
+    rows += '<tr class="bin-idx-row">' + idxCells + '</tr>'
+          + '<tr class="bin-val-row">' + valCells + '</tr>';
   }
   return '<table class="bin-readable"><tbody>' + rows + '</tbody></table>';
 }

@@ -622,8 +622,16 @@ select:focus { border-color: var(--blue); }
 }
 
 .col-idx   { color: var(--muted); font-size: 0.75rem; text-align: center; }
-.col-name  { font-weight: 600; color: #1a2035; font-family: "Consolas", monospace; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; user-select: text; cursor: text; }
+.col-name  { font-weight: 600; color: #1a2035; font-family: "Consolas", monospace; font-size: 0.85rem; overflow: hidden; white-space: nowrap; padding-right: 8px; user-select: text; cursor: text; display: flex; align-items: center; gap: 6px; }
 .col-name * { user-select: text; }
+.reg-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-value-parse-btn {
+  flex: 0 0 auto; padding: 2px 7px; border: 1px solid #9fc4ef; border-radius: 9px;
+  background: #eef6ff; color: #2869ad; font-size: .66rem; font-family: inherit;
+  font-weight: 600; line-height: 1.25; cursor: pointer; user-select: none !important;
+}
+.reg-value-parse-btn:hover { background: #dceeff; border-color: var(--blue); color: #165a9f; }
+.reg-value-parse-btn:focus-visible { outline: 2px solid rgba(74,144,226,.35); outline-offset: 1px; }
 .col-addr  { font-family: "Consolas", monospace; font-size: 0.78rem; color: #6b4eaa; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-desc  { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
 .col-block { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -978,6 +986,100 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
 #desc-editor-msg { margin-top: 8px; font-size: .78rem; white-space: pre-wrap; }
 #desc-editor-msg.ok { color: #7cdba0; }
 #desc-editor-msg.err { color: #ff9090; }
+
+/* ══ 寄存器数值解析器 ══ */
+.rvp-overlay {
+  position: fixed; inset: 0; z-index: 10010; display: none; align-items: center;
+  justify-content: center; padding: 18px; background: rgba(15,23,42,.68);
+}
+.rvp-overlay.visible { display: flex; }
+.rvp-modal {
+  width: 1040px; max-width: 96vw; max-height: 90vh; overflow: hidden;
+  display: flex; flex-direction: column; background: #fff; border: 1px solid #cbd6e5;
+  border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,.35);
+}
+.rvp-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 13px 16px; border-bottom: 1px solid var(--border); background: #f7f9fc;
+}
+.rvp-title-wrap { min-width: 0; }
+.rvp-title { color: #1e2c43; font-weight: 700; font-size: .96rem; }
+.rvp-subtitle {
+  margin-top: 3px; color: var(--muted); font: .72rem/1.35 "Consolas", monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rvp-close {
+  flex: 0 0 auto; border: none; background: transparent; color: #7c8798;
+  font-size: 1.2rem; line-height: 1; padding: 4px 6px; cursor: pointer;
+}
+.rvp-close:hover { color: #d14747; }
+.rvp-input-area { padding: 13px 16px 11px; border-bottom: 1px solid var(--border); background: #fbfcfe; }
+.rvp-input-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 7px; color: #5b687b; font-size: .76rem; font-weight: 600;
+}
+.rvp-radix-switch {
+  display: inline-flex; overflow: hidden; border: 1px solid #b8c6d8;
+  border-radius: 7px; background: #fff;
+}
+.rvp-radix-btn {
+  min-width: 56px; padding: 4px 10px; border: 0; border-right: 1px solid #d4dce7;
+  background: #fff; color: #617086; font-family: inherit; font-size: .72rem;
+  font-weight: 600; line-height: 1.35;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.rvp-radix-btn:last-child { border-right: 0; }
+.rvp-radix-btn:hover:not(.active) { background: #eef5fc; color: #2869ad; }
+.rvp-radix-btn.active { background: #2869ad; color: #fff; }
+.rvp-radix-btn:focus-visible { outline: 2px solid rgba(74,144,226,.5); outline-offset: -2px; }
+.rvp-input-row { display: flex; gap: 8px; align-items: stretch; }
+#value-parser-input {
+  flex: 1; min-width: 120px; padding: 9px 11px; border: 1.5px solid #b8c6d8;
+  border-radius: 7px; background: #fff; color: #172033; outline: none;
+  font: 600 .92rem/1.2 "Consolas", monospace;
+}
+#value-parser-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74,144,226,.12); }
+.rvp-quick-btn {
+  flex: 0 0 auto; padding: 0 11px; border: 1px solid #c5d0df; border-radius: 7px;
+  color: #506179; background: #fff; font-size: .76rem; cursor: pointer;
+}
+.rvp-quick-btn:hover { border-color: var(--blue); color: var(--blue-dark); background: #f1f7ff; }
+.rvp-hint { margin-top: 6px; color: #8290a3; font-size: .72rem; }
+.rvp-value-meta { margin-top: 8px; color: #44546a; font-size: .76rem; line-height: 1.5; word-break: break-all; }
+.rvp-value-meta code { color: #7042a2; font: 600 .77rem "Consolas", monospace; }
+.rvp-message { margin-top: 6px; font-size: .76rem; }
+.rvp-message.error { color: #c93333; }
+.rvp-message.warn { color: #ad6500; }
+.rvp-results { flex: 1; min-height: 120px; overflow: auto; }
+.rvp-empty { padding: 30px 18px; color: #8a96a8; font-size: .82rem; text-align: center; }
+.rvp-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.rvp-table th {
+  position: sticky; top: 0; z-index: 2; padding: 7px 9px; border-bottom: 1px solid #cbd6e5;
+  background: #eaf0f7; color: #3c4a5e; text-align: left; white-space: nowrap;
+}
+.rvp-table td { padding: 7px 9px; border-bottom: 1px solid #edf0f4; vertical-align: top; }
+.rvp-table tr.rvp-nonzero td { background: #f3f9ff; }
+.rvp-table tr.rvp-reserved-set td { background: #fff2e3; }
+.rvp-table tr:hover td { filter: brightness(.985); }
+.rvp-field-name { color: #17243a; font: 600 .78rem "Consolas", monospace; word-break: break-word; }
+.rvp-bit, .rvp-number { white-space: nowrap; font-family: "Consolas", monospace; }
+.rvp-number { color: #5d3a91; font-weight: 600; }
+.rvp-decimal { color: #36465e; font-family: "Consolas", monospace; word-break: break-all; }
+.rvp-definition { min-width: 260px; max-width: 480px; color: #5b6575; white-space: pre-wrap; line-height: 1.45; }
+.rvp-meaning {
+  margin-bottom: 4px; padding: 3px 6px; border-left: 3px solid #35a66f;
+  border-radius: 2px; background: #ecf9f2; color: #24724d; font-weight: 600;
+}
+.rvp-reserved-warning { color: #ad6500; font-weight: 600; }
+@media (max-width: 700px) {
+  .rvp-overlay { padding: 6px; }
+  .rvp-modal { max-width: 100vw; max-height: 96vh; }
+  .rvp-input-row { flex-wrap: wrap; }
+  .rvp-input-toolbar { align-items: flex-start; flex-direction: column; }
+  #value-parser-input { flex-basis: 100%; }
+  .rvp-quick-btn { height: 32px; }
+  .rvp-table { min-width: 820px; }
+}
 </style>
 </head>
 <body>
@@ -1274,6 +1376,120 @@ function toHexShort(decStr) {
   var n = parseNumericValue(decStr);
   return isNaN(n) ? (decStr || '0') : '0x' + n.toString(16).toUpperCase();
 }
+
+// 寄存器值解析必须使用 BigInt；Number 在超过 53 bit 后会静默丢失精度。
+function parseRegisterInput(raw, mode) {
+  var radixMode = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
+  var original = raw === null || raw === undefined ? '' : String(raw).trim();
+  var s = original.replace(/_/g, '');
+  if (!s) return { ok: false, empty: true, error: '' };
+  if (typeof BigInt !== 'function') {
+    return { ok: false, empty: false, error: '当前浏览器不支持精确的大整数解析，请升级浏览器。' };
+  }
+  if (radixMode === 'hex') {
+    var hexBody = s.replace(/^0x/i, '').replace(/h$/i, '');
+    if (/^[0-9a-f]+$/i.test(hexBody)) {
+      return { ok: true, value: BigInt('0x' + hexBody), radix: 16 };
+    }
+    return {
+      ok: false, empty: false,
+      error: '强制 HEX 模式仅接受 0-9、A-F，可带 0x 前缀或 h 后缀。'
+    };
+  }
+  if (radixMode === 'dec') {
+    if (/^[0-9]+$/.test(s)) return { ok: true, value: BigInt(s), radix: 10 };
+    return { ok: false, empty: false, error: '强制 DEC 模式仅接受十进制数字。' };
+  }
+  try {
+    if (/^0x[0-9a-f]+$/i.test(s)) return { ok: true, value: BigInt(s), radix: 16 };
+    if (/^[0-9a-f]+h$/i.test(s)) {
+      return { ok: true, value: BigInt('0x' + s.slice(0, -1)), radix: 16 };
+    }
+    if (/^[0-9]*[a-f][0-9a-f]*$/i.test(s)) {
+      return { ok: true, value: BigInt('0x' + s), radix: 16 };
+    }
+    if (/^[0-9]+$/.test(s)) return { ok: true, value: BigInt(s), radix: 10 };
+  } catch (ignore) {}
+  return {
+    ok: false, empty: false,
+    error: '请输入非负整数：十六进制示例 0x1234、ABCDh，十进制示例 4660。'
+  };
+}
+
+function registerValueWidth(reg) {
+  var fields = reg && Array.isArray(reg.fields) ? reg.fields : [];
+  var maxBit = -1;
+  for (var i = 0; i < fields.length; i++) {
+    var endBit = Number(fields[i].endBit);
+    if (isFinite(endBit) && endBit >= 0 && endBit > maxBit) maxBit = endBit;
+  }
+  if (maxBit >= 0) return maxBit + 1;
+  var lineSize = reg && reg.entryType === 'sram' ? parseInt(reg.lineSize, 10) : 0;
+  return lineSize > 0 ? lineSize : 64;
+}
+
+function registerBitMask(width) {
+  var safeWidth = Math.max(1, Math.floor(Number(width) || 1));
+  return (BigInt(1) << BigInt(safeWidth)) - BigInt(1);
+}
+
+function decodeRegisterFields(reg, value) {
+  var fields = reg && Array.isArray(reg.fields) ? reg.fields.slice() : [];
+  fields.sort(function(a, b) {
+    return Number(b.endBit) - Number(a.endBit) || Number(b.startBit) - Number(a.startBit);
+  });
+  var decoded = [];
+  for (var i = 0; i < fields.length; i++) {
+    var f = fields[i];
+    var startBit = Math.max(0, Math.floor(Number(f.startBit) || 0));
+    var endBit = Math.max(startBit, Math.floor(Number(f.endBit) || 0));
+    var width = endBit - startBit + 1;
+    var fieldValue = (value >> BigInt(startBit)) & registerBitMask(width);
+    var hexDigits = Math.max(1, Math.ceil(width / 4));
+    decoded.push({
+      field: f,
+      value: fieldValue,
+      hex: '0x' + fieldValue.toString(16).toUpperCase().padStart(hexDigits, '0'),
+      decimal: fieldValue.toString(10),
+      startBit: startBit,
+      endBit: endBit,
+      width: width,
+      bits: endBit === startBit ? '[' + startBit + ']' : '[' + endBit + ':' + startBit + ']'
+    });
+  }
+  return decoded;
+}
+
+// 对手册中常见的“0x1 - Enabled”枚举格式做保守匹配；匹配不到时仍显示完整字段描述。
+function findFieldValueDefinition(description, value) {
+  if (!description) return '';
+  var token = '(?:0[xX][0-9a-fA-F]+|[0-9]+)';
+  var lines = String(description).replace(/\r/g, '\n').split(/\n|;/);
+  function tokenValue(s) {
+    try { return BigInt(s); }
+    catch (ignore) { return null; }
+  }
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim().replace(/^[•*·]\s*/, '');
+    if (!line) continue;
+    var range = line.match(new RegExp('^(' + token + ')\\s*(?:~|\\.\\.|-|–|—|to)\\s*(' + token + ')\\s*(?:-|–|—|:|=)\\s*(.+)$', 'i'));
+    if (range) {
+      var lo = tokenValue(range[1]), hi = tokenValue(range[2]);
+      if (lo !== null && hi !== null && value >= lo && value <= hi) return range[3].trim();
+    }
+    var list = line.match(new RegExp('^((?:' + token + ')(?:\\s*[,/]\\s*(?:' + token + '))+)\\s*(?:-|–|—|:|=)\\s*(.+)$', 'i'));
+    if (list) {
+      var values = list[1].match(new RegExp(token, 'ig')) || [];
+      for (var li = 0; li < values.length; li++) {
+        if (tokenValue(values[li]) === value) return list[2].trim();
+      }
+    }
+    var single = line.match(new RegExp('^(' + token + ')\\s*(?:-|–|—|:|=)\\s*(.+)$', 'i'));
+    if (single && tokenValue(single[1]) === value) return single[2].trim();
+  }
+  return '';
+}
+
 function isReserved(name) { return /^(RESERVED|RSVD|RSV)/i.test(name || ''); }
 
 // 自动填充未分配的位域为 RSVD（64bit 寄存器中的空隙位）
@@ -3419,6 +3635,180 @@ function isNameSelectionTarget(target) {
   return false;
 }
 
+// ── 寄存器数值解析器 ─────────────────────────────────────
+var valueParserReg = null;
+var valueParserValues = Object.create(null);
+var valueParserTrigger = null;
+var valueParserRadix = 'auto';
+
+function findRegisterByUid(uid) {
+  var id = Number(uid);
+  for (var i = 0; i < allRegisters.length; i++) {
+    if (Number(allRegisters[i].uid) === id) return allRegisters[i];
+  }
+  return null;
+}
+
+function formatRegisterHex(value, width) {
+  var digits = Math.max(1, Math.ceil(Math.max(1, Number(width) || 1) / 4));
+  return '0x' + value.toString(16).toUpperCase().padStart(digits, '0');
+}
+
+function openRegisterValueParser(uid, ev) {
+  if (ev) {
+    if (ev.preventDefault) ev.preventDefault();
+    if (ev.stopPropagation) ev.stopPropagation();
+  }
+  var reg = findRegisterByUid(uid);
+  if (!reg) { showToast('未找到该寄存器，请刷新页面后重试'); return; }
+  valueParserReg = reg;
+  valueParserTrigger = ev && ev.currentTarget ? ev.currentTarget : null;
+
+  var width = registerValueWidth(reg);
+  var title = document.getElementById('value-parser-title');
+  var subtitle = document.getElementById('value-parser-subtitle');
+  var input = document.getElementById('value-parser-input');
+  var overlay = document.getElementById('value-parser-overlay');
+  if (!title || !subtitle || !input || !overlay) return;
+
+  title.textContent = '数值解析 · ' + (reg.regName || '(未命名寄存器)');
+  subtitle.textContent = (reg.blockName || '(无 Block)')
+    + (reg.subName ? ' / ' + reg.subName : '')
+    + ' · ' + (reg.addrRange || reg.addrHex || '无地址')
+    + ' · ' + width + ' bit · ' + reg.fields.length + ' 个字段';
+  var valueKey = String(reg.uid);
+  input.value = Object.prototype.hasOwnProperty.call(valueParserValues, valueKey)
+    ? valueParserValues[valueKey] : '0x0';
+  overlay.classList.add('visible');
+  renderRegisterValueParse();
+  window.setTimeout(function() { input.focus(); input.select(); }, 0);
+}
+
+function closeRegisterValueParser() {
+  var overlay = document.getElementById('value-parser-overlay');
+  if (overlay) overlay.classList.remove('visible');
+  valueParserReg = null;
+  if (valueParserTrigger && valueParserTrigger.focus) valueParserTrigger.focus();
+  valueParserTrigger = null;
+}
+
+function setRegisterParserRadix(mode) {
+  valueParserRadix = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
+  var buttons = document.querySelectorAll('.rvp-radix-btn');
+  for (var i = 0; i < buttons.length; i++) {
+    var active = buttons[i].getAttribute('data-radix') === valueParserRadix;
+    buttons[i].classList.toggle('active', active);
+    buttons[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+  var hint = document.getElementById('value-parser-hint');
+  if (hint) {
+    hint.textContent = valueParserRadix === 'hex'
+      ? '强制 HEX：纯数字也按十六进制解释；可带 0x 前缀、h 后缀或下划线。'
+      : (valueParserRadix === 'dec'
+        ? '强制 DEC：仅接受十进制数字，可用下划线分组。'
+        : '自动识别：纯数字按十进制；0x、h 后缀或含 A-F 时按十六进制。');
+  }
+  renderRegisterValueParse();
+}
+
+function setRegisterParserValue(kind) {
+  if (!valueParserReg) return;
+  var input = document.getElementById('value-parser-input');
+  if (!input) return;
+  var width = registerValueWidth(valueParserReg);
+  var value = kind === 'ones' ? registerBitMask(width) : BigInt(0);
+  input.value = formatRegisterHex(value, width);
+  renderRegisterValueParse();
+  input.focus();
+  input.select();
+}
+
+function renderRegisterValueParse() {
+  var input = document.getElementById('value-parser-input');
+  var meta = document.getElementById('value-parser-meta');
+  var message = document.getElementById('value-parser-message');
+  var results = document.getElementById('value-parser-results');
+  if (!input || !meta || !message || !results || !valueParserReg) return;
+
+  valueParserValues[String(valueParserReg.uid)] = input.value;
+  var parsed = parseRegisterInput(input.value, valueParserRadix);
+  message.className = 'rvp-message';
+  if (!parsed.ok) {
+    meta.innerHTML = '';
+    message.textContent = parsed.error || '';
+    if (parsed.error) message.classList.add('error');
+    results.innerHTML = '<div class="rvp-empty">输入数值后，将在此处实时显示各个位段的解析结果。</div>';
+    return;
+  }
+
+  var width = registerValueWidth(valueParserReg);
+  var mask = registerBitMask(width);
+  var overflow = parsed.value > mask;
+  var usedValue = parsed.value & mask;
+  meta.innerHTML = '输入值：<code>' + formatRegisterHex(parsed.value, Math.max(width, 1)) + '</code>'
+    + '（十进制 <code>' + parsed.value.toString(10) + '</code>）'
+    + '　按 <strong>' + width + ' bit</strong> 寄存器解析：<code>'
+    + formatRegisterHex(usedValue, width) + '</code>';
+  if (overflow) {
+    message.textContent = '⚠ 输入值超过 ' + width + ' bit，下面明确按低 ' + width + ' 位解析，高位未参与字段计算。';
+    message.classList.add('warn');
+  } else {
+    message.textContent = '';
+  }
+
+  var decoded = decodeRegisterFields(valueParserReg, usedValue);
+  if (!decoded.length) {
+    results.innerHTML = '<div class="rvp-empty">该寄存器没有可解析的字段定义。</div>';
+    return;
+  }
+  var rows = [];
+  for (var i = 0; i < decoded.length; i++) {
+    var item = decoded[i];
+    var f = item.field;
+    var nonzero = item.value !== BigInt(0);
+    var rowClass = f.reserved && nonzero ? ' class="rvp-reserved-set"'
+      : (nonzero ? ' class="rvp-nonzero"' : '');
+    var meaning = findFieldValueDefinition(f.desc, item.value);
+    var definition = '';
+    if (meaning) {
+      definition += '<div class="rvp-meaning">当前值含义：' + escHtml(meaning) + '</div>';
+    }
+    if (f.desc) {
+      var fullDefinition = escHtml(String(f.desc)).replace(/\r?\n/g, '<br>');
+      definition += meaning
+        ? '<details><summary>完整字段定义</summary><div style="margin-top:4px;">' + fullDefinition + '</div></details>'
+        : fullDefinition;
+    } else if (f.reserved) {
+      definition += '<span class="rvp-reserved-warning">保留位，软件勿修改</span>';
+    } else {
+      definition += '<span style="color:#a0a8b4;">暂无字段定义</span>';
+    }
+    if (f.reserved && nonzero) {
+      definition = '<div class="rvp-reserved-warning">⚠ 保留位被置为非零</div>' + definition;
+    }
+    var perm = f.reserved ? 'RSV' : (f.perm || '—');
+    rows.push('<tr' + rowClass + '>'
+      + '<td class="rvp-field-name">' + escHtml(f.name || '(未命名)') + '</td>'
+      + '<td class="rvp-bit">' + item.bits + '</td>'
+      + '<td class="rvp-number">' + item.hex + '</td>'
+      + '<td class="rvp-decimal">' + item.decimal + '</td>'
+      + '<td>' + escHtml(perm) + '</td>'
+      + '<td class="rvp-number">' + escHtml(toHexShort(f.resetVal)) + '</td>'
+      + '<td class="rvp-definition">' + definition + '</td>'
+      + '</tr>');
+  }
+  results.innerHTML = '<table class="rvp-table"><thead><tr>'
+    + '<th>字段名</th><th>位段</th><th>HEX 值</th><th>十进制值</th>'
+    + '<th>访问</th><th>复位值</th><th>字段定义</th>'
+    + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
+
+document.addEventListener('keydown', function(ev) {
+  if (ev.key !== 'Escape') return;
+  var overlay = document.getElementById('value-parser-overlay');
+  if (overlay && overlay.classList.contains('visible')) closeRegisterValueParser();
+});
+
 function buildCard(r, idx, q) {
   var sf = r.fields;   // 始终渲染全部字段，显示/隐藏由 CSS 控制
   var fieldRows = sf.map(function(f) {
@@ -3503,7 +3893,10 @@ function buildCard(r, idx, q) {
     + '<div class="reg-header">'
     + '<span class="col-idx">' + idx + '</span>'
     + '<span class="chk-wrap"><input type="checkbox" class="reg-chk" data-uid="' + r.uid + '"' + (selected.has(r.uid) ? ' checked' : '') + '></span>'
-    + '<span class="col-name" title="' + escAttr(r.regName) + '">' + typeBadge + hl(r.regName, q) + '</span>'
+    + '<span class="col-name" title="' + escAttr(r.regName) + '">'
+    + '<span class="reg-name-text">' + typeBadge + hl(r.regName, q) + '</span>'
+    + '<button type="button" class="reg-value-parse-btn" onclick="openRegisterValueParser(' + r.uid + ', event)" title="输入十六进制或十进制值，按字段实时解析">解析</button>'
+    + '</span>'
     + '<span class="col-addr" title="' + escAttr(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
     + '<span class="col-desc" title="' + escAttr(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
     + '<span class="col-block" title="' + escAttr(r.blockName) + '">' + escHtml(r.subName || r.blockName) + '</span>'
@@ -4339,6 +4732,42 @@ dz.addEventListener('drop', function(e){
   </div>
 </div>
 
+<!-- 寄存器数值解析弹窗（全页面复用一个实例，避免大数据量时增加隐藏 DOM） -->
+<div class="rvp-overlay" id="value-parser-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="value-parser-title" onclick="if(event.target===this) closeRegisterValueParser()">
+  <div class="rvp-modal">
+    <div class="rvp-head">
+      <div class="rvp-title-wrap">
+        <div class="rvp-title" id="value-parser-title">数值解析</div>
+        <div class="rvp-subtitle" id="value-parser-subtitle"></div>
+      </div>
+      <button type="button" class="rvp-close" onclick="closeRegisterValueParser()" title="关闭" aria-label="关闭数值解析器">✕</button>
+    </div>
+    <div class="rvp-input-area">
+      <div class="rvp-input-toolbar">
+        <span>输入进制</span>
+        <div class="rvp-radix-switch" role="group" aria-label="输入进制">
+          <button type="button" class="rvp-radix-btn active" data-radix="auto" aria-pressed="true" onclick="setRegisterParserRadix('auto')" title="自动识别：纯数字按十进制，带十六进制特征时按十六进制">自动</button>
+          <button type="button" class="rvp-radix-btn" data-radix="hex" aria-pressed="false" onclick="setRegisterParserRadix('hex')" title="强制按十六进制解释，包括纯数字输入">HEX</button>
+          <button type="button" class="rvp-radix-btn" data-radix="dec" aria-pressed="false" onclick="setRegisterParserRadix('dec')" title="强制按十进制解释，仅接受十进制数字">DEC</button>
+        </div>
+      </div>
+      <div class="rvp-input-row">
+        <input id="value-parser-input" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+          aria-label="寄存器数值" placeholder="例如：0x1234 或 4660" oninput="renderRegisterValueParse()">
+        <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('zero')" title="快速填入全零值">置 0</button>
+        <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('ones')" title="按当前寄存器位宽填入全一值">全 1</button>
+      </div>
+      <div class="rvp-hint" id="value-parser-hint">自动识别：纯数字按十进制；0x、h 后缀或含 A-F 时按十六进制。</div>
+      <div class="rvp-value-meta" id="value-parser-meta"></div>
+      <div class="rvp-message" id="value-parser-message" aria-live="polite"></div>
+    </div>
+    <div class="rvp-results" id="value-parser-results">
+      <div class="rvp-empty">输入数值后，将在此处实时显示各个位段的解析结果。</div>
+    </div>
+  </div>
+</div>
+
 <!-- 描述文件统计弹窗 -->
 <div class="ds-overlay" id="desc-stats-overlay">
   <div class="ds-modal">
@@ -4378,6 +4807,10 @@ dz.addEventListener('drop', function(e){
       <button class="ds-close" onclick="closeHelp()" title="关闭">✕</button>
     </div>
     <div class="ds-body" style="font-size:0.8rem;color:#c8d0e0;line-height:1.7;">
+      <b>寄存器数值解析</b><br>
+      每个寄存器名后的 <b>解析</b> 按钮可打开数值解析器。输入十六进制或十进制值后，会实时显示各字段的 HEX/十进制值、位段、权限、复位值和定义；64 位及更宽数值使用精确整数处理。<br>
+      输入进制支持 <b>自动 / HEX / DEC</b> 三段切换；HEX、DEC 为强制模式，切换后会立即按新进制重新解析当前输入，纯数字不会再有歧义。<br>
+      输入超过寄存器位宽时会明确提示，并仅用低位解析；非零字段以蓝色标出，保留位被置位时以橙色警告。<br><br>
       <b>描述文件（叠加层）</b><br>
       描述文件是 JSON，与被说明的<b>寄存器文件放在同一文件夹</b>，命名为<br>
       <code>主名.json → 主名.descriptions.json</code><br>

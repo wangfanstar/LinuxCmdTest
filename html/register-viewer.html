@@ -695,6 +695,10 @@ select:focus { border-color: var(--blue); }
 .badge-WC  { background: #ffe4e6; color: #be123c; }
 .badge-RSV { background: #fde8c8; color: #9a5a00; }
 .badge-default { background: #f1f5f9; color: #64748b; }
+.warn-reserved {
+  background: #ffe4e6; color: #be123c; border: 1px solid #fda4af;
+  margin-right: 4px; font-weight: 700;
+}
 .badge-SRAM { background: #ede9fe; color: #5b21b6; }
 .badge-REG  { background: #e0f2fe; color: #0369a1; }
 .badge-IND  { background: #d1fae5; color: #065f46; }
@@ -1420,10 +1424,26 @@ function applyOverlayToRegister(reg) {
       f._descSource = 'manual';
       touched = true;
       if (reg._search) reg._search += ' ' + patch.fields[fk].toLowerCase();
+      // 主文件定义的真实字段，但手册把该位域标记为保留 → 冲突提醒
+      if (!f.reserved && registerReservedConflict(reg, f)) f._reservedConflict = true;
     }
   }
   if (touched) { reg._descSource = 'manual'; reg._overlaySource = patch.source; }
   return touched;
+}
+
+// 判断字段的位域是否落在手册标记为 reserved 的范围内（主文件有定义、描述文件却为保留 → 不一致）
+function registerReservedConflict(reg, f) {
+  var txt = (reg.fullDesc || reg.shortDesc || '');
+  if (!txt) return false;
+  var m, re = /\[(\d+)(?:\s*[:~-]\s*(\d+))?\]\s*([^\n]+)/g;
+  while ((m = re.exec(txt))) {
+    var a = parseInt(m[1], 10), b = parseInt(m[2] || m[1], 10);
+    var lo = Math.min(a, b), hi = Math.max(a, b);
+    if (!/(reserved|unused)/i.test(m[3])) continue;
+    if (lo <= f.startBit && f.endBit <= hi) return true;
+  }
+  return false;
 }
 
 // 左侧「显示附加描述」开关：取消后不把叠加层描述应用到展示
@@ -1440,6 +1460,7 @@ function setOverlayDisplay(on) {
       for (var j = 0; j < r.fields.length; j++) {
         var f = r.fields[j];
         if (f._descSource === 'manual') { f.desc = ''; delete f._descSource; }
+        delete f._reservedConflict;
       }
       delete r._descSource; delete r._overlaySource;
     }
@@ -3406,6 +3427,8 @@ function buildCard(r, idx, q) {
     var bits = f.endBit === f.startBit ? '[' + f.startBit + ']' : '[' + f.startBit + ':' + f.endBit + ']';
     var bc   = badgeClass(f.perm, f.name);
     var rc   = f.reserved ? ' class="row-reserved"' : '';
+    var conflictWarn = (f._reservedConflict && !f.reserved)
+      ? '<span class="badge warn-reserved" title="主文件定义了该字段，但手册将该位域标记为保留（描述不一致）">⚠ 手册为保留</span>' : '';
     var descDisplay = (f.reserved && !f.desc)
       ? '<span style="color:#bbb;font-style:italic;">保留位，软件勿修改</span>'
       : (f._descSource === 'manual'
@@ -3420,7 +3443,7 @@ function buildCard(r, idx, q) {
       + '<td style="text-align:center;">' + f.width + '</td>'
       + '<td>' + permLabel + '</td>'
       + '<td class="reset-val">' + toHexShort(f.resetVal) + '</td>'
-      + '<td class="field-desc">' + descDisplay + '</td>'
+      + '<td class="field-desc">' + conflictWarn + descDisplay + '</td>'
       + '</tr>';
   }).join('');
 

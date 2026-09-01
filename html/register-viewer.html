@@ -3860,18 +3860,22 @@ function renderRegisterValueParse() {
       definition = '<div class="rvp-reserved-warning">⚠ 保留位被置为非零</div>' + definition;
     }
     var perm = f.reserved ? 'RSV' : (f.perm || '—');
+    var fw = (f.endBit != null && f.startBit != null) ? (f.endBit - f.startBit + 1) : 0;
+    var mb = item.value.toString(2);
+    if (fw > 0 && mb.length < fw) mb = '0'.repeat(fw - mb.length) + mb;
     rows.push('<tr' + rowClass + '>'
       + '<td class="rvp-field-name">' + escHtml(f.name || '(未命名)') + '</td>'
       + '<td class="rvp-bit">' + item.bits + '</td>'
       + '<td class="rvp-number">' + item.hex + '</td>'
       + '<td class="rvp-decimal">' + item.decimal + '</td>'
+      + '<td class="rvp-number rvp-bin">' + escHtml(mb) + '</td>'
       + '<td>' + escHtml(perm) + '</td>'
       + '<td class="rvp-number">' + escHtml(toHexShort(f.resetVal)) + '</td>'
       + '<td class="rvp-definition">' + definition + '</td>'
       + '</tr>');
   }
   results.innerHTML = '<table class="rvp-table"><thead><tr>'
-    + '<th>字段名</th><th>位段</th><th>HEX 值</th><th>十进制值</th>'
+    + '<th>字段名</th><th>位段</th><th>HEX 值</th><th>十进制值</th><th>BIN</th>'
     + '<th>访问</th><th>复位值</th><th>字段定义</th>'
     + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
 }

@@ -265,6 +265,18 @@ body.layout-resizing {
 }
 .fsh-toggle input { width: 12px; height: 12px; accent-color: #ffd479; cursor: pointer; margin: 0; }
 .fsh-toggle:hover { color: #ffe9a8; }
+.fsh-edit {
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: #27334d;
+  color: #aac2f0;
+  border: 1px solid #3a4e70;
+  border-radius: 5px;
+  font-size: .66rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fsh-edit:hover { background: #2f3f5c; color: #cfe0ff; }
 
 /* 描述文件条目（错误态高亮） */
 .file-item.desc-item.has-error { border-color: #6a2a2a; background: #3a2222; }
@@ -940,6 +952,28 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
   border-radius: 5px; font-size: .82rem; background: var(--bg); color: var(--text); outline: none;
 }
 .ds-search input:focus { border-color: var(--blue); background: #fff; }
+
+/* ══ 描述文件编辑弹窗 ══ */
+.ds-editor-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.ds-editor-actions button {
+  padding: 6px 12px; background: #27334d; color: #c8d0e0;
+  border: 1px solid #3a4e70; border-radius: 6px; font-size: .8rem; cursor: pointer;
+}
+.ds-editor-actions button:hover { background: #2f3f5c; color: #aac2f0; }
+.ds-editor-actions button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.ds-editor-actions button.primary:hover { background: var(--blue-dark); }
+#desc-editor-area {
+  width: 100%; min-height: 52vh; resize: vertical;
+  background: #101827; color: #d5e0f0; border: 1px solid #3a4e70; border-radius: 6px;
+  font-family: "Consolas", monospace; font-size: .78rem; line-height: 1.5;
+  padding: 8px 10px; outline: none; white-space: pre;
+}
+#desc-editor-area:focus { border-color: var(--blue); }
+#desc-editor-msg { margin-top: 8px; font-size: .78rem; white-space: pre-wrap; }
+#desc-editor-msg.ok { color: #7cdba0; }
+#desc-editor-msg.err { color: #ff9090; }
 </style>
 </head>
 <body>
@@ -1668,6 +1702,87 @@ function viewDescBlock(el) {
   showToast('已筛选 Block：' + block);
 }
 
+// ── 描述文件编辑（修改并保存到本地/网络库）──────────────────
+function descEditorJSON() {
+  var obj = {
+    version: descriptionOverlayVersion || 1,
+    registers: descriptionOverlay
+  };
+  try { obj.sourceRegisterFile = (descFiles[0] && descFiles[0].name) || ''; } catch (e) {}
+  return JSON.stringify(obj, null, 2);
+}
+
+function openDescEditor() {
+  var area = document.getElementById('desc-editor-area');
+  var msg = document.getElementById('desc-editor-msg');
+  if (area) area.value = descEditorJSON();
+  if (msg) { msg.textContent = ''; msg.className = ''; }
+  document.getElementById('desc-editor-overlay').classList.add('visible');
+}
+
+function closeDescEditor() {
+  document.getElementById('desc-editor-overlay').classList.remove('visible');
+}
+
+function reloadDescEditor() {
+  var area = document.getElementById('desc-editor-area');
+  if (area) area.value = descEditorJSON();
+  editorMsg('已重新载入（放弃未保存修改）', 'ok');
+}
+
+function editorMsg(t, cls) {
+  var msg = document.getElementById('desc-editor-msg');
+  if (msg) { msg.textContent = t; msg.className = cls || ''; }
+}
+
+function applyDescEditor() {
+  var area = document.getElementById('desc-editor-area');
+  var txt = (area && area.value) || '';
+  var patch;
+  try { patch = JSON.parse(txt); }
+  catch (e) { editorMsg('JSON 解析失败：' + e.message, 'err'); return; }
+  if (!patch || typeof patch !== 'object' || !patch.registers) {
+    editorMsg('不是有效的描述文件（HTML 缺少 registers 字段）', 'err'); return;
+  }
+  descriptionOverlay = {};
+  descriptionOverlayLoaded = false;
+  descriptionOverlayVersion = null;
+  mergeDescriptionOverlay(patch);
+  applyOverlayToAllRegisters();
+  renderFileList();
+  editorMsg('已应用：' + Object.keys(descriptionOverlay).length + ' 个寄存器描述', 'ok');
+}
+
+function saveDescEditorLocal() {
+  var area = document.getElementById('desc-editor-area');
+  var txt = (area && area.value) || '';
+  var a = document.createElement('a');
+  var name = (descFiles[0] && descFiles[0].name) || 'register_descriptions.json';
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  editorMsg('已保存到本地：' + name, 'ok');
+}
+
+function saveDescEditorNetwork() {
+  var area = document.getElementById('desc-editor-area');
+  var txt = (area && area.value) || '';
+  var name = (descFiles[0] && descFiles[0].name) || 'register_descriptions.json';
+  var subdir = (descFiles[0] && descFiles[0].path && descFiles[0].path.indexOf('/') > -1)
+    ? descFiles[0].path.slice(0, descFiles[0].path.lastIndexOf('/')) : 'latest';
+  fetch('/api/save-register-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Register-Subdir': subdir, 'X-Register-Filename': name },
+    body: txt
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) editorMsg('已保存到网络库：' + data.path, 'ok');
+    else editorMsg('保存失败：' + (data.error || '未知错误'), 'err');
+  })
+  .catch(function(e) { editorMsg('保存失败：' + e.message, 'err'); });
+}
+
 // ── 文件队列管理 ──────────────────────────────────────────
 function addFiles(files, type) {
   var added = false;
@@ -1731,6 +1846,7 @@ function renderFileList() {
     descHead.innerHTML = '<span class="fsh-ic">🎨</span> 描述文件（附加描述）'
       + '<label class="fsh-toggle" title="取消勾选后不显示附加描述（描述文件仍保留）">'
       + '<input type="checkbox" id="show-overlay-desc"' + (overlayDisplayOn ? ' checked' : '') + ' onchange="setOverlayDisplay(this.checked)">显示</label>'
+      + '<button class="fsh-edit" onclick="openDescEditor()" title="编辑描述文件（修改后保存到本地/网络库）">✏️ 编辑</button>'
       + '<span class="fsh-count">' + descFiles.length + '</span>';
     list.appendChild(descHead);
     for (var dk = 0; dk < descFiles.length; dk++) {
@@ -2113,6 +2229,8 @@ function finishParseBatch(newRegs, filesToParse, errors, generation) {
   document.getElementById('loading').classList.remove('visible');
   if (errors.length) showParseError(errors.join('\n'));
   renderFileList();
+  // 若寄存器在叠加层加载后才解析完成，需要重新应用叠加层描述
+  if (descriptionOverlayLoaded) applyOverlayToAllRegisters();
   refreshDataView();
   if (pendingFiles.some(function(p) { return !p.parsed; })) scheduleAutoParse();
 }
@@ -4030,6 +4148,8 @@ window.addEventListener('resize', updateGroupTop);
 (function() {
   var ov = document.getElementById('desc-stats-overlay');
   if (ov) ov.addEventListener('click', function(e) { if (e.target === ov) closeDescStats(); });
+  var ed = document.getElementById('desc-editor-overlay');
+  if (ed) ed.addEventListener('click', function(e) { if (e.target === ed) closeDescEditor(); });
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -4203,6 +4323,26 @@ dz.addEventListener('drop', function(e){
       <button class="ds-close" onclick="closeDescStats()" title="关闭">✕</button>
     </div>
     <div class="ds-body" id="desc-stats-body"></div>
+  </div>
+</div>
+
+<!-- 描述文件编辑弹窗 -->
+<div class="ds-overlay" id="desc-editor-overlay">
+  <div class="ds-modal">
+    <div class="ds-head">
+      <span class="ds-title">✏️ 编辑描述文件</span>
+      <button class="ds-close" onclick="closeDescEditor()" title="关闭">✕</button>
+    </div>
+    <div class="ds-body">
+      <div class="ds-editor-actions">
+        <button class="primary" onclick="applyDescEditor()">✔ 应用更改</button>
+        <button onclick="saveDescEditorLocal()" title="下载 .json 到本地">💾 保存到本地</button>
+        <button onclick="saveDescEditorNetwork()" title="上传到服务器 register 目录">☁ 保存到网络库</button>
+        <button onclick="reloadDescEditor()" title="放弃修改，重新载入">↻ 重新载入</button>
+      </div>
+      <textarea id="desc-editor-area" spellcheck="false"></textarea>
+      <div id="desc-editor-msg"></div>
+    </div>
   </div>
 </div>
 </body>

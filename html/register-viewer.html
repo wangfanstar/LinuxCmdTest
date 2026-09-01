@@ -991,6 +991,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     显示附加描述
   </label>
   <button class="topbar-btn" onclick="openDescStats()" title="描述文件统计：参考文档 / 总寄存器数 / BLOCK 分组">📊 描述统计</button>
+  <button class="topbar-btn" onclick="openHelp()" title="使用说明">📘 使用说明</button>
   <a href="index.html" style="font-size:13px;color:#8b949e;text-decoration:none;margin-left:16px;white-space:nowrap;" title="返回首页">← 返回首页</a>
 </div>
 
@@ -1036,24 +1037,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
     <!-- 解析错误提示 -->
     <div id="parse-error-bar" style="display:none;margin:0 14px 8px;padding:8px 10px;background:#4a2020;color:#ffaaaa;border-radius:6px;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;"></div>
 
-    <!-- 使用说明 -->
-    <div class="sidebar-section">
-      <div class="sidebar-title help-title" id="help-title" onclick="toggleHelp()">
-        <span class="bn-caret" id="help-caret">▸</span> 📘 使用说明
-      </div>
-      <div class="bn-body" id="help-body" style="display:none;font-size:0.72rem;color:#9fb0d0;line-height:1.6;">
-        <b>描述文件（叠加层）</b><br>
-        描述文件是 JSON，与被说明的<b>寄存器文件放在同一文件夹</b>，命名为<br>
-        <code>主名.json → 主名.descriptions.json</code><br>
-        例如：<code>d10_trunk_registers_13285.json</code><br>
-        <code>d10_trunk_registers_13285.descriptions.json</code><br>
-        右上角 <b>显示附加描述</b> 开关：勾选=自动加载/显示描述文件；取消=一键移除并关闭。<br>
-        描述条目支持 <b>更换</b> 与 <b>× 关闭</b>；左侧列出「🎨描述文件」与「📄寄存器文件（主文件）」两类。<br>
-        中间列的 <b>Block 导航</b> 默认折叠，点击可展开跳转。<br>
-        勾选 <b>只看附加描述</b> 可仅显示带手册/叠加层描述的寄存器。<br>
-        只有描述为空且匹配上时才会填充，带「📖手册」标记，<b>不覆盖</b>原有描述。
-      </div>
-    </div>
+    <!-- 使用说明已移至顶栏（见 📘 使用说明，打开 Help 弹窗） -->
 
     <!-- 操作按钮 -->
     <div class="sidebar-btns">
@@ -1143,6 +1127,10 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       <label class="toggle-wrap" title="仅显示带附加描述（手册/叠加层）的寄存器">
         <input type="checkbox" id="only-overlaid" onchange="doFilter()">
         只看附加描述
+      </label>
+      <label class="toggle-wrap" title="仅显示存在「主文件有定义但手册标记为保留」冲突标记的寄存器">
+        <input type="checkbox" id="only-conflict" onchange="doFilter()">
+        只看冲突
       </label>
       <label class="toggle-wrap" title="按 Block 分组显示，点击组头可折叠/展开">
         <input type="checkbox" id="group-by-block" checked onchange="toggleGroupBy()">
@@ -1446,12 +1434,23 @@ function registerReservedConflict(reg, f) {
   return false;
 }
 
+function registerHasConflict(r) {
+  if (!r || !r.fields) return false;
+  for (var i = 0; i < r.fields.length; i++) {
+    if (r.fields[i]._reservedConflict) return true;
+  }
+  return false;
+}
+
 // 左侧「显示附加描述」开关：取消后不把叠加层描述应用到展示
 var overlayDisplayOn = true;
 function setOverlayDisplay(on) {
   overlayDisplayOn = !!on;
   try { localStorage.setItem('rvOverlayDisplay', on ? '1' : '0'); } catch (e) {}
   if (!on) {
+    // 只回退描述，不隐藏寄存器：同时取消「只看附加描述」「只看冲突」过滤
+    var ovl = document.getElementById('only-overlaid'); if (ovl && ovl.checked) ovl.checked = false;
+    var cfl = document.getElementById('only-conflict'); if (cfl && cfl.checked) cfl.checked = false;
     for (var i = 0; i < allRegisters.length; i++) {
       var r = allRegisters[i];
       if (r._descSource !== 'manual') continue;
@@ -2778,15 +2777,12 @@ function toggleBnColumn(force) {
   if (navExpanded) renderBlockNavList();
 }
 
-var helpOpen = false;
-function toggleHelp() {
-  var title = document.getElementById('help-title');
-  var body  = document.getElementById('help-body');
-  var caret = document.getElementById('help-caret');
-  if (!title || !body) return;
-  helpOpen = !helpOpen;
-  if (caret) caret.textContent = helpOpen ? '▾' : '▸';
-  if (body) body.style.display = helpOpen ? '' : 'none';
+function openHelp() {
+  document.getElementById('help-overlay').classList.add('visible');
+}
+
+function closeHelp() {
+  document.getElementById('help-overlay').classList.remove('visible');
 }
 
 function renderBlockNav() {
@@ -3016,6 +3012,7 @@ function doFilter() {
   var ftSram = document.getElementById('ft-sram').checked;
   var showR  = document.getElementById('show-reserved').checked;
   var onlyOvl = document.getElementById('only-overlaid').checked;
+  var onlyConflict = document.getElementById('only-conflict').checked;
   var visibleFileIds = getVisibleFileIds();
   var visibleRegs = getVisibleRegisters();
 
@@ -3027,6 +3024,7 @@ function doFilter() {
     if (et === 'sram'     && !ftSram) return false;
     if (blkSet.size && !blkSet.has(r.blockName)) return false;
     if (onlyOvl && r._descSource !== 'manual') return false;
+    if (onlyConflict && !registerHasConflict(r)) return false;
     if (perm && r.entryType !== 'sram') {
       var ok = perm==='R' ? r._perms.some(function(p){return p==='R'||p==='RO';})
              : perm==='W' ? r._perms.some(function(p){return p==='W'||p==='WO';})
@@ -3711,6 +3709,7 @@ function clearAll() {
   document.getElementById('ft-ind').checked  = true;
   document.getElementById('ft-sram').checked = true;
   var onlyOvlEl = document.getElementById('only-overlaid'); if (onlyOvlEl) onlyOvlEl.checked = false;
+  var onlyConfEl = document.getElementById('only-conflict'); if (onlyConfEl) onlyConfEl.checked = false;
   document.getElementById('pill-reg').classList.remove('pill-off');
   document.getElementById('pill-ind').classList.remove('pill-off');
   document.getElementById('pill-sram').classList.remove('pill-off');
@@ -4173,6 +4172,8 @@ window.addEventListener('resize', updateGroupTop);
   if (ov) ov.addEventListener('click', function(e) { if (e.target === ov) closeDescStats(); });
   var ed = document.getElementById('desc-editor-overlay');
   if (ed) ed.addEventListener('click', function(e) { if (e.target === ed) closeDescEditor(); });
+  var hp = document.getElementById('help-overlay');
+  if (hp) hp.addEventListener('click', function(e) { if (e.target === hp) closeHelp(); });
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -4365,6 +4366,30 @@ dz.addEventListener('drop', function(e){
       </div>
       <textarea id="desc-editor-area" spellcheck="false"></textarea>
       <div id="desc-editor-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 使用说明弹窗 -->
+<div class="ds-overlay" id="help-overlay">
+  <div class="ds-modal">
+    <div class="ds-head">
+      <span class="ds-title">📘 使用说明</span>
+      <button class="ds-close" onclick="closeHelp()" title="关闭">✕</button>
+    </div>
+    <div class="ds-body" style="font-size:0.8rem;color:#c8d0e0;line-height:1.7;">
+      <b>描述文件（叠加层）</b><br>
+      描述文件是 JSON，与被说明的<b>寄存器文件放在同一文件夹</b>，命名为<br>
+      <code>主名.json → 主名.descriptions.json</code><br>
+      例如：<code>d10_trunk_registers_13285.json</code> 与 <code>d10_trunk_registers_13285.descriptions.json</code><br>
+      打开页面会自动扫描加载；点 <b>＋ JSON</b> 也会自动识别描述文件与主文件。<br>
+      <b>📊 描述统计</b>：查看参考文档、总寄存器数、BLOCK 分组统计。<br>
+      <b>✏️ 编辑</b>：编辑描述文件，保存到本地(.json)或网络库。<br>
+      描述条目支持 <b>更换</b> 与 <b>× 关闭</b>；左侧列出「🎨描述文件」与「📄寄存器文件（主文件）」两类。<br>
+      中间列的 <b>Block 导航</b> 默认展开，可折叠。<br>
+      右上角 <b>显示附加描述</b>：取消后仅把描述的附加内容还原为空白，寄存器仍显示。<br>
+      工具栏 <b>只看附加描述</b>：仅显示带手册/叠加层描述的寄存器；<b>只看冲突</b>：仅显示「主文件有定义但手册标记为保留」的寄存器。<br>
+      只有描述为空且匹配上时才会填充，带「📖手册」标记，<b>不覆盖</b>原有描述；冲突处有红色「⚠ 手册为保留」提醒。
     </div>
   </div>
 </div>

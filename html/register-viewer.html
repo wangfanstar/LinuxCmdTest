@@ -711,6 +711,25 @@ select:focus { border-color: var(--blue); }
 .rvp-bin { font-family: "Consolas", monospace; }
 .rvp-reg-bin { overflow-x: auto; }
 
+/* 二进制值弹窗：表格线对齐 */
+.binary-ctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: .8rem; color: #c8d0e0; }
+.binary-ctrl input {
+  width: 150px; padding: 4px 8px; border: 1.5px solid var(--border); border-radius: 5px;
+  font-family: "Consolas", monospace; font-size: .8rem; background: #fff; color: #333; outline: none;
+}
+.binary-ctrl input:focus { border-color: var(--blue); }
+#binary-hint { color: #7a8ba8; font-family: "Consolas", monospace; }
+.binary-scroll { overflow-x: auto; margin-bottom: 12px; }
+.bin-table { border-collapse: collapse; font-family: "Consolas", monospace; font-size: .68rem; color: #c8d0e0; }
+.bin-table td, .bin-table th { border: 1px solid #2d3a54; padding: 2px 5px; text-align: center; min-width: 17px; }
+.bin-table .bin-idx td { color: #9aa8ba; background: #20293f; font-size: .62rem; }
+.bin-table .bin-val td.b1 { color: #4a9eff; font-weight: 700; background: #13314f; }
+.bin-table .bin-val td.b0 { color: #7a8ba8; }
+.bin-fields td, .bin-fields th { text-align: left; white-space: nowrap; }
+.bin-fields .bin-fname { font-weight: 600; color: #dbe4f5; }
+.bin-fields .bin-bit { color: #9aa8ba; }
+.bin-fields .bin-bin { color: #4a9eff; white-space: pre; }
+
 /* 徽章 */
 .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
 .badge-RW  { background: #dbeafe; color: #1d4ed8; }
@@ -3792,6 +3811,72 @@ function closeRegisterValueParser() {
   valueParserTrigger = null;
 }
 
+// ── 二进制值弹窗（默认隐藏，点击“二进制”弹出；下标/值 表格对齐）──
+var binaryReg = null;
+var binaryValue = '0x0';
+function buildBinGrid(s, e, val) {
+  var idxCells = '', valCells = '';
+  for (var b = s; b >= e; b--) {
+    idxCells += '<td>' + b + '</td>';
+    var bit = ((val >> BigInt(b)) & 1n) ? 1 : 0;
+    valCells += '<td class="' + (bit ? 'b1' : 'b0') + '">' + bit + '</td>';
+  }
+  return '<table class="bin-table"><tr class="bin-idx">' + idxCells + '</tr>'
+       + '<tr class="bin-val">' + valCells + '</tr></table>';
+}
+
+function openBinaryViewer(uid) {
+  var reg = findRegisterByUid(uid);
+  if (!reg) { showToast('未找到该寄存器，请刷新页面后重试'); return; }
+  binaryReg = reg;
+  var title = document.getElementById('binary-title');
+  if (title) title.textContent = '二进制值 · ' + (reg.regName || '(未命名寄存器)') + '（' + registerValueWidth(reg) + ' bit）';
+  var input = document.getElementById('binary-input');
+  if (input) input.value = binaryValue;
+  document.getElementById('binary-overlay').classList.add('visible');
+  renderBinaryView();
+}
+
+function closeBinaryViewer() {
+  document.getElementById('binary-overlay').classList.remove('visible');
+}
+
+function renderBinaryView() {
+  if (!binaryReg) return;
+  var input = document.getElementById('binary-input');
+  var hint = document.getElementById('binary-hint');
+  var gw = document.getElementById('binary-grid-wrap');
+  var list = document.getElementById('binary-list');
+  if (!input || !gw || !list) return;
+  binaryValue = input.value;
+  var parsed = parseRegisterInput(input.value, valueParserRadix);
+  var val = parsed.ok ? parsed.value : 0n;
+  var width = registerValueWidth(binaryReg);
+  var mask = registerBitMask(width);
+  var used = val & mask;
+  if (hint) hint.textContent = parsed.ok
+    ? '（= 0x' + used.toString(16).toUpperCase() + ' / ' + used.toString(10) + '）'
+    : (parsed.error || '');
+  gw.innerHTML = buildBinGrid(width - 1, 0, used);
+  var rows = '';
+  for (var i = 0; i < binaryReg.fields.length; i++) {
+    var f = binaryReg.fields[i];
+    var fw = f.endBit - f.startBit + 1;
+    var fm = (1n << BigInt(fw)) - 1n;
+    var slice = (used >> BigInt(f.startBit)) & fm;
+    var bin = slice.toString(2);
+    if (bin.length < fw) bin = '0'.repeat(fw - bin.length) + bin;
+    rows += '<tr><td class="bin-fname">' + escHtml(f.name || '(未命名)') + '</td>'
+      + '<td class="bin-bit">[' + f.startBit + ':' + f.endBit + ']</td>'
+      + '<td class="bin-num">0x' + slice.toString(16).toUpperCase() + '</td>'
+      + '<td class="bin-num">' + slice.toString(10) + '</td>'
+      + '<td class="bin-bin">' + escHtml(bin) + '</td></tr>';
+  }
+  list.innerHTML = '<table class="bin-table bin-fields"><thead><tr>'
+    + '<th>字段</th><th>位段</th><th>HEX</th><th>十进制</th><th>二进制</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="5">无字段</td></tr>') + '</tbody></table>';
+}
+
 function setRegisterParserRadix(mode) {
   valueParserRadix = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
   var buttons = document.querySelectorAll('.rvp-radix-btn');
@@ -3848,9 +3933,7 @@ function renderRegisterValueParse() {
   meta.innerHTML = '输入值：<code>' + formatRegisterHex(parsed.value, Math.max(width, 1)) + '</code>'
     + '（十进制 <code>' + parsed.value.toString(10) + '</code>）'
     + '　按 <strong>' + width + ' bit</strong> 寄存器解析：<code>'
-    + formatRegisterHex(usedValue, width) + '</code>'
-    + '<div style="margin-top:6px;">寄存器二进制（下标 / 位值）：</div>'
-    + '<div class="rvp-reg-bin">' + fieldBinHtml(0, width - 1, usedValue) + '</div>';
+    + formatRegisterHex(usedValue, width) + '</code>';
   if (overflow) {
     message.textContent = '⚠ 输入值超过 ' + width + ' bit，下面明确按低 ' + width + ' 位解析，高位未参与字段计算。';
     message.classList.add('warn');
@@ -3894,14 +3977,13 @@ function renderRegisterValueParse() {
       + '<td class="rvp-bit">' + item.bits + '</td>'
       + '<td class="rvp-number">' + item.hex + '</td>'
       + '<td class="rvp-decimal">' + item.decimal + '</td>'
-      + '<td class="rvp-bin">' + fieldBinHtml(f.startBit, f.endBit, usedValue) + '</td>'
       + '<td>' + escHtml(perm) + '</td>'
       + '<td class="rvp-number">' + escHtml(toHexShort(f.resetVal)) + '</td>'
       + '<td class="rvp-definition">' + definition + '</td>'
       + '</tr>');
   }
   results.innerHTML = '<table class="rvp-table"><thead><tr>'
-    + '<th>字段名</th><th>位段</th><th>HEX 值</th><th>十进制值</th><th>BIN</th>'
+    + '<th>字段名</th><th>位段</th><th>HEX 值</th><th>十进制值</th>'
     + '<th>访问</th><th>复位值</th><th>字段定义</th>'
     + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
 }
@@ -4013,6 +4095,7 @@ function buildCard(r, idx, q) {
     + '<span class="col-name" title="' + escAttr(r.regName) + '">'
     + '<span class="reg-name-text">' + typeBadge + hl(r.regName, q) + '</span>'
     + '<button type="button" class="reg-value-parse-btn" onclick="openRegisterValueParser(' + r.uid + ', event)" title="输入十六进制或十进制值，按字段实时解析">解析</button>'
+    + '<button type="button" class="reg-value-parse-btn" onclick="openBinaryViewer(' + r.uid + ')" title="查看二进制值（下标 / 值对照表）">二进制</button>'
     + '</span>'
     + '<span class="col-addr" title="' + escAttr(r.addrRange || r.addrHex) + '">' + addrDisplay + '</span>'
     + '<span class="col-desc" title="' + escAttr(r.shortDesc) + '">' + hl(r.shortDesc, q) + '</span>'
@@ -4700,6 +4783,8 @@ window.addEventListener('resize', updateGroupTop);
   if (ed) ed.addEventListener('click', function(e) { if (e.target === ed) closeDescEditor(); });
   var hp = document.getElementById('help-overlay');
   if (hp) hp.addEventListener('click', function(e) { if (e.target === hp) closeHelp(); });
+  var bi = document.getElementById('binary-overlay');
+  if (bi) bi.addEventListener('click', function(e) { if (e.target === bi) closeBinaryViewer(); });
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -4928,6 +5013,21 @@ dz.addEventListener('drop', function(e){
       </div>
       <textarea id="desc-editor-area" spellcheck="false"></textarea>
       <div id="desc-editor-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 二进制值弹窗（默认隐藏，点击“二进制”弹出，带表格对齐） -->
+<div class="ds-overlay" id="binary-overlay">
+  <div class="ds-modal">
+    <div class="ds-head">
+      <span class="ds-title" id="binary-title">二进制值</span>
+      <button class="ds-close" onclick="closeBinaryViewer()" title="关闭">✕</button>
+    </div>
+    <div class="ds-body">
+      <div class="binary-ctrl">输入寄存器值(hex)：<input id="binary-input" oninput="renderBinaryView()" spellcheck="false" placeholder="0x0" title="实时解析二进制"><span id="binary-hint"></span></div>
+      <div id="binary-grid-wrap" class="binary-scroll"></div>
+      <div id="binary-list"></div>
     </div>
   </div>
 </div>

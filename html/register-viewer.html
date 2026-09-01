@@ -711,22 +711,26 @@ select:focus { border-color: var(--blue); }
 .rvp-bin { font-family: "Consolas", monospace; }
 .rvp-reg-bin { overflow-x: auto; }
 
-/* 二进制值（解析弹窗 BIN 列）：默认隐藏，点击弹出下标/值表格 */
+/* 二进制值（解析弹窗 BIN 列）：点击弹出与「解析」一致的独立弹窗 */
 .bin-trigger { cursor: pointer; color: #4a9eff; user-select: none; }
 .bin-trigger:hover { color: #7cc0ff; }
-.rvp-bin-cell { position: relative; text-align: center; }
-.bin-pop {
-  display: none; position: absolute; left: 0; top: 100%; z-index: 80;
-  background: #1e2740; border: 1px solid #3a4e70; border-radius: 6px;
-  padding: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.5);
+.rvp-bin-cell { text-align: center; }
+.binary-ctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: .8rem; color: #c8d0e0; }
+.binary-ctrl input {
+  width: 150px; padding: 4px 8px; border: 1.5px solid var(--border); border-radius: 5px;
+  font-family: "Consolas", monospace; font-size: .8rem; background: #fff; color: #333; outline: none;
 }
-.bin-pop.visible { display: block; }
-.bin-pop-scroll { overflow-x: auto; display: block; max-width: 78vw; }
+.binary-ctrl input:focus { border-color: var(--blue); }
+#bin-modal-hint { color: #7a8ba8; font-family: "Consolas", monospace; }
+.binary-scroll { overflow-x: auto; margin-bottom: 12px; }
 .bin-table { border-collapse: collapse; font-family: "Consolas", monospace; font-size: .68rem; color: #c8d0e0; }
-.bin-table td { border: 1px solid #2d3a54; padding: 2px 5px; text-align: center; min-width: 17px; }
+.bin-table td, .bin-table th { border: 1px solid #2d3a54; padding: 2px 5px; text-align: center; min-width: 17px; }
 .bin-table .bin-idx td { color: #9aa8ba; background: #20293f; font-size: .62rem; }
 .bin-table .bin-val td.b1 { color: #4a9eff; font-weight: 700; background: #13314f; }
 .bin-table .bin-val td.b0 { color: #7a8ba8; }
+.bin-table.bin-fields td, .bin-table.bin-fields th { text-align: left; white-space: nowrap; }
+.bin-table.bin-fields .bin-fname { font-weight: 600; color: #dbe4f5; }
+.bin-table.bin-fields .bin-bin { color: #4a9eff; white-space: pre; }
 
 /* 徽章 */
 .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
@@ -3809,8 +3813,9 @@ function closeRegisterValueParser() {
   valueParserTrigger = null;
 }
 
-// ── 二进制值（解析弹窗内 BIN 列，默认隐藏，点击弹出下标/值表格）──
+// ── 二进制值（解析弹窗内 BIN 列，点击弹出与「解析」类似的独立弹窗）──
 var valueParserUsed = 0n;
+var binModalReg = null;
 function buildBinGrid(s, e, val) {
   var idxCells = '', valCells = '';
   for (var b = s; b >= e; b--) {
@@ -3823,20 +3828,53 @@ function buildBinGrid(s, e, val) {
 }
 
 function toggleFieldBin(hand) {
-  var pop = hand.nextElementSibling;
-  if (!pop) return;
-  if (pop.classList.contains('visible')) {
-    pop.classList.remove('visible');
-    pop.innerHTML = '';
-    hand.textContent = '▸';
-    return;
+  binModalReg = valueParserReg;
+  if (!binModalReg) { showToast('未找到寄存器'); return; }
+  var title = document.getElementById('bin-modal-title');
+  if (title) title.textContent = '二进制值 · ' + (binModalReg.regName || '(未命名寄存器)')
+    + '（' + registerValueWidth(binModalReg) + ' bit）';
+  var input = document.getElementById('bin-modal-input');
+  if (input) input.value = (binModalReg && valueParserValues[String(binModalReg.uid)]) || '0x0';
+  document.getElementById('bin-modal-overlay').classList.add('visible');
+  renderBinModal();
+}
+
+function closeBinModal() {
+  document.getElementById('bin-modal-overlay').classList.remove('visible');
+}
+
+function renderBinModal() {
+  if (!binModalReg) return;
+  var input = document.getElementById('bin-modal-input');
+  var hint = document.getElementById('bin-modal-hint');
+  var grid = document.getElementById('bin-modal-grid');
+  var list = document.getElementById('bin-modal-list');
+  if (!input || !grid || !list) return;
+  var parsed = parseRegisterInput(input.value, valueParserRadix);
+  var val = parsed.ok ? parsed.value : 0n;
+  var width = registerValueWidth(binModalReg);
+  var used = val & registerBitMask(width);
+  if (hint) hint.textContent = parsed.ok
+    ? '（= 0x' + used.toString(16).toUpperCase() + ' / ' + used.toString(10) + '）'
+    : (parsed.error || '');
+  grid.innerHTML = buildBinGrid(width - 1, 0, used);
+  var rows = '';
+  for (var i = 0; i < binModalReg.fields.length; i++) {
+    var f = binModalReg.fields[i];
+    var fw = f.endBit - f.startBit + 1;
+    var fm = (1n << BigInt(fw)) - 1n;
+    var slice = (used >> BigInt(f.startBit)) & fm;
+    var bin = slice.toString(2);
+    if (bin.length < fw) bin = '0'.repeat(fw - bin.length) + bin;
+    rows += '<tr><td class="bin-fname">' + escHtml(f.name || '(未命名)') + '</td>'
+      + '<td>[' + f.startBit + ':' + f.endBit + ']</td>'
+      + '<td class="bin-num">0x' + slice.toString(16).toUpperCase() + '</td>'
+      + '<td class="bin-num">' + slice.toString(10) + '</td>'
+      + '<td class="bin-bin">' + escHtml(bin) + '</td></tr>';
   }
-  var s = parseInt(hand.getAttribute('data-s'), 10);
-  var e = parseInt(hand.getAttribute('data-e'), 10);
-  pop.innerHTML = '<span class="bin-pop-scroll">' + buildBinGrid(e, s, valueParserUsed) + '</span>';
-  pop.classList.add('visible');
-  hand.textContent = '▾';
-  // 避免再次点击同一处时误触 close（由外层 document click 关闭）
+  list.innerHTML = '<table class="bin-table bin-fields"><thead><tr>'
+    + '<th>字段</th><th>位段</th><th>HEX</th><th>十进制</th><th>二进制</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="5">无字段</td></tr>') + '</tbody></table>';
 }
 
 function setRegisterParserRadix(mode) {
@@ -3938,7 +3976,7 @@ function renderRegisterValueParse() {
     rows.push('<tr' + rowClass + '>'
       + '<td class="rvp-field-name">' + escHtml(f.name || '(未命名)') + '</td>'
       + '<td class="rvp-bit">' + item.bits + '</td>'
-      + '<td class="rvp-bin-cell"><span class="bin-trigger" onclick="toggleFieldBin(this)" data-s="' + f.startBit + '" data-e="' + f.endBit + '" title="点击查看该位段的二进制（下标/值）">▸</span><span class="bin-pop"></span></td>'
+      + '<td class="rvp-bin-cell"><span class="bin-trigger" onclick="toggleFieldBin(this)" data-s="' + f.startBit + '" data-e="' + f.endBit + '" title="点击查看二进制（下标/值对照表）">▸ 二进制</span></td>'
       + '<td class="rvp-number">' + item.hex + '</td>'
       + '<td class="rvp-decimal">' + item.decimal + '</td>'
       + '<td>' + escHtml(perm) + '</td>'
@@ -4746,6 +4784,8 @@ window.addEventListener('resize', updateGroupTop);
   if (ed) ed.addEventListener('click', function(e) { if (e.target === ed) closeDescEditor(); });
   var hp = document.getElementById('help-overlay');
   if (hp) hp.addEventListener('click', function(e) { if (e.target === hp) closeHelp(); });
+  var bm = document.getElementById('bin-modal-overlay');
+  if (bm) bm.addEventListener('click', function(e) { if (e.target === bm) closeBinModal(); });
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -4943,6 +4983,26 @@ dz.addEventListener('drop', function(e){
     </div>
     <div class="rvp-results" id="value-parser-results">
       <div class="rvp-empty">输入数值后，将在此处实时显示各个位段的解析结果。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 二进制值弹窗（点击解析面板 BIN 弹出，样式与「解析」一致） -->
+<div class="ds-overlay" id="bin-modal-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="bin-modal-title" onclick="if(event.target===this) closeBinModal()">
+  <div class="ds-modal">
+    <div class="ds-head">
+      <span class="ds-title" id="bin-modal-title">二进制值</span>
+      <button class="ds-close" onclick="closeBinModal()" title="关闭">✕</button>
+    </div>
+    <div class="ds-body">
+      <div class="binary-ctrl">
+        <span>输入寄存器值(hex)：</span>
+        <input id="bin-modal-input" type="text" autocomplete="off" spellcheck="false" placeholder="0x0" oninput="renderBinModal()" aria-label="寄存器数值">
+        <span id="bin-modal-hint"></span>
+      </div>
+      <div id="bin-modal-grid" class="binary-scroll"></div>
+      <div id="bin-modal-list"></div>
     </div>
   </div>
 </div>

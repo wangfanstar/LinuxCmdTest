@@ -4000,21 +4000,32 @@ document.addEventListener('keydown', function(ev) {
 
 // ── 内联二进制值列（默认折叠，点击表头展开；显示下标值与实际值对比）──
 function fieldBinHtml(s, e, val) {
-  // 每行最多 16 位，分 2 列（各 8 位）；每位一个固定宽单元格，下标/位值列对齐，
-  // 第 9 位处加竖直分隔线（bin-sep）标出两列。
-  var rows = '';
-  for (var top = e; top >= s; top -= 16) {
-    var bot = Math.max(s, top - 15);
-    var idxCells = '', valCells = '';
-    var n = 0;
-    for (var b = top; b >= bot; b--) {
-      var sep = (n === 8) ? ' bin-sep' : '';
-      idxCells += '<td class="bin-bit idx' + sep + '">' + b + '</td>';
-      valCells += '<td class="bin-bit' + sep + '">' + (((val >> BigInt(b)) & 1n) ? '1' : '0') + '</td>';
-      n++;
+  // 每个 8 位一组（按 0-7、8-15 对齐），从高到低排列，一行 2 组（16 位）；
+  // 组内超出字段范围的位置留空白，不填值。
+  var startWin = Math.floor(s / 8) * 8;
+  var endWin = Math.floor(e / 8) * 8;
+  var windows = [];
+  for (var w = endWin; w >= startWin; w -= 8) windows.push(w);  // 高位组在前
+
+  function cells(base) {
+    var idxS = '', valS = '';
+    for (var b = base + 7; b >= base; b--) {
+      var inF = (b >= s && b <= e);
+      idxS += '<td class="bin-bit idx">' + (inF ? b : '') + '</td>';
+      valS += '<td class="bin-bit">' + (inF ? (((val >> BigInt(b)) & 1n) ? '1' : '0') : '') + '</td>';
     }
-    rows += '<tr class="bin-idx-row">' + idxCells + '</tr>'
-          + '<tr class="bin-val-row">' + valCells + '</tr>';
+    return { idx: idxS, val: valS };
+  }
+
+  var rows = '';
+  for (var i = 0; i < windows.length; i += 2) {
+    var c1 = cells(windows[i]);
+    var c2 = (windows[i + 1] !== undefined) ? cells(windows[i + 1]) : { idx: '', val: '' };
+    // 在第二组首列加竖直分隔线
+    var sep2i = c2.idx ? c2.idx.replace(/<td class="bin-bit idx">/, '<td class="bin-bit idx bin-sep">') : '';
+    var sep2v = c2.val ? c2.val.replace(/<td class="bin-bit">/, '<td class="bin-bit bin-sep">') : '';
+    rows += '<tr class="bin-idx-row">' + c1.idx + sep2i + '</tr>'
+          + '<tr class="bin-val-row">' + c1.val + sep2v + '</tr>';
   }
   return '<table class="bin-readable"><tbody>' + rows + '</tbody></table>';
 }

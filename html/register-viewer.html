@@ -703,30 +703,13 @@ select:focus { border-color: var(--blue); }
 .rst-pop.visible { display: block; }
 .field-desc    { color: #555; line-height: 1.5; white-space: pre-wrap; }
 
-/* 内联二进制值列：默认折叠 td，点击表头展开；显示下标值与实际值对比 */
-.fields-table td.bin-cell { display: none; }
-.reg-card.show-bin .fields-table td.bin-cell { display: table-cell; }
-.bin-toggle { cursor: pointer; white-space: nowrap; user-select: none; }
-.bin-toggle:hover { color: var(--blue); }
-.bin-caret { font-size: .68rem; margin-left: 3px; color: var(--muted); }
-.field-bin { font-family: "Consolas", monospace; }
+/* 二进制值（弹窗内）：下标与位值对比 */
 .fbin { display: inline-block; vertical-align: top; }
-.fbin-i, .fbin-v { display: block; font-size: .68rem; letter-spacing: 1px; line-height: 1.3; white-space: pre; }
+.fbin-i, .fbin-v { display: block; font-size: .66rem; letter-spacing: 1px; line-height: 1.3; white-space: pre; }
 .fbin-i { color: #9aa8ba; }
 .fbin-v { color: #1a4d80; font-weight: 600; }
-.reg-value-bar {
-  display: none; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 8px 12px; margin-bottom: 4px;
-  background: #f7f9fc; border-bottom: 1px solid var(--border);
-  font-size: .78rem; color: #555;
-}
-.reg-card.show-bin .reg-value-bar { display: flex; }
-.reg-value-bar input {
-  width: 160px; padding: 4px 8px; border: 1.5px solid var(--border); border-radius: 5px;
-  font-family: "Consolas", monospace; font-size: .8rem; background: #fff; color: #333; outline: none;
-}
-.reg-value-bar input:focus { border-color: var(--blue); }
-.reg-val-info { color: var(--muted); font-family: "Consolas", monospace; }
+.rvp-bin { font-family: "Consolas", monospace; }
+.rvp-reg-bin { overflow-x: auto; }
 
 /* 徽章 */
 .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 0.74rem; font-weight: 700; font-family: "Consolas", monospace; letter-spacing: .4px; }
@@ -1234,6 +1217,15 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
         <span class="search-icon">🔍</span>
         <input type="text" id="search-input" placeholder="搜索寄存器名、地址、描述、字段名…" oninput="doFilter()">
       </div>
+      <select id="search-mode" onchange="doFilter()" title="搜索匹配方式">
+        <option value="">包含匹配</option>
+        <option value="wild">通配符</option>
+        <option value="fuzzy">模糊匹配</option>
+      </select>
+      <label class="toggle-wrap" title="忽略大小写匹配">
+        <input type="checkbox" id="ignore-case" checked onchange="doFilter()">
+        忽略大小写
+      </label>
       <div class="msel" id="block-msel">
         <button type="button" class="msel-btn" onclick="toggleBlockPanel(event)" title="Block 多选筛选">
           <span class="msel-label" id="block-msel-label">全部 Block</span>
@@ -1679,7 +1671,8 @@ function applyOverlayToRegister(reg) {
       f.desc = patch.fields[fk];
       f._descSource = 'manual';
       touched = true;
-      if (reg._search) reg._search += ' ' + patch.fields[fk].toLowerCase();
+      if (reg._search) reg._search += ' ' + patch.fields[fk];
+      if (reg._searchLc) reg._searchLc += ' ' + patch.fields[fk].toLowerCase();
       // 主文件定义的真实字段，但手册把该位域标记为保留 → 冲突提醒
       if (!f.reserved && registerReservedConflict(reg, f)) f._reservedConflict = true;
     }
@@ -2607,7 +2600,7 @@ function parseRegElement(reg, blockName, subName, filename, entryType, fileId) {
     addrDec: addrDec, addrHex: addrHex, addrRange: addrRange,
     shortDesc: shortDesc, fullDesc: gtext(reg, 'Full_Description'),
     resetOn: gtext(reg, 'Reset_On'), ztlMode: gtext(reg, 'ZTL_Mode'), copies: copiesStr,
-    fields: fields, _search: searchParts.join(' ').toLowerCase(), _perms: permsArr
+    fields: fields, _search: searchParts.join(' '), _searchLc: searchParts.join(' ').toLowerCase(), _perms: permsArr
   };
   applyOverlayToRegister(obj);
   return obj;
@@ -2734,7 +2727,8 @@ function parseXML(text, filename, fileId) {
           writable:  writable,
           modifiable:modifiable,
           fields:    sFields,
-          _search:   sSearchParts.join(' ').toLowerCase(),
+          _search:   sSearchParts.join(' '),
+          _searchLc: sSearchParts.join(' ').toLowerCase(),
           _perms:    []
         };
         applyOverlayToRegister(sObj);
@@ -2826,7 +2820,8 @@ function parseImportedJSON(text, filename, fileId) {
       writable:  r.writable || '',
       modifiable:r.modifiable || '',
       fields:    fields,
-      _search:   searchParts2.join(' ').toLowerCase(),
+      _search:   searchParts2.join(' '),
+      _searchLc: searchParts2.join(' ').toLowerCase(),
       _perms:    permsArr2
     };
     applyOverlayToRegister(obj2);
@@ -2931,6 +2926,36 @@ function refreshDataView() {
 }
 
 // ── 搜索 & 过滤 ──────────────────────────────────────────
+// 搜索匹配：包含 / 通配符(*?) / 模糊(子序列)，支持忽略大小写
+function wildcardToRegExp(p) {
+  var out = '';
+  for (var i = 0; i < p.length; i++) {
+    var c = p[i];
+    if (c === '*') out += '.*';
+    else if (c === '?') out += '.';
+    else out += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(out);
+}
+
+function fuzzyMatch(hay, q) {
+  var i = 0;
+  for (var j = 0; j < hay.length && i < q.length; j++) {
+    if (hay[j] === q[i]) i++;
+  }
+  return i === q.length;
+}
+
+function searchMatch(r, q, mode, ignoreCase) {
+  if (!q) return true;
+  var hay = ignoreCase ? (r._searchLc || '') : (r._search || '');
+  var needle = ignoreCase ? q.toLowerCase() : q;
+  if (!hay) return false;
+  if (mode === 'wild') return wildcardToRegExp(needle).test(hay);
+  if (mode === 'fuzzy') return fuzzyMatch(hay, needle);
+  return hay.indexOf(needle) !== -1;
+}
+
 // 类型勾选变化时：更新 pill 样式，再过滤
 function onTypeFilter() {
   var pills = [
@@ -3293,7 +3318,9 @@ function showToast(msg) {
 }
 
 function doFilter() {
-  var q     = document.getElementById('search-input').value.trim().toLowerCase();
+  var rawQ   = document.getElementById('search-input').value.trim();
+  var ignoreCase = document.getElementById('ignore-case').checked;
+  var sMode  = document.getElementById('search-mode').value || '';
   var blkSet = selectedBlocks;   // Block 多选（空集 = 全部）
   var perm  = document.getElementById('filter-perm').value.toUpperCase();
   var ftReg  = document.getElementById('ft-reg').checked;
@@ -3320,7 +3347,7 @@ function doFilter() {
              : r._perms.indexOf(perm) !== -1;
       if (!ok) return false;
     }
-    if (q && r._search.indexOf(q) === -1) return false;
+    if (rawQ && !searchMatch(r, rawQ, sMode, ignoreCase)) return false;
     return true;
   });
 
@@ -3821,7 +3848,9 @@ function renderRegisterValueParse() {
   meta.innerHTML = '输入值：<code>' + formatRegisterHex(parsed.value, Math.max(width, 1)) + '</code>'
     + '（十进制 <code>' + parsed.value.toString(10) + '</code>）'
     + '　按 <strong>' + width + ' bit</strong> 寄存器解析：<code>'
-    + formatRegisterHex(usedValue, width) + '</code>';
+    + formatRegisterHex(usedValue, width) + '</code>'
+    + '<div style="margin-top:6px;">寄存器二进制（下标 / 位值）：</div>'
+    + '<div class="rvp-reg-bin">' + fieldBinHtml(0, width - 1, usedValue) + '</div>';
   if (overflow) {
     message.textContent = '⚠ 输入值超过 ' + width + ' bit，下面明确按低 ' + width + ' 位解析，高位未参与字段计算。';
     message.classList.add('warn');
@@ -3860,15 +3889,12 @@ function renderRegisterValueParse() {
       definition = '<div class="rvp-reserved-warning">⚠ 保留位被置为非零</div>' + definition;
     }
     var perm = f.reserved ? 'RSV' : (f.perm || '—');
-    var fw = (f.endBit != null && f.startBit != null) ? (f.endBit - f.startBit + 1) : 0;
-    var mb = item.value.toString(2);
-    if (fw > 0 && mb.length < fw) mb = '0'.repeat(fw - mb.length) + mb;
     rows.push('<tr' + rowClass + '>'
       + '<td class="rvp-field-name">' + escHtml(f.name || '(未命名)') + '</td>'
       + '<td class="rvp-bit">' + item.bits + '</td>'
       + '<td class="rvp-number">' + item.hex + '</td>'
       + '<td class="rvp-decimal">' + item.decimal + '</td>'
-      + '<td class="rvp-number rvp-bin">' + escHtml(mb) + '</td>'
+      + '<td class="rvp-bin">' + fieldBinHtml(f.startBit, f.endBit, usedValue) + '</td>'
       + '<td>' + escHtml(perm) + '</td>'
       + '<td class="rvp-number">' + escHtml(toHexShort(f.resetVal)) + '</td>'
       + '<td class="rvp-definition">' + definition + '</td>'
@@ -3897,43 +3923,6 @@ function fieldBinHtml(s, e, val) {
        + '<span class="fbin-v">' + v.join(' ') + '</span></span>';
 }
 
-function toggleBinView(ev) {
-  var th = (ev && ev.currentTarget) || (ev && ev.target);
-  var card = th && th.closest ? th.closest('.reg-card') : null;
-  if (!card) return;
-  var show = card.classList.toggle('show-bin');
-  var caret = card.querySelector('.bin-caret');
-  if (caret) caret.textContent = show ? '▾' : '▸';
-  var inp = card.querySelector('.reg-val-input');
-  if (inp) {
-    if (show && !inp._init) { inp._init = true; inp.value = '0x0'; }
-    updateFieldValues(inp);
-    if (show && inp.focus) inp.focus();
-  }
-}
-
-function updateFieldValues(inp) {
-  var uid = inp.getAttribute('data-uid');
-  var card = inp.closest ? inp.closest('.reg-card') : null;
-  if (!card) return;
-  var parsed = parseRegisterInput(inp.value, valueParserRadix);
-  var val = parsed.ok ? parsed.value : 0n;
-  var cells = card.querySelectorAll('.field-bin[data-uid="' + uid + '"]');
-  for (var i = 0; i < cells.length; i++) {
-    var c = cells[i];
-    var s = parseInt(c.getAttribute('data-s'), 10);
-    var e = parseInt(c.getAttribute('data-e'), 10);
-    c.innerHTML = fieldBinHtml(s, e, val);
-  }
-  var info = card.querySelector('.reg-val-info');
-  if (info) {
-    var regW = findRegisterByUid(uid);
-    info.textContent = (parsed.ok)
-      ? '= DEC ' + val.toString(10) + ' / ' + formatRegisterHex(val, Math.max(regW ? registerValueWidth(regW) : 1, 1))
-      : (parsed.error || '');
-  }
-}
-
 function buildCard(r, idx, q) {
   var sf = r.fields;   // 始终渲染全部字段，显示/隐藏由 CSS 控制
   var fieldRows = sf.map(function(f) {
@@ -3953,7 +3942,6 @@ function buildCard(r, idx, q) {
     return '<tr' + rc + '>'
       + '<td class="field-name-cell">' + hl(f.name, q) + '</td>'
       + '<td class="bit-range">' + bits + '</td>'
-      + '<td class="bin-cell field-bin" data-uid="' + r.uid + '" data-s="' + f.startBit + '" data-e="' + f.endBit + '">--</td>'
       + '<td style="text-align:center;">' + f.width + '</td>'
       + '<td>' + permLabel + '</td>'
       + '<td class="reset-val"><span class="rst-wrap" title="点击查看十进制/二进制换算">'
@@ -4035,12 +4023,8 @@ function buildCard(r, idx, q) {
     + sramMetaBlock
     + '<div class="reg-meta">' + meta + '</div>'
     + fullDescBlock
-    + '<div class="reg-value-bar"><span>寄存器值(hex)：</span>'
-    + '<input class="reg-val-input" data-uid="' + r.uid + '" oninput="updateFieldValues(this)" placeholder="0x0" spellcheck="false" title="输入寄存器值，实时解析每个字段的二进制值">'
-    + '<span class="reg-val-info"></span></div>'
     + '<table class="fields-table"><thead><tr>'
     + '<th>字段名</th><th>位域</th>'
-    + '<th class="bin-cell bin-toggle" onclick="toggleBinView(event)" title="点击展开/折叠二进制值列"><span class="bin-label">二进制值</span><span class="bin-caret">▸</span></th>'
     + '<th style="text-align:center;">宽度</th>'
     + '<th>访问</th><th>复位值</th><th>描述</th>'
     + '</tr></thead><tbody>' + fieldRows + '</tbody></table>'
@@ -4241,6 +4225,8 @@ function clearAll() {
   document.getElementById('pill-ind').classList.remove('pill-off');
   document.getElementById('pill-sram').classList.remove('pill-off');
   document.getElementById('search-input').value='';
+  var smEl = document.getElementById('search-mode'); if (smEl) smEl.value = '';
+  var icEl = document.getElementById('ignore-case'); if (icEl) icEl.checked = true;
 }
 
 // ── 文件选择（使用预创建的持久 input，避免每次动态创建的卡顿）──────

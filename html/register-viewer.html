@@ -1288,6 +1288,7 @@ mark { background: #fff176; color: inherit; border-radius: 2px; padding: 0 1px; 
       </label>
       <button class="btn-toolbar secondary" onclick="expandAll()">全部展开</button>
       <button class="btn-toolbar secondary" onclick="collapseAll()">全部折叠</button>
+      <button class="btn-toolbar" onclick="openBinConverter()" title="独立二进制转换：输入十六/十进制，查看二进制">🔢 二进制</button>
       <span id="result-count"></span>
     </div>
 
@@ -3848,6 +3849,57 @@ function closeBinModal() {
   document.getElementById('bin-modal-overlay').classList.remove('visible');
 }
 
+// ── 独立二进制转换（主界面快捷按钮）────────────────────────
+var binConverterRadix = 'auto';
+function setBinConverterRadix(mode) {
+  binConverterRadix = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
+  var buttons = document.querySelectorAll('#bin-converter-overlay .rvp-radix-btn');
+  for (var i = 0; i < buttons.length; i++) {
+    var on = buttons[i].getAttribute('data-radix') === binConverterRadix;
+    buttons[i].classList.toggle('active', on);
+    buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  if (document.getElementById('bin-converter-overlay').classList.contains('visible')) renderBinConverter();
+}
+
+function openBinConverter() {
+  var input = document.getElementById('bin-converter-input');
+  if (input) input.value = '0x0';
+  document.getElementById('bin-converter-overlay').classList.add('visible');
+  renderBinConverter();
+  window.setTimeout(function() { if (input) { input.focus(); input.select(); } }, 0);
+}
+
+function closeBinConverter() {
+  document.getElementById('bin-converter-overlay').classList.remove('visible');
+}
+
+function renderBinConverter() {
+  var input = document.getElementById('bin-converter-input');
+  var meta = document.getElementById('bin-converter-meta');
+  var msg  = document.getElementById('bin-converter-msg');
+  var results = document.getElementById('bin-converter-results');
+  if (!input || !meta || !results) return;
+  var parsed = parseRegisterInput(input.value, binConverterRadix);
+  if (!parsed.ok) {
+    if (meta) meta.innerHTML = '';
+    if (msg) { msg.textContent = parsed.error || ''; msg.classList.add('error'); }
+    results.innerHTML = '<div class="rvp-empty">输入数值后，将在此处显示二进制。</div>';
+    return;
+  }
+  if (msg) msg.textContent = '';
+  var value = parsed.value;
+  var bitLen = value === 0n ? 1 : value.toString(2).length;
+  var width = Math.max(8, Math.ceil(bitLen / 8) * 8);
+  if (meta) meta.innerHTML = ''
+    + 'HEX：<code>0x' + value.toString(16).toUpperCase() + '</code>'
+    + '　十进制：<code>' + value.toString(10) + '</code>'
+    + '　二进制位宽：<strong>' + bitLen + '</strong> bit（按 ' + width + ' bit 展示）';
+  results.innerHTML = '<div style="margin-bottom:6px;">二进制（每行 16 位 = 2 列 × 8 位）：</div>'
+    + fieldBinHtml(0, width - 1, value);
+}
+
+
 function renderBinModal() {
   if (!binModalReg) return;
   var input = document.getElementById('bin-modal-input');
@@ -4809,6 +4861,8 @@ window.addEventListener('resize', updateGroupTop);
   if (hp) hp.addEventListener('click', function(e) { if (e.target === hp) closeHelp(); });
   var bm = document.getElementById('bin-modal-overlay');
   if (bm) bm.addEventListener('click', function(e) { if (e.target === bm) closeBinModal(); });
+  var bc = document.getElementById('bin-converter-overlay');
+  if (bc) bc.addEventListener('click', function(e) { if (e.target === bc) closeBinConverter(); });
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -5029,6 +5083,37 @@ dz.addEventListener('drop', function(e){
       </div>
     </div>
     <div class="rvp-results" id="bin-modal-results"></div>
+  </div>
+</div>
+
+<!-- 独立二进制转换（主界面快捷按钮，效果与解析面板二进制一致） -->
+<div class="rvp-overlay" id="bin-converter-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="bin-converter-title" onclick="if(event.target===this) closeBinConverter()">
+  <div class="rvp-modal">
+    <div class="rvp-head">
+      <div class="rvp-title-wrap">
+        <div class="rvp-title" id="bin-converter-title">二进制转换</div>
+        <div class="rvp-subtitle" id="bin-converter-sub">输入十六进制或十进制，实时查看二进制（8 位一组，下标/位值对齐）</div>
+      </div>
+      <button type="button" class="rvp-close" onclick="closeBinConverter()" title="关闭">✕</button>
+    </div>
+    <div class="rvp-input-area">
+      <div class="rvp-input-toolbar">
+        <span>输入进制</span>
+        <div class="rvp-radix-switch" role="group" aria-label="输入进制">
+          <button type="button" class="rvp-radix-btn active" data-radix="auto" aria-pressed="true" onclick="setBinConverterRadix('auto')">自动</button>
+          <button type="button" class="rvp-radix-btn" data-radix="hex" aria-pressed="false" onclick="setBinConverterRadix('hex')">HEX</button>
+          <button type="button" class="rvp-radix-btn" data-radix="dec" aria-pressed="false" onclick="setBinConverterRadix('dec')">DEC</button>
+        </div>
+      </div>
+      <div class="rvp-input-row">
+        <input id="bin-converter-input" type="text" autocomplete="off" spellcheck="false"
+          aria-label="数值" placeholder="例如：0x1234 或 4660" oninput="renderBinConverter()">
+      </div>
+      <div class="rvp-value-meta" id="bin-converter-meta"></div>
+      <div class="rvp-message" id="bin-converter-msg"></div>
+    </div>
+    <div class="rvp-results" id="bin-converter-results"></div>
   </div>
 </div>
 

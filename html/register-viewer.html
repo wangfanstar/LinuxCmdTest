@@ -3884,6 +3884,14 @@ function pasteInto(inputId, renderFn) {
   }).catch(function() { showToast('无法读取剪贴板'); });
 }
 
+function clearInput(inputId, renderFn) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.value = '';
+  if (renderFn) renderFn();
+  if (inp.focus) inp.focus();
+}
+
 function setBinConverterRadix(mode) {
   binConverterRadix = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
   var buttons = document.querySelectorAll('#bin-converter-overlay .rvp-radix-btn');
@@ -5087,6 +5095,7 @@ dz.addEventListener('drop', function(e){
         <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('zero')" title="快速填入全零值">置 0</button>
         <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('ones')" title="按当前寄存器位宽填入全一值">全 1</button>
         <button type="button" class="rvp-quick-btn" onclick="pasteInto('value-parser-input', renderRegisterValueParse)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
+        <button type="button" class="rvp-quick-btn" onclick="clearInput('value-parser-input', renderRegisterValueParse)" title="清空输入框">🧹 清空</button>
       </div>
       <div class="rvp-hint" id="value-parser-hint">自动识别：纯数字按十进制；0x、h 后缀或含 A-F 时按十六进制。</div>
       <div class="rvp-value-meta" id="value-parser-meta"></div>
@@ -5115,6 +5124,7 @@ dz.addEventListener('drop', function(e){
           aria-label="寄存器数值" placeholder="例如：0x1234 或 4660" oninput="renderBinModal()">
         <span class="rvp-value-meta" id="bin-modal-hint"></span>
         <button type="button" class="rvp-quick-btn" onclick="pasteInto('bin-modal-input', renderBinModal)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
+        <button type="button" class="rvp-quick-btn" onclick="clearInput('bin-modal-input', renderBinModal)" title="清空输入框">🧹 清空</button>
       </div>
     </div>
     <div class="rvp-results" id="bin-modal-results"></div>
@@ -5145,6 +5155,7 @@ dz.addEventListener('drop', function(e){
         <input id="bin-converter-input" type="text" autocomplete="off" spellcheck="false"
           aria-label="数值" placeholder="例如：0x1234 或 4660" oninput="renderBinConverter()">
         <button type="button" class="rvp-quick-btn" onclick="pasteInto('bin-converter-input', renderBinConverter)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
+        <button type="button" class="rvp-quick-btn" onclick="clearInput('bin-converter-input', renderBinConverter)" title="清空输入框">🧹 清空</button>
       </div>
       <div class="rvp-value-meta" id="bin-converter-meta"></div>
       <div class="rvp-message" id="bin-converter-msg"></div>

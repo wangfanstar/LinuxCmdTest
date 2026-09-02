@@ -3239,34 +3239,34 @@ function jumpToBlock(key) {
   for (var n = 0; n < filteredGroups.length; n++) delete expandedGroups[filteredGroups[n].key];
   expandedGroups[key] = true;
 
-  // 过滤后转到目标组所在页
-  doFilter();
+  // 只重新计算一次过滤 + 分组，并直接定位到目标组所在页（避免重复 buildGroups / 渲染）
+  filtered = computeFiltered();
+  filteredGroups = buildGroups(filtered);
+  groupPageDirty = true;
+  rebuildGroupPages();
   var idx = -1;
   for (var i2 = 0; i2 < filteredGroups.length; i2++) { if (filteredGroups[i2].key === key) { idx = i2; break; } }
-  if (idx >= 0) {
-    // 找到包含该组的页
-    for (var pgi = 0; pgi < groupPages.length; pgi++) {
-      if (idx >= groupPages[pgi].startGi && idx < groupPages[pgi].endGi) { groupPage = pgi + 1; break; }
-    }
-    // 页已确定，直接重渲到该页（不重算分页，避免 groupPageDirty 重置）
-    groupPageDirty = false;
-    renderPage();
-    var el = findGroupEl(key);
-    if (!el) { showToast('该 Block 被当前搜索/类型条件过滤，未显示'); return; }
-    if (el.classList.contains('collapsed')) {
-      ensureGroupBody(el);
-      el.classList.remove('collapsed');
-      expandedGroups[key] = true;
-    }
-    var content = document.querySelector('.content');
-    var tb = document.getElementById('toolbar');
-    var offset = (tb ? tb.offsetHeight : 0) + 8;
-    var top = el.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop - offset;
-    content.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    updateActiveNav();
-  } else {
-    showToast('该 Block 被当前搜索/类型条件过滤，未显示');
+  if (idx < 0) { showToast('该 Block 被当前搜索/类型条件过滤，未显示'); return; }
+  for (var pgi = 0; pgi < groupPages.length; pgi++) {
+    if (idx >= groupPages[pgi].startGi && idx < groupPages[pgi].endGi) { groupPage = pgi + 1; break; }
   }
+  groupPageDirty = false;
+  _skipGroupRebuild = true;
+  renderPage();
+  _skipGroupRebuild = false;
+  var el = findGroupEl(key);
+  if (!el) { showToast('该 Block 被当前搜索/类型条件过滤，未显示'); return; }
+  if (el.classList.contains('collapsed')) {
+    ensureGroupBody(el);
+    el.classList.remove('collapsed');
+    expandedGroups[key] = true;
+  }
+  var content = document.querySelector('.content');
+  var tb = document.getElementById('toolbar');
+  var offset = (tb ? tb.offsetHeight : 0) + 8;
+  var top = el.getBoundingClientRect().top - content.getBoundingClientRect().top + content.scrollTop - offset;
+  content.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+  updateActiveNav();
 }
 
 // 滚动监听：高亮当前位于视口顶部的 Block 组
@@ -3339,7 +3339,7 @@ function showToast(msg) {
   t._timer = setTimeout(function() { t.classList.remove('visible'); }, 2600);
 }
 
-function doFilter() {
+function computeFiltered() {
   var rawQ   = document.getElementById('search-input').value.trim();
   var ignoreCase = document.getElementById('ignore-case').checked;
   var sMode  = document.getElementById('search-mode').value || '';
@@ -3348,13 +3348,10 @@ function doFilter() {
   var ftReg  = document.getElementById('ft-reg').checked;
   var ftInd  = document.getElementById('ft-ind').checked;
   var ftSram = document.getElementById('ft-sram').checked;
-  var showR  = document.getElementById('show-reserved').checked;
   var onlyOvl = document.getElementById('only-overlaid').checked;
   var onlyConflict = document.getElementById('only-conflict').checked;
   var visibleFileIds = getVisibleFileIds();
-  var visibleRegs = getVisibleRegisters();
-
-  filtered = allRegisters.filter(function(r) {
+  return allRegisters.filter(function(r) {
     if (!isRegisterFileVisible(r, visibleFileIds)) return false;
     var et = r.entryType || 'reg';
     if (et === 'reg'      && !ftReg)  return false;
@@ -3372,6 +3369,24 @@ function doFilter() {
     if (rawQ && !searchMatch(r, rawQ, sMode, ignoreCase)) return false;
     return true;
   });
+}
+
+function doFilter() {
+  var rawQ   = document.getElementById('search-input').value.trim();
+  var ignoreCase = document.getElementById('ignore-case').checked;
+  var sMode  = document.getElementById('search-mode').value || '';
+  var blkSet = selectedBlocks;   // Block 多选（空集 = 全部）
+  var perm  = document.getElementById('filter-perm').value.toUpperCase();
+  var ftReg  = document.getElementById('ft-reg').checked;
+  var ftInd  = document.getElementById('ft-ind').checked;
+  var ftSram = document.getElementById('ft-sram').checked;
+  var showR  = document.getElementById('show-reserved').checked;
+  var onlyOvl = document.getElementById('only-overlaid').checked;
+  var onlyConflict = document.getElementById('only-conflict').checked;
+  var visibleFileIds = getVisibleFileIds();
+  var visibleRegs = getVisibleRegisters();
+
+  filtered = computeFiltered();
 
   // CSS 控制保留位显示/隐藏，无需过滤数据
   var regList = document.getElementById('reg-list');
@@ -3519,6 +3534,7 @@ function buildGroupHeaderHtml(g, gi) {
 // 分组视图分页：按"顶层 Block 名数"切页（每页最多 GROUP_PAGE_SIZE 个 Block），Block 不拆分、默认折叠
 var groupPageDirty = true;   // 过滤器变化后需重新计算分页
 var groupPages = [];         // [{startGi, endGi, blocks}]
+var _skipGroupRebuild = false; // 跳转/定位时复用已算好的分组，避免重复 buildGroups
 
 function rebuildGroupPages() {
   groupPages = [];
@@ -3546,13 +3562,15 @@ function rebuildGroupPages() {
 function renderGroupedPage(q) {
   var list = document.getElementById('reg-list');
 
-  filteredGroups = buildGroups(filtered);
-  if (groupPageDirty) {
-    rebuildGroupPages();
-    groupPageDirty = false;
-  } else {
-    // 数据未变（如仅展开/折叠）则无需重建；但仍保证页数有效
-    if (groupPage > groupPageCount) groupPage = groupPageCount;
+  if (!_skipGroupRebuild) {
+    filteredGroups = buildGroups(filtered);
+    if (groupPageDirty) {
+      rebuildGroupPages();
+      groupPageDirty = false;
+    } else {
+      // 数据未变（如仅展开/折叠）则无需重建；但仍保证页数有效
+      if (groupPage > groupPageCount) groupPage = groupPageCount;
+    }
   }
 
   var page = groupPages[groupPage - 1];
@@ -3851,6 +3869,21 @@ function closeBinModal() {
 
 // ── 独立二进制转换（主界面快捷按钮）────────────────────────
 var binConverterRadix = 'auto';
+
+// 粘贴剪贴板内容到指定输入框并触发渲染
+function pasteInto(inputId, renderFn) {
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    showToast('当前环境不支持自动读取剪贴板，请手动 Ctrl+V');
+    return;
+  }
+  navigator.clipboard.readText().then(function(t) {
+    var inp = document.getElementById(inputId);
+    if (!inp) return;
+    inp.value = (t || '').trim();
+    if (renderFn) renderFn();
+  }).catch(function() { showToast('无法读取剪贴板'); });
+}
+
 function setBinConverterRadix(mode) {
   binConverterRadix = /^(hex|dec)$/.test(mode || '') ? mode : 'auto';
   var buttons = document.querySelectorAll('#bin-converter-overlay .rvp-radix-btn');
@@ -5053,6 +5086,7 @@ dz.addEventListener('drop', function(e){
           aria-label="寄存器数值" placeholder="例如：0x1234 或 4660" oninput="renderRegisterValueParse()">
         <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('zero')" title="快速填入全零值">置 0</button>
         <button type="button" class="rvp-quick-btn" onclick="setRegisterParserValue('ones')" title="按当前寄存器位宽填入全一值">全 1</button>
+        <button type="button" class="rvp-quick-btn" onclick="pasteInto('value-parser-input', renderRegisterValueParse)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
       </div>
       <div class="rvp-hint" id="value-parser-hint">自动识别：纯数字按十进制；0x、h 后缀或含 A-F 时按十六进制。</div>
       <div class="rvp-value-meta" id="value-parser-meta"></div>
@@ -5080,6 +5114,7 @@ dz.addEventListener('drop', function(e){
         <input id="bin-modal-input" type="text" autocomplete="off" spellcheck="false"
           aria-label="寄存器数值" placeholder="例如：0x1234 或 4660" oninput="renderBinModal()">
         <span class="rvp-value-meta" id="bin-modal-hint"></span>
+        <button type="button" class="rvp-quick-btn" onclick="pasteInto('bin-modal-input', renderBinModal)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
       </div>
     </div>
     <div class="rvp-results" id="bin-modal-results"></div>
@@ -5109,6 +5144,7 @@ dz.addEventListener('drop', function(e){
       <div class="rvp-input-row">
         <input id="bin-converter-input" type="text" autocomplete="off" spellcheck="false"
           aria-label="数值" placeholder="例如：0x1234 或 4660" oninput="renderBinConverter()">
+        <button type="button" class="rvp-quick-btn" onclick="pasteInto('bin-converter-input', renderBinConverter)" title="粘贴剪贴板内容到输入框">📋 粘贴</button>
       </div>
       <div class="rvp-value-meta" id="bin-converter-meta"></div>
       <div class="rvp-message" id="bin-converter-msg"></div>

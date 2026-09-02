@@ -54,6 +54,8 @@ require_regex 'function fieldBinHtml\(s[[:space:]]*, e[[:space:]]*, val\)[[:spac
 require_regex 'function searchMatch\(r[[:space:]]*, q[[:space:]]*, mode[[:space:]]*, ignoreCase\)[[:space:]]*\{'
 require_regex 'function wildcardToRegExp\(p\)[[:space:]]*\{'
 require_regex 'function fuzzyMatch\(hay[[:space:]]*, q\)[[:space:]]*\{'
+require_regex 'function computeFiltered\(\)[[:space:]]*\{'
+require_regex 'function pasteInto\(inputId[[:space:]]*, renderFn\)[[:space:]]*\{'
 require_regex 'function toggleFieldBin\(hand\)[[:space:]]*\{'
 require_regex 'function buildBinGrid\(s[[:space:]]*, e[[:space:]]*, val\)[[:space:]]*\{'
 require_regex 'function closeBinModal\(\)[[:space:]]*\{'

@@ -4893,17 +4893,24 @@ initBlockNav();
 initCachePreference();
 window.addEventListener('resize', updateGroupTop);
 
+// 点击遮罩关闭时，要求 mousedown 与 click 都落在遮罩上才关闭，
+// 避免在输入框内按住左键拖动选中文本时误关弹窗。
+function bindOverlayClose(id, closeFn) {
+  var ov = document.getElementById(id);
+  if (!ov) return;
+  ov.addEventListener('mousedown', function(e) { ov._ovDown = (e.target === ov); });
+  ov.addEventListener('click', function(e) {
+    if (e.target === ov && ov._ovDown) closeFn();
+  });
+}
+
 (function() {
-  var ov = document.getElementById('desc-stats-overlay');
-  if (ov) ov.addEventListener('click', function(e) { if (e.target === ov) closeDescStats(); });
-  var ed = document.getElementById('desc-editor-overlay');
-  if (ed) ed.addEventListener('click', function(e) { if (e.target === ed) closeDescEditor(); });
-  var hp = document.getElementById('help-overlay');
-  if (hp) hp.addEventListener('click', function(e) { if (e.target === hp) closeHelp(); });
-  var bm = document.getElementById('bin-modal-overlay');
-  if (bm) bm.addEventListener('click', function(e) { if (e.target === bm) closeBinModal(); });
-  var bc = document.getElementById('bin-converter-overlay');
-  if (bc) bc.addEventListener('click', function(e) { if (e.target === bc) closeBinConverter(); });
+  bindOverlayClose('desc-stats-overlay', closeDescStats);
+  bindOverlayClose('desc-editor-overlay', closeDescEditor);
+  bindOverlayClose('help-overlay', closeHelp);
+  bindOverlayClose('bin-modal-overlay', closeBinModal);
+  bindOverlayClose('bin-converter-overlay', closeBinConverter);
+  bindOverlayClose('value-parser-overlay', closeRegisterValueParser);
 })();
 
 // ── 存档选中寄存器到 register 文件夹 ─────────────────────────
@@ -5071,7 +5078,7 @@ dz.addEventListener('drop', function(e){
 
 <!-- 寄存器数值解析弹窗（全页面复用一个实例，避免大数据量时增加隐藏 DOM） -->
 <div class="rvp-overlay" id="value-parser-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="value-parser-title" onclick="if(event.target===this) closeRegisterValueParser()">
+  aria-labelledby="value-parser-title">
   <div class="rvp-modal">
     <div class="rvp-head">
       <div class="rvp-title-wrap">
@@ -5109,7 +5116,7 @@ dz.addEventListener('drop', function(e){
 
 <!-- 二进制值弹窗（点击解析面板 BIN 弹出，样式与「解析」一致） -->
 <div class="rvp-overlay" id="bin-modal-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="bin-modal-title" onclick="if(event.target===this) closeBinModal()">
+  aria-labelledby="bin-modal-title">
   <div class="rvp-modal">
     <div class="rvp-head">
       <div class="rvp-title-wrap">
@@ -5133,7 +5140,7 @@ dz.addEventListener('drop', function(e){
 
 <!-- 独立二进制转换（主界面快捷按钮，效果与解析面板二进制一致） -->
 <div class="rvp-overlay" id="bin-converter-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="bin-converter-title" onclick="if(event.target===this) closeBinConverter()">
+  aria-labelledby="bin-converter-title">
   <div class="rvp-modal">
     <div class="rvp-head">
       <div class="rvp-title-wrap">
